@@ -1,4 +1,8 @@
-// Boolean field renderer
+/// Boolean field renderer with multiple presentation options.
+/// 
+/// This module provides different ways to render boolean fields including
+/// radio buttons (Yes/No), checkboxes, and toggle switches. The default
+/// render function uses radio buttons for better accessibility and clarity.
 
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -9,7 +13,25 @@ import lustre/event
 import form/model.{type FormMsg, FieldBlurred, FieldChanged}
 import schema/types
 
-// Render a boolean field
+/// Render a boolean field as radio buttons (Yes/No).
+/// 
+/// This is the default boolean field renderer that uses radio buttons
+/// for better user experience and accessibility. Radio buttons make the
+/// boolean choice explicit and clear to users.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for identification
+/// - `property`: Schema property for labeling and help text
+/// - `value`: Current boolean value (defaults to False if unset)
+/// - `is_required`: Whether a selection is required
+/// - `is_disabled`: Whether the field is disabled
+/// 
+/// ## Returns
+/// A complete boolean field using radio buttons for Yes/No selection
+/// 
+/// ## Alternative Renderers
+/// - `render_as_checkbox`: Single checkbox for true/false
+/// - `render_as_toggle`: Toggle switch interface
 pub fn render(
   field_name: String,
   property: types.SchemaProperty,
@@ -26,7 +48,20 @@ pub fn render(
   render_as_radio(field_name, property, current_value, is_required, is_disabled)
 }
 
-// Render boolean as radio buttons
+/// Render boolean field as Yes/No radio button group.
+/// 
+/// Creates a radio button group with Yes (true) and No (false) options.
+/// This provides explicit choice selection that's accessible and clear.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for radio button grouping
+/// - `property`: Schema property for labeling and help text
+/// - `current_value`: Current boolean value
+/// - `is_required`: Whether a selection is required
+/// - `is_disabled`: Whether both radio buttons are disabled
+/// 
+/// ## Returns
+/// A radio button group with Yes/No options
 fn render_as_radio(
   field_name: String,
   property: types.SchemaProperty,
@@ -75,7 +110,24 @@ fn render_as_radio(
   ])
 }
 
-// Alternative: Render as checkbox
+/// Render boolean field as a single checkbox.
+/// 
+/// Alternative boolean renderer that uses a traditional checkbox input.
+/// This is more compact but may be less explicit about the false state
+/// compared to radio buttons.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for identification
+/// - `property`: Schema property for labeling and help text
+/// - `value`: Current boolean value (defaults to False if unset)
+/// - `is_required`: Whether the checkbox must be checked
+/// - `is_disabled`: Whether the checkbox is disabled
+/// 
+/// ## Returns
+/// A checkbox field with label positioned after the checkbox
+/// 
+/// ## Usage
+/// Use this for compact boolean inputs or when the false state is implicit.
 pub fn render_as_checkbox(
   field_name: String,
   property: types.SchemaProperty,
@@ -106,7 +158,29 @@ pub fn render_as_checkbox(
   ])
 }
 
-// Alternative: Render as toggle switch
+/// Render boolean field as a toggle switch.
+/// 
+/// Alternative boolean renderer that creates a toggle switch interface
+/// with ON/OFF states. This provides a modern, mobile-friendly interface
+/// for boolean selection.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for identification
+/// - `property`: Schema property for labeling and help text
+/// - `value`: Current boolean value (defaults to False if unset)
+/// - `is_required`: Whether the field is required (for validation only)
+/// - `is_disabled`: Whether the toggle is disabled
+/// 
+/// ## Returns
+/// A toggle switch with ON/OFF visual states
+/// 
+/// ## Features
+/// - Visual ON/OFF indicator
+/// - ARIA accessibility attributes (role="switch", aria-checked)
+/// - Button-based interaction (not a form input)
+/// 
+/// ## Usage
+/// Use for modern interfaces or settings-style boolean controls.
 pub fn render_as_toggle(
   field_name: String,
   property: types.SchemaProperty,
@@ -152,7 +226,18 @@ pub fn render_as_toggle(
   ])
 }
 
-// Render field label
+/// Render field label for boolean fields.
+/// 
+/// **Note**: This duplicates functionality from field_common.render_label
+/// and should ideally use the common implementation for consistency.
+/// 
+/// ## Parameters
+/// - `field_name`: Field name for label association
+/// - `property`: Schema property for title text
+/// - `is_required`: Whether to show required indicator
+/// 
+/// ## Returns
+/// A label element for the boolean field
 fn render_label(
   field_name: String,
   property: types.SchemaProperty,
@@ -175,7 +260,18 @@ fn render_label(
   ])
 }
 
-// Render checkbox label (positioned after the checkbox)
+/// Render label for checkbox-style boolean fields.
+/// 
+/// Creates a label specifically styled for checkbox inputs, typically
+/// positioned after the checkbox itself for better visual flow.
+/// 
+/// ## Parameters
+/// - `field_name`: Field name for label association
+/// - `property`: Schema property for title text
+/// - `is_required`: Whether to show required indicator
+/// 
+/// ## Returns
+/// A label element styled for checkbox positioning
 fn render_checkbox_label(
   field_name: String,
   property: types.SchemaProperty,
@@ -198,7 +294,16 @@ fn render_checkbox_label(
   ])
 }
 
-// Render help text
+/// Render help text for boolean fields.
+/// 
+/// **Note**: This duplicates functionality from field_common.render_help_text
+/// and should ideally use the common implementation for consistency.
+/// 
+/// ## Parameters
+/// - `property`: Schema property containing description
+/// 
+/// ## Returns
+/// A help text element or empty text if no description
 fn render_help_text(property: types.SchemaProperty) -> Element(FormMsg) {
   case property.description {
     Some(desc) ->

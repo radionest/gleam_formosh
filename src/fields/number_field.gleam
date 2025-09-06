@@ -1,4 +1,8 @@
-// Number and integer field renderer
+/// Number and integer field renderer.
+/// 
+/// This module handles rendering of numeric input fields for both integer
+/// and floating-point number types, with support for various numeric
+/// constraints like min/max values and step increments.
 
 import gleam/float
 import gleam/int
@@ -12,7 +16,28 @@ import lustre/event
 import form/model.{type FormMsg, FieldBlurred, FieldChanged}
 import schema/types
 
-// Render a number or integer field
+/// Render a number or integer input field.
+/// 
+/// Creates an HTML number input with appropriate constraints and validation.
+/// Automatically determines whether to use integer or decimal input based
+/// on the field type in the schema property.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for identification
+/// - `property`: Schema property containing type and numeric constraints
+/// - `value`: Current field value (NumberValue or IntegerValue)
+/// - `is_required`: Whether the field is required
+/// - `is_disabled`: Whether the field is disabled
+/// 
+/// ## Returns
+/// A complete number input field with label, input, and help text
+/// 
+/// ## Features
+/// - Integer vs decimal input (step="1" vs step="any")
+/// - Min/max value constraints from schema
+/// - Exclusive min/max handling
+/// - Multiple-of (step) constraints
+/// - Proper numeric parsing and validation
 pub fn render(
   field_name: String,
   property: types.SchemaProperty,
@@ -55,7 +80,24 @@ pub fn render(
   ])
 }
 
-// Handle number input and conversion
+/// Handle numeric input parsing and conversion to appropriate field value.
+/// 
+/// Parses user input and converts it to the appropriate FieldValue type
+/// (IntegerValue or NumberValue) based on the field type. Invalid input
+/// is temporarily stored as StringValue for validation to handle.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for the resulting message
+/// - `value`: The raw string input from the user
+/// - `is_integer`: Whether this should be parsed as integer or float
+/// 
+/// ## Returns
+/// A FieldChanged message with the appropriate FieldValue
+/// 
+/// ## Parsing Logic
+/// - Empty string → NullValue
+/// - Integer fields: parse as int → IntegerValue or StringValue if invalid
+/// - Number fields: parse as float, fallback to int, then StringValue if invalid
 fn handle_number_input(
   field_name: String,
   value: String,
@@ -88,7 +130,18 @@ fn handle_number_input(
   }
 }
 
-// Render field label
+/// Render a field label for the number input.
+/// 
+/// **Note**: This function duplicates functionality from field_common.render_label
+/// and should ideally use the common implementation for consistency.
+/// 
+/// ## Parameters
+/// - `field_name`: Field name for label association
+/// - `property`: Schema property for title text
+/// - `is_required`: Whether to show required indicator
+/// 
+/// ## Returns
+/// A label element for the number field
 fn render_label(
   field_name: String,
   property: types.SchemaProperty,
@@ -111,7 +164,16 @@ fn render_label(
   ])
 }
 
-// Render help text
+/// Render help text for the number field.
+/// 
+/// **Note**: This function duplicates functionality from field_common.render_help_text
+/// and should ideally use the common implementation for consistency.
+/// 
+/// ## Parameters
+/// - `property`: Schema property containing description
+/// 
+/// ## Returns
+/// A help text element or empty text if no description
 fn render_help_text(property: types.SchemaProperty) -> Element(FormMsg) {
   case property.description {
     Some(desc) ->
@@ -122,7 +184,25 @@ fn render_help_text(property: types.SchemaProperty) -> Element(FormMsg) {
   }
 }
 
-// Get HTML attributes for number constraints
+/// Convert numeric constraints to HTML input attributes.
+/// 
+/// Takes numeric validation constraints from the JSON Schema and converts
+/// them to appropriate HTML5 number input attributes for client-side validation.
+/// 
+/// ## Parameters
+/// - `property`: Schema property containing numeric constraints
+/// 
+/// ## Returns
+/// List of HTML attributes representing the numeric constraints
+/// 
+/// ## Generated Attributes
+/// - `min`/`max`: From minimum/maximum constraints
+/// - `min`/`max`: From exclusive constraints (adjusted by small epsilon)
+/// - `step`: From multipleOf constraint
+/// 
+/// ## Exclusive Constraints
+/// Since HTML doesn't support exclusive min/max directly, we adjust
+/// the values by a small epsilon (0.000001) to approximate the constraint.
 fn get_number_constraints_attributes(
   property: types.SchemaProperty,
 ) -> List(attribute.Attribute(FormMsg)) {

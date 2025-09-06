@@ -2,7 +2,11 @@
 
 import gleam/dict.{type Dict}
 import gleam/option.{type Option, None}
-// JSON value type - simplified for now
+/// JSON value type representing any valid JSON data.
+/// 
+/// This type models all possible JSON values that can appear in schemas,
+/// form data, or validation constraints. It's used throughout the library
+/// for handling dynamic JSON content.
 pub type JsonValue {
   JsonString(String)
   JsonNumber(Float)
@@ -12,7 +16,10 @@ pub type JsonValue {
   JsonObject(List(#(String, JsonValue)))
 }
 
-// Basic field types supported by JSON Schema
+/// Field types supported by JSON Schema.
+/// 
+/// These correspond to the standard JSON Schema primitive types and are used
+/// to determine how form fields should be rendered and validated.
 pub type FieldType {
   StringType
   NumberType
@@ -23,7 +30,10 @@ pub type FieldType {
   NullType
 }
 
-// Validation rules for string fields
+/// Validation constraints for string fields.
+/// 
+/// These constraints correspond to JSON Schema string validation rules
+/// and are used to generate appropriate HTML attributes and validation logic.
 pub type StringConstraints {
   StringConstraints(
     min_length: Option(Int),
@@ -33,7 +43,10 @@ pub type StringConstraints {
   )
 }
 
-// Standard string formats
+/// Standard string formats defined by JSON Schema.
+/// 
+/// These formats provide semantic meaning to string fields and enable
+/// appropriate input types (email, url, date) and validation rules.
 pub type StringFormat {
   DateFormat
   DateTimeFormat
@@ -46,7 +59,10 @@ pub type StringFormat {
   CustomFormat(String)
 }
 
-// Validation rules for numeric fields
+/// Validation constraints for numeric fields.
+/// 
+/// These constraints correspond to JSON Schema numeric validation rules
+/// including bounds checking and multiple-of validation.
 pub type NumberConstraints {
   NumberConstraints(
     minimum: Option(Float),
@@ -58,7 +74,11 @@ pub type NumberConstraints {
 }
 
 
-// A single property in a JSON schema - simplified
+/// A single property definition within a JSON Schema.
+/// 
+/// This type represents a complete field definition including its type,
+/// validation constraints, metadata, and nested structure for complex types.
+/// It serves as the blueprint for generating form fields.
 pub type SchemaProperty {
   SchemaProperty(
     field_type: Option(FieldType),
@@ -78,7 +98,11 @@ pub type SchemaProperty {
 }
 
 
-// Root JSON Schema definition - simplified
+/// Root JSON Schema definition.
+/// 
+/// This represents a complete JSON Schema document that defines the structure
+/// and validation rules for a form. It contains the top-level properties,
+/// required fields, and global constraints.
 pub type JsonSchema {
   JsonSchema(
     title: String,
@@ -92,7 +116,10 @@ pub type JsonSchema {
   )
 }
 
-// Form field metadata for rendering
+/// Metadata for form field rendering.
+/// 
+/// This type contains presentation and behavior information for form fields
+/// that affects how they're displayed and interacted with in the UI.
 pub type FieldMeta {
   FieldMeta(
     name: String,
@@ -106,7 +133,10 @@ pub type FieldMeta {
   )
 }
 
-// Validation error
+/// A validation error for a specific field.
+/// 
+/// This type represents a single validation failure with the field name,
+/// human-readable message, and the validation rule that failed.
 pub type ValidationError {
   ValidationError(
     field: String,
@@ -115,7 +145,10 @@ pub type ValidationError {
   )
 }
 
-// Form field value - simplified
+/// A form field value with type information.
+/// 
+/// This type represents the actual data entered in form fields, maintaining
+/// type information to enable proper validation and serialization.
 pub type FieldValue {
   StringValue(String)
   NumberValue(Float)
@@ -126,7 +159,13 @@ pub type FieldValue {
   NullValue
 }
 
-// Helper functions to create empty constraints
+/// Create an empty StringConstraints with no validation rules.
+/// 
+/// This is useful as a default value when no string constraints are specified
+/// in the JSON Schema.
+/// 
+/// ## Returns
+/// A StringConstraints with all fields set to None
 pub fn empty_string_constraints() -> StringConstraints {
   StringConstraints(
     min_length: None,
@@ -136,6 +175,13 @@ pub fn empty_string_constraints() -> StringConstraints {
   )
 }
 
+/// Create an empty NumberConstraints with no validation rules.
+/// 
+/// This is useful as a default value when no numeric constraints are specified
+/// in the JSON Schema.
+/// 
+/// ## Returns
+/// A NumberConstraints with all fields set to None
 pub fn empty_number_constraints() -> NumberConstraints {
   NumberConstraints(
     minimum: None,
@@ -146,6 +192,13 @@ pub fn empty_number_constraints() -> NumberConstraints {
   )
 }
 
+/// Create an empty SchemaProperty with default values.
+/// 
+/// This is useful as a starting point when building schema properties
+/// programmatically or as a fallback for invalid property definitions.
+/// 
+/// ## Returns
+/// A SchemaProperty with all optional fields set to None and empty lists
 pub fn empty_property() -> SchemaProperty {
   SchemaProperty(
     field_type: None,

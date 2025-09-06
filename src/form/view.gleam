@@ -14,7 +14,24 @@ import fields/boolean_field
 import fields/array_field
 import schema/types
 
-// Render the entire form
+/// Render the entire form as a Lustre element.
+/// 
+/// This is the main view function for the form, rendering a complete form
+/// interface including header, body with all fields, footer with actions,
+/// and any submission result messages.
+/// 
+/// ## Parameters
+/// - `model`: The current form model containing all state and schema information
+/// 
+/// ## Returns
+/// A Lustre Element representing the complete form interface
+/// 
+/// ## Structure
+/// The rendered form includes:
+/// - Form header with title and description
+/// - Form body with all schema-defined fields
+/// - Form footer with submit/reset buttons
+/// - Submission result messages (success/error)
 pub fn view(model: FormModel) -> Element(FormMsg) {
   html.div([attribute.class("formosh-container")], [
     render_form_header(model),
@@ -24,7 +41,16 @@ pub fn view(model: FormModel) -> Element(FormMsg) {
   ])
 }
 
-// Render form header
+/// Render the form header with title and description.
+/// 
+/// Creates the top section of the form containing the schema title and
+/// optional description text.
+/// 
+/// ## Parameters
+/// - `model`: The form model containing schema information
+/// 
+/// ## Returns
+/// A Lustre Element containing the form header
 fn render_form_header(model: FormModel) -> Element(FormMsg) {
   html.div([attribute.class("formosh-header")], [
     html.h2([attribute.class("formosh-title")], [
@@ -38,7 +64,17 @@ fn render_form_header(model: FormModel) -> Element(FormMsg) {
   ])
 }
 
-// Render form body with all fields
+/// Render the form body containing all form fields.
+/// 
+/// Creates the main form element with all schema-defined fields rendered
+/// according to their types and constraints. Each field is wrapped in
+/// appropriate containers and includes error display.
+/// 
+/// ## Parameters
+/// - `model`: The form model containing schema and current state
+/// 
+/// ## Returns
+/// A Lustre Element containing the form body with all fields
 fn render_form_body(model: FormModel) -> Element(FormMsg) {
   let fields =
     dict.to_list(model.schema.properties)
@@ -56,7 +92,26 @@ fn render_form_body(model: FormModel) -> Element(FormMsg) {
   )
 }
 
-// Render a single field based on its type
+/// Render a single form field based on its schema property.
+/// 
+/// This function determines the appropriate field renderer based on the
+/// field type and renders the field with proper styling, error states,
+/// and validation attributes.
+/// 
+/// ## Parameters
+/// - `model`: The form model containing current values and state
+/// - `field_name`: The name/key of the field being rendered
+/// - `property`: The schema property definition for this field
+/// 
+/// ## Returns
+/// A Lustre Element representing the complete field (label, input, errors)
+/// 
+/// ## Field Types Supported
+/// - String fields (input, textarea, select, radio)
+/// - Number/Integer fields
+/// - Boolean fields (checkbox)
+/// - Array fields (dynamic lists)
+/// - Enum fields (select dropdown or radio buttons)
 fn render_field(
   model: FormModel,
   field_name: String,
@@ -160,7 +215,16 @@ fn render_field(
   )
 }
 
-// Render field errors
+/// Render validation errors for a field.
+/// 
+/// Creates a styled error container displaying all validation error messages
+/// for a field. Only called when the field has errors and has been touched.
+/// 
+/// ## Parameters
+/// - `errors`: List of validation errors to display
+/// 
+/// ## Returns
+/// A Lustre Element containing the formatted error messages
 fn render_field_errors(errors: List(types.ValidationError)) -> Element(FormMsg) {
   html.div(
     [attribute.class("formosh-errors")],
@@ -172,7 +236,16 @@ fn render_field_errors(errors: List(types.ValidationError)) -> Element(FormMsg) 
   )
 }
 
-// Render form footer with submit button
+/// Render the form footer with action buttons.
+/// 
+/// Creates the bottom section of the form containing submit and reset buttons
+/// with appropriate enabled/disabled states based on form validity and submission status.
+/// 
+/// ## Parameters
+/// - `model`: The form model to determine button states
+/// 
+/// ## Returns
+/// A Lustre Element containing the form action buttons
 fn render_form_footer(model: FormModel) -> Element(FormMsg) {
   html.div([attribute.class("formosh-footer")], [
     html.button(
@@ -200,7 +273,16 @@ fn render_form_footer(model: FormModel) -> Element(FormMsg) {
   ])
 }
 
-// Render submission result message
+/// Render the submission result message.
+/// 
+/// Displays success or error messages after form submission attempts.
+/// Only renders when there is a submission result to show.
+/// 
+/// ## Parameters
+/// - `model`: The form model containing submission result state
+/// 
+/// ## Returns
+/// A Lustre Element containing the result message, or empty text if no result
 fn render_submission_result(model: FormModel) -> Element(FormMsg) {
   case model.submission_result {
     Some(model.SubmissionSuccess(message)) ->
@@ -215,7 +297,16 @@ fn render_submission_result(model: FormModel) -> Element(FormMsg) {
   }
 }
 
-// Helper function to convert JsonValue to FieldValue
+/// Convert JsonValue to FieldValue for form rendering.
+/// 
+/// This helper function converts JsonValue data (typically from array items
+/// or default values) into FieldValue types that can be used in form fields.
+/// 
+/// ## Parameters
+/// - `value`: The JsonValue to convert
+/// 
+/// ## Returns
+/// The corresponding FieldValue representation
 fn json_value_to_field_value(value: types.JsonValue) -> types.FieldValue {
   case value {
     types.JsonString(s) -> types.StringValue(s)

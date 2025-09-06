@@ -14,6 +14,10 @@ import schema/types.{
   SchemaProperty, StringConstraints, StringType, UrlFormat, UuidFormat,
 }
 
+/// Errors that can occur during JSON Schema parsing.
+/// 
+/// These errors provide specific information about what went wrong
+/// during the parsing process to help with debugging.
 pub type ParseError {
   InvalidJson(String)
   MissingField(String)
@@ -22,7 +26,28 @@ pub type ParseError {
   DecodingError(List(decode.DecodeError))
 }
 
-/// Parse a JSON string into a JsonSchema
+/// Parse a JSON string into a JsonSchema.
+/// 
+/// This is the main entry point for converting a JSON Schema document
+/// (as a string) into the internal JsonSchema type that can be used
+/// to generate forms.
+/// 
+/// ## Parameters
+/// - `json_string`: A valid JSON string containing a JSON Schema
+/// 
+/// ## Returns
+/// - `Ok(JsonSchema)` if parsing succeeded
+/// - `Error(ParseError)` if the JSON was invalid or couldn't be decoded
+/// 
+/// ## Example
+/// ```gleam
+/// let schema_json = "{\"title\": \"My Form\", \"type\": \"object\", ...}"
+/// case parser.parse_schema(schema_json) {
+///   Ok(schema) -> // Use the parsed schema
+///   Error(ParseError.InvalidJson(msg)) -> // Handle JSON syntax error
+///   Error(error) -> // Handle other parsing errors
+/// }
+/// ```
 pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
   json_string
   |> json.parse(using: schema_decoder())
@@ -36,7 +61,11 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
   })
 }
 
-/// Main schema decoder
+/// Main schema decoder for the root JSON Schema object.
+/// 
+/// This decoder handles the top-level schema properties including title,
+/// description, type, properties, required fields, and any root-level
+/// validation constraints.
 fn schema_decoder() -> Decoder(JsonSchema) {
   use title <- decode.field("title", decode.string)
   use description <- decode.optional_field("description", None, decode.optional(decode.string))
@@ -61,7 +90,10 @@ fn schema_decoder() -> Decoder(JsonSchema) {
   ))
 }
 
-/// Decode field type from JSON
+/// Decode a field type string into a FieldType.
+/// 
+/// Converts JSON Schema type strings ("string", "number", etc.) into
+/// the corresponding FieldType enum values.
 fn field_type_decoder() -> Decoder(FieldType) {
   decode.string
   |> decode.then(fn(type_str) {
@@ -78,12 +110,18 @@ fn field_type_decoder() -> Decoder(FieldType) {
   })
 }
 
-/// Decode properties map
+/// Decode the "properties" object from a JSON Schema.
+/// 
+/// This decoder handles the properties object which contains all the
+/// field definitions for an object-type schema.
 fn properties_decoder() -> Decoder(Dict(String, SchemaProperty)) {
   decode.dict(decode.string, property_decoder())
 }
 
-/// Decode a single schema property
+/// Decode a single schema property definition.
+/// 
+/// This decoder handles both simple property definitions (just a type string)
+/// and complex property objects with constraints, metadata, and nested structures.
 fn property_decoder() -> Decoder(SchemaProperty) {
   decode.one_of(
     full_property_decoder(),
@@ -117,7 +155,10 @@ fn property_decoder() -> Decoder(SchemaProperty) {
   )
 }
 
-/// Decode a full property object
+/// Decode a complete property object with all possible fields.
+/// 
+/// This decoder extracts all the possible fields from a property definition
+/// including type, constraints, metadata, and nested schema information.
 fn full_property_decoder() -> Decoder(SchemaProperty) {
   use dynamic_data <- decode.then(decode.dynamic)
   use field_type <- decode.optional_field("type", None, decode.optional(field_type_decoder()))
@@ -147,7 +188,17 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   ))
 }
 
-/// Extract string constraints from dynamic data
+/// Extract string validation constraints from dynamic JSON data.
+/// 
+/// This function looks for string constraint fields (minLength, maxLength,
+/// pattern, format) in the JSON data and builds a StringConstraints object.
+/// 
+/// ## Parameters
+/// - `data`: Dynamic JSON data that might contain string constraints
+/// 
+/// ## Returns
+/// - `Some(StringConstraints)` if any constraints were found
+/// - `None` if no string constraints are present
 fn extract_string_constraints(data: Dynamic) -> Option(StringConstraints) {
   let min_length = decode.run(data, decode.at(["minLength"], decode.int))
     |> option.from_result()
@@ -173,7 +224,18 @@ fn extract_string_constraints(data: Dynamic) -> Option(StringConstraints) {
   }
 }
 
-/// Extract number constraints from dynamic data
+/// Extract numeric validation constraints from dynamic JSON data.
+/// 
+/// This function looks for numeric constraint fields (minimum, maximum,
+/// exclusiveMinimum, exclusiveMaximum, multipleOf) in the JSON data and
+/// builds a NumberConstraints object.
+/// 
+/// ## Parameters
+/// - `data`: Dynamic JSON data that might contain numeric constraints
+/// 
+/// ## Returns
+/// - `Some(NumberConstraints)` if any constraints were found
+/// - `None` if no numeric constraints are present
 fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
   let minimum = decode.run(data, decode.at(["minimum"], decode.float))
     |> option.from_result()
@@ -205,7 +267,10 @@ fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
   }
 }
 
-/// Decode string format
+/// Decode a string format specifier into a StringFormat.
+/// 
+/// Converts JSON Schema format strings into StringFormat enum values,
+/// with support for standard formats and custom format strings.
 fn format_decoder() -> Decoder(types.StringFormat) {
   decode.string
   |> decode.then(fn(format_str) {
@@ -218,7 +283,11 @@ fn format_decoder() -> Decoder(types.StringFormat) {
   })
 }
 
-/// Decode JSON values for enums and defaults  
+/// Decode arbitrary JSON values for enum values and default values.
+/// 
+/// This decoder can handle any valid JSON value (string, number, boolean,
+/// array, object, null) and converts it to the appropriate JsonValue variant.
+/// It's used for parsing enum options and default values in schemas.
 fn json_value_decoder() -> Decoder(JsonValue) {
   use dynamic_value <- decode.then(decode.dynamic)
   

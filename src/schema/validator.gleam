@@ -11,7 +11,31 @@ import schema/types.{
   StringValue, ValidationError,
 }
 
-// Validate a field value against its schema
+/// Validate a field value against its schema property definition.
+/// 
+/// This is the main validation function that checks a field value against
+/// all applicable validation rules including type checking, constraints,
+/// required field validation, and enum validation.
+/// 
+/// ## Parameters
+/// - `field_name`: The name of the field being validated (used in error messages)
+/// - `value`: The current field value, or None if not set
+/// - `property`: The schema property definition with validation rules
+/// - `is_required`: Whether this field is required by the parent schema
+/// 
+/// ## Returns
+/// A list of validation errors. An empty list means validation passed.
+/// 
+/// ## Example
+/// ```gleam
+/// let errors = validator.validate_field(
+///   "email",
+///   Some(StringValue("invalid-email")),
+///   email_property,
+///   True
+/// )
+/// // Returns list of ValidationError if validation fails
+/// ```
 pub fn validate_field(
   field_name: String,
   value: Option(FieldValue),
@@ -70,7 +94,18 @@ pub fn validate_field(
   }
 }
 
-// Validate string value
+/// Validate a string value against string constraints.
+/// 
+/// Checks string-specific validation rules including length constraints,
+/// pattern matching, and format validation.
+/// 
+/// ## Parameters
+/// - `field_name`: Field name for error messages
+/// - `value`: The field value to validate (should be StringValue)
+/// - `constraints`: Optional string constraints from the schema
+/// 
+/// ## Returns
+/// List of validation errors specific to string validation rules
 fn validate_string(
   field_name: String,
   value: FieldValue,
@@ -172,7 +207,19 @@ fn validate_string(
   }
 }
 
-// Validate number value
+/// Validate a numeric value against number constraints.
+/// 
+/// Checks numeric validation rules including minimum/maximum bounds,
+/// exclusive bounds, and multiple-of constraints. Handles both
+/// NumberValue and IntegerValue field types.
+/// 
+/// ## Parameters
+/// - `field_name`: Field name for error messages
+/// - `value`: The field value to validate (should be NumberValue or IntegerValue)
+/// - `constraints`: Optional numeric constraints from the schema
+/// 
+/// ## Returns
+/// List of validation errors specific to numeric validation rules
 fn validate_number(
   field_name: String,
   value: FieldValue,
@@ -192,7 +239,18 @@ fn validate_number(
   }
 }
 
-// Validate number constraints
+/// Validate a float value against specific numeric constraints.
+/// 
+/// This is a helper function that performs the actual numeric validation
+/// logic including bounds checking and multiple-of validation.
+/// 
+/// ## Parameters
+/// - `field_name`: Field name for error messages
+/// - `value`: The numeric value as a float
+/// - `constraints`: Optional numeric constraints to check against
+/// 
+/// ## Returns
+/// List of validation errors for numeric constraint violations
 fn validate_number_constraints(
   field_name: String,
   value: Float,
@@ -280,7 +338,17 @@ fn validate_number_constraints(
   }
 }
 
-// Validate boolean value
+/// Validate that a field value is a boolean.
+/// 
+/// Checks that the field value is of type BooleanValue. This is primarily
+/// a type validation function.
+/// 
+/// ## Parameters
+/// - `field_name`: Field name for error messages
+/// - `value`: The field value to validate
+/// 
+/// ## Returns
+/// List of validation errors if the value is not a boolean
 fn validate_boolean(field_name: String, value: FieldValue) -> List(ValidationError) {
   case value {
     BooleanValue(_) -> []
@@ -295,7 +363,21 @@ fn validate_boolean(field_name: String, value: FieldValue) -> List(ValidationErr
 }
 
 
-// Validate enum value
+/// Validate that a field value is one of the allowed enum values.
+/// 
+/// **Note**: This function is currently not implemented and always returns
+/// an empty list (no errors). Enum validation is planned for future versions.
+/// 
+/// ## Parameters
+/// - `_field_name`: Field name for error messages (unused)
+/// - `_value`: The field value to validate (unused)
+/// - `_allowed_values`: List of allowed enum values (unused)
+/// 
+/// ## Returns
+/// Currently always returns an empty list
+/// 
+/// ## TODO
+/// Implement proper enum validation with JSON value comparison
 fn validate_enum(
   _field_name: String,
   _value: FieldValue,
@@ -305,12 +387,38 @@ fn validate_enum(
   []
 }
 
-// Check if email format is valid
+/// Check if a string is a valid email address.
+/// 
+/// This is a simple email validation that checks for the presence of '@' and '.'.
+/// It's not a comprehensive email validation but catches obviously invalid formats.
+/// 
+/// ## Parameters
+/// - `email`: The email string to validate
+/// 
+/// ## Returns
+/// True if the email appears to be valid, False otherwise
+/// 
+/// ## Note
+/// This is a basic validation. For production use, consider more robust
+/// email validation libraries.
 fn validate_email(email: String) -> Bool {
   string.contains(email, "@") && string.contains(email, ".")
 }
 
-// Check if URL format is valid
+/// Check if a string is a valid URL.
+/// 
+/// This is a simple URL validation that checks for HTTP/HTTPS protocol prefixes.
+/// It's not comprehensive but catches obviously invalid URLs.
+/// 
+/// ## Parameters
+/// - `url`: The URL string to validate
+/// 
+/// ## Returns
+/// True if the URL appears to be valid, False otherwise
+/// 
+/// ## Note
+/// This is a basic validation. For production use, consider more robust
+/// URL validation libraries.
 fn validate_url(url: String) -> Bool {
   string.starts_with(url, "http://") || string.starts_with(url, "https://")
 }

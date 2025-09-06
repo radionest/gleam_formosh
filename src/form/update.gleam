@@ -13,7 +13,29 @@ import form/model.{
 import schema/validator
 import schema/types
 
-// Main update function
+/// Main update function for the form MVU architecture.
+/// 
+/// This function handles all form-related messages and updates the form state
+/// accordingly. It follows the standard Elm/Lustre update pattern, taking the
+/// current model and a message, then returning a new model and optional effects.
+/// 
+/// ## Parameters
+/// - `model`: The current form model state
+/// - `msg`: The message representing the user action or system event
+/// 
+/// ## Returns
+/// A tuple containing the new model state and any effects to execute
+/// 
+/// ## Supported Messages
+/// - `FieldChanged`: Update field value and validate if touched
+/// - `FieldFocused`: Track field focus (no state change)
+/// - `FieldBlurred`: Mark field as touched and validate
+/// - `FormSubmit`: Validate and submit the form
+/// - `FormSubmitted`: Handle submission result
+/// - `ValidateField`/`ValidateForm`: Trigger validation
+/// - `ResetForm`: Reset form to initial state
+/// - `EnableField`/`DisableField`: Control field enabled state
+/// - Array operations: `AddArrayItem`, `RemoveArrayItem`, `ArrayItemChanged`
 pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   case msg {
     FieldChanged(field_name, value) -> {
@@ -171,6 +193,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 
     ArrayItemChanged(field_name, index, item_field, value) -> {
       // Update a specific field within an array item
+      echo #(field_name, index, item_field, value)
       let current_value = model.get_field_value(model, field_name)
         |> option.unwrap(types.NullValue)
       
@@ -208,7 +231,17 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   }
 }
 
-// Helper function to convert FieldValue to JsonValue
+/// Convert a FieldValue to JsonValue for serialization.
+/// 
+/// This helper function is used when updating array items to convert the
+/// strongly-typed FieldValue into a JsonValue that can be stored in the
+/// JSON object structure.
+/// 
+/// ## Parameters
+/// - `value`: The FieldValue to convert
+/// 
+/// ## Returns
+/// The corresponding JsonValue representation
 fn field_value_to_json_value(value: types.FieldValue) -> types.JsonValue {
   case value {
     types.StringValue(s) -> types.JsonString(s)
@@ -223,7 +256,17 @@ fn field_value_to_json_value(value: types.FieldValue) -> types.JsonValue {
 
 import gleam/int
 
-// Validate a single field
+/// Validate a single field against its schema definition.
+/// 
+/// This function looks up the field's schema property and runs validation
+/// against the current field value, updating the model with any errors found.
+/// 
+/// ## Parameters
+/// - `model`: The current form model
+/// - `field_name`: The name of the field to validate
+/// 
+/// ## Returns
+/// A new FormModel with updated validation errors for the field
 fn validate_field(model: FormModel, field_name: String) -> FormModel {
   case dict.get(model.schema.properties, field_name) {
     Ok(property) -> {
@@ -250,7 +293,17 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
   }
 }
 
-// Validate field only if it has been touched
+/// Validate a field only if it has been touched by the user.
+/// 
+/// This provides a better user experience by avoiding validation errors
+/// on fields the user hasn't interacted with yet.
+/// 
+/// ## Parameters
+/// - `model`: The current form model
+/// - `field_name`: The name of the field to conditionally validate
+/// 
+/// ## Returns
+/// A new FormModel with validation run only if the field was touched
 fn validate_field_if_touched(model: FormModel, field_name: String) -> FormModel {
   case model.is_field_touched(model, field_name) {
     True -> validate_field(model, field_name)
@@ -258,13 +311,31 @@ fn validate_field_if_touched(model: FormModel, field_name: String) -> FormModel 
   }
 }
 
-// Validate all fields
+/// Validate all fields in the form against their schema definitions.
+/// 
+/// This function runs validation on every field defined in the schema,
+/// typically used before form submission to ensure all data is valid.
+/// 
+/// ## Parameters
+/// - `model`: The current form model
+/// 
+/// ## Returns
+/// A new FormModel with validation errors for all invalid fields
 fn validate_all_fields(model: FormModel) -> FormModel {
   dict.keys(model.schema.properties)
   |> list.fold(model.clear_all_errors(model), validate_field)
 }
 
-// Mark all fields as touched
+/// Mark all schema-defined fields as touched.
+/// 
+/// This is typically used when form submission fails validation,
+/// to ensure all validation errors are visible to the user.
+/// 
+/// ## Parameters
+/// - `model`: The current form model
+/// 
+/// ## Returns
+/// A new FormModel with all fields marked as touched
 fn mark_all_fields_touched(model: FormModel) -> FormModel {
   let all_fields = dict.keys(model.schema.properties)
   model.FormModel(
@@ -273,7 +344,25 @@ fn mark_all_fields_touched(model: FormModel) -> FormModel {
   )
 }
 
-// Create form submission effect
+/// Create an effect for form submission.
+/// 
+/// This function creates an effect that simulates form submission.
+/// In a real application, this would typically make an HTTP request
+/// to submit the form data to a server.
+/// 
+/// ## Parameters
+/// - `_model`: The form model (currently unused but available for real implementations)
+/// 
+/// ## Returns
+/// An Effect that will dispatch a FormSubmitted message with the result
+/// 
+/// ## Note
+/// This is currently a simulation that always succeeds. In a real application,
+/// you would:
+/// 1. Serialize the form data
+/// 2. Make an HTTP request
+/// 3. Handle success/error responses
+/// 4. Dispatch appropriate FormSubmitted messages
 fn submit_form_effect(_model: FormModel) -> Effect(FormMsg) {
   // In a real application, this would make an HTTP request
   // For now, we'll just simulate a successful submission

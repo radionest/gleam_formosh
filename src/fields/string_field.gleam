@@ -12,7 +12,26 @@ import form/model.{type FormMsg, FieldBlurred, FieldChanged}
 import schema/types
 import fields/field_common
 
-// Render a string field
+/// Render a string field with appropriate input type and constraints.
+/// 
+/// This is the main entry point for rendering string fields. It automatically
+/// chooses the appropriate input type (text input, textarea, select, radio)
+/// based on the field's constraints and enum values.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for identification and events
+/// - `property`: The schema property with type and constraint information
+/// - `value`: The current field value, if any
+/// - `is_required`: Whether the field is required
+/// - `is_disabled`: Whether the field is disabled
+/// 
+/// ## Returns
+/// A complete field element with label, input, and help text
+/// 
+/// ## Field Type Selection
+/// - Enum values → select dropdown or radio buttons
+/// - Long text (maxLength > 100) → textarea
+/// - Regular strings → text input with appropriate HTML type
 pub fn render(
   field_name: String,
   property: types.SchemaProperty,
@@ -38,7 +57,21 @@ pub fn render(
   }
 }
 
-// Render a standard input field
+/// Render a standard HTML input element for string values.
+/// 
+/// Creates a single-line text input with the appropriate HTML input type
+/// based on the string format (email, url, date, etc.) and applies any
+/// string constraints as HTML attributes.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for identification
+/// - `property`: The schema property with constraints and format info
+/// - `value`: The current field value
+/// - `is_required`: Whether the field is required
+/// - `is_disabled`: Whether the field is disabled
+/// 
+/// ## Returns
+/// A complete field element wrapped with label and help text
 fn render_input(
   field_name: String,
   property: types.SchemaProperty,
@@ -65,7 +98,20 @@ fn render_input(
   field_common.field_wrapper(field_name, property, is_required, input_elem)
 }
 
-// Render a textarea field
+/// Render a textarea element for multi-line string input.
+/// 
+/// Used for string fields with large maxLength constraints (> 100 characters)
+/// to provide a better user experience for longer text input.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for identification
+/// - `property`: The schema property with constraints
+/// - `value`: The current field value
+/// - `is_required`: Whether the field is required
+/// - `is_disabled`: Whether the field is disabled
+/// 
+/// ## Returns
+/// A complete textarea field wrapped with label and help text
 fn render_textarea(
   field_name: String,
   property: types.SchemaProperty,
@@ -91,7 +137,25 @@ fn render_textarea(
   field_common.field_wrapper(field_name, property, is_required, textarea_elem)
 }
 
-// Render an enum field as select or radio buttons
+/// Render an enum field as either radio buttons or a select dropdown.
+/// 
+/// For enum fields (fields with a limited set of allowed values), this function
+/// chooses between radio buttons (for small lists ≤ 5 options) and select
+/// dropdowns (for larger lists) to provide the best user experience.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for identification
+/// - `property`: The schema property containing enum values
+/// - `value`: The current field value
+/// - `is_required`: Whether the field is required
+/// - `is_disabled`: Whether the field is disabled
+/// 
+/// ## Returns
+/// A complete field element with appropriate enum input control
+/// 
+/// ## Selection Logic
+/// - ≤ 5 options: Radio button group for easy scanning
+/// - > 5 options: Select dropdown to save space
 pub fn render_enum(
   field_name: String,
   property: types.SchemaProperty,
@@ -130,7 +194,21 @@ pub fn render_enum(
   }
 }
 
-// Render radio button group
+/// Render a radio button group for enum values.
+/// 
+/// Creates a group of radio buttons for selecting from a small set of enum values.
+/// Each radio button is properly labeled and grouped under the same field name.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for grouping radio buttons
+/// - `property`: The schema property for labeling and help text
+/// - `enum_vals`: The list of allowed enum values
+/// - `current_value`: The currently selected value
+/// - `is_required`: Whether a selection is required
+/// - `is_disabled`: Whether the entire group is disabled
+/// 
+/// ## Returns
+/// A complete radio button group with wrapper, label, and help text
 fn render_radio_group(
   field_name: String,
   property: types.SchemaProperty,
@@ -166,7 +244,22 @@ fn render_radio_group(
   field_common.field_wrapper(field_name, property, is_required, radio_group)
 }
 
-// Render select dropdown
+/// Render a select dropdown for enum values.
+/// 
+/// Creates a select dropdown with options for each enum value, including
+/// a placeholder option. Used for enum fields with many options where
+/// radio buttons would take too much space.
+/// 
+/// ## Parameters
+/// - `field_name`: The field name for identification
+/// - `property`: The schema property for labeling and help text
+/// - `enum_vals`: The list of allowed enum values
+/// - `current_value`: The currently selected value
+/// - `is_required`: Whether a selection is required
+/// - `is_disabled`: Whether the dropdown is disabled
+/// 
+/// ## Returns
+/// A complete select dropdown with wrapper, label, and help text
 fn render_select(
   field_name: String,
   property: types.SchemaProperty,
@@ -200,7 +293,16 @@ fn render_select(
 }
 
 
-// Get input type based on string format
+/// Determine the appropriate HTML input type based on string format.
+/// 
+/// Maps JSON Schema string formats to appropriate HTML5 input types
+/// to enable browser validation and better mobile keyboard support.
+/// 
+/// ## Parameters
+/// - `property`: The schema property that may contain format information
+/// 
+/// ## Returns
+/// An HTML input type string ("email", "url", "date", "text", etc.)
 fn get_input_type(property: types.SchemaProperty) -> String {
   case property.string_constraints {
     Some(constraints) ->
@@ -216,7 +318,22 @@ fn get_input_type(property: types.SchemaProperty) -> String {
   }
 }
 
-// Get HTML attributes for string constraints
+/// Convert string constraints to HTML input attributes.
+/// 
+/// Takes string validation constraints from the JSON Schema and converts
+/// them to appropriate HTML attributes (minlength, maxlength, pattern)
+/// for client-side validation and user feedback.
+/// 
+/// ## Parameters
+/// - `property`: The schema property containing string constraints
+/// 
+/// ## Returns
+/// A list of HTML attributes representing the constraints
+/// 
+/// ## Generated Attributes
+/// - `minlength`: From minLength constraint
+/// - `maxlength`: From maxLength constraint  
+/// - `pattern`: From pattern constraint (regex)
 fn get_string_constraints_attributes(
   property: types.SchemaProperty,
 ) -> List(attribute.Attribute(FormMsg)) {
@@ -248,7 +365,23 @@ fn get_string_constraints_attributes(
   }
 }
 
-// Convert JsonValue to string
+/// Convert a JsonValue to its string representation.
+/// 
+/// Used primarily for rendering enum option values and labels.
+/// Handles different JSON value types appropriately for display.
+/// 
+/// ## Parameters
+/// - `val`: The JsonValue to convert
+/// 
+/// ## Returns
+/// A string representation of the value
+/// 
+/// ## Conversion Rules
+/// - Strings: returned as-is
+/// - Numbers: converted to string representation
+/// - Booleans: "true" or "false"
+/// - Null: empty string
+/// - Arrays/Objects: empty string (not displayable as simple text)
 fn json_value_to_string(val: types.JsonValue) -> String {
   case val {
     types.JsonString(s) -> s
