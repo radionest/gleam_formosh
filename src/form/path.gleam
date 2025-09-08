@@ -1,3 +1,4 @@
+import form/converter
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -86,7 +87,7 @@ pub fn get_at_path(
           case list.find(fields, fn(field) { field.0 == name }) {
             Ok(#(_key, json_value)) -> {
               json_value
-              |> json_to_field_value
+              |> converter.json_to_field_value
               |> option.then(fn(field_value) { get_at_path(field_value, rest) })
             }
             Error(_) -> None
@@ -96,7 +97,7 @@ pub fn get_at_path(
           case get_list_item(items, index) {
             Some(item) -> {
               item
-              |> json_to_field_value
+              |> converter.json_to_field_value
               |> option.then(fn(field_value) { get_at_path(field_value, rest) })
             }
             None -> None
@@ -167,7 +168,10 @@ fn modify_array_item(
   let updated =
     list.index_map(padded, fn(item, i) {
       case i == index {
-        True -> field_to_json_value(modifier(json_to_field_value_safe(item)))
+        True ->
+          converter.field_value_to_json_value(
+            modifier(converter.json_to_field_value_safe(item)),
+          )
         False -> item
       }
     })
@@ -196,7 +200,7 @@ fn get_field_value(
   name: String,
 ) -> types.FieldValue {
   case list.find(fields, fn(f) { f.0 == name }) {
-    Ok(#(_, json)) -> json_to_field_value_safe(json)
+    Ok(#(_, json)) -> converter.json_to_field_value_safe(json)
     Error(_) -> types.NullValue
   }
 }
@@ -206,7 +210,7 @@ fn set_field_value(
   name: String,
   value: types.FieldValue,
 ) -> List(#(String, types.JsonValue)) {
-  let json_value = field_to_json_value(value)
+  let json_value = converter.field_value_to_json_value(value)
   case list.find(fields, fn(f) { f.0 == name }) {
     Ok(_) ->
       list.map(fields, fn(field) {
@@ -227,36 +231,6 @@ fn ensure_array_size(
   case size > current {
     True -> list.append(items, list.repeat(types.JsonNull, size - current))
     False -> items
-  }
-}
-
-fn json_to_field_value_safe(json: types.JsonValue) -> types.FieldValue {
-  json_to_field_value(json) |> option.unwrap(types.NullValue)
-}
-
-/// Convert JsonValue to FieldValue.
-fn json_to_field_value(json: types.JsonValue) -> Option(types.FieldValue) {
-  case json {
-    types.JsonString(s) -> Some(types.StringValue(s))
-    types.JsonNumber(n) -> Some(types.NumberValue(n))
-    types.JsonInteger(i) -> Some(types.IntegerValue(i))
-    types.JsonBool(b) -> Some(types.BooleanValue(b))
-    types.JsonArray(items) -> Some(types.ArrayValue(items))
-    types.JsonObject(fields) -> Some(types.ObjectValue(fields))
-    types.JsonNull -> Some(types.NullValue)
-  }
-}
-
-/// Convert FieldValue to JsonValue.
-fn field_to_json_value(value: types.FieldValue) -> types.JsonValue {
-  case value {
-    types.StringValue(s) -> types.JsonString(s)
-    types.NumberValue(n) -> types.JsonNumber(n)
-    types.IntegerValue(i) -> types.JsonInteger(i)
-    types.BooleanValue(b) -> types.JsonBool(b)
-    types.ArrayValue(items) -> types.JsonArray(items)
-    types.ObjectValue(fields) -> types.JsonObject(fields)
-    types.NullValue -> types.JsonNull
   }
 }
 

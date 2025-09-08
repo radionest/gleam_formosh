@@ -231,9 +231,3 @@ fn render_field(
 
   html.div([class("array-item-field")], [field_element])
 }
-
-
-
-
-
-

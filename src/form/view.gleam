@@ -4,6 +4,7 @@ import fields/array_field
 import fields/boolean_field
 import fields/number_field
 import fields/string_field
+import form/converter
 import form/model.{type FormModel, type FormMsg}
 import form/path
 import gleam/dict
@@ -150,7 +151,7 @@ fn render_field(
               types.JsonObject(fields) ->
                 list.fold(fields, dict.new(), fn(acc, field_pair) {
                   let #(key, val) = field_pair
-                  dict.insert(acc, key, json_value_to_field_value(val))
+                  dict.insert(acc, key, converter.json_to_field_value_safe(val))
                 })
               _ -> dict.new()
             }
@@ -288,7 +289,6 @@ fn render_submission_result(model: FormModel) -> Element(FormMsg) {
     None -> html.text("")
   }
 }
-
 /// Convert JsonValue to FieldValue for form rendering.
 /// 
 /// This helper function converts JsonValue data (typically from array items
@@ -299,14 +299,3 @@ fn render_submission_result(model: FormModel) -> Element(FormMsg) {
 /// 
 /// ## Returns
 /// The corresponding FieldValue representation
-fn json_value_to_field_value(value: types.JsonValue) -> types.FieldValue {
-  case value {
-    types.JsonString(s) -> types.StringValue(s)
-    types.JsonNumber(n) -> types.NumberValue(n)
-    types.JsonInteger(i) -> types.IntegerValue(i)
-    types.JsonBool(b) -> types.BooleanValue(b)
-    types.JsonNull -> types.NullValue
-    types.JsonArray(items) -> types.ArrayValue(items)
-    types.JsonObject(fields) -> types.ObjectValue(fields)
-  }
-}

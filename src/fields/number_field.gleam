@@ -72,7 +72,7 @@ pub fn render(
         True -> attribute.step("1")
         False -> attribute.step("any")
       },
-      event.on_input(fn(val) {
+      event.on_change(fn(val) {
         handle_number_input(field_path, val, is_integer)
       }),
       ..get_number_constraints_attributes(property)
@@ -134,6 +134,7 @@ fn handle_number_input(
     }
   }
 }
+
 /// Convert numeric constraints to HTML input attributes.
 /// 
 /// Takes numeric validation constraints from the JSON Schema and converts

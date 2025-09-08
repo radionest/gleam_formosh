@@ -1,5 +1,6 @@
 // Update functions for form MVU
 
+import form/converter
 import form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, FormSubmit, FormSubmitted,
   RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
@@ -47,7 +48,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           let fields =
             list.map(values, fn(entry) {
               let #(key, val) = entry
-              #(key, field_value_to_json_value(val))
+              #(key, converter.field_value_to_json_value(val))
             })
           types.ObjectValue(fields)
         }
@@ -61,7 +62,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         types.ObjectValue(fields) -> {
           list.fold(fields, dict.new(), fn(acc, field) {
             let #(key, json_val) = field
-            case json_value_to_field_value(json_val) {
+            case converter.json_to_field_value(json_val) {
               Some(field_val) -> dict.insert(acc, key, field_val)
               None -> acc
             }
@@ -83,7 +84,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           let fields =
             list.map(values, fn(entry) {
               let #(key, val) = entry
-              #(key, field_value_to_json_value(val))
+              #(key, converter.field_value_to_json_value(val))
             })
           types.ObjectValue(fields)
         }
@@ -98,7 +99,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         types.ObjectValue(fields) -> {
           list.fold(fields, dict.new(), fn(acc, field) {
             let #(key, json_val) = field
-            case json_value_to_field_value(json_val) {
+            case converter.json_to_field_value(json_val) {
               Some(field_val) -> dict.insert(acc, key, field_val)
               None -> acc
             }
@@ -119,7 +120,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           let fields =
             list.map(values, fn(entry) {
               let #(key, val) = entry
-              #(key, field_value_to_json_value(val))
+              #(key, converter.field_value_to_json_value(val))
             })
           types.ObjectValue(fields)
         }
@@ -133,7 +134,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         types.ObjectValue(fields) -> {
           list.fold(fields, dict.new(), fn(acc, field) {
             let #(key, json_val) = field
-            case json_value_to_field_value(json_val) {
+            case converter.json_to_field_value(json_val) {
               Some(field_val) -> dict.insert(acc, key, field_val)
               None -> acc
             }
@@ -212,18 +213,6 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 /// 
 /// ## Returns
 /// The corresponding JsonValue representation
-fn field_value_to_json_value(value: types.FieldValue) -> types.JsonValue {
-  case value {
-    types.StringValue(s) -> types.JsonString(s)
-    types.NumberValue(n) -> types.JsonNumber(n)
-    types.IntegerValue(i) -> types.JsonInteger(i)
-    types.BooleanValue(b) -> types.JsonBool(b)
-    types.ArrayValue(items) -> types.JsonArray(items)
-    types.ObjectValue(fields) -> types.JsonObject(fields)
-    types.NullValue -> types.JsonNull
-  }
-}
-
 /// Convert a JsonValue to FieldValue.
 /// 
 /// This helper function is used when converting from JsonValue 
@@ -234,20 +223,6 @@ fn field_value_to_json_value(value: types.FieldValue) -> types.JsonValue {
 /// 
 /// ## Returns
 /// The corresponding FieldValue representation wrapped in Option
-fn json_value_to_field_value(
-  value: types.JsonValue,
-) -> option.Option(types.FieldValue) {
-  case value {
-    types.JsonString(s) -> Some(types.StringValue(s))
-    types.JsonNumber(n) -> Some(types.NumberValue(n))
-    types.JsonInteger(i) -> Some(types.IntegerValue(i))
-    types.JsonBool(b) -> Some(types.BooleanValue(b))
-    types.JsonArray(items) -> Some(types.ArrayValue(items))
-    types.JsonObject(fields) -> Some(types.ObjectValue(fields))
-    types.JsonNull -> Some(types.NullValue)
-  }
-}
-
 /// Validate a single field against its schema definition.
 /// 
 /// This function looks up the field's schema property and runs validation

@@ -1,5 +1,6 @@
 // Form model for MVU architecture
 
+import form/converter
 import form/path.{type FieldPath}
 import gleam/dict.{type Dict}
 import gleam/list
@@ -387,7 +388,7 @@ fn traverse_array_path(
             [] -> option.None
             [path.PropertySegment(field_name)] ->
               case list.find(obj_fields, fn(f) { f.0 == field_name }) {
-                Ok(#(_, json_val)) -> json_to_field_value(json_val)
+                Ok(#(_, json_val)) -> converter.json_to_field_value(json_val)
                 Error(_) -> option.None
               }
             [path.PropertySegment(field_name), ..more] ->
@@ -415,19 +416,6 @@ fn list_at(items: List(a), index: Int) -> Option(a) {
   }
 }
 
-/// Convert JsonValue to FieldValue.
-fn json_to_field_value(json: types.JsonValue) -> Option(FieldValue) {
-  case json {
-    types.JsonString(s) -> option.Some(types.StringValue(s))
-    types.JsonNumber(n) -> option.Some(types.NumberValue(n))
-    types.JsonInteger(i) -> option.Some(types.IntegerValue(i))
-    types.JsonBool(b) -> option.Some(types.BooleanValue(b))
-    types.JsonArray(items) -> option.Some(types.ArrayValue(items))
-    types.JsonObject(fields) -> option.Some(types.ObjectValue(fields))
-    types.JsonNull -> option.Some(types.NullValue)
-  }
-}
-
 /// Helper function to traverse an object with a path.
 fn traverse_object_path(
   obj: List(#(String, types.JsonValue)),
@@ -437,7 +425,7 @@ fn traverse_object_path(
     [] -> option.None
     [path.PropertySegment(field_name)] ->
       case list.find(obj, fn(f) { f.0 == field_name }) {
-        Ok(#(_, json_val)) -> json_to_field_value(json_val)
+        Ok(#(_, json_val)) -> converter.json_to_field_value(json_val)
         Error(_) -> option.None
       }
     [path.PropertySegment(field_name), ..rest] ->
