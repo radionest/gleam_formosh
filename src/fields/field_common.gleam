@@ -1,13 +1,13 @@
 // Common field rendering utilities
 
+import form/model.{type FormMsg, UpdateFieldPath}
+import form/path
 import gleam/option.{None, Some}
 import gleam/string
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import form/model.{type FormMsg, UpdateFieldPath}
-import form/path
 import schema/types
 
 /// Render a field label with optional required indicator.
@@ -33,16 +33,20 @@ pub fn render_label(
     None -> field_name |> string.replace("_", " ") |> string.capitalise()
   }
 
-  html.label([
-    attribute.for(field_name),
-    attribute.class("formosh-label"),
-  ], [
-    html.text(label_text),
-    case is_required {
-      True -> html.span([attribute.class("formosh-required")], [html.text(" *")])
-      False -> html.text("")
-    },
-  ])
+  html.label(
+    [
+      attribute.for(field_name),
+      attribute.class("formosh-label"),
+    ],
+    [
+      html.text(label_text),
+      case is_required {
+        True ->
+          html.span([attribute.class("formosh-required")], [html.text(" *")])
+        False -> html.text("")
+      },
+    ],
+  )
 }
 
 /// Render help text for a field based on its schema description.
@@ -129,6 +133,43 @@ pub fn input_attributes(
     attribute.disabled(is_disabled),
     event.on_input(fn(val) {
       UpdateFieldPath(path.from_field_name(field_name), types.StringValue(val))
+    }),
+    ..extra_attrs
+  ]
+}
+
+/// Generate common input attributes for form fields using path.
+/// 
+/// Creates a standard set of HTML attributes that most form inputs need,
+/// using a field path for consistent messaging. The field name is extracted
+/// from the path for HTML attributes.
+/// 
+/// ## Parameters
+/// - `field_path`: The field path for event handling
+/// - `value`: The current string value of the field
+/// - `is_required`: Whether the field is required (HTML required attribute)
+/// - `is_disabled`: Whether the field is disabled (HTML disabled attribute)
+/// - `extra_attrs`: Additional field-specific attributes to include
+/// 
+/// ## Returns
+/// A list of HTML attributes ready for use on form input elements
+pub fn input_attributes_with_path(
+  field_path: path.FieldPath,
+  value: String,
+  is_required: Bool,
+  is_disabled: Bool,
+  extra_attrs: List(attribute.Attribute(FormMsg)),
+) -> List(attribute.Attribute(FormMsg)) {
+  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+
+  [
+    attribute.id(path.to_string(field_path)),
+    attribute.name(field_name),
+    attribute.value(value),
+    attribute.required(is_required),
+    attribute.disabled(is_disabled),
+    event.on_input(fn(val) {
+      UpdateFieldPath(field_path, types.StringValue(val))
     }),
     ..extra_attrs
   ]
