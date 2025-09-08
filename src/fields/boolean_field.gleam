@@ -3,15 +3,14 @@
 /// This module provides different ways to render boolean fields including
 /// radio buttons (Yes/No), checkboxes, and toggle switches. The default
 /// render function uses radio buttons for better accessibility and clarity.
-
+import form/model.{type FormMsg, UpdateFieldPath}
+import form/path
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import form/model.{type FormMsg, UpdateFieldPath}
-import form/path
 import schema/types
 
 /// Render a boolean field as radio buttons (Yes/No).
@@ -34,7 +33,7 @@ import schema/types
 /// - `render_as_checkbox`: Single checkbox for true/false
 /// - `render_as_toggle`: Toggle switch interface
 pub fn render(
-  field_name: String,
+  field_path: path.FieldPath,
   property: types.SchemaProperty,
   value: Option(types.FieldValue),
   is_required: Bool,
@@ -46,7 +45,7 @@ pub fn render(
   }
 
   // Render as radio buttons (Yes/No) for better UX
-  render_as_radio(field_name, property, current_value, is_required, is_disabled)
+  render_as_radio(field_path, property, current_value, is_required, is_disabled)
 }
 
 /// Render boolean field as Yes/No radio button group.
@@ -64,12 +63,13 @@ pub fn render(
 /// ## Returns
 /// A radio button group with Yes/No options
 fn render_as_radio(
-  field_name: String,
+  field_path: path.FieldPath,
   property: types.SchemaProperty,
   current_value: Bool,
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
+  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
   let yes_id = field_name <> "_yes"
   let no_id = field_name <> "_no"
 
@@ -85,7 +85,7 @@ fn render_as_radio(
           attribute.checked(current_value),
           attribute.required(is_required),
           attribute.disabled(is_disabled),
-          event.on_click(UpdateFieldPath(path.from_field_name(field_name), types.BooleanValue(True))),
+          event.on_click(UpdateFieldPath(field_path, types.BooleanValue(True))),
         ]),
         html.label([attribute.for(yes_id)], [
           html.text("Yes"),
@@ -100,7 +100,7 @@ fn render_as_radio(
           attribute.checked(!current_value),
           attribute.required(is_required),
           attribute.disabled(is_disabled),
-          event.on_click(UpdateFieldPath(path.from_field_name(field_name), types.BooleanValue(False))),
+          event.on_click(UpdateFieldPath(field_path, types.BooleanValue(False))),
         ]),
         html.label([attribute.for(no_id)], [
           html.text("No"),
@@ -130,7 +130,7 @@ fn render_as_radio(
 /// ## Usage
 /// Use this for compact boolean inputs or when the false state is implicit.
 pub fn render_as_checkbox(
-  field_name: String,
+  field_path: path.FieldPath,
   property: types.SchemaProperty,
   value: Option(types.FieldValue),
   is_required: Bool,
@@ -141,6 +141,8 @@ pub fn render_as_checkbox(
     _ -> False
   }
 
+  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+
   html.div([attribute.class("formosh-field-wrapper formosh-checkbox-wrapper")], [
     html.div([attribute.class("formosh-checkbox-group")], [
       html.input([
@@ -150,7 +152,10 @@ pub fn render_as_checkbox(
         attribute.checked(current_value),
         attribute.required(is_required),
         attribute.disabled(is_disabled),
-        event.on_click(UpdateFieldPath(path.from_field_name(field_name), types.BooleanValue(!current_value))),
+        event.on_click(UpdateFieldPath(
+          field_path,
+          types.BooleanValue(!current_value),
+        )),
       ]),
       render_checkbox_label(field_name, property, is_required),
     ]),
@@ -182,7 +187,7 @@ pub fn render_as_checkbox(
 /// ## Usage
 /// Use for modern interfaces or settings-style boolean controls.
 pub fn render_as_toggle(
-  field_name: String,
+  field_path: path.FieldPath,
   property: types.SchemaProperty,
   value: Option(types.FieldValue),
   is_required: Bool,
@@ -193,34 +198,42 @@ pub fn render_as_toggle(
     _ -> False
   }
 
+  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+
   html.div([attribute.class("formosh-field-wrapper")], [
     render_label(field_name, property, is_required),
     html.div([attribute.class("formosh-toggle-wrapper")], [
-      html.button([
-        attribute.type_("button"),
-        attribute.class(
-          "formosh-toggle"
-          <> case current_value {
-            True -> " formosh-toggle-on"
-            False -> " formosh-toggle-off"
-          },
-        ),
-        attribute.disabled(is_disabled),
-        attribute.attribute("role", "switch"),
-        attribute.attribute("aria-checked", case current_value {
-          True -> "true"
-          False -> "false"
-        }),
-        event.on_click(UpdateFieldPath(path.from_field_name(field_name), types.BooleanValue(!current_value))),
-      ], [
-        html.span([attribute.class("formosh-toggle-slider")], []),
-        html.span([attribute.class("formosh-toggle-text")], [
-          html.text(case current_value {
-            True -> "ON"
-            False -> "OFF"
+      html.button(
+        [
+          attribute.type_("button"),
+          attribute.class(
+            "formosh-toggle"
+            <> case current_value {
+              True -> " formosh-toggle-on"
+              False -> " formosh-toggle-off"
+            },
+          ),
+          attribute.disabled(is_disabled),
+          attribute.attribute("role", "switch"),
+          attribute.attribute("aria-checked", case current_value {
+            True -> "true"
+            False -> "false"
           }),
-        ]),
-      ]),
+          event.on_click(UpdateFieldPath(
+            field_path,
+            types.BooleanValue(!current_value),
+          )),
+        ],
+        [
+          html.span([attribute.class("formosh-toggle-slider")], []),
+          html.span([attribute.class("formosh-toggle-text")], [
+            html.text(case current_value {
+              True -> "ON"
+              False -> "OFF"
+            }),
+          ]),
+        ],
+      ),
     ]),
     render_help_text(property),
   ])
@@ -248,16 +261,20 @@ fn render_label(
     None -> field_name |> string.replace("_", " ") |> string.capitalise()
   }
 
-  html.label([
-    attribute.for(field_name),
-    attribute.class("formosh-label"),
-  ], [
-    html.text(label_text),
-    case is_required {
-      True -> html.span([attribute.class("formosh-required")], [html.text(" *")])
-      False -> html.text("")
-    },
-  ])
+  html.label(
+    [
+      attribute.for(field_name),
+      attribute.class("formosh-label"),
+    ],
+    [
+      html.text(label_text),
+      case is_required {
+        True ->
+          html.span([attribute.class("formosh-required")], [html.text(" *")])
+        False -> html.text("")
+      },
+    ],
+  )
 }
 
 /// Render label for checkbox-style boolean fields.
@@ -282,16 +299,20 @@ fn render_checkbox_label(
     None -> field_name |> string.replace("_", " ") |> string.capitalise()
   }
 
-  html.label([
-    attribute.for(field_name),
-    attribute.class("formosh-checkbox-label"),
-  ], [
-    html.text(label_text),
-    case is_required {
-      True -> html.span([attribute.class("formosh-required")], [html.text(" *")])
-      False -> html.text("")
-    },
-  ])
+  html.label(
+    [
+      attribute.for(field_name),
+      attribute.class("formosh-checkbox-label"),
+    ],
+    [
+      html.text(label_text),
+      case is_required {
+        True ->
+          html.span([attribute.class("formosh-required")], [html.text(" *")])
+        False -> html.text("")
+      },
+    ],
+  )
 }
 
 /// Render help text for boolean fields.
