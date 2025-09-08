@@ -1,12 +1,13 @@
+import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
-import gleam/int
 import schema/types
 
 /// Represents a path to a field in a nested data structure.
 /// This allows addressing fields at any depth, including nested objects and arrays.
-pub type FieldPath = List(PathSegment)
+pub type FieldPath =
+  List(PathSegment)
 
 /// A single segment in a field path.
 pub type PathSegment {
@@ -27,7 +28,11 @@ pub fn to_array_item_field(
   index: Int,
   field_name: String,
 ) -> FieldPath {
-  [PropertySegment(array_name), ArraySegment(index), PropertySegment(field_name)]
+  [
+    PropertySegment(array_name),
+    ArraySegment(index),
+    PropertySegment(field_name),
+  ]
 }
 
 /// Convert a path to a human-readable string for debugging.
@@ -40,6 +45,23 @@ pub fn to_string(path: FieldPath) -> String {
     }
   })
   |> string.join(".")
+}
+
+/// Get the field name from a path (the last property segment).
+/// 
+/// This is useful for extracting the display name of a field from its path.
+/// For array items, returns the field name within the array item.
+/// 
+/// ## Examples
+/// - `[PropertySegment("email")]` -> `Some("email")`
+/// - `[PropertySegment("items"), ArraySegment(0), PropertySegment("name")]` -> `Some("name")`
+/// - `[ArraySegment(0)]` -> `None`
+pub fn get_field_name(path: FieldPath) -> Option(String) {
+  case list.last(path) {
+    Ok(PropertySegment(name)) -> Some(name)
+    Ok(ArraySegment(_)) -> None
+    Error(_) -> None
+  }
 }
 
 /// Helper function to get an item from a list by index.
@@ -107,11 +129,11 @@ pub fn modify_at_path(
     [] -> modifier(root)
     [segment, ..rest] -> {
       case segment {
-        PropertySegment(name) -> 
+        PropertySegment(name) ->
           modify_object_field(root, name, fn(field_value) {
             modify_at_path(field_value, rest, modifier)
           })
-        
+
         ArraySegment(index) ->
           modify_array_item(root, index, fn(item_value) {
             modify_at_path(item_value, rest, modifier)
@@ -142,17 +164,20 @@ fn modify_array_item(
 ) -> types.FieldValue {
   let items = get_array_items(value)
   let padded = ensure_array_size(items, index + 1)
-  let updated = list.index_map(padded, fn(item, i) {
-    case i == index {
-      True -> field_to_json_value(modifier(json_to_field_value_safe(item)))
-      False -> item
-    }
-  })
+  let updated =
+    list.index_map(padded, fn(item, i) {
+      case i == index {
+        True -> field_to_json_value(modifier(json_to_field_value_safe(item)))
+        False -> item
+      }
+    })
   types.ArrayValue(updated)
 }
 
 // Helper functions for working with types
-fn get_object_fields(value: types.FieldValue) -> List(#(String, types.JsonValue)) {
+fn get_object_fields(
+  value: types.FieldValue,
+) -> List(#(String, types.JsonValue)) {
   case value {
     types.ObjectValue(fields) -> fields
     _ -> []
@@ -167,8 +192,8 @@ fn get_array_items(value: types.FieldValue) -> List(types.JsonValue) {
 }
 
 fn get_field_value(
-  fields: List(#(String, types.JsonValue)), 
-  name: String
+  fields: List(#(String, types.JsonValue)),
+  name: String,
 ) -> types.FieldValue {
   case list.find(fields, fn(f) { f.0 == name }) {
     Ok(#(_, json)) -> json_to_field_value_safe(json)
@@ -183,19 +208,21 @@ fn set_field_value(
 ) -> List(#(String, types.JsonValue)) {
   let json_value = field_to_json_value(value)
   case list.find(fields, fn(f) { f.0 == name }) {
-    Ok(_) -> 
+    Ok(_) ->
       list.map(fields, fn(field) {
         case field.0 == name {
           True -> #(name, json_value)
           False -> field
         }
       })
-    Error(_) -> 
-      list.append(fields, [#(name, json_value)])
+    Error(_) -> list.append(fields, [#(name, json_value)])
   }
 }
 
-fn ensure_array_size(items: List(types.JsonValue), size: Int) -> List(types.JsonValue) {
+fn ensure_array_size(
+  items: List(types.JsonValue),
+  size: Int,
+) -> List(types.JsonValue) {
   let current = list.length(items)
   case size > current {
     True -> list.append(items, list.repeat(types.JsonNull, size - current))
@@ -212,6 +239,7 @@ fn json_to_field_value(json: types.JsonValue) -> Option(types.FieldValue) {
   case json {
     types.JsonString(s) -> Some(types.StringValue(s))
     types.JsonNumber(n) -> Some(types.NumberValue(n))
+    types.JsonInteger(i) -> Some(types.IntegerValue(i))
     types.JsonBool(b) -> Some(types.BooleanValue(b))
     types.JsonArray(items) -> Some(types.ArrayValue(items))
     types.JsonObject(fields) -> Some(types.ObjectValue(fields))
@@ -224,7 +252,7 @@ fn field_to_json_value(value: types.FieldValue) -> types.JsonValue {
   case value {
     types.StringValue(s) -> types.JsonString(s)
     types.NumberValue(n) -> types.JsonNumber(n)
-    types.IntegerValue(i) -> types.JsonNumber(int.to_float(i))
+    types.IntegerValue(i) -> types.JsonInteger(i)
     types.BooleanValue(b) -> types.JsonBool(b)
     types.ArrayValue(items) -> types.JsonArray(items)
     types.ObjectValue(fields) -> types.JsonObject(fields)
@@ -241,10 +269,8 @@ pub fn add_array_item_at_path(
   modify_at_path(root, path, fn(value) {
     // Simple logic: if this is an array - add element
     case value {
-      types.ArrayValue(items) -> 
-        types.ArrayValue(list.append(items, [item]))
-      _ -> 
-        types.ArrayValue([item])
+      types.ArrayValue(items) -> types.ArrayValue(list.append(items, [item]))
+      _ -> types.ArrayValue([item])
     }
   })
 }
@@ -258,12 +284,13 @@ pub fn remove_array_item_at_path(
   modify_at_path(root, path, fn(value) {
     case value {
       types.ArrayValue(items) -> {
-        let filtered = list.index_fold(items, [], fn(acc, item, i) {
-          case i == index {
-            True -> acc
-            False -> list.append(acc, [item])
-          }
-        })
+        let filtered =
+          list.index_fold(items, [], fn(acc, item, i) {
+            case i == index {
+              True -> acc
+              False -> list.append(acc, [item])
+            }
+          })
         types.ArrayValue(filtered)
       }
       _ -> value
