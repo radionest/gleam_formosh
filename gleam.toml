@@ -1,14 +1,13 @@
 name = "formosh"
-version = "1.0.0"
+version = "0.1.0"
+description = "Type-safe JSON Schema form generator for Gleam/Lustre"
+licences = ["MIT"]
+repository = { type = "github", user = "youruser", repo = "formosh" }
+links = [
+  { title = "Documentation", href = "https://hexdocs.pm/formosh" },
+  { title = "GitHub", href = "https://github.com/youruser/formosh" }
+]
 
-# Fill out these fields if you intend to generate HTML documentation or publish
-# your project to the Hex package manager.
-#
-# description = ""
-# licences = ["Apache-2.0"]
-# repository = { type = "github", user = "", repo = "" }
-# links = [{ title = "Website", href = "" }]
-#
 # For a full reference of all the available options, you can have a look at
 # https://gleam.run/writing-gleam/gleam-toml/.
 
