@@ -1,5 +1,11 @@
 // View functions for form rendering
 
+import fields/array_field
+import fields/boolean_field
+import fields/number_field
+import fields/string_field
+import form/model.{type FormModel, type FormMsg}
+import form/path
 import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
@@ -7,11 +13,6 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import form/model.{type FormModel, type FormMsg}
-import fields/string_field
-import fields/number_field
-import fields/boolean_field
-import fields/array_field
 import schema/types
 
 /// Render the entire form as a Lustre element.
@@ -124,26 +125,17 @@ fn render_field(
   let errors = model.get_field_errors(model, field_name)
   let value = model.get_field_value(model, field_name)
 
+  // Create a path for root-level fields
+  let field_path = path.from_field_name(field_name)
+
   let field_element = case property.field_type {
     Some(types.StringType) ->
-      string_field.render(
-        field_name,
-        property,
-        value,
-        is_required,
-        is_disabled,
-      )
+      string_field.render(field_path, property, value, is_required, is_disabled)
     Some(types.NumberType) | Some(types.IntegerType) ->
-      number_field.render(
-        field_name,
-        property,
-        value,
-        is_required,
-        is_disabled,
-      )
+      number_field.render(field_path, property, value, is_required, is_disabled)
     Some(types.BooleanType) ->
       boolean_field.render(
-        field_name,
+        field_path,
         property,
         value,
         is_required,
@@ -165,7 +157,7 @@ fn render_field(
           })
         _ -> []
       }
-      
+
       array_field.view(
         field_name,
         property,
@@ -177,14 +169,14 @@ fn render_field(
     Some(types.ObjectType) ->
       // Objects not yet implemented
       html.div([attribute.class("formosh-field-unsupported")], [
-        html.text("Object field type not yet supported: " <> field_name)
+        html.text("Object field type not yet supported: " <> field_name),
       ])
     _ ->
       // Handle enum or unknown types
       case property.enum_values {
         Some(_enum_vals) ->
           string_field.render_enum(
-            field_name,
+            field_path,
             property,
             value,
             is_required,
@@ -311,6 +303,7 @@ fn json_value_to_field_value(value: types.JsonValue) -> types.FieldValue {
   case value {
     types.JsonString(s) -> types.StringValue(s)
     types.JsonNumber(n) -> types.NumberValue(n)
+    types.JsonInteger(i) -> types.IntegerValue(i)
     types.JsonBool(b) -> types.BooleanValue(b)
     types.JsonNull -> types.NullValue
     types.JsonArray(items) -> types.ArrayValue(items)
