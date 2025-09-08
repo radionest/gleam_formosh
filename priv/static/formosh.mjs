@@ -1720,6 +1720,23 @@ function repeat_loop(loop$item, loop$times, loop$acc) {
 function repeat(a, times) {
   return repeat_loop(a, times, toList([]));
 }
+function last(loop$list) {
+  while (true) {
+    let list4 = loop$list;
+    if (list4 instanceof Empty) {
+      return new Error(void 0);
+    } else {
+      let $ = list4.tail;
+      if ($ instanceof Empty) {
+        let last$1 = list4.head;
+        return new Ok(last$1);
+      } else {
+        let rest$1 = $;
+        loop$list = rest$1;
+      }
+    }
+  }
+}
 
 // build/dev/javascript/gleam_stdlib/gleam/string.mjs
 function replace(string5, pattern, substitute) {
@@ -1747,6 +1764,31 @@ function concat_loop(loop$strings, loop$accumulator) {
 }
 function concat2(strings) {
   return concat_loop(strings, "");
+}
+function join_loop(loop$strings, loop$separator, loop$accumulator) {
+  while (true) {
+    let strings = loop$strings;
+    let separator = loop$separator;
+    let accumulator = loop$accumulator;
+    if (strings instanceof Empty) {
+      return accumulator;
+    } else {
+      let string5 = strings.head;
+      let strings$1 = strings.tail;
+      loop$strings = strings$1;
+      loop$separator = separator;
+      loop$accumulator = accumulator + separator + string5;
+    }
+  }
+}
+function join(strings, separator) {
+  if (strings instanceof Empty) {
+    return "";
+  } else {
+    let first$1 = strings.head;
+    let rest = strings.tail;
+    return join_loop(rest, separator, first$1);
+  }
 }
 function capitalise(string5) {
   let $ = pop_grapheme(string5);
@@ -2829,29 +2871,6 @@ function boolean_attribute(name2, value2) {
 }
 function class$(name2) {
   return attribute2("class", name2);
-}
-function do_classes(loop$names, loop$class) {
-  while (true) {
-    let names = loop$names;
-    let class$2 = loop$class;
-    if (names instanceof Empty) {
-      return class$2;
-    } else {
-      let $ = names.head[1];
-      if ($) {
-        let rest = names.tail;
-        let name$1 = names.head[0];
-        return class$2 + name$1 + " " + do_classes(rest, class$2);
-      } else {
-        let rest = names.tail;
-        loop$names = rest;
-        loop$class = class$2;
-      }
-    }
-  }
-}
-function classes(names) {
-  return class$(do_classes(names, ""));
 }
 function id(value2) {
   return attribute2("id", value2);
@@ -4914,8 +4933,8 @@ var Reconciler = class {
     const throttle = throttles.get(type);
     if (throttle) {
       const now = Date.now();
-      const last = throttle.last || 0;
-      if (now > last + throttle.delay) {
+      const last2 = throttle.last || 0;
+      if (now > last2 + throttle.delay) {
         throttle.last = now;
         throttle.lastEvent = event4;
         this.#dispatch(data, path, type, immediate);
@@ -5517,6 +5536,12 @@ var JsonNumber = class extends CustomType {
     this[0] = $0;
   }
 };
+var JsonInteger = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
 var JsonBool = class extends CustomType {
   constructor($0) {
     super();
@@ -5687,6 +5712,36 @@ function to_array_item_field(array_name, index4, field_name) {
     new PropertySegment(field_name)
   ]);
 }
+function to_string4(path) {
+  let _pipe = path;
+  let _pipe$1 = map(
+    _pipe,
+    (segment) => {
+      if (segment instanceof PropertySegment) {
+        let name2 = segment.name;
+        return name2;
+      } else {
+        let index4 = segment.index;
+        return "[" + to_string(index4) + "]";
+      }
+    }
+  );
+  return join(_pipe$1, ".");
+}
+function get_field_name(path) {
+  let $ = last(path);
+  if ($ instanceof Ok) {
+    let $1 = $[0];
+    if ($1 instanceof PropertySegment) {
+      let name2 = $1.name;
+      return new Some(name2);
+    } else {
+      return new None();
+    }
+  } else {
+    return new None();
+  }
+}
 function get_object_fields(value2) {
   if (value2 instanceof ObjectValue) {
     let fields = value2[0];
@@ -5722,6 +5777,9 @@ function json_to_field_value(json2) {
   } else if (json2 instanceof JsonNumber) {
     let n = json2[0];
     return new Some(new NumberValue(n));
+  } else if (json2 instanceof JsonInteger) {
+    let i = json2[0];
+    return new Some(new IntegerValue(i));
   } else if (json2 instanceof JsonBool) {
     let b = json2[0];
     return new Some(new BooleanValue(b));
@@ -5759,7 +5817,7 @@ function field_to_json_value(value2) {
     return new JsonNumber(n);
   } else if (value2 instanceof IntegerValue) {
     let i = value2[0];
-    return new JsonNumber(identity(i));
+    return new JsonInteger(i);
   } else if (value2 instanceof BooleanValue) {
     let b = value2[0];
     return new JsonBool(b);
@@ -6420,7 +6478,7 @@ function field_value_to_json_value(value2) {
     return new JsonNumber(n);
   } else if (value2 instanceof IntegerValue) {
     let i = value2[0];
-    return new JsonNumber(identity(i));
+    return new JsonInteger(i);
   } else if (value2 instanceof BooleanValue) {
     let b = value2[0];
     return new JsonBool(b);
@@ -6441,6 +6499,9 @@ function json_value_to_field_value(value2) {
   } else if (value2 instanceof JsonNumber) {
     let n = value2[0];
     return new Some(new NumberValue(n));
+  } else if (value2 instanceof JsonInteger) {
+    let i = value2[0];
+    return new Some(new IntegerValue(i));
   } else if (value2 instanceof JsonBool) {
     let b = value2[0];
     return new Some(new BooleanValue(b));
@@ -6816,18 +6877,6 @@ function on_change(msg) {
     )
   );
 }
-function on_check(msg) {
-  return on(
-    "change",
-    subfield(
-      toList(["target", "checked"]),
-      bool,
-      (checked2) => {
-        return success(msg(checked2));
-      }
-    )
-  );
-}
 function formdata_decoder() {
   let string_value_decoder = field(
     0,
@@ -6874,363 +6923,852 @@ function on_submit(msg) {
   return prevent_default(_pipe);
 }
 
-// build/dev/javascript/formosh/fields/array_field.mjs
-function render_string_field(array_name, index4, field_name, property3, value2, required2) {
+// build/dev/javascript/formosh/fields/boolean_field.mjs
+function render_label(field_name, property3, is_required) {
   let _block;
-  if (value2 instanceof StringValue) {
-    let s = value2[0];
-    _block = s;
+  let $ = property3.title;
+  if ($ instanceof Some) {
+    let title = $[0];
+    _block = title;
   } else {
-    _block = "";
+    let _pipe = field_name;
+    let _pipe$1 = replace(_pipe, "_", " ");
+    _block = capitalise(_pipe$1);
   }
-  let string_value = _block;
-  return div(
-    toList([class$("field-group")]),
+  let label_text = _block;
+  return label(
+    toList([for$(field_name), class$("formosh-label")]),
     toList([
-      label(
-        toList([class$("field-label")]),
-        toList([
-          text3(unwrap(property3.title, field_name)),
-          (() => {
-            if (required2) {
-              return span(
-                toList([class$("required")]),
-                toList([text3(" *")])
-              );
-            } else {
-              return none2();
-            }
-          })()
-        ])
-      ),
+      text3(label_text),
       (() => {
-        let $ = property3.description;
-        if ($ instanceof Some) {
-          let desc = $[0];
-          return p(
-            toList([class$("field-help")]),
-            toList([text3(desc)])
+        if (is_required) {
+          return span(
+            toList([class$("formosh-required")]),
+            toList([text3(" *")])
           );
         } else {
-          return none2();
-        }
-      })(),
-      (() => {
-        let $ = property3.enum_values;
-        if ($ instanceof Some) {
-          let enum_vals = $[0];
-          return select(
-            toList([
-              class$("field-select"),
-              on_input(
-                (val) => {
-                  return new UpdateFieldPath(
-                    to_array_item_field(array_name, index4, field_name),
-                    new StringValue(val)
-                  );
-                }
-              )
-            ]),
-            map(
-              enum_vals,
-              (enum_val) => {
-                if (enum_val instanceof JsonString) {
-                  let s = enum_val[0];
-                  return option(
-                    toList([
-                      value(s),
-                      selected(s === string_value)
-                    ]),
-                    s
-                  );
-                } else {
-                  return option(toList([]), "");
-                }
-              }
-            )
-          );
-        } else {
-          return input(
-            toList([
-              type_("text"),
-              class$("field-input"),
-              value(string_value),
-              on_input(
-                (val) => {
-                  return new UpdateFieldPath(
-                    to_array_item_field(array_name, index4, field_name),
-                    new StringValue(val)
-                  );
-                }
-              )
-            ])
-          );
+          return text3("");
         }
       })()
     ])
   );
 }
-function render_number_field(array_name, index4, field_name, property3, value2, required2) {
-  let _block;
-  if (value2 instanceof NumberValue) {
-    let n = value2[0];
-    _block = float_to_string(n);
-  } else if (value2 instanceof IntegerValue) {
-    let i = value2[0];
-    _block = to_string(i);
+function render_help_text(property3) {
+  let $ = property3.description;
+  if ($ instanceof Some) {
+    let desc = $[0];
+    return div(
+      toList([class$("formosh-help")]),
+      toList([text3(desc)])
+    );
   } else {
-    _block = "";
+    return text3("");
   }
-  let number_value = _block;
-  return div(
-    toList([class$("field-group")]),
-    toList([
-      label(
-        toList([class$("field-label")]),
-        toList([
-          text3(unwrap(property3.title, field_name)),
-          (() => {
-            if (required2) {
-              return span(
-                toList([class$("required")]),
-                toList([text3(" *")])
-              );
-            } else {
-              return none2();
-            }
-          })()
-        ])
-      ),
-      (() => {
-        let $ = property3.description;
-        if ($ instanceof Some) {
-          let desc = $[0];
-          return p(
-            toList([class$("field-help")]),
-            toList([text3(desc)])
-          );
-        } else {
-          return none2();
-        }
-      })(),
-      input(
-        toList([
-          type_("number"),
-          class$("field-input"),
-          value(number_value),
-          (() => {
-            let $ = property3.number_constraints;
-            if ($ instanceof Some) {
-              let constraints = $[0];
-              let attrs = toList([]);
-              let _block$1;
-              let $1 = constraints.minimum;
-              if ($1 instanceof Some) {
-                let min3 = $1[0];
-                _block$1 = append(
-                  attrs,
-                  toList([min2(float_to_string(min3))])
-                );
-              } else {
-                _block$1 = attrs;
-              }
-              let attrs$1 = _block$1;
-              let _block$2;
-              let $2 = constraints.maximum;
-              if ($2 instanceof Some) {
-                let max3 = $2[0];
-                _block$2 = append(
-                  attrs$1,
-                  toList([max2(float_to_string(max3))])
-                );
-              } else {
-                _block$2 = attrs$1;
-              }
-              let attrs$2 = _block$2;
-              if (attrs$2 instanceof Empty) {
-                return class$("");
-              } else {
-                let $3 = attrs$2.tail;
-                if ($3 instanceof Empty) {
-                  let a = attrs$2.head;
-                  return a;
-                } else {
-                  let $4 = $3.tail;
-                  if ($4 instanceof Empty) {
-                    return classes(toList([["", true]]));
-                  } else {
-                    return class$("");
-                  }
-                }
-              }
-            } else {
-              return class$("");
-            }
-          })(),
-          on_input(
-            (val) => {
-              let path_to_field = to_array_item_field(
-                array_name,
-                index4,
-                field_name
-              );
-              let $ = property3.field_type;
-              if ($ instanceof Some) {
-                let $1 = $[0];
-                if ($1 instanceof IntegerType) {
-                  let $2 = parse_int(val);
-                  if ($2 instanceof Ok) {
-                    let i = $2[0];
-                    return new UpdateFieldPath(
-                      path_to_field,
-                      new IntegerValue(i)
-                    );
-                  } else {
-                    return new UpdateFieldPath(
-                      path_to_field,
-                      new NullValue()
-                    );
-                  }
-                } else {
-                  let $2 = parse_float(val);
-                  if ($2 instanceof Ok) {
-                    let f = $2[0];
-                    return new UpdateFieldPath(
-                      path_to_field,
-                      new NumberValue(f)
-                    );
-                  } else {
-                    return new UpdateFieldPath(
-                      path_to_field,
-                      new NullValue()
-                    );
-                  }
-                }
-              } else {
-                let $1 = parse_float(val);
-                if ($1 instanceof Ok) {
-                  let f = $1[0];
-                  return new UpdateFieldPath(
-                    path_to_field,
-                    new NumberValue(f)
-                  );
-                } else {
-                  return new UpdateFieldPath(
-                    path_to_field,
-                    new NullValue()
-                  );
-                }
-              }
-            }
-          )
-        ])
-      )
-    ])
-  );
 }
-function render_boolean_field(array_name, index4, field_name, property3, value2, required2) {
+function render_as_radio(field_path, property3, current_value, is_required, is_disabled) {
   let _block;
-  if (value2 instanceof BooleanValue) {
-    let b = value2[0];
-    _block = b;
-  } else {
-    _block = false;
-  }
-  let bool_value = _block;
+  let _pipe = get_field_name(field_path);
+  _block = unwrap(_pipe, "field");
+  let field_name = _block;
+  let yes_id = field_name + "_yes";
+  let no_id = field_name + "_no";
   return div(
-    toList([class$("field-group checkbox-group")]),
+    toList([class$("formosh-field-wrapper")]),
     toList([
-      label(
-        toList([class$("checkbox-label")]),
+      render_label(field_name, property3, is_required),
+      div(
+        toList([class$("formosh-radio-group formosh-boolean")]),
         toList([
-          input(
+          div(
+            toList([class$("formosh-radio-item")]),
             toList([
-              type_("checkbox"),
-              class$("field-checkbox"),
-              checked(bool_value),
-              on_check(
-                (checked2) => {
-                  return new UpdateFieldPath(
-                    to_array_item_field(array_name, index4, field_name),
-                    new BooleanValue(checked2)
-                  );
-                }
+              input(
+                toList([
+                  type_("radio"),
+                  id(yes_id),
+                  name(field_name),
+                  value("true"),
+                  checked(current_value),
+                  required(is_required),
+                  disabled(is_disabled),
+                  on_click(
+                    new UpdateFieldPath(
+                      field_path,
+                      new BooleanValue(true)
+                    )
+                  )
+                ])
+              ),
+              label(
+                toList([for$(yes_id)]),
+                toList([text3("Yes")])
               )
             ])
           ),
-          span(
-            toList([]),
+          div(
+            toList([class$("formosh-radio-item")]),
             toList([
-              text3(unwrap(property3.title, field_name)),
-              (() => {
-                if (required2) {
-                  return span(
-                    toList([class$("required")]),
-                    toList([text3(" *")])
-                  );
-                } else {
-                  return none2();
-                }
-              })()
+              input(
+                toList([
+                  type_("radio"),
+                  id(no_id),
+                  name(field_name),
+                  value("false"),
+                  checked(!current_value),
+                  required(is_required),
+                  disabled(is_disabled),
+                  on_click(
+                    new UpdateFieldPath(
+                      field_path,
+                      new BooleanValue(false)
+                    )
+                  )
+                ])
+              ),
+              label(
+                toList([for$(no_id)]),
+                toList([text3("No")])
+              )
             ])
           )
         ])
       ),
-      (() => {
-        let $ = property3.description;
-        if ($ instanceof Some) {
-          let desc = $[0];
-          return p(
-            toList([class$("field-help")]),
-            toList([text3(desc)])
+      render_help_text(property3)
+    ])
+  );
+}
+function render(field_path, property3, value2, is_required, is_disabled) {
+  let _block;
+  if (value2 instanceof Some) {
+    let $ = value2[0];
+    if ($ instanceof BooleanValue) {
+      let b = $[0];
+      _block = b;
+    } else {
+      _block = false;
+    }
+  } else {
+    _block = false;
+  }
+  let current_value = _block;
+  return render_as_radio(
+    field_path,
+    property3,
+    current_value,
+    is_required,
+    is_disabled
+  );
+}
+
+// build/dev/javascript/formosh/fields/number_field.mjs
+function handle_number_input(field_path, value2, is_integer) {
+  if (value2 === "") {
+    return new UpdateFieldPath(field_path, new NullValue());
+  } else {
+    let str = value2;
+    if (is_integer) {
+      let $ = parse_int(str);
+      if ($ instanceof Ok) {
+        let i = $[0];
+        return new UpdateFieldPath(field_path, new IntegerValue(i));
+      } else {
+        return new UpdateFieldPath(field_path, new StringValue(str));
+      }
+    } else {
+      let $ = parse_float(str);
+      if ($ instanceof Ok) {
+        let f = $[0];
+        return new UpdateFieldPath(field_path, new NumberValue(f));
+      } else {
+        let $1 = parse_int(str);
+        if ($1 instanceof Ok) {
+          let i = $1[0];
+          return new UpdateFieldPath(
+            field_path,
+            new NumberValue(identity(i))
           );
         } else {
-          return none2();
+          return new UpdateFieldPath(field_path, new StringValue(str));
+        }
+      }
+    }
+  }
+}
+function render_label2(field_name, property3, is_required) {
+  let _block;
+  let $ = property3.title;
+  if ($ instanceof Some) {
+    let title = $[0];
+    _block = title;
+  } else {
+    let _pipe = field_name;
+    let _pipe$1 = replace(_pipe, "_", " ");
+    _block = capitalise(_pipe$1);
+  }
+  let label_text = _block;
+  return label(
+    toList([for$(field_name), class$("formosh-label")]),
+    toList([
+      text3(label_text),
+      (() => {
+        if (is_required) {
+          return span(
+            toList([class$("formosh-required")]),
+            toList([text3(" *")])
+          );
+        } else {
+          return text3("");
         }
       })()
     ])
   );
 }
+function render_help_text2(property3) {
+  let $ = property3.description;
+  if ($ instanceof Some) {
+    let desc = $[0];
+    return div(
+      toList([class$("formosh-help")]),
+      toList([text3(desc)])
+    );
+  } else {
+    return text3("");
+  }
+}
+function get_number_constraints_attributes(property3) {
+  let $ = property3.number_constraints;
+  if ($ instanceof Some) {
+    let constraints = $[0];
+    let attrs = toList([]);
+    let _block;
+    let $1 = constraints.minimum;
+    if ($1 instanceof Some) {
+      let min3 = $1[0];
+      _block = append(
+        attrs,
+        toList([min2(float_to_string(min3))])
+      );
+    } else {
+      _block = attrs;
+    }
+    let attrs$1 = _block;
+    let _block$1;
+    let $2 = constraints.maximum;
+    if ($2 instanceof Some) {
+      let max3 = $2[0];
+      _block$1 = append(
+        attrs$1,
+        toList([max2(float_to_string(max3))])
+      );
+    } else {
+      _block$1 = attrs$1;
+    }
+    let attrs$2 = _block$1;
+    let _block$2;
+    let $3 = constraints.exclusive_minimum;
+    if ($3 instanceof Some) {
+      let min3 = $3[0];
+      let adjusted = min3 + 1e-6;
+      _block$2 = append(
+        attrs$2,
+        toList([min2(float_to_string(adjusted))])
+      );
+    } else {
+      _block$2 = attrs$2;
+    }
+    let attrs$3 = _block$2;
+    let _block$3;
+    let $4 = constraints.exclusive_maximum;
+    if ($4 instanceof Some) {
+      let max3 = $4[0];
+      let adjusted = max3 - 1e-6;
+      _block$3 = append(
+        attrs$3,
+        toList([max2(float_to_string(adjusted))])
+      );
+    } else {
+      _block$3 = attrs$3;
+    }
+    let attrs$4 = _block$3;
+    let _block$4;
+    let $5 = constraints.multiple_of;
+    if ($5 instanceof Some) {
+      let step2 = $5[0];
+      _block$4 = append(
+        attrs$4,
+        toList([step(float_to_string(step2))])
+      );
+    } else {
+      _block$4 = attrs$4;
+    }
+    let attrs$5 = _block$4;
+    return attrs$5;
+  } else {
+    return toList([]);
+  }
+}
+function render2(field_path, property3, value2, is_required, is_disabled) {
+  let _block;
+  let $ = property3.field_type;
+  if ($ instanceof Some) {
+    let $1 = $[0];
+    if ($1 instanceof IntegerType) {
+      _block = true;
+    } else {
+      _block = false;
+    }
+  } else {
+    _block = false;
+  }
+  let is_integer = _block;
+  let _block$1;
+  if (value2 instanceof Some) {
+    let $1 = value2[0];
+    if ($1 instanceof NumberValue) {
+      let n = $1[0];
+      _block$1 = float_to_string(n);
+    } else if ($1 instanceof IntegerValue) {
+      let i = $1[0];
+      _block$1 = to_string(i);
+    } else {
+      _block$1 = "";
+    }
+  } else {
+    _block$1 = "";
+  }
+  let current_value = _block$1;
+  let _block$2;
+  let _pipe = get_field_name(field_path);
+  _block$2 = unwrap(_pipe, "field");
+  let field_name = _block$2;
+  return div(
+    toList([class$("formosh-field-wrapper")]),
+    toList([
+      render_label2(field_name, property3, is_required),
+      input(
+        prepend(
+          id(to_string4(field_path)),
+          prepend(
+            name(field_name),
+            prepend(
+              type_("number"),
+              prepend(
+                value(current_value),
+                prepend(
+                  class$("formosh-input formosh-number"),
+                  prepend(
+                    required(is_required),
+                    prepend(
+                      disabled(is_disabled),
+                      prepend(
+                        (() => {
+                          if (is_integer) {
+                            return step("1");
+                          } else {
+                            return step("any");
+                          }
+                        })(),
+                        prepend(
+                          on_input(
+                            (val) => {
+                              return handle_number_input(
+                                field_path,
+                                val,
+                                is_integer
+                              );
+                            }
+                          ),
+                          get_number_constraints_attributes(property3)
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      ),
+      render_help_text2(property3)
+    ])
+  );
+}
+
+// build/dev/javascript/formosh/fields/field_common.mjs
+function render_label3(field_name, property3, is_required) {
+  let _block;
+  let $ = property3.title;
+  if ($ instanceof Some) {
+    let title = $[0];
+    _block = title;
+  } else {
+    let _pipe = field_name;
+    let _pipe$1 = replace(_pipe, "_", " ");
+    _block = capitalise(_pipe$1);
+  }
+  let label_text = _block;
+  return label(
+    toList([for$(field_name), class$("formosh-label")]),
+    toList([
+      text3(label_text),
+      (() => {
+        if (is_required) {
+          return span(
+            toList([class$("formosh-required")]),
+            toList([text3(" *")])
+          );
+        } else {
+          return text3("");
+        }
+      })()
+    ])
+  );
+}
+function render_help_text3(property3) {
+  let $ = property3.description;
+  if ($ instanceof Some) {
+    let desc = $[0];
+    return div(
+      toList([class$("formosh-help")]),
+      toList([text3(desc)])
+    );
+  } else {
+    return text3("");
+  }
+}
+function field_wrapper(field_name, property3, is_required, field_element) {
+  return div(
+    toList([class$("formosh-field-wrapper")]),
+    toList([
+      render_label3(field_name, property3, is_required),
+      field_element,
+      render_help_text3(property3)
+    ])
+  );
+}
+function input_attributes_with_path(field_path, value2, is_required, is_disabled, extra_attrs) {
+  let _block;
+  let _pipe = get_field_name(field_path);
+  _block = unwrap(_pipe, "field");
+  let field_name = _block;
+  return prepend(
+    id(to_string4(field_path)),
+    prepend(
+      name(field_name),
+      prepend(
+        value(value2),
+        prepend(
+          required(is_required),
+          prepend(
+            disabled(is_disabled),
+            prepend(
+              on_input(
+                (val) => {
+                  return new UpdateFieldPath(
+                    field_path,
+                    new StringValue(val)
+                  );
+                }
+              ),
+              extra_attrs
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
+// build/dev/javascript/formosh/fields/string_field.mjs
+function get_input_type(property3) {
+  let $ = property3.string_constraints;
+  if ($ instanceof Some) {
+    let constraints = $[0];
+    let $1 = constraints.format;
+    if ($1 instanceof Some) {
+      let $2 = $1[0];
+      if ($2 instanceof DateFormat) {
+        return "date";
+      } else if ($2 instanceof DateTimeFormat) {
+        return "datetime-local";
+      } else if ($2 instanceof TimeFormat) {
+        return "time";
+      } else if ($2 instanceof EmailFormat) {
+        return "email";
+      } else if ($2 instanceof UrlFormat) {
+        return "url";
+      } else {
+        return "text";
+      }
+    } else {
+      return "text";
+    }
+  } else {
+    return "text";
+  }
+}
+function get_string_constraints_attributes(property3) {
+  let $ = property3.string_constraints;
+  if ($ instanceof Some) {
+    let constraints = $[0];
+    let attrs = toList([]);
+    let _block;
+    let $1 = constraints.min_length;
+    if ($1 instanceof Some) {
+      let min3 = $1[0];
+      _block = append(
+        attrs,
+        toList([attribute2("minlength", to_string(min3))])
+      );
+    } else {
+      _block = attrs;
+    }
+    let attrs$1 = _block;
+    let _block$1;
+    let $2 = constraints.max_length;
+    if ($2 instanceof Some) {
+      let max3 = $2[0];
+      _block$1 = append(
+        attrs$1,
+        toList([attribute2("maxlength", to_string(max3))])
+      );
+    } else {
+      _block$1 = attrs$1;
+    }
+    let attrs$2 = _block$1;
+    let _block$2;
+    let $3 = constraints.pattern;
+    if ($3 instanceof Some) {
+      let pattern = $3[0];
+      _block$2 = append(
+        attrs$2,
+        toList([attribute2("pattern", pattern)])
+      );
+    } else {
+      _block$2 = attrs$2;
+    }
+    let attrs$3 = _block$2;
+    return attrs$3;
+  } else {
+    return toList([]);
+  }
+}
+function render_input(field_path, property3, value2, is_required, is_disabled) {
+  let _block;
+  if (value2 instanceof Some) {
+    let $ = value2[0];
+    if ($ instanceof StringValue) {
+      let s = $[0];
+      _block = s;
+    } else {
+      _block = "";
+    }
+  } else {
+    _block = "";
+  }
+  let current_value = _block;
+  let input_type = get_input_type(property3);
+  let extra_attrs = prepend(
+    type_(input_type),
+    prepend(
+      class$("formosh-input"),
+      get_string_constraints_attributes(property3)
+    )
+  );
+  let _block$1;
+  let _pipe = get_field_name(field_path);
+  _block$1 = unwrap(_pipe, "field");
+  let field_name = _block$1;
+  let input_elem = input(
+    input_attributes_with_path(
+      field_path,
+      current_value,
+      is_required,
+      is_disabled,
+      extra_attrs
+    )
+  );
+  return field_wrapper(
+    field_name,
+    property3,
+    is_required,
+    input_elem
+  );
+}
+function render_textarea(field_path, property3, value2, is_required, is_disabled) {
+  let _block;
+  if (value2 instanceof Some) {
+    let $ = value2[0];
+    if ($ instanceof StringValue) {
+      let s = $[0];
+      _block = s;
+    } else {
+      _block = "";
+    }
+  } else {
+    _block = "";
+  }
+  let current_value = _block;
+  let extra_attrs = prepend(
+    class$("formosh-textarea"),
+    get_string_constraints_attributes(property3)
+  );
+  let _block$1;
+  let _pipe = get_field_name(field_path);
+  _block$1 = unwrap(_pipe, "field");
+  let field_name = _block$1;
+  let textarea_elem = textarea(
+    input_attributes_with_path(
+      field_path,
+      current_value,
+      is_required,
+      is_disabled,
+      extra_attrs
+    ),
+    current_value
+  );
+  return field_wrapper(
+    field_name,
+    property3,
+    is_required,
+    textarea_elem
+  );
+}
+function json_value_to_string(val) {
+  if (val instanceof JsonString) {
+    let s = val[0];
+    return s;
+  } else if (val instanceof JsonNumber) {
+    let n = val[0];
+    return float_to_string(n);
+  } else if (val instanceof JsonInteger) {
+    let i = val[0];
+    return to_string(i);
+  } else if (val instanceof JsonBool) {
+    let $ = val[0];
+    if ($) {
+      return "true";
+    } else {
+      return "false";
+    }
+  } else if (val instanceof JsonNull) {
+    return "";
+  } else {
+    return "";
+  }
+}
+function render_radio_group(field_path, property3, enum_vals, current_value, is_required, is_disabled) {
+  let _block;
+  let _pipe = get_field_name(field_path);
+  _block = unwrap(_pipe, "field");
+  let field_name = _block;
+  let radio_group = div(
+    toList([class$("formosh-radio-group")]),
+    map(
+      enum_vals,
+      (val) => {
+        let str_val = json_value_to_string(val);
+        let radio_id = field_name + "_" + str_val;
+        return div(
+          toList([class$("formosh-radio-item")]),
+          toList([
+            input(
+              toList([
+                type_("radio"),
+                id(radio_id),
+                name(field_name),
+                value(str_val),
+                checked(str_val === current_value),
+                required(is_required),
+                disabled(is_disabled),
+                on_click(
+                  new UpdateFieldPath(
+                    field_path,
+                    new StringValue(str_val)
+                  )
+                )
+              ])
+            ),
+            label(
+              toList([for$(radio_id)]),
+              toList([text3(str_val)])
+            )
+          ])
+        );
+      }
+    )
+  );
+  return field_wrapper(
+    field_name,
+    property3,
+    is_required,
+    radio_group
+  );
+}
+function render_select(field_path, property3, enum_vals, current_value, is_required, is_disabled) {
+  let _block;
+  let _pipe = get_field_name(field_path);
+  _block = unwrap(_pipe, "field");
+  let field_name = _block;
+  let select_elem = select(
+    toList([
+      id(field_name),
+      name(field_name),
+      class$("formosh-select"),
+      required(is_required),
+      disabled(is_disabled),
+      on_change(
+        (val) => {
+          return new UpdateFieldPath(field_path, new StringValue(val));
+        }
+      )
+    ]),
+    prepend(
+      option(toList([value("")]), "Select an option..."),
+      map(
+        enum_vals,
+        (val) => {
+          let str_val = json_value_to_string(val);
+          return option(
+            toList([
+              value(str_val),
+              selected(str_val === current_value)
+            ]),
+            str_val
+          );
+        }
+      )
+    )
+  );
+  return field_wrapper(
+    field_name,
+    property3,
+    is_required,
+    select_elem
+  );
+}
+function render_enum(field_path, property3, value2, is_required, is_disabled) {
+  let $ = property3.enum_values;
+  if ($ instanceof Some) {
+    let enum_vals = $[0];
+    let _block;
+    if (value2 instanceof Some) {
+      let $12 = value2[0];
+      if ($12 instanceof StringValue) {
+        let s = $12[0];
+        _block = s;
+      } else {
+        _block = "";
+      }
+    } else {
+      _block = "";
+    }
+    let current_value = _block;
+    let $1 = length(enum_vals) <= 5;
+    if ($1) {
+      return render_radio_group(
+        field_path,
+        property3,
+        enum_vals,
+        current_value,
+        is_required,
+        is_disabled
+      );
+    } else {
+      return render_select(
+        field_path,
+        property3,
+        enum_vals,
+        current_value,
+        is_required,
+        is_disabled
+      );
+    }
+  } else {
+    return text3("");
+  }
+}
+function render3(field_path, property3, value2, is_required, is_disabled) {
+  let $ = property3.enum_values;
+  if ($ instanceof Some) {
+    return render_enum(field_path, property3, value2, is_required, is_disabled);
+  } else {
+    let $1 = property3.string_constraints;
+    if ($1 instanceof Some) {
+      let constraints = $1[0];
+      let $2 = constraints.max_length;
+      if ($2 instanceof Some) {
+        let max3 = $2[0];
+        if (max3 > 100) {
+          return render_textarea(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled
+          );
+        } else {
+          return render_input(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled
+          );
+        }
+      } else {
+        return render_input(
+          field_path,
+          property3,
+          value2,
+          is_required,
+          is_disabled
+        );
+      }
+    } else {
+      return render_input(field_path, property3, value2, is_required, is_disabled);
+    }
+  }
+}
+
+// build/dev/javascript/formosh/fields/array_field.mjs
 function render_field(array_name, index4, field_name, property3, value2, required2) {
+  let field_path = to_array_item_field(array_name, index4, field_name);
   let _block;
   let $ = property3.field_type;
   if ($ instanceof Some) {
     let $1 = $[0];
     if ($1 instanceof StringType) {
-      _block = render_string_field(
-        array_name,
-        index4,
-        field_name,
+      _block = render3(
+        field_path,
         property3,
-        value2,
-        required2
+        new Some(value2),
+        required2,
+        false
       );
     } else if ($1 instanceof NumberType) {
-      _block = render_number_field(
-        array_name,
-        index4,
-        field_name,
+      _block = render2(
+        field_path,
         property3,
-        value2,
-        required2
+        new Some(value2),
+        required2,
+        false
       );
     } else if ($1 instanceof IntegerType) {
-      _block = render_number_field(
-        array_name,
-        index4,
-        field_name,
+      _block = render2(
+        field_path,
         property3,
-        value2,
-        required2
+        new Some(value2),
+        required2,
+        false
       );
     } else if ($1 instanceof BooleanType) {
-      _block = render_boolean_field(
-        array_name,
-        index4,
-        field_name,
+      _block = render(
+        field_path,
         property3,
-        value2,
-        required2
+        new Some(value2),
+        required2,
+        false
       );
     } else {
       _block = div(
@@ -7392,787 +7930,6 @@ function view(name2, property3, values3, errors, required2) {
   );
 }
 
-// build/dev/javascript/formosh/fields/boolean_field.mjs
-function render_label(field_name, property3, is_required) {
-  let _block;
-  let $ = property3.title;
-  if ($ instanceof Some) {
-    let title = $[0];
-    _block = title;
-  } else {
-    let _pipe = field_name;
-    let _pipe$1 = replace(_pipe, "_", " ");
-    _block = capitalise(_pipe$1);
-  }
-  let label_text = _block;
-  return label(
-    toList([for$(field_name), class$("formosh-label")]),
-    toList([
-      text3(label_text),
-      (() => {
-        if (is_required) {
-          return span(
-            toList([class$("formosh-required")]),
-            toList([text3(" *")])
-          );
-        } else {
-          return text3("");
-        }
-      })()
-    ])
-  );
-}
-function render_help_text(property3) {
-  let $ = property3.description;
-  if ($ instanceof Some) {
-    let desc = $[0];
-    return div(
-      toList([class$("formosh-help")]),
-      toList([text3(desc)])
-    );
-  } else {
-    return text3("");
-  }
-}
-function render_as_radio(field_name, property3, current_value, is_required, is_disabled) {
-  let yes_id = field_name + "_yes";
-  let no_id = field_name + "_no";
-  return div(
-    toList([class$("formosh-field-wrapper")]),
-    toList([
-      render_label(field_name, property3, is_required),
-      div(
-        toList([class$("formosh-radio-group formosh-boolean")]),
-        toList([
-          div(
-            toList([class$("formosh-radio-item")]),
-            toList([
-              input(
-                toList([
-                  type_("radio"),
-                  id(yes_id),
-                  name(field_name),
-                  value("true"),
-                  checked(current_value),
-                  required(is_required),
-                  disabled(is_disabled),
-                  on_click(
-                    new UpdateFieldPath(
-                      from_field_name(field_name),
-                      new BooleanValue(true)
-                    )
-                  )
-                ])
-              ),
-              label(
-                toList([for$(yes_id)]),
-                toList([text3("Yes")])
-              )
-            ])
-          ),
-          div(
-            toList([class$("formosh-radio-item")]),
-            toList([
-              input(
-                toList([
-                  type_("radio"),
-                  id(no_id),
-                  name(field_name),
-                  value("false"),
-                  checked(!current_value),
-                  required(is_required),
-                  disabled(is_disabled),
-                  on_click(
-                    new UpdateFieldPath(
-                      from_field_name(field_name),
-                      new BooleanValue(false)
-                    )
-                  )
-                ])
-              ),
-              label(
-                toList([for$(no_id)]),
-                toList([text3("No")])
-              )
-            ])
-          )
-        ])
-      ),
-      render_help_text(property3)
-    ])
-  );
-}
-function render(field_name, property3, value2, is_required, is_disabled) {
-  let _block;
-  if (value2 instanceof Some) {
-    let $ = value2[0];
-    if ($ instanceof BooleanValue) {
-      let b = $[0];
-      _block = b;
-    } else {
-      _block = false;
-    }
-  } else {
-    _block = false;
-  }
-  let current_value = _block;
-  return render_as_radio(
-    field_name,
-    property3,
-    current_value,
-    is_required,
-    is_disabled
-  );
-}
-
-// build/dev/javascript/formosh/fields/number_field.mjs
-function handle_number_input(field_name, value2, is_integer) {
-  let field_path = from_field_name(field_name);
-  if (value2 === "") {
-    return new UpdateFieldPath(field_path, new NullValue());
-  } else {
-    let str = value2;
-    if (is_integer) {
-      let $ = parse_int(str);
-      if ($ instanceof Ok) {
-        let i = $[0];
-        return new UpdateFieldPath(field_path, new IntegerValue(i));
-      } else {
-        return new UpdateFieldPath(field_path, new StringValue(str));
-      }
-    } else {
-      let $ = parse_float(str);
-      if ($ instanceof Ok) {
-        let f = $[0];
-        return new UpdateFieldPath(field_path, new NumberValue(f));
-      } else {
-        let $1 = parse_int(str);
-        if ($1 instanceof Ok) {
-          let i = $1[0];
-          return new UpdateFieldPath(
-            field_path,
-            new NumberValue(identity(i))
-          );
-        } else {
-          return new UpdateFieldPath(field_path, new StringValue(str));
-        }
-      }
-    }
-  }
-}
-function render_label2(field_name, property3, is_required) {
-  let _block;
-  let $ = property3.title;
-  if ($ instanceof Some) {
-    let title = $[0];
-    _block = title;
-  } else {
-    let _pipe = field_name;
-    let _pipe$1 = replace(_pipe, "_", " ");
-    _block = capitalise(_pipe$1);
-  }
-  let label_text = _block;
-  return label(
-    toList([for$(field_name), class$("formosh-label")]),
-    toList([
-      text3(label_text),
-      (() => {
-        if (is_required) {
-          return span(
-            toList([class$("formosh-required")]),
-            toList([text3(" *")])
-          );
-        } else {
-          return text3("");
-        }
-      })()
-    ])
-  );
-}
-function render_help_text2(property3) {
-  let $ = property3.description;
-  if ($ instanceof Some) {
-    let desc = $[0];
-    return div(
-      toList([class$("formosh-help")]),
-      toList([text3(desc)])
-    );
-  } else {
-    return text3("");
-  }
-}
-function get_number_constraints_attributes(property3) {
-  let $ = property3.number_constraints;
-  if ($ instanceof Some) {
-    let constraints = $[0];
-    let attrs = toList([]);
-    let _block;
-    let $1 = constraints.minimum;
-    if ($1 instanceof Some) {
-      let min3 = $1[0];
-      _block = append(
-        attrs,
-        toList([min2(float_to_string(min3))])
-      );
-    } else {
-      _block = attrs;
-    }
-    let attrs$1 = _block;
-    let _block$1;
-    let $2 = constraints.maximum;
-    if ($2 instanceof Some) {
-      let max3 = $2[0];
-      _block$1 = append(
-        attrs$1,
-        toList([max2(float_to_string(max3))])
-      );
-    } else {
-      _block$1 = attrs$1;
-    }
-    let attrs$2 = _block$1;
-    let _block$2;
-    let $3 = constraints.exclusive_minimum;
-    if ($3 instanceof Some) {
-      let min3 = $3[0];
-      let adjusted = min3 + 1e-6;
-      _block$2 = append(
-        attrs$2,
-        toList([min2(float_to_string(adjusted))])
-      );
-    } else {
-      _block$2 = attrs$2;
-    }
-    let attrs$3 = _block$2;
-    let _block$3;
-    let $4 = constraints.exclusive_maximum;
-    if ($4 instanceof Some) {
-      let max3 = $4[0];
-      let adjusted = max3 - 1e-6;
-      _block$3 = append(
-        attrs$3,
-        toList([max2(float_to_string(adjusted))])
-      );
-    } else {
-      _block$3 = attrs$3;
-    }
-    let attrs$4 = _block$3;
-    let _block$4;
-    let $5 = constraints.multiple_of;
-    if ($5 instanceof Some) {
-      let step2 = $5[0];
-      _block$4 = append(
-        attrs$4,
-        toList([step(float_to_string(step2))])
-      );
-    } else {
-      _block$4 = attrs$4;
-    }
-    let attrs$5 = _block$4;
-    return attrs$5;
-  } else {
-    return toList([]);
-  }
-}
-function render2(field_name, property3, value2, is_required, is_disabled) {
-  let _block;
-  let $ = property3.field_type;
-  if ($ instanceof Some) {
-    let $1 = $[0];
-    if ($1 instanceof IntegerType) {
-      _block = true;
-    } else {
-      _block = false;
-    }
-  } else {
-    _block = false;
-  }
-  let is_integer = _block;
-  let _block$1;
-  if (value2 instanceof Some) {
-    let $1 = value2[0];
-    if ($1 instanceof NumberValue) {
-      let n = $1[0];
-      _block$1 = float_to_string(n);
-    } else if ($1 instanceof IntegerValue) {
-      let i = $1[0];
-      _block$1 = to_string(i);
-    } else {
-      _block$1 = "";
-    }
-  } else {
-    _block$1 = "";
-  }
-  let current_value = _block$1;
-  return div(
-    toList([class$("formosh-field-wrapper")]),
-    toList([
-      render_label2(field_name, property3, is_required),
-      input(
-        prepend(
-          id(field_name),
-          prepend(
-            name(field_name),
-            prepend(
-              type_("number"),
-              prepend(
-                value(current_value),
-                prepend(
-                  class$("formosh-input formosh-number"),
-                  prepend(
-                    required(is_required),
-                    prepend(
-                      disabled(is_disabled),
-                      prepend(
-                        (() => {
-                          if (is_integer) {
-                            return step("1");
-                          } else {
-                            return step("any");
-                          }
-                        })(),
-                        prepend(
-                          on_input(
-                            (val) => {
-                              return handle_number_input(
-                                field_name,
-                                val,
-                                is_integer
-                              );
-                            }
-                          ),
-                          get_number_constraints_attributes(property3)
-                        )
-                      )
-                    )
-                  )
-                )
-              )
-            )
-          )
-        )
-      ),
-      render_help_text2(property3)
-    ])
-  );
-}
-
-// build/dev/javascript/formosh/fields/field_common.mjs
-function render_label3(field_name, property3, is_required) {
-  let _block;
-  let $ = property3.title;
-  if ($ instanceof Some) {
-    let title = $[0];
-    _block = title;
-  } else {
-    let _pipe = field_name;
-    let _pipe$1 = replace(_pipe, "_", " ");
-    _block = capitalise(_pipe$1);
-  }
-  let label_text = _block;
-  return label(
-    toList([for$(field_name), class$("formosh-label")]),
-    toList([
-      text3(label_text),
-      (() => {
-        if (is_required) {
-          return span(
-            toList([class$("formosh-required")]),
-            toList([text3(" *")])
-          );
-        } else {
-          return text3("");
-        }
-      })()
-    ])
-  );
-}
-function render_help_text3(property3) {
-  let $ = property3.description;
-  if ($ instanceof Some) {
-    let desc = $[0];
-    return div(
-      toList([class$("formosh-help")]),
-      toList([text3(desc)])
-    );
-  } else {
-    return text3("");
-  }
-}
-function field_wrapper(field_name, property3, is_required, field_element) {
-  return div(
-    toList([class$("formosh-field-wrapper")]),
-    toList([
-      render_label3(field_name, property3, is_required),
-      field_element,
-      render_help_text3(property3)
-    ])
-  );
-}
-function input_attributes(field_name, value2, is_required, is_disabled, extra_attrs) {
-  return prepend(
-    id(field_name),
-    prepend(
-      name(field_name),
-      prepend(
-        value(value2),
-        prepend(
-          required(is_required),
-          prepend(
-            disabled(is_disabled),
-            prepend(
-              on_input(
-                (val) => {
-                  return new UpdateFieldPath(
-                    from_field_name(field_name),
-                    new StringValue(val)
-                  );
-                }
-              ),
-              extra_attrs
-            )
-          )
-        )
-      )
-    )
-  );
-}
-
-// build/dev/javascript/formosh/fields/string_field.mjs
-function get_input_type(property3) {
-  let $ = property3.string_constraints;
-  if ($ instanceof Some) {
-    let constraints = $[0];
-    let $1 = constraints.format;
-    if ($1 instanceof Some) {
-      let $2 = $1[0];
-      if ($2 instanceof DateFormat) {
-        return "date";
-      } else if ($2 instanceof DateTimeFormat) {
-        return "datetime-local";
-      } else if ($2 instanceof TimeFormat) {
-        return "time";
-      } else if ($2 instanceof EmailFormat) {
-        return "email";
-      } else if ($2 instanceof UrlFormat) {
-        return "url";
-      } else {
-        return "text";
-      }
-    } else {
-      return "text";
-    }
-  } else {
-    return "text";
-  }
-}
-function get_string_constraints_attributes(property3) {
-  let $ = property3.string_constraints;
-  if ($ instanceof Some) {
-    let constraints = $[0];
-    let attrs = toList([]);
-    let _block;
-    let $1 = constraints.min_length;
-    if ($1 instanceof Some) {
-      let min3 = $1[0];
-      _block = append(
-        attrs,
-        toList([attribute2("minlength", to_string(min3))])
-      );
-    } else {
-      _block = attrs;
-    }
-    let attrs$1 = _block;
-    let _block$1;
-    let $2 = constraints.max_length;
-    if ($2 instanceof Some) {
-      let max3 = $2[0];
-      _block$1 = append(
-        attrs$1,
-        toList([attribute2("maxlength", to_string(max3))])
-      );
-    } else {
-      _block$1 = attrs$1;
-    }
-    let attrs$2 = _block$1;
-    let _block$2;
-    let $3 = constraints.pattern;
-    if ($3 instanceof Some) {
-      let pattern = $3[0];
-      _block$2 = append(
-        attrs$2,
-        toList([attribute2("pattern", pattern)])
-      );
-    } else {
-      _block$2 = attrs$2;
-    }
-    let attrs$3 = _block$2;
-    return attrs$3;
-  } else {
-    return toList([]);
-  }
-}
-function render_input(field_name, property3, value2, is_required, is_disabled) {
-  let _block;
-  if (value2 instanceof Some) {
-    let $ = value2[0];
-    if ($ instanceof StringValue) {
-      let s = $[0];
-      _block = s;
-    } else {
-      _block = "";
-    }
-  } else {
-    _block = "";
-  }
-  let current_value = _block;
-  let input_type = get_input_type(property3);
-  let extra_attrs = prepend(
-    type_(input_type),
-    prepend(
-      class$("formosh-input"),
-      get_string_constraints_attributes(property3)
-    )
-  );
-  let input_elem = input(
-    input_attributes(
-      field_name,
-      current_value,
-      is_required,
-      is_disabled,
-      extra_attrs
-    )
-  );
-  return field_wrapper(
-    field_name,
-    property3,
-    is_required,
-    input_elem
-  );
-}
-function render_textarea(field_name, property3, value2, is_required, is_disabled) {
-  let _block;
-  if (value2 instanceof Some) {
-    let $ = value2[0];
-    if ($ instanceof StringValue) {
-      let s = $[0];
-      _block = s;
-    } else {
-      _block = "";
-    }
-  } else {
-    _block = "";
-  }
-  let current_value = _block;
-  let extra_attrs = prepend(
-    class$("formosh-textarea"),
-    get_string_constraints_attributes(property3)
-  );
-  let textarea_elem = textarea(
-    input_attributes(
-      field_name,
-      current_value,
-      is_required,
-      is_disabled,
-      extra_attrs
-    ),
-    current_value
-  );
-  return field_wrapper(
-    field_name,
-    property3,
-    is_required,
-    textarea_elem
-  );
-}
-function json_value_to_string(val) {
-  if (val instanceof JsonString) {
-    let s = val[0];
-    return s;
-  } else if (val instanceof JsonNumber) {
-    let n = val[0];
-    return float_to_string(n);
-  } else if (val instanceof JsonBool) {
-    let $ = val[0];
-    if ($) {
-      return "true";
-    } else {
-      return "false";
-    }
-  } else if (val instanceof JsonNull) {
-    return "";
-  } else {
-    return "";
-  }
-}
-function render_radio_group(field_name, property3, enum_vals, current_value, is_required, is_disabled) {
-  let radio_group = div(
-    toList([class$("formosh-radio-group")]),
-    map(
-      enum_vals,
-      (val) => {
-        let str_val = json_value_to_string(val);
-        let radio_id = field_name + "_" + str_val;
-        return div(
-          toList([class$("formosh-radio-item")]),
-          toList([
-            input(
-              toList([
-                type_("radio"),
-                id(radio_id),
-                name(field_name),
-                value(str_val),
-                checked(str_val === current_value),
-                required(is_required),
-                disabled(is_disabled),
-                on_click(
-                  new UpdateFieldPath(
-                    from_field_name(field_name),
-                    new StringValue(str_val)
-                  )
-                )
-              ])
-            ),
-            label(
-              toList([for$(radio_id)]),
-              toList([text3(str_val)])
-            )
-          ])
-        );
-      }
-    )
-  );
-  return field_wrapper(
-    field_name,
-    property3,
-    is_required,
-    radio_group
-  );
-}
-function render_select(field_name, property3, enum_vals, current_value, is_required, is_disabled) {
-  let select_elem = select(
-    toList([
-      id(field_name),
-      name(field_name),
-      class$("formosh-select"),
-      required(is_required),
-      disabled(is_disabled),
-      on_change(
-        (val) => {
-          return new UpdateFieldPath(
-            from_field_name(field_name),
-            new StringValue(val)
-          );
-        }
-      )
-    ]),
-    prepend(
-      option(toList([value("")]), "Select an option..."),
-      map(
-        enum_vals,
-        (val) => {
-          let str_val = json_value_to_string(val);
-          return option(
-            toList([
-              value(str_val),
-              selected(str_val === current_value)
-            ]),
-            str_val
-          );
-        }
-      )
-    )
-  );
-  return field_wrapper(
-    field_name,
-    property3,
-    is_required,
-    select_elem
-  );
-}
-function render_enum(field_name, property3, value2, is_required, is_disabled) {
-  let $ = property3.enum_values;
-  if ($ instanceof Some) {
-    let enum_vals = $[0];
-    let _block;
-    if (value2 instanceof Some) {
-      let $12 = value2[0];
-      if ($12 instanceof StringValue) {
-        let s = $12[0];
-        _block = s;
-      } else {
-        _block = "";
-      }
-    } else {
-      _block = "";
-    }
-    let current_value = _block;
-    let $1 = length(enum_vals) <= 5;
-    if ($1) {
-      return render_radio_group(
-        field_name,
-        property3,
-        enum_vals,
-        current_value,
-        is_required,
-        is_disabled
-      );
-    } else {
-      return render_select(
-        field_name,
-        property3,
-        enum_vals,
-        current_value,
-        is_required,
-        is_disabled
-      );
-    }
-  } else {
-    return text3("");
-  }
-}
-function render3(field_name, property3, value2, is_required, is_disabled) {
-  let $ = property3.enum_values;
-  if ($ instanceof Some) {
-    return render_enum(field_name, property3, value2, is_required, is_disabled);
-  } else {
-    let $1 = property3.string_constraints;
-    if ($1 instanceof Some) {
-      let constraints = $1[0];
-      let $2 = constraints.max_length;
-      if ($2 instanceof Some) {
-        let max3 = $2[0];
-        if (max3 > 100) {
-          return render_textarea(
-            field_name,
-            property3,
-            value2,
-            is_required,
-            is_disabled
-          );
-        } else {
-          return render_input(
-            field_name,
-            property3,
-            value2,
-            is_required,
-            is_disabled
-          );
-        }
-      } else {
-        return render_input(
-          field_name,
-          property3,
-          value2,
-          is_required,
-          is_disabled
-        );
-      }
-    } else {
-      return render_input(field_name, property3, value2, is_required, is_disabled);
-    }
-  }
-}
-
 // build/dev/javascript/formosh/form/view.mjs
 function render_form_header(model) {
   return div(
@@ -8274,6 +8031,9 @@ function json_value_to_field_value2(value2) {
   } else if (value2 instanceof JsonNumber) {
     let n = value2[0];
     return new NumberValue(n);
+  } else if (value2 instanceof JsonInteger) {
+    let i = value2[0];
+    return new IntegerValue(i);
   } else if (value2 instanceof JsonBool) {
     let b = value2[0];
     return new BooleanValue(b);
@@ -8294,13 +8054,14 @@ function render_field2(model, field_name, property3) {
   let has_errors = field_has_errors(model, field_name);
   let errors = get_field_errors(model, field_name);
   let value2 = get_field_value2(model, field_name);
+  let field_path = from_field_name(field_name);
   let _block;
   let $ = property3.field_type;
   if ($ instanceof Some) {
     let $1 = $[0];
     if ($1 instanceof StringType) {
       _block = render3(
-        field_name,
+        field_path,
         property3,
         value2,
         is_required,
@@ -8308,7 +8069,7 @@ function render_field2(model, field_name, property3) {
       );
     } else if ($1 instanceof NumberType) {
       _block = render2(
-        field_name,
+        field_path,
         property3,
         value2,
         is_required,
@@ -8316,7 +8077,7 @@ function render_field2(model, field_name, property3) {
       );
     } else if ($1 instanceof IntegerType) {
       _block = render2(
-        field_name,
+        field_path,
         property3,
         value2,
         is_required,
@@ -8324,7 +8085,7 @@ function render_field2(model, field_name, property3) {
       );
     } else if ($1 instanceof BooleanType) {
       _block = render(
-        field_name,
+        field_path,
         property3,
         value2,
         is_required,
@@ -8388,7 +8149,7 @@ function render_field2(model, field_name, property3) {
       let $2 = property3.enum_values;
       if ($2 instanceof Some) {
         _block = render_enum(
-          field_name,
+          field_path,
           property3,
           value2,
           is_required,
@@ -8402,7 +8163,7 @@ function render_field2(model, field_name, property3) {
     let $1 = property3.enum_values;
     if ($1 instanceof Some) {
       _block = render_enum(
-        field_name,
+        field_path,
         property3,
         value2,
         is_required,
@@ -8643,15 +8404,15 @@ function json_value_decoder() {
         let s = $[0];
         return success(new JsonString(s));
       } else {
-        let $1 = run(dynamic_value, float2);
+        let $1 = run(dynamic_value, int2);
         if ($1 instanceof Ok) {
-          let f = $1[0];
-          return success(new JsonNumber(f));
+          let i = $1[0];
+          return success(new JsonInteger(i));
         } else {
-          let $2 = run(dynamic_value, int2);
+          let $2 = run(dynamic_value, float2);
           if ($2 instanceof Ok) {
-            let i = $2[0];
-            return success(new JsonNumber(identity(i)));
+            let f = $2[0];
+            return success(new JsonNumber(f));
           } else {
             let $3 = run(dynamic_value, bool);
             if ($3 instanceof Ok) {
@@ -8949,7 +8710,7 @@ function from_schema(schema) {
 function to_lustre_app(form_app) {
   return application(form_app.init, form_app.update, form_app.view);
 }
-var example_schema = '\n{\n    "$schema": "https://json-schema.org/draft/2020-12/schema",\n    "$id": "https://example.com/lesion-measurement.schema.json",\n    "title": "\u0418\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0435 \u043E\u0431\u0440\u0430\u0437\u043E\u0432\u0430\u043D\u0438\u0439",\n    "description": "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043D\u0430\u0438\u0431\u043E\u043B\u044C\u0448\u0438\u0439 \u0440\u0430\u0437\u043C\u0435\u0440 \u043A\u0430\u0436\u0434\u043E\u0433\u043E \u043E\u0431\u043D\u0430\u0440\u0443\u0436\u0435\u043D\u043D\u043E\u0433\u043E \u043E\u0431\u0440\u0430\u0437\u043E\u0432\u0430\u043D\u0438\u044F \u0432 \u043C\u0438\u043B\u043B\u0438\u043C\u0435\u0442\u0440\u0430\u0445",\n    "type": "object",\n    "properties": {\n      "diagnosis": {\n        "description": "\u0414\u0438\u0430\u0433\u043D\u043E\u0437",\n        "type": "string",\n        "maxLength": 200\n      },\n      "diagnosis2": {\n        "description": "\u0414\u0438\u0430\u0433\u043D\u043E\u04373",\n        "type": "string",\n        "maxLength": 200\n      },\n      "lesions": {\n        "description": "\u0421\u043F\u0438\u0441\u043E\u043A \u0438\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0439 \u043E\u0431\u0440\u0430\u0437\u043E\u0432\u0430\u043D\u0438\u0439",\n        "type": "array",\n        "items": {\n          "type": "object",\n          "properties": {\n            "side": {\n              "description": "\u0421\u0442\u043E\u0440\u043E\u043D\u0430 (L - \u043B\u0435\u0432\u0430\u044F, R - \u043F\u0440\u0430\u0432\u0430\u044F)",\n              "type": "string",\n              "enum": ["L", "R"]\n            },\n            "max_size_mm": {\n              "description": "\u041D\u0430\u0438\u0431\u043E\u043B\u044C\u0448\u0438\u0439 \u0440\u0430\u0437\u043C\u0435\u0440 \u0432 \u043C\u0438\u043B\u043B\u0438\u043C\u0435\u0442\u0440\u0430\u0445",\n              "type": "number",\n              "minimum": 0,\n              "maximum": 200\n            },\n            "location": {\n              "description": "\u041B\u043E\u043A\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u044F \u043E\u0431\u0440\u0430\u0437\u043E\u0432\u0430\u043D\u0438\u044F",\n              "type": "string",\n              "maxLength": 100\n            },\n            "notes": {\n              "description": "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0435 \u043F\u0440\u0438\u043C\u0435\u0447\u0430\u043D\u0438\u044F",\n              "type": "string",\n              "maxLength": 500\n            }\n          },\n          "required": ["side", "max_size_mm"]\n        },\n        "minItems": 1\n      }\n    },\n    "required": ["lesions"]\n  }\n';
+var example_schema = '\n{\n    "$schema": "https://json-schema.org/draft/2020-12/schema",\n    "$id": "https://example.com/lesion-measurement.schema.json",\n    "title": "\u0418\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0435 \u043E\u0431\u0440\u0430\u0437\u043E\u0432\u0430\u043D\u0438\u0439",\n    "description": "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043D\u0430\u0438\u0431\u043E\u043B\u044C\u0448\u0438\u0439 \u0440\u0430\u0437\u043C\u0435\u0440 \u043A\u0430\u0436\u0434\u043E\u0433\u043E \u043E\u0431\u043D\u0430\u0440\u0443\u0436\u0435\u043D\u043D\u043E\u0433\u043E \u043E\u0431\u0440\u0430\u0437\u043E\u0432\u0430\u043D\u0438\u044F \u0432 \u043C\u0438\u043B\u043B\u0438\u043C\u0435\u0442\u0440\u0430\u0445",\n    "type": "object",\n    "properties": {\n      "diagnosis": {\n        "description": "\u0414\u0438\u0430\u0433\u043D\u043E\u0437",\n        "type": "string",\n        "maxLength": 50\n      },\n      "weight": {\n        "description": "\u0412\u0435\u0441",\n        "type": "number"\n      },\n      "age": {\n        "description": "\u0412\u043E\u0437\u0440\u0430\u0441\u0442",\n        "type": "integer"\n      },\n      "diagnosis2": {\n        "description": "\u0414\u0438\u0430\u0433\u043D\u043E\u04373",\n        "type": "string",\n        "maxLength": 200\n      },\n      "lesions": {\n        "description": "\u0421\u043F\u0438\u0441\u043E\u043A \u0438\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0439 \u043E\u0431\u0440\u0430\u0437\u043E\u0432\u0430\u043D\u0438\u0439",\n        "type": "array",\n        "items": {\n          "type": "object",\n          "properties": {\n            "side": {\n              "description": "\u0421\u0442\u043E\u0440\u043E\u043D\u0430 (L - \u043B\u0435\u0432\u0430\u044F, R - \u043F\u0440\u0430\u0432\u0430\u044F)",\n              "type": "string",\n              "enum": ["L", "R"]\n            },\n            "max_size_mm": {\n              "description": "\u041D\u0430\u0438\u0431\u043E\u043B\u044C\u0448\u0438\u0439 \u0440\u0430\u0437\u043C\u0435\u0440 \u0432 \u043C\u0438\u043B\u043B\u0438\u043C\u0435\u0442\u0440\u0430\u0445",\n              "type": "number",\n              "minimum": 0,\n              "maximum": 200\n            },\n            "location": {\n              "description": "\u041B\u043E\u043A\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u044F \u043E\u0431\u0440\u0430\u0437\u043E\u0432\u0430\u043D\u0438\u044F",\n              "type": "string",\n              "maxLength": 100\n            },\n            "notes": {\n              "description": "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0435 \u043F\u0440\u0438\u043C\u0435\u0447\u0430\u043D\u0438\u044F",\n              "type": "string",\n              "maxLength": 500\n            }\n          },\n          "required": ["side", "max_size_mm"]\n        },\n        "minItems": 1\n      }\n    },\n    "required": ["lesions"]\n  }\n';
 function main() {
   let _block;
   let $ = parse_schema(example_schema);
