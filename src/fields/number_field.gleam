@@ -13,7 +13,8 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import form/model.{type FormMsg, FieldBlurred, FieldChanged}
+import form/model.{type FormMsg, UpdateFieldPath}
+import form/path
 import schema/types
 
 /// Render a number or integer input field.
@@ -73,7 +74,6 @@ pub fn render(
       event.on_input(fn(val) {
         handle_number_input(field_name, val, is_integer)
       }),
-      event.on_blur(FieldBlurred(field_name)),
       ..get_number_constraints_attributes(property),
     ]),
     render_help_text(property),
@@ -103,24 +103,25 @@ fn handle_number_input(
   value: String,
   is_integer: Bool,
 ) -> FormMsg {
+  let field_path = path.from_field_name(field_name)
   case value {
-    "" -> FieldChanged(field_name, types.NullValue)
+    "" -> UpdateFieldPath(field_path, types.NullValue)
     str -> {
       case is_integer {
         True -> {
           case int.parse(str) {
-            Ok(i) -> FieldChanged(field_name, types.IntegerValue(i))
-            Error(_) -> FieldChanged(field_name, types.StringValue(str))
+            Ok(i) -> UpdateFieldPath(field_path, types.IntegerValue(i))
+            Error(_) -> UpdateFieldPath(field_path, types.StringValue(str))
           }
         }
         False -> {
           case float.parse(str) {
-            Ok(f) -> FieldChanged(field_name, types.NumberValue(f))
+            Ok(f) -> UpdateFieldPath(field_path, types.NumberValue(f))
             Error(_) -> {
               // Try parsing as integer and convert
               case int.parse(str) {
-                Ok(i) -> FieldChanged(field_name, types.NumberValue(int.to_float(i)))
-                Error(_) -> FieldChanged(field_name, types.StringValue(str))
+                Ok(i) -> UpdateFieldPath(field_path, types.NumberValue(int.to_float(i)))
+                Error(_) -> UpdateFieldPath(field_path, types.StringValue(str))
               }
             }
           }

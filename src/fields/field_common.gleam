@@ -6,7 +6,8 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import form/model.{type FormMsg, FieldBlurred, FieldChanged}
+import form/model.{type FormMsg, UpdateFieldPath}
+import form/path
 import schema/types
 
 /// Render a field label with optional required indicator.
@@ -127,9 +128,8 @@ pub fn input_attributes(
     attribute.required(is_required),
     attribute.disabled(is_disabled),
     event.on_input(fn(val) {
-      FieldChanged(field_name, types.StringValue(val))
+      UpdateFieldPath(path.from_field_name(field_name), types.StringValue(val))
     }),
-    event.on_blur(FieldBlurred(field_name)),
     ..extra_attrs
   ]
 }

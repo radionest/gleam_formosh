@@ -2,14 +2,14 @@
 
 import gleam/dict
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import lustre/effect.{type Effect}
 import form/model.{
-  type FormModel, type FormMsg, AddArrayItem, ArrayItemChanged, DisableField,
-  EnableField, FieldBlurred, FieldChanged, FieldFocused, FormSubmit,
-  FormSubmitted, RemoveArrayItem, ResetForm, SubmissionError,
-  SubmissionSuccess, ValidateField, ValidateForm,
+  type FormModel, type FormMsg, AddArrayItemPath, FormSubmit, FormSubmitted, 
+  RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess, 
+  UpdateFieldPath, ValidateForm,
 }
+import form/path
 import schema/validator
 import schema/types
 
@@ -38,26 +38,106 @@ import schema/types
 /// - Array operations: `AddArrayItem`, `RemoveArrayItem`, `ArrayItemChanged`
 pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   case msg {
-    FieldChanged(field_name, value) -> {
-      let new_model =
-        model
-        |> model.set_field_value(field_name, value)
-        |> validate_field_if_touched(field_name)
+    // Path-based handlers (simplified approach)
+    UpdateFieldPath(path, value) -> {
+      // Get the root value (entire form data)
+      let root_value = case dict.to_list(model.values) {
+        [] -> types.ObjectValue([])
+        values -> {
+          let fields = list.map(values, fn(entry) {
+            let #(key, val) = entry
+            #(key, field_value_to_json_value(val))
+          })
+          types.ObjectValue(fields)
+        }
+      }
       
+      // Update at the path
+      let updated_root = path.set_at_path(root_value, path, value)
+      
+      // Convert back to model values
+      let new_values = case updated_root {
+        types.ObjectValue(fields) -> {
+          list.fold(fields, dict.new(), fn(acc, field) {
+            let #(key, json_val) = field
+            case json_value_to_field_value(json_val) {
+              Some(field_val) -> dict.insert(acc, key, field_val)
+              None -> acc
+            }
+          })
+        }
+        _ -> model.values
+      }
+      
+      let new_model = model.FormModel(..model, values: new_values, is_dirty: True)
       #(new_model, effect.none())
     }
-
-    FieldFocused(_field_name) -> {
-      // Just track that field is focused, no state change needed
-      #(model, effect.none())
-    }
-
-    FieldBlurred(field_name) -> {
-      let new_model =
-        model
-        |> model.mark_field_touched(field_name)
-        |> validate_field(field_name)
+    
+    AddArrayItemPath(path) -> {
+      // Get the root value
+      let root_value = case dict.to_list(model.values) {
+        [] -> types.ObjectValue([])
+        values -> {
+          let fields = list.map(values, fn(entry) {
+            let #(key, val) = entry
+            #(key, field_value_to_json_value(val))
+          })
+          types.ObjectValue(fields)
+        }
+      }
       
+      // Add an empty object as the new array item
+      let updated_root = path.add_array_item_at_path(root_value, path, types.JsonObject([]))
+      
+      // Convert back to model values
+      let new_values = case updated_root {
+        types.ObjectValue(fields) -> {
+          list.fold(fields, dict.new(), fn(acc, field) {
+            let #(key, json_val) = field
+            case json_value_to_field_value(json_val) {
+              Some(field_val) -> dict.insert(acc, key, field_val)
+              None -> acc
+            }
+          })
+        }
+        _ -> model.values
+      }
+      
+      let new_model = model.FormModel(..model, values: new_values)
+      #(new_model, effect.none())
+    }
+    
+    RemoveArrayItemPath(path, index) -> {
+      // Get the root value
+      let root_value = case dict.to_list(model.values) {
+        [] -> types.ObjectValue([])
+        values -> {
+          let fields = list.map(values, fn(entry) {
+            let #(key, val) = entry
+            #(key, field_value_to_json_value(val))
+          })
+          types.ObjectValue(fields)
+        }
+      }
+      
+      // Remove the array item
+      let updated_root = path.remove_array_item_at_path(root_value, path, index)
+      
+      // Convert back to model values
+      let new_values = case updated_root {
+        types.ObjectValue(fields) -> {
+          list.fold(fields, dict.new(), fn(acc, field) {
+            let #(key, json_val) = field
+            case json_value_to_field_value(json_val) {
+              Some(field_val) -> dict.insert(acc, key, field_val)
+              None -> acc
+            }
+          })
+        }
+        _ -> model.values
+      }
+      
+      let new_model = model.FormModel(..model, values: new_values)
       #(new_model, effect.none())
     }
 
@@ -78,9 +158,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           #(submitting_model, submit_effect)
         }
         False -> {
-          // Mark all fields as touched to show errors
-          let touched_model = mark_all_fields_touched(validated_model)
-          #(touched_model, effect.none())
+          #(validated_model, effect.none())
         }
       }
     }
@@ -106,11 +184,6 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       }
     }
 
-    ValidateField(field_name) -> {
-      let new_model = validate_field(model, field_name)
-      #(new_model, effect.none())
-    }
-
     ValidateForm -> {
       let new_model = validate_all_fields(model)
       #(new_model, effect.none())
@@ -121,113 +194,6 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       #(new_model, effect.none())
     }
 
-    model.ClearField(field_name) -> {
-      let new_model =
-        model
-        |> model.set_field_value(field_name, types.NullValue)
-        |> model.clear_field_errors(field_name)
-      
-      #(new_model, effect.none())
-    }
-
-    EnableField(field_name) -> {
-      let new_model = model.FormModel(
-        ..model,
-        disabled_fields: list.filter(
-          model.disabled_fields,
-          fn(field) { field != field_name },
-        ),
-      )
-      #(new_model, effect.none())
-    }
-
-    DisableField(field_name) -> {
-      let new_model = case model.is_field_disabled(model, field_name) {
-        True -> model
-        False ->
-          model.FormModel(
-            ..model,
-            disabled_fields: list.append(model.disabled_fields, [field_name]),
-          )
-      }
-      #(new_model, effect.none())
-    }
-
-    AddArrayItem(field_name) -> {
-      // Add a new empty item to the array field
-      let current_value = model.get_field_value(model, field_name)
-        |> option.unwrap(types.NullValue)
-      
-      let new_value = case current_value {
-        types.ArrayValue(items) ->
-          types.ArrayValue(list.append(items, [types.JsonObject([])]))
-        _ ->
-          types.ArrayValue([types.JsonObject([])])
-      }
-      
-      let new_model = model.set_field_value(model, field_name, new_value)
-      #(new_model, effect.none())
-    }
-
-    RemoveArrayItem(field_name, index) -> {
-      // Remove an item from the array field at the given index
-      let current_value = model.get_field_value(model, field_name)
-        |> option.unwrap(types.NullValue)
-      
-      let new_value = case current_value {
-        types.ArrayValue(items) -> {
-          let filtered = list.index_fold(items, [], fn(acc, item, i) {
-            case i == index {
-              True -> acc
-              False -> list.append(acc, [item])
-            }
-          })
-          types.ArrayValue(filtered)
-        }
-        _ -> current_value
-      }
-      
-      let new_model = model.set_field_value(model, field_name, new_value)
-      #(new_model, effect.none())
-    }
-
-    ArrayItemChanged(field_name, index, item_field, value) -> {
-      // Update a specific field within an array item
-      echo #(field_name, index, item_field, value)
-      let current_value = model.get_field_value(model, field_name)
-        |> option.unwrap(types.NullValue)
-      
-      let new_value = case current_value {
-        types.ArrayValue(items) -> {
-          let updated = list.index_map(items, fn(item, i) {
-            case i == index {
-              True -> {
-                case item {
-                  types.JsonObject(fields) -> {
-                    // Find and update the specific field
-                    let updated_fields = list.map(fields, fn(field) {
-                      let #(key, val) = field
-                      case key == item_field {
-                        True -> #(key, field_value_to_json_value(value))
-                        False -> #(key, val)
-                      }
-                    })
-                    types.JsonObject(updated_fields)
-                  }
-                  _ -> item
-                }
-              }
-              False -> item
-            }
-          })
-          types.ArrayValue(updated)
-        }
-        _ -> current_value
-      }
-      
-      let new_model = model.set_field_value(model, field_name, new_value)
-      #(new_model, effect.none())
-    }
   }
 }
 
@@ -251,6 +217,27 @@ fn field_value_to_json_value(value: types.FieldValue) -> types.JsonValue {
     types.ArrayValue(items) -> types.JsonArray(items)
     types.ObjectValue(fields) -> types.JsonObject(fields)
     types.NullValue -> types.JsonNull
+  }
+}
+
+/// Convert a JsonValue to FieldValue.
+/// 
+/// This helper function is used when converting from JsonValue 
+/// back to FieldValue after path-based updates.
+/// 
+/// ## Parameters
+/// - `value`: The JsonValue to convert
+/// 
+/// ## Returns
+/// The corresponding FieldValue representation wrapped in Option
+fn json_value_to_field_value(value: types.JsonValue) -> option.Option(types.FieldValue) {
+  case value {
+    types.JsonString(s) -> Some(types.StringValue(s))
+    types.JsonNumber(n) -> Some(types.NumberValue(n))
+    types.JsonBool(b) -> Some(types.BooleanValue(b))
+    types.JsonArray(items) -> Some(types.ArrayValue(items))
+    types.JsonObject(fields) -> Some(types.ObjectValue(fields))
+    types.JsonNull -> Some(types.NullValue)
   }
 }
 
@@ -293,23 +280,6 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
   }
 }
 
-/// Validate a field only if it has been touched by the user.
-/// 
-/// This provides a better user experience by avoiding validation errors
-/// on fields the user hasn't interacted with yet.
-/// 
-/// ## Parameters
-/// - `model`: The current form model
-/// - `field_name`: The name of the field to conditionally validate
-/// 
-/// ## Returns
-/// A new FormModel with validation run only if the field was touched
-fn validate_field_if_touched(model: FormModel, field_name: String) -> FormModel {
-  case model.is_field_touched(model, field_name) {
-    True -> validate_field(model, field_name)
-    False -> model
-  }
-}
 
 /// Validate all fields in the form against their schema definitions.
 /// 
@@ -326,23 +296,6 @@ fn validate_all_fields(model: FormModel) -> FormModel {
   |> list.fold(model.clear_all_errors(model), validate_field)
 }
 
-/// Mark all schema-defined fields as touched.
-/// 
-/// This is typically used when form submission fails validation,
-/// to ensure all validation errors are visible to the user.
-/// 
-/// ## Parameters
-/// - `model`: The current form model
-/// 
-/// ## Returns
-/// A new FormModel with all fields marked as touched
-fn mark_all_fields_touched(model: FormModel) -> FormModel {
-  let all_fields = dict.keys(model.schema.properties)
-  model.FormModel(
-    ..model,
-    touched_fields: all_fields,
-  )
-}
 
 /// Create an effect for form submission.
 /// 

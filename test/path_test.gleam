@@ -1,0 +1,169 @@
+import gleeunit
+import gleeunit/should
+import form/path
+import schema/types
+
+pub fn main() {
+  gleeunit.main()
+}
+
+// Test basic path creation
+pub fn from_field_name_test() {
+  let path = path.from_field_name("lesions")
+  path
+  |> should.equal([path.PropertySegment("lesions")])
+}
+
+// Test array item field path creation  
+pub fn to_array_item_field_test() {
+  let path = path.to_array_item_field("lesions", 0, "description")
+  path
+  |> should.equal([
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("description"),
+  ])
+}
+
+// Test path to string conversion
+pub fn to_string_test() {
+  let path = [
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("measurements"),
+    path.ArraySegment(1),
+    path.PropertySegment("value"),
+  ]
+  path
+  |> path.to_string
+  |> should.equal("lesions.[0].measurements.[1].value")
+}
+
+// Test getting value at path
+pub fn get_at_path_simple_test() {
+  let data = types.ObjectValue([
+    #("name", types.JsonString("Test")),
+    #("age", types.JsonNumber(25.0)),
+  ])
+  
+  let path = [path.PropertySegment("name")]
+  let result = path.get_at_path(data, path)
+  
+  result
+  |> should.equal(option.Some(types.StringValue("Test")))
+}
+
+// Test getting value from nested array
+pub fn get_at_path_nested_array_test() {
+  let data = types.ObjectValue([
+    #("lesions", types.JsonArray([
+      types.JsonObject([
+        #("description", types.JsonString("Lesion 1")),
+        #("measurements", types.JsonArray([
+          types.JsonObject([
+            #("value", types.JsonNumber(10.0)),
+            #("unit", types.JsonString("mm")),
+          ]),
+        ])),
+      ]),
+    ])),
+  ])
+  
+  let path = [
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("measurements"),
+    path.ArraySegment(0),
+    path.PropertySegment("value"),
+  ]
+  
+  let result = path.get_at_path(data, path)
+  result
+  |> should.equal(option.Some(types.NumberValue(10.0)))
+}
+
+// Test setting value at path
+pub fn set_at_path_simple_test() {
+  let data = types.ObjectValue([
+    #("name", types.JsonString("Old")),
+  ])
+  
+  let path = [path.PropertySegment("name")]
+  let new_data = path.set_at_path(data, path, types.StringValue("New"))
+  
+  new_data
+  |> should.equal(types.ObjectValue([
+    #("name", types.JsonString("New")),
+  ]))
+}
+
+// Test setting value in nested array - this tests the main fix!
+pub fn set_at_path_nested_array_test() {
+  let data = types.ObjectValue([
+    #("lesions", types.JsonArray([
+      types.JsonObject([
+        #("description", types.JsonString("Lesion 1")),
+        #("measurements", types.JsonArray([
+          types.JsonObject([
+            #("value", types.JsonNumber(10.0)),
+            #("unit", types.JsonString("mm")),
+          ]),
+        ])),
+      ]),
+    ])),
+  ])
+  
+  let path = [
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("measurements"),
+    path.ArraySegment(0),
+    path.PropertySegment("value"),
+  ]
+  
+  let new_data = path.set_at_path(data, path, types.NumberValue(20.0))
+  
+  // Verify the value was updated correctly
+  let result = path.get_at_path(new_data, path)
+  result
+  |> should.equal(option.Some(types.NumberValue(20.0)))
+}
+
+// Test adding item to nested array
+pub fn add_array_item_nested_test() {
+  let data = types.ObjectValue([
+    #("lesions", types.JsonArray([
+      types.JsonObject([
+        #("measurements", types.JsonArray([])),
+      ]),
+    ])),
+  ])
+  
+  let path = [
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("measurements"),
+  ]
+  
+  let new_item = types.JsonObject([
+    #("value", types.JsonNumber(15.0)),
+    #("unit", types.JsonString("cm")),
+  ])
+  
+  let new_data = path.add_array_item_at_path(data, path, new_item)
+  
+  // Verify the item was added
+  let check_path = [
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("measurements"),
+    path.ArraySegment(0),
+    path.PropertySegment("value"),
+  ]
+  
+  let result = path.get_at_path(new_data, check_path)
+  result
+  |> should.equal(option.Some(types.NumberValue(15.0)))
+}
+
+import gleam/option

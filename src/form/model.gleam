@@ -4,6 +4,7 @@ import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 import gleam/list
 import schema/types.{type FieldValue, type JsonSchema, type ValidationError}
+import form/path.{type FieldPath}
 
 /// The main form state model for the MVU architecture.
 /// 
@@ -46,27 +47,20 @@ pub type SubmissionResult {
 /// that can modify the form state. Each message corresponds to a specific
 /// update operation in the form's update function.
 pub type FormMsg {
-  // Field value changes
-  FieldChanged(field_name: String, value: FieldValue)
-  // Field focus/blur events
-  FieldFocused(field_name: String)
-  FieldBlurred(field_name: String)
+  // Path-based operations (simplified approach)
+  UpdateFieldPath(path: FieldPath, value: FieldValue)
+  AddArrayItemPath(path: FieldPath)
+  RemoveArrayItemPath(path: FieldPath, index: Int)
+  
   // Form submission
   FormSubmit
   FormSubmitted(Result(String, String))
+  
   // Validation
-  ValidateField(field_name: String)
   ValidateForm
+  
   // Reset form
   ResetForm
-  ClearField(field_name: String)
-  // Enable/Disable fields
-  EnableField(field_name: String)
-  DisableField(field_name: String)
-  // Array field operations
-  AddArrayItem(field_name: String)
-  RemoveArrayItem(field_name: String, index: Int)
-  ArrayItemChanged(field_name: String, index: Int, item_field: String, value: FieldValue)
 }
 
 /// Initialize a new form model from a JSON Schema.

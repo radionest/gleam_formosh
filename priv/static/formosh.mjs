@@ -257,11 +257,6 @@ function bitArrayByteAt(buffer, bitOffset, index4) {
     return a | b;
   }
 }
-var UtfCodepoint = class {
-  constructor(value2) {
-    this.value = value2;
-  }
-};
 var isBitArrayDeprecationMessagePrinted = {};
 function bitArrayPrintDeprecationWarning(name2, message) {
   if (isBitArrayDeprecationMessagePrinted[name2]) {
@@ -1215,33 +1210,6 @@ function contains(loop$list, loop$elem) {
     }
   }
 }
-function filter_loop(loop$list, loop$fun, loop$acc) {
-  while (true) {
-    let list4 = loop$list;
-    let fun = loop$fun;
-    let acc = loop$acc;
-    if (list4 instanceof Empty) {
-      return reverse(acc);
-    } else {
-      let first$1 = list4.head;
-      let rest$1 = list4.tail;
-      let _block;
-      let $ = fun(first$1);
-      if ($) {
-        _block = prepend(first$1, acc);
-      } else {
-        _block = acc;
-      }
-      let new_acc = _block;
-      loop$list = rest$1;
-      loop$fun = fun;
-      loop$acc = new_acc;
-    }
-  }
-}
-function filter(list4, predicate) {
-  return filter_loop(list4, predicate, toList([]));
-}
 function filter_map_loop(loop$list, loop$fun, loop$acc) {
   while (true) {
     let list4 = loop$list;
@@ -1381,6 +1349,25 @@ function index_fold_loop(loop$over, loop$acc, loop$with, loop$index) {
 }
 function index_fold(list4, initial, fun) {
   return index_fold_loop(list4, initial, fun, 0);
+}
+function find2(loop$list, loop$is_desired) {
+  while (true) {
+    let list4 = loop$list;
+    let is_desired = loop$is_desired;
+    if (list4 instanceof Empty) {
+      return new Error(void 0);
+    } else {
+      let first$1 = list4.head;
+      let rest$1 = list4.tail;
+      let $ = is_desired(first$1);
+      if ($) {
+        return new Ok(first$1);
+      } else {
+        loop$list = rest$1;
+        loop$is_desired = is_desired;
+      }
+    }
+  }
 }
 function sequences(loop$list, loop$compare, loop$growing, loop$direction, loop$prev, loop$acc) {
   while (true) {
@@ -1714,6 +1701,24 @@ function sort(list4, compare4) {
       return merge_all(sequences$1, new Ascending(), compare4);
     }
   }
+}
+function repeat_loop(loop$item, loop$times, loop$acc) {
+  while (true) {
+    let item = loop$item;
+    let times = loop$times;
+    let acc = loop$acc;
+    let $ = times <= 0;
+    if ($) {
+      return acc;
+    } else {
+      loop$item = item;
+      loop$times = times - 1;
+      loop$acc = prepend(item, acc);
+    }
+  }
+}
+function repeat(a, times) {
+  return repeat_loop(a, times, toList([]));
 }
 
 // build/dev/javascript/gleam_stdlib/gleam/string.mjs
@@ -5659,6 +5664,232 @@ var ObjectValue = class extends CustomType {
 var NullValue = class extends CustomType {
 };
 
+// build/dev/javascript/formosh/form/path.mjs
+var PropertySegment = class extends CustomType {
+  constructor(name2) {
+    super();
+    this.name = name2;
+  }
+};
+var ArraySegment = class extends CustomType {
+  constructor(index4) {
+    super();
+    this.index = index4;
+  }
+};
+function from_field_name(field_name) {
+  return toList([new PropertySegment(field_name)]);
+}
+function to_array_item_field(array_name, index4, field_name) {
+  return toList([
+    new PropertySegment(array_name),
+    new ArraySegment(index4),
+    new PropertySegment(field_name)
+  ]);
+}
+function get_object_fields(value2) {
+  if (value2 instanceof ObjectValue) {
+    let fields = value2[0];
+    return fields;
+  } else {
+    return toList([]);
+  }
+}
+function get_array_items(value2) {
+  if (value2 instanceof ArrayValue) {
+    let items = value2[0];
+    return items;
+  } else {
+    return toList([]);
+  }
+}
+function ensure_array_size(items, size2) {
+  let current = length(items);
+  let $ = size2 > current;
+  if ($) {
+    return append(
+      items,
+      repeat(new JsonNull(), size2 - current)
+    );
+  } else {
+    return items;
+  }
+}
+function json_to_field_value(json2) {
+  if (json2 instanceof JsonString) {
+    let s = json2[0];
+    return new Some(new StringValue(s));
+  } else if (json2 instanceof JsonNumber) {
+    let n = json2[0];
+    return new Some(new NumberValue(n));
+  } else if (json2 instanceof JsonBool) {
+    let b = json2[0];
+    return new Some(new BooleanValue(b));
+  } else if (json2 instanceof JsonNull) {
+    return new Some(new NullValue());
+  } else if (json2 instanceof JsonArray) {
+    let items = json2[0];
+    return new Some(new ArrayValue(items));
+  } else {
+    let fields = json2[0];
+    return new Some(new ObjectValue(fields));
+  }
+}
+function json_to_field_value_safe(json2) {
+  let _pipe = json_to_field_value(json2);
+  return unwrap(_pipe, new NullValue());
+}
+function get_field_value(fields, name2) {
+  let $ = find2(fields, (f) => {
+    return f[0] === name2;
+  });
+  if ($ instanceof Ok) {
+    let json2 = $[0][1];
+    return json_to_field_value_safe(json2);
+  } else {
+    return new NullValue();
+  }
+}
+function field_to_json_value(value2) {
+  if (value2 instanceof StringValue) {
+    let s = value2[0];
+    return new JsonString(s);
+  } else if (value2 instanceof NumberValue) {
+    let n = value2[0];
+    return new JsonNumber(n);
+  } else if (value2 instanceof IntegerValue) {
+    let i = value2[0];
+    return new JsonNumber(identity(i));
+  } else if (value2 instanceof BooleanValue) {
+    let b = value2[0];
+    return new JsonBool(b);
+  } else if (value2 instanceof ArrayValue) {
+    let items = value2[0];
+    return new JsonArray(items);
+  } else if (value2 instanceof ObjectValue) {
+    let fields = value2[0];
+    return new JsonObject(fields);
+  } else {
+    return new JsonNull();
+  }
+}
+function modify_array_item(value2, index4, modifier) {
+  let items = get_array_items(value2);
+  let padded = ensure_array_size(items, index4 + 1);
+  let updated = index_map(
+    padded,
+    (item, i) => {
+      let $ = i === index4;
+      if ($) {
+        return field_to_json_value(modifier(json_to_field_value_safe(item)));
+      } else {
+        return item;
+      }
+    }
+  );
+  return new ArrayValue(updated);
+}
+function set_field_value(fields, name2, value2) {
+  let json_value = field_to_json_value(value2);
+  let $ = find2(fields, (f) => {
+    return f[0] === name2;
+  });
+  if ($ instanceof Ok) {
+    return map(
+      fields,
+      (field2) => {
+        let $1 = field2[0] === name2;
+        if ($1) {
+          return [name2, json_value];
+        } else {
+          return field2;
+        }
+      }
+    );
+  } else {
+    return append(fields, toList([[name2, json_value]]));
+  }
+}
+function modify_object_field(value2, field_name, modifier) {
+  let fields = get_object_fields(value2);
+  let current_value = get_field_value(fields, field_name);
+  let new_value = modifier(current_value);
+  let updated_fields = set_field_value(fields, field_name, new_value);
+  return new ObjectValue(updated_fields);
+}
+function modify_at_path(root3, path, modifier) {
+  if (path instanceof Empty) {
+    return modifier(root3);
+  } else {
+    let segment = path.head;
+    let rest = path.tail;
+    if (segment instanceof PropertySegment) {
+      let name2 = segment.name;
+      return modify_object_field(
+        root3,
+        name2,
+        (field_value) => {
+          return modify_at_path(field_value, rest, modifier);
+        }
+      );
+    } else {
+      let index4 = segment.index;
+      return modify_array_item(
+        root3,
+        index4,
+        (item_value) => {
+          return modify_at_path(item_value, rest, modifier);
+        }
+      );
+    }
+  }
+}
+function set_at_path(root3, path, value2) {
+  return modify_at_path(root3, path, (_) => {
+    return value2;
+  });
+}
+function add_array_item_at_path(root3, path, item) {
+  return modify_at_path(
+    root3,
+    path,
+    (value2) => {
+      if (value2 instanceof ArrayValue) {
+        let items = value2[0];
+        return new ArrayValue(append(items, toList([item])));
+      } else {
+        return new ArrayValue(toList([item]));
+      }
+    }
+  );
+}
+function remove_array_item_at_path(root3, path, index4) {
+  return modify_at_path(
+    root3,
+    path,
+    (value2) => {
+      if (value2 instanceof ArrayValue) {
+        let items = value2[0];
+        let filtered = index_fold(
+          items,
+          toList([]),
+          (acc, item, i) => {
+            let $ = i === index4;
+            if ($) {
+              return acc;
+            } else {
+              return append(acc, toList([item]));
+            }
+          }
+        );
+        return new ArrayValue(filtered);
+      } else {
+        return value2;
+      }
+    }
+  );
+}
+
 // build/dev/javascript/formosh/form/model.mjs
 var FormModel = class extends CustomType {
   constructor(schema, values3, errors, is_submitting, is_dirty, is_valid, touched_fields, disabled_fields, submission_result) {
@@ -5686,23 +5917,24 @@ var SubmissionError = class extends CustomType {
     this.message = message;
   }
 };
-var FieldChanged = class extends CustomType {
-  constructor(field_name, value2) {
+var UpdateFieldPath = class extends CustomType {
+  constructor(path, value2) {
     super();
-    this.field_name = field_name;
+    this.path = path;
     this.value = value2;
   }
 };
-var FieldFocused = class extends CustomType {
-  constructor(field_name) {
+var AddArrayItemPath = class extends CustomType {
+  constructor(path) {
     super();
-    this.field_name = field_name;
+    this.path = path;
   }
 };
-var FieldBlurred = class extends CustomType {
-  constructor(field_name) {
+var RemoveArrayItemPath = class extends CustomType {
+  constructor(path, index4) {
     super();
-    this.field_name = field_name;
+    this.path = path;
+    this.index = index4;
   }
 };
 var FormSubmit = class extends CustomType {
@@ -5713,55 +5945,9 @@ var FormSubmitted = class extends CustomType {
     this[0] = $0;
   }
 };
-var ValidateField = class extends CustomType {
-  constructor(field_name) {
-    super();
-    this.field_name = field_name;
-  }
-};
 var ValidateForm = class extends CustomType {
 };
 var ResetForm = class extends CustomType {
-};
-var ClearField = class extends CustomType {
-  constructor(field_name) {
-    super();
-    this.field_name = field_name;
-  }
-};
-var EnableField = class extends CustomType {
-  constructor(field_name) {
-    super();
-    this.field_name = field_name;
-  }
-};
-var DisableField = class extends CustomType {
-  constructor(field_name) {
-    super();
-    this.field_name = field_name;
-  }
-};
-var AddArrayItem = class extends CustomType {
-  constructor(field_name) {
-    super();
-    this.field_name = field_name;
-  }
-};
-var RemoveArrayItem = class extends CustomType {
-  constructor(field_name, index4) {
-    super();
-    this.field_name = field_name;
-    this.index = index4;
-  }
-};
-var ArrayItemChanged = class extends CustomType {
-  constructor(field_name, index4, item_field, value2) {
-    super();
-    this.field_name = field_name;
-    this.index = index4;
-    this.item_field = item_field;
-    this.value = value2;
-  }
 };
 function init(schema) {
   return new FormModel(
@@ -5794,7 +5980,7 @@ function is_field_touched(model, field_name) {
 function is_field_disabled(model, field_name) {
   return contains(model.disabled_fields, field_name);
 }
-function get_field_value(model, field_name) {
+function get_field_value2(model, field_name) {
   let $ = map_get(model.values, field_name);
   if ($ instanceof Ok) {
     let value2 = $[0];
@@ -5811,19 +5997,6 @@ function get_field_errors(model, field_name) {
   } else {
     return toList([]);
   }
-}
-function set_field_value(model, field_name, value2) {
-  return new FormModel(
-    model.schema,
-    insert(model.values, field_name, value2),
-    model.errors,
-    model.is_submitting,
-    true,
-    model.is_valid,
-    model.touched_fields,
-    model.disabled_fields,
-    model.submission_result
-  );
 }
 function add_field_error(model, field_name, error) {
   let current_errors = get_field_errors(model, field_name);
@@ -5865,24 +6038,6 @@ function clear_all_errors(model) {
     model.disabled_fields,
     model.submission_result
   );
-}
-function mark_field_touched(model, field_name) {
-  let $ = is_field_touched(model, field_name);
-  if ($) {
-    return model;
-  } else {
-    return new FormModel(
-      model.schema,
-      model.values,
-      model.errors,
-      model.is_submitting,
-      model.is_dirty,
-      model.is_valid,
-      append(model.touched_fields, toList([field_name])),
-      model.disabled_fields,
-      model.submission_result
-    );
-  }
 }
 function reset(model) {
   return new FormModel(
@@ -6279,11 +6434,31 @@ function field_value_to_json_value(value2) {
     return new JsonNull();
   }
 }
+function json_value_to_field_value(value2) {
+  if (value2 instanceof JsonString) {
+    let s = value2[0];
+    return new Some(new StringValue(s));
+  } else if (value2 instanceof JsonNumber) {
+    let n = value2[0];
+    return new Some(new NumberValue(n));
+  } else if (value2 instanceof JsonBool) {
+    let b = value2[0];
+    return new Some(new BooleanValue(b));
+  } else if (value2 instanceof JsonNull) {
+    return new Some(new NullValue());
+  } else if (value2 instanceof JsonArray) {
+    let items = value2[0];
+    return new Some(new ArrayValue(items));
+  } else {
+    let fields = value2[0];
+    return new Some(new ObjectValue(fields));
+  }
+}
 function validate_field2(model, field_name) {
   let $ = map_get(model.schema.properties, field_name);
   if ($ instanceof Ok) {
     let property3 = $[0];
-    let value2 = get_field_value(model, field_name);
+    let value2 = get_field_value2(model, field_name);
     let errors = validate_field(
       field_name,
       value2,
@@ -6305,31 +6480,9 @@ function validate_field2(model, field_name) {
     return model;
   }
 }
-function validate_field_if_touched(model, field_name) {
-  let $ = is_field_touched(model, field_name);
-  if ($) {
-    return validate_field2(model, field_name);
-  } else {
-    return model;
-  }
-}
 function validate_all_fields(model) {
   let _pipe = keys(model.schema.properties);
   return fold2(_pipe, clear_all_errors(model), validate_field2);
-}
-function mark_all_fields_touched(model) {
-  let all_fields = keys(model.schema.properties);
-  return new FormModel(
-    model.schema,
-    model.values,
-    model.errors,
-    model.is_submitting,
-    model.is_dirty,
-    model.is_valid,
-    all_fields,
-    model.disabled_fields,
-    model.submission_result
-  );
 }
 function submit_form_effect(_) {
   return from(
@@ -6340,24 +6493,185 @@ function submit_form_effect(_) {
   );
 }
 function update2(model, msg) {
-  if (msg instanceof FieldChanged) {
-    let field_name = msg.field_name;
+  if (msg instanceof UpdateFieldPath) {
+    let path = msg.path;
     let value2 = msg.value;
     let _block;
-    let _pipe = model;
-    let _pipe$1 = set_field_value(_pipe, field_name, value2);
-    _block = validate_field_if_touched(_pipe$1, field_name);
-    let new_model = _block;
+    let $ = map_to_list(model.values);
+    if ($ instanceof Empty) {
+      _block = new ObjectValue(toList([]));
+    } else {
+      let values3 = $;
+      let fields = map(
+        values3,
+        (entry) => {
+          let key;
+          let val;
+          key = entry[0];
+          val = entry[1];
+          return [key, field_value_to_json_value(val)];
+        }
+      );
+      _block = new ObjectValue(fields);
+    }
+    let root_value = _block;
+    let updated_root = set_at_path(root_value, path, value2);
+    let _block$1;
+    if (updated_root instanceof ObjectValue) {
+      let fields = updated_root[0];
+      _block$1 = fold2(
+        fields,
+        new_map(),
+        (acc, field2) => {
+          let key;
+          let json_val;
+          key = field2[0];
+          json_val = field2[1];
+          let $1 = json_value_to_field_value(json_val);
+          if ($1 instanceof Some) {
+            let field_val = $1[0];
+            return insert(acc, key, field_val);
+          } else {
+            return acc;
+          }
+        }
+      );
+    } else {
+      _block$1 = model.values;
+    }
+    let new_values = _block$1;
+    let new_model = new FormModel(
+      model.schema,
+      new_values,
+      model.errors,
+      model.is_submitting,
+      true,
+      model.is_valid,
+      model.touched_fields,
+      model.disabled_fields,
+      model.submission_result
+    );
     return [new_model, none()];
-  } else if (msg instanceof FieldFocused) {
-    return [model, none()];
-  } else if (msg instanceof FieldBlurred) {
-    let field_name = msg.field_name;
+  } else if (msg instanceof AddArrayItemPath) {
+    let path = msg.path;
     let _block;
-    let _pipe = model;
-    let _pipe$1 = mark_field_touched(_pipe, field_name);
-    _block = validate_field2(_pipe$1, field_name);
-    let new_model = _block;
+    let $ = map_to_list(model.values);
+    if ($ instanceof Empty) {
+      _block = new ObjectValue(toList([]));
+    } else {
+      let values3 = $;
+      let fields = map(
+        values3,
+        (entry) => {
+          let key;
+          let val;
+          key = entry[0];
+          val = entry[1];
+          return [key, field_value_to_json_value(val)];
+        }
+      );
+      _block = new ObjectValue(fields);
+    }
+    let root_value = _block;
+    let updated_root = add_array_item_at_path(
+      root_value,
+      path,
+      new JsonObject(toList([]))
+    );
+    let _block$1;
+    if (updated_root instanceof ObjectValue) {
+      let fields = updated_root[0];
+      _block$1 = fold2(
+        fields,
+        new_map(),
+        (acc, field2) => {
+          let key;
+          let json_val;
+          key = field2[0];
+          json_val = field2[1];
+          let $1 = json_value_to_field_value(json_val);
+          if ($1 instanceof Some) {
+            let field_val = $1[0];
+            return insert(acc, key, field_val);
+          } else {
+            return acc;
+          }
+        }
+      );
+    } else {
+      _block$1 = model.values;
+    }
+    let new_values = _block$1;
+    let new_model = new FormModel(
+      model.schema,
+      new_values,
+      model.errors,
+      model.is_submitting,
+      model.is_dirty,
+      model.is_valid,
+      model.touched_fields,
+      model.disabled_fields,
+      model.submission_result
+    );
+    return [new_model, none()];
+  } else if (msg instanceof RemoveArrayItemPath) {
+    let path = msg.path;
+    let index4 = msg.index;
+    let _block;
+    let $ = map_to_list(model.values);
+    if ($ instanceof Empty) {
+      _block = new ObjectValue(toList([]));
+    } else {
+      let values3 = $;
+      let fields = map(
+        values3,
+        (entry) => {
+          let key;
+          let val;
+          key = entry[0];
+          val = entry[1];
+          return [key, field_value_to_json_value(val)];
+        }
+      );
+      _block = new ObjectValue(fields);
+    }
+    let root_value = _block;
+    let updated_root = remove_array_item_at_path(root_value, path, index4);
+    let _block$1;
+    if (updated_root instanceof ObjectValue) {
+      let fields = updated_root[0];
+      _block$1 = fold2(
+        fields,
+        new_map(),
+        (acc, field2) => {
+          let key;
+          let json_val;
+          key = field2[0];
+          json_val = field2[1];
+          let $1 = json_value_to_field_value(json_val);
+          if ($1 instanceof Some) {
+            let field_val = $1[0];
+            return insert(acc, key, field_val);
+          } else {
+            return acc;
+          }
+        }
+      );
+    } else {
+      _block$1 = model.values;
+    }
+    let new_values = _block$1;
+    let new_model = new FormModel(
+      model.schema,
+      new_values,
+      model.errors,
+      model.is_submitting,
+      model.is_dirty,
+      model.is_valid,
+      model.touched_fields,
+      model.disabled_fields,
+      model.submission_result
+    );
     return [new_model, none()];
   } else if (msg instanceof FormSubmit) {
     let validated_model = validate_all_fields(model);
@@ -6377,8 +6691,7 @@ function update2(model, msg) {
       let submit_effect = submit_form_effect(submitting_model);
       return [submitting_model, submit_effect];
     } else {
-      let touched_model = mark_all_fields_touched(validated_model);
-      return [touched_model, none()];
+      return [validated_model, none()];
     }
   } else if (msg instanceof FormSubmitted) {
     let result = msg[0];
@@ -6411,378 +6724,14 @@ function update2(model, msg) {
       );
       return [new_model, none()];
     }
-  } else if (msg instanceof ValidateField) {
-    let field_name = msg.field_name;
-    let new_model = validate_field2(model, field_name);
-    return [new_model, none()];
   } else if (msg instanceof ValidateForm) {
     let new_model = validate_all_fields(model);
     return [new_model, none()];
-  } else if (msg instanceof ResetForm) {
+  } else {
     let new_model = reset(model);
     return [new_model, none()];
-  } else if (msg instanceof ClearField) {
-    let field_name = msg.field_name;
-    let _block;
-    let _pipe = model;
-    let _pipe$1 = set_field_value(
-      _pipe,
-      field_name,
-      new NullValue()
-    );
-    _block = clear_field_errors(_pipe$1, field_name);
-    let new_model = _block;
-    return [new_model, none()];
-  } else if (msg instanceof EnableField) {
-    let field_name = msg.field_name;
-    let new_model = new FormModel(
-      model.schema,
-      model.values,
-      model.errors,
-      model.is_submitting,
-      model.is_dirty,
-      model.is_valid,
-      model.touched_fields,
-      filter(
-        model.disabled_fields,
-        (field2) => {
-          return field2 !== field_name;
-        }
-      ),
-      model.submission_result
-    );
-    return [new_model, none()];
-  } else if (msg instanceof DisableField) {
-    let field_name = msg.field_name;
-    let _block;
-    let $ = is_field_disabled(model, field_name);
-    if ($) {
-      _block = model;
-    } else {
-      _block = new FormModel(
-        model.schema,
-        model.values,
-        model.errors,
-        model.is_submitting,
-        model.is_dirty,
-        model.is_valid,
-        model.touched_fields,
-        append(model.disabled_fields, toList([field_name])),
-        model.submission_result
-      );
-    }
-    let new_model = _block;
-    return [new_model, none()];
-  } else if (msg instanceof AddArrayItem) {
-    let field_name = msg.field_name;
-    let _block;
-    let _pipe = get_field_value(model, field_name);
-    _block = unwrap(_pipe, new NullValue());
-    let current_value = _block;
-    let _block$1;
-    if (current_value instanceof ArrayValue) {
-      let items = current_value[0];
-      _block$1 = new ArrayValue(
-        append(items, toList([new JsonObject(toList([]))]))
-      );
-    } else {
-      _block$1 = new ArrayValue(
-        toList([new JsonObject(toList([]))])
-      );
-    }
-    let new_value = _block$1;
-    let new_model = set_field_value(model, field_name, new_value);
-    return [new_model, none()];
-  } else if (msg instanceof RemoveArrayItem) {
-    let field_name = msg.field_name;
-    let index4 = msg.index;
-    let _block;
-    let _pipe = get_field_value(model, field_name);
-    _block = unwrap(_pipe, new NullValue());
-    let current_value = _block;
-    let _block$1;
-    if (current_value instanceof ArrayValue) {
-      let items = current_value[0];
-      let filtered = index_fold(
-        items,
-        toList([]),
-        (acc, item, i) => {
-          let $ = i === index4;
-          if ($) {
-            return acc;
-          } else {
-            return append(acc, toList([item]));
-          }
-        }
-      );
-      _block$1 = new ArrayValue(filtered);
-    } else {
-      _block$1 = current_value;
-    }
-    let new_value = _block$1;
-    let new_model = set_field_value(model, field_name, new_value);
-    return [new_model, none()];
-  } else {
-    let field_name = msg.field_name;
-    let index4 = msg.index;
-    let item_field = msg.item_field;
-    let value2 = msg.value;
-    echo(
-      [field_name, index4, item_field, value2],
-      void 0,
-      "src/form/update.gleam",
-      196
-    );
-    let _block;
-    let _pipe = get_field_value(model, field_name);
-    _block = unwrap(_pipe, new NullValue());
-    let current_value = _block;
-    let _block$1;
-    if (current_value instanceof ArrayValue) {
-      let items = current_value[0];
-      let updated = index_map(
-        items,
-        (item, i) => {
-          let $ = i === index4;
-          if ($) {
-            if (item instanceof JsonObject) {
-              let fields = item[0];
-              let updated_fields = map(
-                fields,
-                (field2) => {
-                  let key;
-                  let val;
-                  key = field2[0];
-                  val = field2[1];
-                  let $1 = key === item_field;
-                  if ($1) {
-                    return [key, field_value_to_json_value(value2)];
-                  } else {
-                    return [key, val];
-                  }
-                }
-              );
-              return new JsonObject(updated_fields);
-            } else {
-              return item;
-            }
-          } else {
-            return item;
-          }
-        }
-      );
-      _block$1 = new ArrayValue(updated);
-    } else {
-      _block$1 = current_value;
-    }
-    let new_value = _block$1;
-    let new_model = set_field_value(model, field_name, new_value);
-    return [new_model, none()];
   }
 }
-function echo(value2, message, file, line) {
-  const grey = "\x1B[90m";
-  const reset_color = "\x1B[39m";
-  const file_line = `${file}:${line}`;
-  const inspector = new Echo$Inspector();
-  const string_value = inspector.inspect(value2);
-  const string_message = message === void 0 ? "" : " " + message;
-  if (globalThis.process?.stderr?.write) {
-    const string5 = `${grey}${file_line}${reset_color}${string_message}
-${string_value}
-`;
-    globalThis.process.stderr.write(string5);
-  } else if (globalThis.Deno) {
-    const string5 = `${grey}${file_line}${reset_color}${string_message}
-${string_value}
-`;
-    globalThis.Deno.stderr.writeSync(new TextEncoder().encode(string5));
-  } else {
-    const string5 = `${file_line}
-${string_value}`;
-    globalThis.console.log(string5);
-  }
-  return value2;
-}
-var Echo$Inspector = class {
-  #references = /* @__PURE__ */ new Set();
-  #isDict(value2) {
-    try {
-      return value2 instanceof Dict;
-    } catch {
-      return false;
-    }
-  }
-  #float(float3) {
-    const string5 = float3.toString().replace("+", "");
-    if (string5.indexOf(".") >= 0) {
-      return string5;
-    } else {
-      const index4 = string5.indexOf("e");
-      if (index4 >= 0) {
-        return string5.slice(0, index4) + ".0" + string5.slice(index4);
-      } else {
-        return string5 + ".0";
-      }
-    }
-  }
-  inspect(v) {
-    const t = typeof v;
-    if (v === true) return "True";
-    if (v === false) return "False";
-    if (v === null) return "//js(null)";
-    if (v === void 0) return "Nil";
-    if (t === "string") return this.#string(v);
-    if (t === "bigint" || Number.isInteger(v)) return v.toString();
-    if (t === "number") return this.#float(v);
-    if (v instanceof UtfCodepoint) return this.#utfCodepoint(v);
-    if (v instanceof BitArray) return this.#bit_array(v);
-    if (v instanceof RegExp) return `//js(${v})`;
-    if (v instanceof Date) return `//js(Date("${v.toISOString()}"))`;
-    if (v instanceof globalThis.Error) return `//js(${v.toString()})`;
-    if (v instanceof Function) {
-      const args = [];
-      for (const i of Array(v.length).keys())
-        args.push(String.fromCharCode(i + 97));
-      return `//fn(${args.join(", ")}) { ... }`;
-    }
-    if (this.#references.size === this.#references.add(v).size) {
-      return "//js(circular reference)";
-    }
-    let printed;
-    if (Array.isArray(v)) {
-      printed = `#(${v.map((v2) => this.inspect(v2)).join(", ")})`;
-    } else if (v instanceof List) {
-      printed = this.#list(v);
-    } else if (v instanceof CustomType) {
-      printed = this.#customType(v);
-    } else if (this.#isDict(v)) {
-      printed = this.#dict(v);
-    } else if (v instanceof Set) {
-      return `//js(Set(${[...v].map((v2) => this.inspect(v2)).join(", ")}))`;
-    } else {
-      printed = this.#object(v);
-    }
-    this.#references.delete(v);
-    return printed;
-  }
-  #object(v) {
-    const name2 = Object.getPrototypeOf(v)?.constructor?.name || "Object";
-    const props = [];
-    for (const k of Object.keys(v)) {
-      props.push(`${this.inspect(k)}: ${this.inspect(v[k])}`);
-    }
-    const body = props.length ? " " + props.join(", ") + " " : "";
-    const head = name2 === "Object" ? "" : name2 + " ";
-    return `//js(${head}{${body}})`;
-  }
-  #dict(map4) {
-    let body = "dict.from_list([";
-    let first = true;
-    let key_value_pairs = [];
-    map4.forEach((value2, key) => {
-      key_value_pairs.push([key, value2]);
-    });
-    key_value_pairs.sort();
-    key_value_pairs.forEach(([key, value2]) => {
-      if (!first) body = body + ", ";
-      body = body + "#(" + this.inspect(key) + ", " + this.inspect(value2) + ")";
-      first = false;
-    });
-    return body + "])";
-  }
-  #customType(record) {
-    const props = Object.keys(record).map((label2) => {
-      const value2 = this.inspect(record[label2]);
-      return isNaN(parseInt(label2)) ? `${label2}: ${value2}` : value2;
-    }).join(", ");
-    return props ? `${record.constructor.name}(${props})` : record.constructor.name;
-  }
-  #list(list4) {
-    if (list4 instanceof Empty) {
-      return "[]";
-    }
-    let char_out = 'charlist.from_string("';
-    let list_out = "[";
-    let current = list4;
-    while (current instanceof NonEmpty) {
-      let element4 = current.head;
-      current = current.tail;
-      if (list_out !== "[") {
-        list_out += ", ";
-      }
-      list_out += this.inspect(element4);
-      if (char_out) {
-        if (Number.isInteger(element4) && element4 >= 32 && element4 <= 126) {
-          char_out += String.fromCharCode(element4);
-        } else {
-          char_out = null;
-        }
-      }
-    }
-    if (char_out) {
-      return char_out + '")';
-    } else {
-      return list_out + "]";
-    }
-  }
-  #string(str) {
-    let new_str = '"';
-    for (let i = 0; i < str.length; i++) {
-      const char = str[i];
-      switch (char) {
-        case "\n":
-          new_str += "\\n";
-          break;
-        case "\r":
-          new_str += "\\r";
-          break;
-        case "	":
-          new_str += "\\t";
-          break;
-        case "\f":
-          new_str += "\\f";
-          break;
-        case "\\":
-          new_str += "\\\\";
-          break;
-        case '"':
-          new_str += '\\"';
-          break;
-        default:
-          if (char < " " || char > "~" && char < "\xA0") {
-            new_str += "\\u{" + char.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0") + "}";
-          } else {
-            new_str += char;
-          }
-      }
-    }
-    new_str += '"';
-    return new_str;
-  }
-  #utfCodepoint(codepoint2) {
-    return `//utfcodepoint(${String.fromCodePoint(codepoint2.value)})`;
-  }
-  #bit_array(bits) {
-    if (bits.bitSize === 0) {
-      return "<<>>";
-    }
-    let acc = "<<";
-    for (let i = 0; i < bits.byteSize - 1; i++) {
-      acc += bits.byteAt(i).toString();
-      acc += ", ";
-    }
-    if (bits.byteSize * 8 === bits.bitSize) {
-      acc += bits.byteAt(bits.byteSize - 1).toString();
-    } else {
-      const trailingBitsCount = bits.bitSize % 8;
-      acc += bits.byteAt(bits.byteSize - 1) >> 8 - trailingBitsCount;
-      acc += `:size(${trailingBitsCount})`;
-    }
-    acc += ">>";
-    return acc;
-  }
-};
 
 // build/dev/javascript/gleam_stdlib/gleam/pair.mjs
 function new$7(first, second) {
@@ -6924,9 +6873,6 @@ function on_submit(msg) {
   );
   return prevent_default(_pipe);
 }
-function on_blur(msg) {
-  return on("blur", success(msg));
-}
 
 // build/dev/javascript/formosh/fields/array_field.mjs
 function render_string_field(array_name, index4, field_name, property3, value2, required2) {
@@ -6978,10 +6924,8 @@ function render_string_field(array_name, index4, field_name, property3, value2, 
               class$("field-select"),
               on_input(
                 (val) => {
-                  return new ArrayItemChanged(
-                    array_name,
-                    index4,
-                    field_name,
+                  return new UpdateFieldPath(
+                    to_array_item_field(array_name, index4, field_name),
                     new StringValue(val)
                   );
                 }
@@ -7013,10 +6957,8 @@ function render_string_field(array_name, index4, field_name, property3, value2, 
               value(string_value),
               on_input(
                 (val) => {
-                  return new ArrayItemChanged(
-                    array_name,
-                    index4,
-                    field_name,
+                  return new UpdateFieldPath(
+                    to_array_item_field(array_name, index4, field_name),
                     new StringValue(val)
                   );
                 }
@@ -7127,6 +7069,11 @@ function render_number_field(array_name, index4, field_name, property3, value2, 
           })(),
           on_input(
             (val) => {
+              let path_to_field = to_array_item_field(
+                array_name,
+                index4,
+                field_name
+              );
               let $ = property3.field_type;
               if ($ instanceof Some) {
                 let $1 = $[0];
@@ -7134,17 +7081,13 @@ function render_number_field(array_name, index4, field_name, property3, value2, 
                   let $2 = parse_int(val);
                   if ($2 instanceof Ok) {
                     let i = $2[0];
-                    return new ArrayItemChanged(
-                      array_name,
-                      index4,
-                      field_name,
+                    return new UpdateFieldPath(
+                      path_to_field,
                       new IntegerValue(i)
                     );
                   } else {
-                    return new ArrayItemChanged(
-                      array_name,
-                      index4,
-                      field_name,
+                    return new UpdateFieldPath(
+                      path_to_field,
                       new NullValue()
                     );
                   }
@@ -7152,17 +7095,13 @@ function render_number_field(array_name, index4, field_name, property3, value2, 
                   let $2 = parse_float(val);
                   if ($2 instanceof Ok) {
                     let f = $2[0];
-                    return new ArrayItemChanged(
-                      array_name,
-                      index4,
-                      field_name,
+                    return new UpdateFieldPath(
+                      path_to_field,
                       new NumberValue(f)
                     );
                   } else {
-                    return new ArrayItemChanged(
-                      array_name,
-                      index4,
-                      field_name,
+                    return new UpdateFieldPath(
+                      path_to_field,
                       new NullValue()
                     );
                   }
@@ -7171,17 +7110,13 @@ function render_number_field(array_name, index4, field_name, property3, value2, 
                 let $1 = parse_float(val);
                 if ($1 instanceof Ok) {
                   let f = $1[0];
-                  return new ArrayItemChanged(
-                    array_name,
-                    index4,
-                    field_name,
+                  return new UpdateFieldPath(
+                    path_to_field,
                     new NumberValue(f)
                   );
                 } else {
-                  return new ArrayItemChanged(
-                    array_name,
-                    index4,
-                    field_name,
+                  return new UpdateFieldPath(
+                    path_to_field,
                     new NullValue()
                   );
                 }
@@ -7215,10 +7150,8 @@ function render_boolean_field(array_name, index4, field_name, property3, value2,
               checked(bool_value),
               on_check(
                 (checked2) => {
-                  return new ArrayItemChanged(
-                    array_name,
-                    index4,
-                    field_name,
+                  return new UpdateFieldPath(
+                    to_array_item_field(array_name, index4, field_name),
                     new BooleanValue(checked2)
                   );
                 }
@@ -7365,7 +7298,12 @@ function render_array_item(array_name, property3, item_values, index4) {
               toList([
                 type_("button"),
                 class$("remove-array-item"),
-                on_click(new RemoveArrayItem(array_name, index4))
+                on_click(
+                  new RemoveArrayItemPath(
+                    from_field_name(array_name),
+                    index4
+                  )
+                )
               ]),
               toList([text3("\u0423\u0434\u0430\u043B\u0438\u0442\u044C")])
             )
@@ -7427,7 +7365,7 @@ function view(name2, property3, values3, errors, required2) {
         toList([
           type_("button"),
           class$("add-array-item"),
-          on_click(new AddArrayItem(name2))
+          on_click(new AddArrayItemPath(from_field_name(name2)))
         ]),
         toList([text3("\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u044D\u043B\u0435\u043C\u0435\u043D\u0442")])
       ),
@@ -7519,7 +7457,10 @@ function render_as_radio(field_name, property3, current_value, is_required, is_d
                   required(is_required),
                   disabled(is_disabled),
                   on_click(
-                    new FieldChanged(field_name, new BooleanValue(true))
+                    new UpdateFieldPath(
+                      from_field_name(field_name),
+                      new BooleanValue(true)
+                    )
                   )
                 ])
               ),
@@ -7542,7 +7483,10 @@ function render_as_radio(field_name, property3, current_value, is_required, is_d
                   required(is_required),
                   disabled(is_disabled),
                   on_click(
-                    new FieldChanged(field_name, new BooleanValue(false))
+                    new UpdateFieldPath(
+                      from_field_name(field_name),
+                      new BooleanValue(false)
+                    )
                   )
                 ])
               ),
@@ -7583,33 +7527,34 @@ function render(field_name, property3, value2, is_required, is_disabled) {
 
 // build/dev/javascript/formosh/fields/number_field.mjs
 function handle_number_input(field_name, value2, is_integer) {
+  let field_path = from_field_name(field_name);
   if (value2 === "") {
-    return new FieldChanged(field_name, new NullValue());
+    return new UpdateFieldPath(field_path, new NullValue());
   } else {
     let str = value2;
     if (is_integer) {
       let $ = parse_int(str);
       if ($ instanceof Ok) {
         let i = $[0];
-        return new FieldChanged(field_name, new IntegerValue(i));
+        return new UpdateFieldPath(field_path, new IntegerValue(i));
       } else {
-        return new FieldChanged(field_name, new StringValue(str));
+        return new UpdateFieldPath(field_path, new StringValue(str));
       }
     } else {
       let $ = parse_float(str);
       if ($ instanceof Ok) {
         let f = $[0];
-        return new FieldChanged(field_name, new NumberValue(f));
+        return new UpdateFieldPath(field_path, new NumberValue(f));
       } else {
         let $1 = parse_int(str);
         if ($1 instanceof Ok) {
           let i = $1[0];
-          return new FieldChanged(
-            field_name,
+          return new UpdateFieldPath(
+            field_path,
             new NumberValue(identity(i))
           );
         } else {
-          return new FieldChanged(field_name, new StringValue(str));
+          return new UpdateFieldPath(field_path, new StringValue(str));
         }
       }
     }
@@ -7795,10 +7740,7 @@ function render2(field_name, property3, value2, is_required, is_disabled) {
                               );
                             }
                           ),
-                          prepend(
-                            on_blur(new FieldBlurred(field_name)),
-                            get_number_constraints_attributes(property3)
-                          )
+                          get_number_constraints_attributes(property3)
                         )
                       )
                     )
@@ -7880,16 +7822,13 @@ function input_attributes(field_name, value2, is_required, is_disabled, extra_at
             prepend(
               on_input(
                 (val) => {
-                  return new FieldChanged(
-                    field_name,
+                  return new UpdateFieldPath(
+                    from_field_name(field_name),
                     new StringValue(val)
                   );
                 }
               ),
-              prepend(
-                on_blur(new FieldBlurred(field_name)),
-                extra_attrs
-              )
+              extra_attrs
             )
           )
         )
@@ -8086,7 +8025,10 @@ function render_radio_group(field_name, property3, enum_vals, current_value, is_
                 required(is_required),
                 disabled(is_disabled),
                 on_click(
-                  new FieldChanged(field_name, new StringValue(str_val))
+                  new UpdateFieldPath(
+                    from_field_name(field_name),
+                    new StringValue(str_val)
+                  )
                 )
               ])
             ),
@@ -8116,10 +8058,12 @@ function render_select(field_name, property3, enum_vals, current_value, is_requi
       disabled(is_disabled),
       on_change(
         (val) => {
-          return new FieldChanged(field_name, new StringValue(val));
+          return new UpdateFieldPath(
+            from_field_name(field_name),
+            new StringValue(val)
+          );
         }
-      ),
-      on_blur(new FieldBlurred(field_name))
+      )
     ]),
     prepend(
       option(toList([value("")]), "Select an option..."),
@@ -8323,7 +8267,7 @@ function render_submission_result(model) {
     return text3("");
   }
 }
-function json_value_to_field_value(value2) {
+function json_value_to_field_value2(value2) {
   if (value2 instanceof JsonString) {
     let s = value2[0];
     return new StringValue(s);
@@ -8349,7 +8293,7 @@ function render_field2(model, field_name, property3) {
   let is_touched = is_field_touched(model, field_name);
   let has_errors = field_has_errors(model, field_name);
   let errors = get_field_errors(model, field_name);
-  let value2 = get_field_value(model, field_name);
+  let value2 = get_field_value2(model, field_name);
   let _block;
   let $ = property3.field_type;
   if ($ instanceof Some) {
@@ -8408,7 +8352,7 @@ function render_field2(model, field_name, property3) {
                     return insert(
                       acc,
                       key,
-                      json_value_to_field_value(val)
+                      json_value_to_field_value2(val)
                     );
                   }
                 );

@@ -18,7 +18,8 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import schema/types.{type FieldValue, type SchemaProperty}
-import form/model.{type FormMsg, AddArrayItem, ArrayItemChanged, RemoveArrayItem}
+import form/model.{type FormMsg, AddArrayItemPath, RemoveArrayItemPath, UpdateFieldPath}
+import form/path
 
 /// Render an array field with dynamic add/remove functionality.
 /// 
@@ -76,7 +77,8 @@ pub fn view(
       [
         type_("button"),
         class("add-array-item"),
-        event.on_click(AddArrayItem(name)),
+        // Use new path-based message
+        event.on_click(AddArrayItemPath(path.from_field_name(name))),
       ],
       [html.text("Добавить элемент")],
     ),
@@ -124,7 +126,8 @@ fn render_array_item(
             [
               type_("button"),
               class("remove-array-item"),
-              event.on_click(RemoveArrayItem(array_name, index)),
+              // Use new path-based message
+              event.on_click(RemoveArrayItemPath(path.from_field_name(array_name), index)),
             ],
             [html.text("Удалить")],
           ),
@@ -260,7 +263,11 @@ fn render_string_field(
           [
             class("field-select"),
             event.on_input(fn(val) {
-              ArrayItemChanged(array_name, index, field_name, types.StringValue(val))
+              // Use new path-based message for nested field updates
+              UpdateFieldPath(
+                path.to_array_item_field(array_name, index, field_name),
+                types.StringValue(val)
+              )
             }),
           ],
           list.map(enum_vals, fn(enum_val) {
@@ -283,7 +290,11 @@ fn render_string_field(
           class("field-input"),
           attribute.value(string_value),
           event.on_input(fn(val) {
-            ArrayItemChanged(array_name, index, field_name, types.StringValue(val))
+            // Use new path-based message for nested field updates
+            UpdateFieldPath(
+              path.to_array_item_field(array_name, index, field_name),
+              types.StringValue(val)
+            )
           }),
         ])
     },
@@ -360,16 +371,17 @@ fn render_number_field(
         None -> attribute.class("")
       },
       event.on_input(fn(val) {
+        let path_to_field = path.to_array_item_field(array_name, index, field_name)
         case property.field_type {
           Some(types.IntegerType) ->
             case int.parse(val) {
-              Ok(i) -> ArrayItemChanged(array_name, index, field_name, types.IntegerValue(i))
-              Error(_) -> ArrayItemChanged(array_name, index, field_name, types.NullValue)
+              Ok(i) -> UpdateFieldPath(path_to_field, types.IntegerValue(i))
+              Error(_) -> UpdateFieldPath(path_to_field, types.NullValue)
             }
           _ ->
             case float.parse(val) {
-              Ok(f) -> ArrayItemChanged(array_name, index, field_name, types.NumberValue(f))
-              Error(_) -> ArrayItemChanged(array_name, index, field_name, types.NullValue)
+              Ok(f) -> UpdateFieldPath(path_to_field, types.NumberValue(f))
+              Error(_) -> UpdateFieldPath(path_to_field, types.NullValue)
             }
         }
       }),
@@ -412,7 +424,11 @@ fn render_boolean_field(
         class("field-checkbox"),
         attribute.checked(bool_value),
         event.on_check(fn(checked) {
-          ArrayItemChanged(array_name, index, field_name, types.BooleanValue(checked))
+          // Use new path-based message for nested field updates
+          UpdateFieldPath(
+            path.to_array_item_field(array_name, index, field_name),
+            types.BooleanValue(checked)
+          )
         }),
       ]),
       html.span([], [

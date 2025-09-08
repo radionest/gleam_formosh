@@ -8,7 +8,8 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import form/model.{type FormMsg, FieldBlurred, FieldChanged}
+import form/model.{type FormMsg, UpdateFieldPath}
+import form/path
 import schema/types
 import fields/field_common
 
@@ -232,7 +233,7 @@ fn render_radio_group(
           attribute.checked(str_val == current_value),
           attribute.required(is_required),
           attribute.disabled(is_disabled),
-          event.on_click(FieldChanged(field_name, types.StringValue(str_val))),
+          event.on_click(UpdateFieldPath(path.from_field_name(field_name), types.StringValue(str_val))),
         ]),
         html.label([attribute.for(radio_id)], [
           html.text(str_val),
@@ -275,9 +276,8 @@ fn render_select(
     attribute.required(is_required),
     attribute.disabled(is_disabled),
     event.on_change(fn(val) {
-      FieldChanged(field_name, types.StringValue(val))
+      UpdateFieldPath(path.from_field_name(field_name), types.StringValue(val))
     }),
-    event.on_blur(FieldBlurred(field_name)),
   ], [
     html.option([attribute.value("")], "Select an option..."),
     ..list.map(enum_vals, fn(val) {

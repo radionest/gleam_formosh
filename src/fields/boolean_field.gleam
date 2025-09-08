@@ -10,7 +10,8 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import form/model.{type FormMsg, FieldBlurred, FieldChanged}
+import form/model.{type FormMsg, UpdateFieldPath}
+import form/path
 import schema/types
 
 /// Render a boolean field as radio buttons (Yes/No).
@@ -84,7 +85,7 @@ fn render_as_radio(
           attribute.checked(current_value),
           attribute.required(is_required),
           attribute.disabled(is_disabled),
-          event.on_click(FieldChanged(field_name, types.BooleanValue(True))),
+          event.on_click(UpdateFieldPath(path.from_field_name(field_name), types.BooleanValue(True))),
         ]),
         html.label([attribute.for(yes_id)], [
           html.text("Yes"),
@@ -99,7 +100,7 @@ fn render_as_radio(
           attribute.checked(!current_value),
           attribute.required(is_required),
           attribute.disabled(is_disabled),
-          event.on_click(FieldChanged(field_name, types.BooleanValue(False))),
+          event.on_click(UpdateFieldPath(path.from_field_name(field_name), types.BooleanValue(False))),
         ]),
         html.label([attribute.for(no_id)], [
           html.text("No"),
@@ -149,8 +150,7 @@ pub fn render_as_checkbox(
         attribute.checked(current_value),
         attribute.required(is_required),
         attribute.disabled(is_disabled),
-        event.on_click(FieldChanged(field_name, types.BooleanValue(!current_value))),
-        event.on_blur(FieldBlurred(field_name)),
+        event.on_click(UpdateFieldPath(path.from_field_name(field_name), types.BooleanValue(!current_value))),
       ]),
       render_checkbox_label(field_name, property, is_required),
     ]),
@@ -211,7 +211,7 @@ pub fn render_as_toggle(
           True -> "true"
           False -> "false"
         }),
-        event.on_click(FieldChanged(field_name, types.BooleanValue(!current_value))),
+        event.on_click(UpdateFieldPath(path.from_field_name(field_name), types.BooleanValue(!current_value))),
       ], [
         html.span([attribute.class("formosh-toggle-slider")], []),
         html.span([attribute.class("formosh-toggle-text")], [
