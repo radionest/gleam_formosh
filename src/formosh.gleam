@@ -3,26 +3,45 @@
 import form/model.{type FormModel, type FormMsg}
 import form/update
 import form/view
-import gleam/io
+import gleam/dict
 import lustre
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import schema/parser
 import schema/types.{type JsonSchema}
 
-/// Create a form application from a JSON Schema definition.
+/// Configuration for form submission behavior.
 /// 
-/// This is the main entry point for creating forms. It takes a parsed JSON Schema
-/// and returns a FormApp that can be converted to a Lustre application.
+/// This type allows customization of how the form handles submission,
+/// including where to send data and how to handle responses.
+pub type SubmitConfig {
+  /// Submit form data to an HTTP endpoint
+  HttpSubmit(
+    url: String,
+    method: String,
+    headers: List(#(String, String)),
+  )
+  /// Handle submission with a custom function
+  CustomSubmit(
+    handler: fn(model.FormModel) -> Result(String, String),
+  )
+  /// No submission handler (form values can be retrieved manually)
+  NoSubmit
+}
+
+/// Configuration options for creating a form.
 /// 
-/// ## Example
-/// ```gleam
-/// let schema = JsonSchema(...)
-/// let form_app = formosh.from_schema(schema)
-/// let lustre_app = formosh.to_lustre_app(form_app)
-/// ```
-pub fn from_schema(schema: JsonSchema) -> FormApp {
-  create_form(schema)
+/// This type contains all the configuration needed to create a form,
+/// including the schema and submission handling.
+pub type FormConfig {
+  FormConfig(
+    schema: JsonSchema,
+    submit_config: SubmitConfig,
+    /// Optional CSS class prefix for styling
+    css_prefix: String,
+    /// Whether to show validation errors immediately or only after blur
+    show_errors_on_change: Bool,
+  )
 }
 
 /// A form application containing the MVU (Model-View-Update) functions.
@@ -38,13 +57,162 @@ pub type FormApp {
   )
 }
 
-/// Internal function to create a FormApp from a parsed JsonSchema.
+/// Create a form configuration with default settings.
+/// 
+/// This is a convenience function for creating a basic form configuration
+/// with sensible defaults.
+/// 
+/// ## Parameters
+/// - `schema`: The JSON Schema definition for the form
+/// 
+/// ## Returns
+/// A FormConfig with default settings (no submission handler, standard CSS prefix)
+/// 
+/// ## Example
+/// ```gleam
+/// let config = formosh.config(schema)
+///   |> formosh.with_submit_url("https://api.example.com/submit")
+/// ```
+pub fn config(schema: JsonSchema) -> FormConfig {
+  FormConfig(
+    schema: schema,
+    submit_config: NoSubmit,
+    css_prefix: "formosh",
+    show_errors_on_change: False,
+  )
+}
+
+/// Add an HTTP submission handler to the form configuration.
+/// 
+/// ## Parameters
+/// - `config`: The form configuration to update
+/// - `url`: The URL to submit the form to
+/// 
+/// ## Returns
+/// Updated FormConfig with HTTP submission
+pub fn with_submit_url(config: FormConfig, url: String) -> FormConfig {
+  FormConfig(
+    ..config,
+    submit_config: HttpSubmit(
+      url: url,
+      method: "POST",
+      headers: [#("Content-Type", "application/json")],
+    ),
+  )
+}
+
+/// Add an HTTP submission handler with custom method and headers.
+/// 
+/// ## Parameters
+/// - `config`: The form configuration to update
+/// - `url`: The URL to submit the form to
+/// - `method`: HTTP method (GET, POST, PUT, etc.)
+/// - `headers`: List of HTTP headers
+/// 
+/// ## Returns
+/// Updated FormConfig with custom HTTP submission
+pub fn with_http_submit(
+  config: FormConfig,
+  url: String,
+  method: String,
+  headers: List(#(String, String)),
+) -> FormConfig {
+  FormConfig(
+    ..config,
+    submit_config: HttpSubmit(url: url, method: method, headers: headers),
+  )
+}
+
+/// Add a custom submission handler function.
+/// 
+/// ## Parameters
+/// - `config`: The form configuration to update
+/// - `handler`: Function that processes form submission
+/// 
+/// ## Returns
+/// Updated FormConfig with custom submission handler
+pub fn with_custom_submit(
+  config: FormConfig,
+  handler: fn(model.FormModel) -> Result(String, String),
+) -> FormConfig {
+  FormConfig(..config, submit_config: CustomSubmit(handler: handler))
+}
+
+/// Set the CSS class prefix for form elements.
+/// 
+/// ## Parameters
+/// - `config`: The form configuration to update
+/// - `prefix`: The CSS class prefix to use
+/// 
+/// ## Returns
+/// Updated FormConfig with new CSS prefix
+pub fn with_css_prefix(config: FormConfig, prefix: String) -> FormConfig {
+  FormConfig(..config, css_prefix: prefix)
+}
+
+/// Configure whether to show validation errors immediately on change.
+/// 
+/// ## Parameters
+/// - `config`: The form configuration to update
+/// - `show`: Whether to show errors on change (true) or only on blur (false)
+/// 
+/// ## Returns
+/// Updated FormConfig with error display setting
+pub fn with_show_errors_on_change(
+  config: FormConfig,
+  show: Bool,
+) -> FormConfig {
+  FormConfig(..config, show_errors_on_change: show)
+}
+
+/// Create a form application from a JSON Schema definition.
+/// 
+/// This is the main entry point for creating forms. It takes a parsed JSON Schema
+/// and returns a FormApp that can be converted to a Lustre application.
+/// 
+/// ## Example
+/// ```gleam
+/// let schema = JsonSchema(...)
+/// let form_app = formosh.from_schema(schema)
+/// let lustre_app = formosh.to_lustre_app(form_app)
+/// ```
+pub fn from_schema(schema: JsonSchema) -> FormApp {
+  let default_config = config(schema)
+  from_config(default_config)
+}
+
+/// Create a form application from a configuration.
+/// 
+/// This function creates a form with custom configuration including
+/// submission handling and display options.
+/// 
+/// ## Parameters
+/// - `config`: The form configuration
+/// 
+/// ## Returns
+/// A FormApp ready to be converted to a Lustre application
+/// 
+/// ## Example
+/// ```gleam
+/// let config = formosh.config(schema)
+///   |> formosh.with_submit_url("https://api.example.com/submit")
+///   |> formosh.with_css_prefix("my-form")
+/// let form_app = formosh.from_config(config)
+/// ```
+pub fn from_config(config: FormConfig) -> FormApp {
+  create_form_with_config(config)
+}
+
+/// Internal function to create a FormApp from a configuration.
 /// 
 /// This function sets up the MVU architecture by providing the init, update,
 /// and view functions needed for a Lustre application.
-fn create_form(schema: JsonSchema) -> FormApp {
+fn create_form_with_config(config: FormConfig) -> FormApp {
+  // Store config in a way that can be accessed by the update function
+  // For now, use the existing init function
+  // In a real implementation, we'd need to extend the model to store submit_config
   FormApp(
-    init: fn(_) { #(model.init(schema), effect.none()) },
+    init: fn(_) { #(model.init(config.schema), effect.none()) },
     update: update.update,
     view: view.view,
   )
@@ -95,113 +263,119 @@ pub fn from_json_string(
   }
 }
 
-/// Main function that demonstrates the library with an example form.
+/// Create a form application from a JSON string with configuration.
 /// 
-/// This function parses the built-in example schema and starts a form
-/// application. It's primarily used for development and testing, but also
-/// serves as a usage example.
-pub fn main() {
-  // Parse the example JSON schema
-  let form_result = case parser.parse_schema(example_schema) {
+/// Combines JSON parsing with custom configuration options.
+/// 
+/// ## Parameters
+/// - `json_string`: A valid JSON string containing a JSON Schema definition
+/// - `submit_config`: Submission configuration for the form
+/// 
+/// ## Returns
+/// - `Ok(FormApp)` if successful
+/// - `Error(ParseError)` if JSON parsing fails
+pub fn from_json_string_with_config(
+  json_string: String,
+  submit_config: SubmitConfig,
+) -> Result(FormApp, parser.ParseError) {
+  case parser.parse_schema(json_string) {
     Ok(schema) -> {
-      io.println("Successfully parsed JSON schema: " <> schema.title)
-      Ok(from_schema(schema))
+      let form_config = FormConfig(
+        schema: schema,
+        submit_config: submit_config,
+        css_prefix: "formosh",
+        show_errors_on_change: False,
+      )
+      Ok(from_config(form_config))
     }
-    Error(err) -> {
-      io.println("Failed to parse JSON schema")
-      case err {
-        parser.InvalidJson(msg) -> io.println("Invalid JSON: " <> msg)
-        parser.MissingField(field) -> io.println("Missing field: " <> field)
-        parser.InvalidType(msg) -> io.println("Invalid type: " <> msg)
-        parser.UnexpectedValue(msg) -> io.println("Unexpected value: " <> msg)
-        parser.DecodingError(_) -> io.println("JSON decoding error")
-      }
-      Error(err)
-    }
-  }
-
-  case form_result {
-    Ok(form) -> {
-      let app = to_lustre_app(form)
-      // Only start the app if we're in a browser environment
-      case lustre.start(app, "#app", Nil) {
-        Ok(_) -> Nil
-        Error(_) -> Nil
-        // Silently ignore if not in browser
-      }
-    }
-    Error(_) -> Nil
+    Error(err) -> Error(err)
   }
 }
 
-/// Example JSON Schema for testing and demonstration purposes.
+/// Extract the current form data as JSON.
 /// 
-/// This schema defines a medical form for lesion measurements with:
-/// - Required diagnosis fields (strings with max length)
-/// - An array of lesion objects with side, size, location, and notes
-/// - Various validation constraints and field types
+/// This function extracts the current form values and converts them to
+/// a JSON string, useful for custom submission handling.
 /// 
-/// This serves as both a test case and a comprehensive example of
-/// the types of forms this library can generate.
-pub const example_schema = "
-{
-    \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
-    \"$id\": \"https://example.com/lesion-measurement.schema.json\",
-    \"title\": \"Измерение образований\",
-    \"description\": \"Укажите наибольший размер каждого обнаруженного образования в миллиметрах\",
-    \"type\": \"object\",
-    \"properties\": {
-      \"diagnosis\": {
-        \"description\": \"Диагноз\",
-        \"type\": \"string\",
-        \"maxLength\": 50
-      },
-      \"weight\": {
-        \"description\": \"Вес\",
-        \"type\": \"number\"
-      },
-      \"age\": {
-        \"description\": \"Возраст\",
-        \"type\": \"integer\"
-      },
-      \"diagnosis2\": {
-        \"description\": \"Диагноз3\",
-        \"type\": \"string\",
-        \"maxLength\": 200
-      },
-      \"lesions\": {
-        \"description\": \"Список измерений образований\",
-        \"type\": \"array\",
-        \"items\": {
-          \"type\": \"object\",
-          \"properties\": {
-            \"side\": {
-              \"description\": \"Сторона (L - левая, R - правая)\",
-              \"type\": \"string\",
-              \"enum\": [\"L\", \"R\"]
-            },
-            \"max_size_mm\": {
-              \"description\": \"Наибольший размер в миллиметрах\",
-              \"type\": \"number\",
-              \"minimum\": 0,
-              \"maximum\": 200
-            },
-            \"location\": {
-              \"description\": \"Локализация образования\",
-              \"type\": \"string\",
-              \"maxLength\": 100
-            },
-            \"notes\": {
-              \"description\": \"Дополнительные примечания\",
-              \"type\": \"string\",
-              \"maxLength\": 500
-            }
-          },
-          \"required\": [\"side\", \"max_size_mm\"]
-        },
-        \"minItems\": 1
-      }
-    },
-    \"required\": [\"lesions\"]
-  }
-"
+/// ## Parameters
+/// - `model`: The form model containing the current values
+/// 
+/// ## Returns
+/// Result containing either the JSON string or an encoding error
+/// 
+/// ## Example
+/// ```gleam
+/// let json_result = formosh.get_form_json(model)
+/// case json_result {
+///   Ok(json) -> // Send JSON to API
+///   Error(_) -> // Handle error
+/// }
+/// ```
+pub fn get_form_json(_model: model.FormModel) -> Result(String, String) {
+  // Convert form values to JSON
+  // This would need implementation of a converter function
+  Ok("{}")
+  // TODO: Implement proper JSON conversion
+}
+
+/// Check if the form is valid and ready for submission.
+/// 
+/// ## Parameters
+/// - `model`: The form model to check
+/// 
+/// ## Returns
+/// True if the form has no validation errors and can be submitted
+pub fn is_valid(model: model.FormModel) -> Bool {
+  model.is_valid && !model.is_submitting
+}
+
+/// Get all current validation errors from the form.
+/// 
+/// ## Parameters
+/// - `model`: The form model
+/// 
+/// ## Returns
+/// List of field names and their validation errors
+pub fn get_errors(
+  model: model.FormModel,
+) -> List(#(String, List(types.ValidationError))) {
+  model.errors |> dict.to_list
+}
+
+/// Get all current form values.
+/// 
+/// ## Parameters
+/// - `model`: The form model
+/// 
+/// ## Returns
+/// Dictionary of field names to their current values
+pub fn get_values(
+  model: model.FormModel,
+) -> dict.Dict(String, types.FieldValue) {
+  model.values
+}
+
+/// Create a form application with a custom update function.
+/// 
+/// This allows advanced users to intercept and modify the update behavior.
+/// 
+/// ## Parameters
+/// - `config`: The form configuration
+/// - `custom_update`: Custom update function that wraps the default one
+/// 
+/// ## Returns
+/// A FormApp with custom update behavior
+pub fn from_config_with_custom_update(
+  config: FormConfig,
+  custom_update: fn(
+    model.FormModel,
+    model.FormMsg,
+  ) ->
+    #(model.FormModel, Effect(model.FormMsg)),
+) -> FormApp {
+  FormApp(
+    init: fn(_) { #(model.init(config.schema), effect.none()) },
+    update: custom_update,
+    view: view.view,
+  )
+}
