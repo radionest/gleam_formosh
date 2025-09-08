@@ -19,11 +19,13 @@ Add formosh to your `gleam.toml`:
 ```toml
 [dependencies]
 formosh = "~> 0.1"
-lustre = "~> 4.6"
-gleam_json = "~> 1.0"
+lustre = "~> 5.3"
+gleam_json = "~> 3.0"
 ```
 
 ## Quick Start
+
+### Basic Usage
 
 ```gleam
 import formosh
@@ -59,6 +61,81 @@ pub fn main() {
   let assert Ok(_) = lustre.start(app, "#app", Nil)
   
   Nil
+}
+```
+
+### With HTTP Submission
+
+```gleam
+import formosh
+
+pub fn main() {
+  let schema = "{ ... }"  // Your JSON Schema
+  
+  // Create form with HTTP submission
+  let assert Ok(form) = formosh.from_json_string_with_config(
+    schema,
+    formosh.HttpSubmit(
+      url: "https://api.example.com/submit",
+      method: "POST",
+      headers: [#("Content-Type", "application/json")],
+    ),
+  )
+  
+  let app = formosh.to_lustre_app(form)
+  let assert Ok(_) = lustre.start(app, "#app", Nil)
+}
+```
+
+### Using Builder Pattern
+
+```gleam
+import formosh
+import schema/parser
+
+pub fn main() {
+  let schema_string = "{ ... }"  // Your JSON Schema
+  let assert Ok(schema) = parser.parse_schema(schema_string)
+  
+  // Configure form with builder pattern
+  let config = formosh.config(schema)
+    |> formosh.with_submit_url("https://api.example.com/forms")
+    |> formosh.with_css_prefix("my-form")
+    |> formosh.with_show_errors_on_change(False)
+  
+  let form = formosh.from_config(config)
+  let app = formosh.to_lustre_app(form)
+  let assert Ok(_) = lustre.start(app, "#app", Nil)
+}
+```
+
+### Custom Submission Handler
+
+```gleam
+import formosh
+import gleam/io
+
+pub fn main() {
+  let schema = "{ ... }"  // Your JSON Schema
+  let assert Ok(parsed_schema) = parser.parse_schema(schema)
+  
+  // Define custom submission handler
+  let submit_handler = fn(model) {
+    // Extract and process form data
+    let values = formosh.get_values(model)
+    io.println("Processing form data...")
+    
+    // Return success or error
+    Ok("Form submitted successfully!")
+  }
+  
+  // Create form with custom handler
+  let config = formosh.config(parsed_schema)
+    |> formosh.with_custom_submit(submit_handler)
+  
+  let form = formosh.from_config(config)
+  let app = formosh.to_lustre_app(form)
+  let assert Ok(_) = lustre.start(app, "#app", Nil)
 }
 ```
 
@@ -141,6 +218,56 @@ formosh/
 │       └── object_field.gleam  # Object field renderer
 ```
 
+## API Reference
+
+### Core Functions
+
+#### `formosh.config(schema: JsonSchema) -> FormConfig`
+Create a form configuration with default settings.
+
+#### `formosh.from_schema(schema: JsonSchema) -> FormApp`
+Create a form application from a JSON Schema.
+
+#### `formosh.from_config(config: FormConfig) -> FormApp`
+Create a form application from a configuration.
+
+#### `formosh.from_json_string(json: String) -> Result(FormApp, ParseError)`
+Parse JSON Schema string and create a form.
+
+#### `formosh.to_lustre_app(form: FormApp) -> lustre.App`
+Convert FormApp to a Lustre application.
+
+### Configuration Functions
+
+#### `with_submit_url(config: FormConfig, url: String) -> FormConfig`
+Add HTTP POST submission to the form.
+
+#### `with_http_submit(config: FormConfig, url: String, method: String, headers: List(#(String, String))) -> FormConfig`
+Add HTTP submission with custom method and headers.
+
+#### `with_custom_submit(config: FormConfig, handler: fn(FormModel) -> Result(String, String)) -> FormConfig`
+Add custom submission handler function.
+
+#### `with_css_prefix(config: FormConfig, prefix: String) -> FormConfig`
+Set CSS class prefix for styling.
+
+#### `with_show_errors_on_change(config: FormConfig, show: Bool) -> FormConfig`
+Configure error display behavior.
+
+### Utility Functions
+
+#### `get_values(model: FormModel) -> Dict(String, FieldValue)`
+Extract current form values.
+
+#### `get_errors(model: FormModel) -> List(#(String, List(ValidationError)))`
+Get current validation errors.
+
+#### `is_valid(model: FormModel) -> Bool`
+Check if form is valid for submission.
+
+#### `get_form_json(model: FormModel) -> Result(String, String)`
+Convert form data to JSON string.
+
 ## Development
 
 ### Building
@@ -159,6 +286,7 @@ gleam test
 ### Running the Example
 
 ```bash
+cd example
 gleam run -m lustre/dev start
 ```
 
