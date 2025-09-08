@@ -1,10 +1,10 @@
 // Form model for MVU architecture
 
-import gleam/dict.{type Dict}
-import gleam/option.{type Option}
-import gleam/list
-import schema/types.{type FieldValue, type JsonSchema, type ValidationError}
 import form/path.{type FieldPath}
+import gleam/dict.{type Dict}
+import gleam/list
+import gleam/option.{type Option}
+import schema/types.{type FieldValue, type JsonSchema, type ValidationError}
 
 /// The main form state model for the MVU architecture.
 /// 
@@ -51,14 +51,14 @@ pub type FormMsg {
   UpdateFieldPath(path: FieldPath, value: FieldValue)
   AddArrayItemPath(path: FieldPath)
   RemoveArrayItemPath(path: FieldPath, index: Int)
-  
+
   // Form submission
   FormSubmit
   FormSubmitted(Result(String, String))
-  
+
   // Validation
   ValidateForm
-  
+
   // Reset form
   ResetForm
 }
@@ -167,7 +167,10 @@ pub fn is_field_disabled(model: FormModel, field_name: String) -> Bool {
 /// ## Returns
 /// - `Some(FieldValue)` if the field has a value
 /// - `None` if the field has not been set or doesn't exist
-pub fn get_field_value(model: FormModel, field_name: String) -> Option(FieldValue) {
+pub fn get_field_value(
+  model: FormModel,
+  field_name: String,
+) -> Option(FieldValue) {
   case dict.get(model.values, field_name) {
     Ok(value) -> option.Some(value)
     Error(_) -> option.None
@@ -238,7 +241,7 @@ pub fn add_field_error(
 ) -> FormModel {
   let current_errors = get_field_errors(model, field_name)
   let new_errors = list.append(current_errors, [error])
-  
+
   FormModel(
     ..model,
     errors: dict.insert(model.errors, field_name, new_errors),
@@ -276,11 +279,7 @@ pub fn clear_field_errors(model: FormModel, field_name: String) -> FormModel {
 /// ## Returns
 /// A new FormModel with all errors cleared and valid state
 pub fn clear_all_errors(model: FormModel) -> FormModel {
-  FormModel(
-    ..model,
-    errors: dict.new(),
-    is_valid: True,
-  )
+  FormModel(..model, errors: dict.new(), is_valid: True)
 }
 
 /// Mark a field as touched (user has interacted with it).
@@ -341,6 +340,195 @@ pub fn reset(model: FormModel) -> FormModel {
 /// A dictionary mapping field names to their current values
 pub fn get_form_values(model: FormModel) -> Dict(String, FieldValue) {
   model.values
+}
+
+/// Get the value at a specific path in the form.
+/// 
+/// Traverses the form values following the given path to retrieve a value
+/// from potentially nested structures (arrays, objects).
+/// 
+/// ## Parameters
+/// - `model`: The form model containing field values
+/// - `path`: The field path to traverse
+/// 
+/// ## Returns
+/// - `Some(FieldValue)` if a value exists at the path
+/// - `None` if the path doesn't exist or has no value
+pub fn get_value_at_path(
+  model: FormModel,
+  field_path: FieldPath,
+) -> Option(FieldValue) {
+  case field_path {
+    [] -> option.None
+    [path.PropertySegment(name)] -> get_field_value(model, name)
+    [path.PropertySegment(name), ..rest] ->
+      case get_field_value(model, name) {
+        option.Some(types.ArrayValue(items)) -> traverse_array_path(items, rest)
+        option.Some(types.ObjectValue(obj)) -> traverse_object_path(obj, rest)
+        _ -> option.None
+      }
+    [path.ArraySegment(_), ..] ->
+      // Array segment at root level doesn't make sense
+      option.None
+  }
+}
+
+/// Helper function to traverse an array with a path.
+fn traverse_array_path(
+  items: List(types.JsonValue),
+  remaining_path: FieldPath,
+) -> Option(FieldValue) {
+  case remaining_path {
+    [] -> option.None
+    [path.ArraySegment(index), ..rest] ->
+      case list_at(items, index) {
+        option.Some(types.JsonObject(obj_fields)) ->
+          case rest {
+            [] -> option.None
+            [path.PropertySegment(field_name)] ->
+              case list.find(obj_fields, fn(f) { f.0 == field_name }) {
+                Ok(#(_, json_val)) -> json_to_field_value(json_val)
+                Error(_) -> option.None
+              }
+            [path.PropertySegment(field_name), ..more] ->
+              case list.find(obj_fields, fn(f) { f.0 == field_name }) {
+                Ok(#(_, types.JsonArray(nested_items))) ->
+                  traverse_array_path(nested_items, more)
+                Ok(#(_, types.JsonObject(nested_obj))) ->
+                  traverse_object_path(nested_obj, more)
+                _ -> option.None
+              }
+            _ -> option.None
+          }
+        _ -> option.None
+      }
+    _ -> option.None
+  }
+}
+
+/// Helper function to get list element by index.
+fn list_at(items: List(a), index: Int) -> Option(a) {
+  case index, items {
+    0, [first, ..] -> option.Some(first)
+    n, [_, ..rest] if n > 0 -> list_at(rest, n - 1)
+    _, _ -> option.None
+  }
+}
+
+/// Convert JsonValue to FieldValue.
+fn json_to_field_value(json: types.JsonValue) -> Option(FieldValue) {
+  case json {
+    types.JsonString(s) -> option.Some(types.StringValue(s))
+    types.JsonNumber(n) -> option.Some(types.NumberValue(n))
+    types.JsonInteger(i) -> option.Some(types.IntegerValue(i))
+    types.JsonBool(b) -> option.Some(types.BooleanValue(b))
+    types.JsonArray(items) -> option.Some(types.ArrayValue(items))
+    types.JsonObject(fields) -> option.Some(types.ObjectValue(fields))
+    types.JsonNull -> option.Some(types.NullValue)
+  }
+}
+
+/// Helper function to traverse an object with a path.
+fn traverse_object_path(
+  obj: List(#(String, types.JsonValue)),
+  remaining_path: FieldPath,
+) -> Option(FieldValue) {
+  case remaining_path {
+    [] -> option.None
+    [path.PropertySegment(field_name)] ->
+      case list.find(obj, fn(f) { f.0 == field_name }) {
+        Ok(#(_, json_val)) -> json_to_field_value(json_val)
+        Error(_) -> option.None
+      }
+    [path.PropertySegment(field_name), ..rest] ->
+      case list.find(obj, fn(f) { f.0 == field_name }) {
+        Ok(#(_, types.JsonArray(items))) -> traverse_array_path(items, rest)
+        Ok(#(_, types.JsonObject(nested_obj))) ->
+          traverse_object_path(nested_obj, rest)
+        _ -> option.None
+      }
+    _ -> option.None
+  }
+}
+
+/// Check if a field at a specific path is required.
+/// 
+/// For root-level fields, checks the schema's required list.
+/// For nested fields, would need schema traversal (not implemented yet).
+/// 
+/// ## Parameters
+/// - `model`: The form model containing the schema
+/// - `field_path`: The path to the field
+/// 
+/// ## Returns
+/// True if the field is required, False otherwise
+pub fn is_required_at_path(model: FormModel, field_path: FieldPath) -> Bool {
+  case field_path {
+    [path.PropertySegment(name)] -> is_field_required(model, name)
+    _ ->
+      // For nested paths, we'd need to traverse the schema
+      // For now, default to not required for nested fields
+      False
+  }
+}
+
+/// Check if a field at a specific path has validation errors.
+/// 
+/// ## Parameters
+/// - `model`: The form model containing error state
+/// - `field_path`: The path to the field
+/// 
+/// ## Returns
+/// True if the field has errors, False otherwise
+pub fn has_errors_at_path(model: FormModel, field_path: FieldPath) -> Bool {
+  let path_key = path.to_string(field_path)
+  case dict.get(model.errors, path_key) {
+    Ok(errors) -> list.length(errors) > 0
+    Error(_) -> False
+  }
+}
+
+/// Get validation errors for a field at a specific path.
+/// 
+/// ## Parameters
+/// - `model`: The form model containing error state
+/// - `field_path`: The path to the field
+/// 
+/// ## Returns
+/// List of validation errors (empty if no errors)
+pub fn get_errors_at_path(
+  model: FormModel,
+  field_path: FieldPath,
+) -> List(ValidationError) {
+  let path_key = path.to_string(field_path)
+  case dict.get(model.errors, path_key) {
+    Ok(errors) -> errors
+    Error(_) -> []
+  }
+}
+
+/// Set the value at a specific path in the form.
+/// 
+/// Updates a value at the given path, handling nested structures.
+/// 
+/// ## Parameters
+/// - `model`: The current form model
+/// - `field_path`: The path where to set the value
+/// - `value`: The new value
+/// 
+/// ## Returns
+/// A new FormModel with the updated value
+pub fn set_value_at_path(
+  model: FormModel,
+  field_path: FieldPath,
+  value: FieldValue,
+) -> FormModel {
+  let path_key = path.to_string(field_path)
+  FormModel(
+    ..model,
+    values: dict.insert(model.values, path_key, value),
+    is_dirty: True,
+  )
 }
 
 /// Check if the form can be submitted.
