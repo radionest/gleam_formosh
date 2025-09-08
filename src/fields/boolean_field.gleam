@@ -3,6 +3,7 @@
 /// This module provides different ways to render boolean fields including
 /// radio buttons (Yes/No), checkboxes, and toggle switches. The default
 /// render function uses radio buttons for better accessibility and clarity.
+import fields/field_common
 import form/model.{type FormMsg, UpdateFieldPath}
 import form/path
 import gleam/option.{type Option, None, Some}
@@ -74,7 +75,7 @@ fn render_as_radio(
   let no_id = field_name <> "_no"
 
   html.div([attribute.class("formosh-field-wrapper")], [
-    render_label(field_name, property, is_required),
+    field_common.render_label(field_name, property, is_required),
     html.div([attribute.class("formosh-radio-group formosh-boolean")], [
       html.div([attribute.class("formosh-radio-item")], [
         html.input([
@@ -107,7 +108,7 @@ fn render_as_radio(
         ]),
       ]),
     ]),
-    render_help_text(property),
+    field_common.render_help_text(property),
   ])
 }
 
@@ -159,7 +160,7 @@ pub fn render_as_checkbox(
       ]),
       render_checkbox_label(field_name, property, is_required),
     ]),
-    render_help_text(property),
+    field_common.render_help_text(property),
   ])
 }
 
@@ -201,7 +202,7 @@ pub fn render_as_toggle(
   let field_name = path.get_field_name(field_path) |> option.unwrap("field")
 
   html.div([attribute.class("formosh-field-wrapper")], [
-    render_label(field_name, property, is_required),
+    field_common.render_label(field_name, property, is_required),
     html.div([attribute.class("formosh-toggle-wrapper")], [
       html.button(
         [
@@ -235,46 +236,8 @@ pub fn render_as_toggle(
         ],
       ),
     ]),
-    render_help_text(property),
+    field_common.render_help_text(property),
   ])
-}
-
-/// Render field label for boolean fields.
-/// 
-/// **Note**: This duplicates functionality from field_common.render_label
-/// and should ideally use the common implementation for consistency.
-/// 
-/// ## Parameters
-/// - `field_name`: Field name for label association
-/// - `property`: Schema property for title text
-/// - `is_required`: Whether to show required indicator
-/// 
-/// ## Returns
-/// A label element for the boolean field
-fn render_label(
-  field_name: String,
-  property: types.SchemaProperty,
-  is_required: Bool,
-) -> Element(FormMsg) {
-  let label_text = case property.title {
-    Some(title) -> title
-    None -> field_name |> string.replace("_", " ") |> string.capitalise()
-  }
-
-  html.label(
-    [
-      attribute.for(field_name),
-      attribute.class("formosh-label"),
-    ],
-    [
-      html.text(label_text),
-      case is_required {
-        True ->
-          html.span([attribute.class("formosh-required")], [html.text(" *")])
-        False -> html.text("")
-      },
-    ],
-  )
 }
 
 /// Render label for checkbox-style boolean fields.
@@ -313,24 +276,4 @@ fn render_checkbox_label(
       },
     ],
   )
-}
-
-/// Render help text for boolean fields.
-/// 
-/// **Note**: This duplicates functionality from field_common.render_help_text
-/// and should ideally use the common implementation for consistency.
-/// 
-/// ## Parameters
-/// - `property`: Schema property containing description
-/// 
-/// ## Returns
-/// A help text element or empty text if no description
-fn render_help_text(property: types.SchemaProperty) -> Element(FormMsg) {
-  case property.description {
-    Some(desc) ->
-      html.div([attribute.class("formosh-help")], [
-        html.text(desc),
-      ])
-    None -> html.text("")
-  }
 }
