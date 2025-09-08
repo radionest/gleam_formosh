@@ -1,7 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
-import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -56,7 +55,8 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
       json.UnableToDecode(errors) -> DecodingError(errors)
       json.UnexpectedEndOfInput -> InvalidJson("Unexpected end of input")
       json.UnexpectedByte(byte) -> InvalidJson("Unexpected byte: " <> byte)
-      json.UnexpectedSequence(seq) -> InvalidJson("Unexpected sequence: " <> seq)
+      json.UnexpectedSequence(seq) ->
+        InvalidJson("Unexpected sequence: " <> seq)
     }
   })
 }
@@ -68,17 +68,33 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
 /// validation constraints.
 fn schema_decoder() -> Decoder(JsonSchema) {
   use title <- decode.field("title", decode.string)
-  use description <- decode.optional_field("description", None, decode.optional(decode.string))
-  use field_type <- decode.optional_field("type", ObjectType, field_type_decoder())
-  use properties <- decode.optional_field("properties", dict.new(), properties_decoder())
-  use required <- decode.optional_field("required", [], decode.list(decode.string))
-  
+  use description <- decode.optional_field(
+    "description",
+    None,
+    decode.optional(decode.string),
+  )
+  use field_type <- decode.optional_field(
+    "type",
+    ObjectType,
+    field_type_decoder(),
+  )
+  use properties <- decode.optional_field(
+    "properties",
+    dict.new(),
+    properties_decoder(),
+  )
+  use required <- decode.optional_field(
+    "required",
+    [],
+    decode.list(decode.string),
+  )
+
   // Try to extract constraints from the top level
   use dynamic_data <- decode.then(decode.dynamic)
-  
+
   let string_constraints = extract_string_constraints(dynamic_data)
   let number_constraints = extract_number_constraints(dynamic_data)
-  
+
   decode.success(JsonSchema(
     title: title,
     description: description,
@@ -123,36 +139,33 @@ fn properties_decoder() -> Decoder(Dict(String, SchemaProperty)) {
 /// This decoder handles both simple property definitions (just a type string)
 /// and complex property objects with constraints, metadata, and nested structures.
 fn property_decoder() -> Decoder(SchemaProperty) {
-  decode.one_of(
-    full_property_decoder(),
-    [
-      // Fallback to simple type string
-      decode.string
-        |> decode.map(fn(type_str) {
-          SchemaProperty(
-            field_type: case type_str {
-              "string" -> Some(StringType)
-              "number" -> Some(NumberType)
-              "integer" -> Some(IntegerType)
-              "boolean" -> Some(BooleanType)
-              "null" -> Some(NullType)
-              "array" -> Some(ArrayType)
-              "object" -> Some(ObjectType)
-              _ -> None
-            },
-            title: None,
-            description: None,
-            default: None,
-            enum_values: None,
-            string_constraints: None,
-            number_constraints: None,
-            items: None,
-            properties: None,
-            required: [],
-          )
-        }),
-    ],
-  )
+  decode.one_of(full_property_decoder(), [
+    // Fallback to simple type string
+    decode.string
+    |> decode.map(fn(type_str) {
+      SchemaProperty(
+        field_type: case type_str {
+          "string" -> Some(StringType)
+          "number" -> Some(NumberType)
+          "integer" -> Some(IntegerType)
+          "boolean" -> Some(BooleanType)
+          "null" -> Some(NullType)
+          "array" -> Some(ArrayType)
+          "object" -> Some(ObjectType)
+          _ -> None
+        },
+        title: None,
+        description: None,
+        default: None,
+        enum_values: None,
+        string_constraints: None,
+        number_constraints: None,
+        items: None,
+        properties: None,
+        required: [],
+      )
+    }),
+  ])
 }
 
 /// Decode a complete property object with all possible fields.
@@ -161,19 +174,51 @@ fn property_decoder() -> Decoder(SchemaProperty) {
 /// including type, constraints, metadata, and nested schema information.
 fn full_property_decoder() -> Decoder(SchemaProperty) {
   use dynamic_data <- decode.then(decode.dynamic)
-  use field_type <- decode.optional_field("type", None, decode.optional(field_type_decoder()))
-  use title <- decode.optional_field("title", None, decode.optional(decode.string))
-  use description <- decode.optional_field("description", None, decode.optional(decode.string))
-  use default <- decode.optional_field("default", None, decode.optional(json_value_decoder()))
-  use enum_values <- decode.optional_field("enum", None, decode.optional(decode.list(json_value_decoder())))
-  use items <- decode.optional_field("items", None, decode.optional(property_decoder()))
-  use properties <- decode.optional_field("properties", None, decode.optional(properties_decoder()))
-  use required <- decode.optional_field("required", [], decode.list(decode.string))
-  
+  use field_type <- decode.optional_field(
+    "type",
+    None,
+    decode.optional(field_type_decoder()),
+  )
+  use title <- decode.optional_field(
+    "title",
+    None,
+    decode.optional(decode.string),
+  )
+  use description <- decode.optional_field(
+    "description",
+    None,
+    decode.optional(decode.string),
+  )
+  use default <- decode.optional_field(
+    "default",
+    None,
+    decode.optional(json_value_decoder()),
+  )
+  use enum_values <- decode.optional_field(
+    "enum",
+    None,
+    decode.optional(decode.list(json_value_decoder())),
+  )
+  use items <- decode.optional_field(
+    "items",
+    None,
+    decode.optional(property_decoder()),
+  )
+  use properties <- decode.optional_field(
+    "properties",
+    None,
+    decode.optional(properties_decoder()),
+  )
+  use required <- decode.optional_field(
+    "required",
+    [],
+    decode.list(decode.string),
+  )
+
   // Extract constraints from the dynamic data
   let string_constraints = extract_string_constraints(dynamic_data)
   let number_constraints = extract_number_constraints(dynamic_data)
-  
+
   decode.success(SchemaProperty(
     field_type: field_type,
     title: title,
@@ -200,18 +245,22 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
 /// - `Some(StringConstraints)` if any constraints were found
 /// - `None` if no string constraints are present
 fn extract_string_constraints(data: Dynamic) -> Option(StringConstraints) {
-  let min_length = decode.run(data, decode.at(["minLength"], decode.int))
+  let min_length =
+    decode.run(data, decode.at(["minLength"], decode.int))
     |> option.from_result()
-  
-  let max_length = decode.run(data, decode.at(["maxLength"], decode.int))
+
+  let max_length =
+    decode.run(data, decode.at(["maxLength"], decode.int))
     |> option.from_result()
-  
-  let pattern = decode.run(data, decode.at(["pattern"], decode.string))
+
+  let pattern =
+    decode.run(data, decode.at(["pattern"], decode.string))
     |> option.from_result()
-  
-  let format = decode.run(data, decode.at(["format"], format_decoder()))
+
+  let format =
+    decode.run(data, decode.at(["format"], format_decoder()))
     |> option.from_result()
-  
+
   case min_length, max_length, pattern, format {
     None, None, None, None -> None
     _, _, _, _ ->
@@ -237,23 +286,26 @@ fn extract_string_constraints(data: Dynamic) -> Option(StringConstraints) {
 /// - `Some(NumberConstraints)` if any constraints were found
 /// - `None` if no numeric constraints are present
 fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
-  let minimum = decode.run(data, decode.at(["minimum"], decode.float))
+  let minimum =
+    decode.run(data, decode.at(["minimum"], decode.float))
     |> option.from_result()
-  
-  let maximum = decode.run(data, decode.at(["maximum"], decode.float))
+
+  let maximum =
+    decode.run(data, decode.at(["maximum"], decode.float))
     |> option.from_result()
-  
-  let exclusive_minimum = 
+
+  let exclusive_minimum =
     decode.run(data, decode.at(["exclusiveMinimum"], decode.float))
     |> option.from_result()
-  
+
   let exclusive_maximum =
     decode.run(data, decode.at(["exclusiveMaximum"], decode.float))
     |> option.from_result()
-  
-  let multiple_of = decode.run(data, decode.at(["multipleOf"], decode.float))
+
+  let multiple_of =
+    decode.run(data, decode.at(["multipleOf"], decode.float))
     |> option.from_result()
-  
+
   case minimum, maximum, exclusive_minimum, exclusive_maximum, multiple_of {
     None, None, None, None, None -> None
     _, _, _, _, _ ->
@@ -290,45 +342,56 @@ fn format_decoder() -> Decoder(types.StringFormat) {
 /// It's used for parsing enum options and default values in schemas.
 fn json_value_decoder() -> Decoder(JsonValue) {
   use dynamic_value <- decode.then(decode.dynamic)
-  
+
   // Try different decoders in order of preference
   case decode.run(dynamic_value, decode.string) {
     Ok(s) -> decode.success(JsonString(s))
-    Error(_) -> case decode.run(dynamic_value, decode.float) {
-      Ok(f) -> decode.success(JsonNumber(f))
-      Error(_) -> case decode.run(dynamic_value, decode.int) {
-        Ok(i) -> decode.success(JsonNumber(int.to_float(i)))
-        Error(_) -> case decode.run(dynamic_value, decode.bool) {
-          Ok(b) -> decode.success(JsonBool(b))
-          Error(_) -> case decode.run(dynamic_value, decode.list(decode.dynamic)) {
-            Ok(arr) -> {
-              let decoded_items = arr
-                |> list.filter_map(fn(item) {
-                  case decode.run(item, json_value_decoder()) {
-                    Ok(value) -> Ok(value)
-                    Error(_) -> Error(Nil)
-                  }
-                })
-              decode.success(types.JsonArray(decoded_items))
-            }
-            Error(_) -> case decode.run(dynamic_value, decode.dict(decode.string, decode.dynamic)) {
-              Ok(obj) -> {
-                let decoded_list = dict.to_list(obj)
-                  |> list.filter_map(fn(pair) {
-                    let #(key, value) = pair
-                    case decode.run(value, json_value_decoder()) {
-                      Ok(decoded_value) -> Ok(#(key, decoded_value))
-                      Error(_) -> Error(Nil)
+    Error(_) ->
+      case decode.run(dynamic_value, decode.int) {
+        Ok(i) -> decode.success(types.JsonInteger(i))
+        Error(_) ->
+          case decode.run(dynamic_value, decode.float) {
+            Ok(f) -> decode.success(JsonNumber(f))
+            Error(_) ->
+              case decode.run(dynamic_value, decode.bool) {
+                Ok(b) -> decode.success(JsonBool(b))
+                Error(_) ->
+                  case decode.run(dynamic_value, decode.list(decode.dynamic)) {
+                    Ok(arr) -> {
+                      let decoded_items =
+                        arr
+                        |> list.filter_map(fn(item) {
+                          case decode.run(item, json_value_decoder()) {
+                            Ok(value) -> Ok(value)
+                            Error(_) -> Error(Nil)
+                          }
+                        })
+                      decode.success(types.JsonArray(decoded_items))
                     }
-                  })
-                decode.success(types.JsonObject(decoded_list))
+                    Error(_) ->
+                      case
+                        decode.run(
+                          dynamic_value,
+                          decode.dict(decode.string, decode.dynamic),
+                        )
+                      {
+                        Ok(obj) -> {
+                          let decoded_list =
+                            dict.to_list(obj)
+                            |> list.filter_map(fn(pair) {
+                              let #(key, value) = pair
+                              case decode.run(value, json_value_decoder()) {
+                                Ok(decoded_value) -> Ok(#(key, decoded_value))
+                                Error(_) -> Error(Nil)
+                              }
+                            })
+                          decode.success(types.JsonObject(decoded_list))
+                        }
+                        Error(_) -> decode.success(JsonNull)
+                      }
+                  }
               }
-              Error(_) -> decode.success(JsonNull)
-            }
           }
-        }
       }
-    }
   }
 }
-
