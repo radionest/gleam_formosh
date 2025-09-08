@@ -37,39 +37,64 @@ import schema/validator
 /// - `ResetForm`: Reset form to initial state
 /// - `EnableField`/`DisableField`: Control field enabled state
 /// - Array operations: `AddArrayItem`, `RemoveArrayItem`, `ArrayItemChanged`
+/// Convert model values to a hierarchical FieldValue root for path operations.
+/// 
+/// This helper function converts the flat dictionary of field values in the model
+/// to a hierarchical FieldValue object that can be used with path-based operations.
+/// 
+/// ## Parameters
+/// - `model`: The form model containing the values dictionary
+/// 
+/// ## Returns
+/// A FieldValue (ObjectValue) representing the hierarchical form data
+fn model_to_root_value(model: FormModel) -> types.FieldValue {
+  case dict.to_list(model.values) {
+    [] -> types.ObjectValue([])
+    values -> {
+      let fields =
+        list.map(values, fn(entry) {
+          let #(key, val) = entry
+          #(key, converter.field_value_to_json_value(val))
+        })
+      types.ObjectValue(fields)
+    }
+  }
+}
+
+/// Convert a hierarchical FieldValue root back to model values dictionary.
+/// 
+/// This helper function converts the hierarchical FieldValue object returned from
+/// path operations back to the flat dictionary format used by the model.
+/// 
+/// ## Parameters
+/// - `root_value`: The hierarchical FieldValue to convert
+/// 
+/// ## Returns
+/// A dictionary of field names to FieldValues
+fn root_value_to_model_values(
+  root_value: types.FieldValue,
+) -> dict.Dict(String, types.FieldValue) {
+  case root_value {
+    types.ObjectValue(fields) -> {
+      list.fold(fields, dict.new(), fn(acc, field) {
+        let #(key, json_val) = field
+        case converter.json_to_field_value(json_val) {
+          Some(field_val) -> dict.insert(acc, key, field_val)
+          None -> acc
+        }
+      })
+    }
+    _ -> dict.new()
+  }
+}
+
 pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   case msg {
     // Path-based handlers (simplified approach)
     UpdateFieldPath(path, value) -> {
-      // Get the root value (entire form data)
-      let root_value = case dict.to_list(model.values) {
-        [] -> types.ObjectValue([])
-        values -> {
-          let fields =
-            list.map(values, fn(entry) {
-              let #(key, val) = entry
-              #(key, converter.field_value_to_json_value(val))
-            })
-          types.ObjectValue(fields)
-        }
-      }
-
-      // Update at the path
+      let root_value = model_to_root_value(model)
       let updated_root = path.set_at_path(root_value, path, value)
-
-      // Convert back to model values
-      let new_values = case updated_root {
-        types.ObjectValue(fields) -> {
-          list.fold(fields, dict.new(), fn(acc, field) {
-            let #(key, json_val) = field
-            case converter.json_to_field_value(json_val) {
-              Some(field_val) -> dict.insert(acc, key, field_val)
-              None -> acc
-            }
-          })
-        }
-        _ -> model.values
-      }
+      let new_values = root_value_to_model_values(updated_root)
 
       let new_model =
         model.FormModel(..model, values: new_values, is_dirty: True)
@@ -77,71 +102,19 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     }
 
     AddArrayItemPath(path) -> {
-      // Get the root value
-      let root_value = case dict.to_list(model.values) {
-        [] -> types.ObjectValue([])
-        values -> {
-          let fields =
-            list.map(values, fn(entry) {
-              let #(key, val) = entry
-              #(key, converter.field_value_to_json_value(val))
-            })
-          types.ObjectValue(fields)
-        }
-      }
-
-      // Add an empty object as the new array item
+      let root_value = model_to_root_value(model)
       let updated_root =
         path.add_array_item_at_path(root_value, path, types.JsonObject([]))
-
-      // Convert back to model values
-      let new_values = case updated_root {
-        types.ObjectValue(fields) -> {
-          list.fold(fields, dict.new(), fn(acc, field) {
-            let #(key, json_val) = field
-            case converter.json_to_field_value(json_val) {
-              Some(field_val) -> dict.insert(acc, key, field_val)
-              None -> acc
-            }
-          })
-        }
-        _ -> model.values
-      }
+      let new_values = root_value_to_model_values(updated_root)
 
       let new_model = model.FormModel(..model, values: new_values)
       #(new_model, effect.none())
     }
 
     RemoveArrayItemPath(path, index) -> {
-      // Get the root value
-      let root_value = case dict.to_list(model.values) {
-        [] -> types.ObjectValue([])
-        values -> {
-          let fields =
-            list.map(values, fn(entry) {
-              let #(key, val) = entry
-              #(key, converter.field_value_to_json_value(val))
-            })
-          types.ObjectValue(fields)
-        }
-      }
-
-      // Remove the array item
+      let root_value = model_to_root_value(model)
       let updated_root = path.remove_array_item_at_path(root_value, path, index)
-
-      // Convert back to model values
-      let new_values = case updated_root {
-        types.ObjectValue(fields) -> {
-          list.fold(fields, dict.new(), fn(acc, field) {
-            let #(key, json_val) = field
-            case converter.json_to_field_value(json_val) {
-              Some(field_val) -> dict.insert(acc, key, field_val)
-              None -> acc
-            }
-          })
-        }
-        _ -> model.values
-      }
+      let new_values = root_value_to_model_values(updated_root)
 
       let new_model = model.FormModel(..model, values: new_values)
       #(new_model, effect.none())
