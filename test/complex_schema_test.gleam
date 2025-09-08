@@ -1,12 +1,13 @@
-import gleeunit/should
 import gleam/dict
 import gleam/option.{None, Some}
+import gleeunit/should
 import schema/parser
 import schema/types
 
 pub fn complex_lesion_schema_test() {
   // Test with the actual example schema from formosh.gleam
-  let json = "{
+  let json =
+    "{
     \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
     \"$id\": \"https://example.com/lesion-measurement.schema.json\",
     \"title\": \"Измерение образований\",
@@ -43,27 +44,27 @@ pub fn complex_lesion_schema_test() {
     },
     \"required\": [\"lesions\"]
   }"
-  
+
   let result = parser.parse_schema(json)
   should.be_ok(result)
-  
+
   case result {
     Ok(schema) -> {
       // Check main schema properties
-      should.equal(schema.title, "Измерение образований") 
+      should.equal(schema.title, "Измерение образований")
       should.equal(schema.field_type, types.ObjectType)
       should.equal(schema.required, ["lesions"])
-      
+
       // Check that we have the expected properties
       let property_count = dict.size(schema.properties)
       should.equal(property_count, 2)
-      
+
       // Check diagnosis property constraints
       case dict.get(schema.properties, "diagnosis") {
         Ok(diagnosis_prop) -> {
           should.equal(diagnosis_prop.field_type, Some(types.StringType))
           should.equal(diagnosis_prop.description, Some("Диагноз"))
-          
+
           case diagnosis_prop.string_constraints {
             Some(constraints) -> {
               should.equal(constraints.max_length, Some(200))
@@ -73,13 +74,16 @@ pub fn complex_lesion_schema_test() {
         }
         Error(_) -> panic as "Expected diagnosis property"
       }
-      
+
       // Check lesions property
       case dict.get(schema.properties, "lesions") {
         Ok(lesions_prop) -> {
           should.equal(lesions_prop.field_type, Some(types.ArrayType))
-          should.equal(lesions_prop.description, Some("Список измерений образований"))
-          
+          should.equal(
+            lesions_prop.description,
+            Some("Список измерений образований"),
+          )
+
           // Check that items are defined
           case lesions_prop.items {
             Some(item_schema) -> {
@@ -97,15 +101,16 @@ pub fn complex_lesion_schema_test() {
 }
 
 pub fn enum_values_test() {
-  let json = "{
+  let json =
+    "{
     \"title\": \"Color Choice\",
     \"type\": \"string\",
     \"enum\": [\"red\", \"green\", \"blue\"]
   }"
-  
+
   let result = parser.parse_schema(json)
   should.be_ok(result)
-  
+
   case result {
     Ok(schema) -> {
       should.equal(schema.title, "Color Choice")

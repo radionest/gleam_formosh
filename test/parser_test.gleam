@@ -1,24 +1,25 @@
-import gleeunit/should
 import gleam/dict
 import gleam/option.{None, Some}
+import gleeunit/should
 import schema/parser
 import schema/types
 
 pub fn simple_string_schema_test() {
-  let json = "{
+  let json =
+    "{
     \"title\": \"Simple String Field\",
     \"type\": \"string\",
     \"maxLength\": 100
   }"
-  
+
   let result = parser.parse_schema(json)
   should.be_ok(result)
-  
+
   case result {
     Ok(schema) -> {
       should.equal(schema.title, "Simple String Field")
       should.equal(schema.field_type, types.StringType)
-      
+
       case schema.string_constraints {
         Some(constraints) -> {
           should.equal(constraints.max_length, Some(100))
@@ -31,7 +32,8 @@ pub fn simple_string_schema_test() {
 }
 
 pub fn object_with_properties_test() {
-  let json = "{
+  let json =
+    "{
     \"title\": \"User Registration\",
     \"type\": \"object\",
     \"properties\": {
@@ -47,16 +49,16 @@ pub fn object_with_properties_test() {
     },
     \"required\": [\"name\"]
   }"
-  
+
   let result = parser.parse_schema(json)
   should.be_ok(result)
-  
+
   case result {
     Ok(schema) -> {
       should.equal(schema.title, "User Registration")
       should.equal(schema.field_type, types.ObjectType)
       should.equal(schema.required, ["name"])
-      
+
       // Check that properties were parsed
       let property_count = dict.size(schema.properties)
       should.equal(property_count, 2)
@@ -66,7 +68,8 @@ pub fn object_with_properties_test() {
 }
 
 pub fn array_with_items_test() {
-  let json = "{
+  let json =
+    "{
     \"title\": \"Number List\",
     \"type\": \"array\",
     \"items\": {
@@ -74,10 +77,10 @@ pub fn array_with_items_test() {
       \"minimum\": 0
     }
   }"
-  
+
   let result = parser.parse_schema(json)
   should.be_ok(result)
-  
+
   case result {
     Ok(schema) -> {
       should.equal(schema.title, "Number List")
@@ -89,7 +92,7 @@ pub fn array_with_items_test() {
 
 pub fn invalid_json_test() {
   let json = "{ invalid json"
-  
+
   let result = parser.parse_schema(json)
   should.be_error(result)
 }
