@@ -80,6 +80,9 @@ pub type NumberConstraints {
 /// This type represents a complete field definition including its type,
 /// validation constraints, metadata, and nested structure for complex types.
 /// It serves as the blueprint for generating form fields.
+/// 
+/// The `ref` field supports JSON Schema $ref references, allowing properties
+/// to reference definitions stored in $defs or other locations.
 pub type SchemaProperty {
   SchemaProperty(
     field_type: Option(FieldType),
@@ -87,6 +90,8 @@ pub type SchemaProperty {
     description: Option(String),
     default: Option(JsonValue),
     enum_values: Option(List(JsonValue)),
+    // Reference to another schema definition
+    ref: Option(String),
     // Type-specific constraints
     string_constraints: Option(StringConstraints),
     number_constraints: Option(NumberConstraints),
@@ -102,7 +107,11 @@ pub type SchemaProperty {
 /// 
 /// This represents a complete JSON Schema document that defines the structure
 /// and validation rules for a form. It contains the top-level properties,
-/// required fields, and global constraints.
+/// required fields, global constraints, and schema definitions that can be
+/// referenced using $ref.
+/// 
+/// The `defs` field stores reusable schema definitions that can be referenced
+/// throughout the schema using JSON Pointer syntax (e.g., "#/$defs/Address").
 pub type JsonSchema {
   JsonSchema(
     title: String,
@@ -110,6 +119,8 @@ pub type JsonSchema {
     field_type: FieldType,
     properties: Dict(String, SchemaProperty),
     required: List(String),
+    // Schema definitions for reuse via $ref
+    defs: Option(Dict(String, SchemaProperty)),
     // Root-level constraints
     string_constraints: Option(StringConstraints),
     number_constraints: Option(NumberConstraints),
@@ -202,6 +213,7 @@ pub fn empty_property() -> SchemaProperty {
     description: None,
     default: None,
     enum_values: None,
+    ref: None,
     string_constraints: None,
     number_constraints: None,
     items: None,

@@ -2,11 +2,12 @@
 // Example with ratings, multiple choice, and feedback
 
 import formosh
-import lustre
 import gleam/io
+import lustre
 
 pub fn main() {
-  let schema = "{
+  let schema =
+    "{
     \"title\": \"Опрос удовлетворенности клиентов\",
     \"description\": \"Помогите нам улучшить наш сервис\",
     \"type\": \"object\",
@@ -119,14 +120,14 @@ pub fn main() {
     },
     \"required\": [\"respondentInfo\", \"serviceRating\", \"futureEngagement\"]
   }"
-  
+
   io.println("Starting Customer Survey Form Demo...")
-  
+
   // Create custom submission handler for survey
   case formosh.from_json_string(schema) {
     Ok(form_app) -> {
       io.println("✓ Survey form created successfully")
-      
+
       // Note: In a real implementation, you'd use custom handler here
       // For demo, we just use the default form
       let app = formosh.to_lustre_app(form_app)
@@ -135,7 +136,8 @@ pub fn main() {
           io.println("✓ Form started successfully")
           io.println("📊 Survey form is ready at http://localhost:1234")
         }
-        Error(_) -> io.println("Note: Form will only display in browser environment")
+        Error(_) ->
+          io.println("Note: Form will only display in browser environment")
       }
     }
     Error(_err) -> {

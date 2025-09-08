@@ -2,11 +2,12 @@
 // Simple example showing a basic contact form
 
 import formosh
-import lustre
 import gleam/io
+import lustre
 
 pub fn main() {
-  let schema = "{
+  let schema =
+    "{
     \"title\": \"Контактная форма\",
     \"description\": \"Форма для связи с нами\",
     \"type\": \"object\",
@@ -58,27 +59,30 @@ pub fn main() {
     },
     \"required\": [\"name\", \"email\", \"subject\", \"message\"]
   }"
-  
+
   io.println("Starting Contact Form Demo...")
-  
-  case formosh.from_json_string_with_config(
-    schema,
-    formosh.HttpSubmit(
-      url: "https://api.example.com/contact",
-      method: "POST",
-      headers: [#("Content-Type", "application/json")],
-    ),
-  ) {
+
+  case
+    formosh.from_json_string_with_config(
+      schema,
+      formosh.HttpSubmit(
+        url: "https://api.example.com/contact",
+        method: "POST",
+        headers: [#("Content-Type", "application/json")],
+      ),
+    )
+  {
     Ok(form_app) -> {
       io.println("✓ Contact form created successfully")
-      
+
       let app = formosh.to_lustre_app(form_app)
       case lustre.start(app, "#app", Nil) {
         Ok(_) -> {
           io.println("✓ Form started successfully")
           io.println("📋 Contact form is ready at http://localhost:1234")
         }
-        Error(_) -> io.println("Note: Form will only display in browser environment")
+        Error(_) ->
+          io.println("Note: Form will only display in browser environment")
       }
     }
     Error(_err) -> {

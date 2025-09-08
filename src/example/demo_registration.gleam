@@ -2,12 +2,13 @@
 // Complex example with nested objects and validation
 
 import formosh
-import lustre
 import gleam/io
+import lustre
 
 pub fn main() {
   // Simplified version of user registration schema
-  let schema = "{
+  let schema =
+    "{
     \"title\": \"Регистрация пользователя\",
     \"description\": \"Форма регистрации нового пользователя\",
     \"type\": \"object\",
@@ -112,30 +113,33 @@ pub fn main() {
     },
     \"required\": [\"personalInfo\", \"accountInfo\", \"address\", \"agreement\"]
   }"
-  
+
   io.println("Starting User Registration Form Demo...")
-  
-  case formosh.from_json_string_with_config(
-    schema,
-    formosh.HttpSubmit(
-      url: "https://api.example.com/register",
-      method: "POST",
-      headers: [
-        #("Content-Type", "application/json"),
-        #("X-Form-Type", "registration"),
-      ],
-    ),
-  ) {
+
+  case
+    formosh.from_json_string_with_config(
+      schema,
+      formosh.HttpSubmit(
+        url: "https://api.example.com/register",
+        method: "POST",
+        headers: [
+          #("Content-Type", "application/json"),
+          #("X-Form-Type", "registration"),
+        ],
+      ),
+    )
+  {
     Ok(form_app) -> {
       io.println("✓ Registration form created successfully")
-      
+
       let app = formosh.to_lustre_app(form_app)
       case lustre.start(app, "#app", Nil) {
         Ok(_) -> {
           io.println("✓ Form started successfully")
           io.println("👤 Registration form is ready at http://localhost:1234")
         }
-        Error(_) -> io.println("Note: Form will only display in browser environment")
+        Error(_) ->
+          io.println("Note: Form will only display in browser environment")
       }
     }
     Error(_err) -> {

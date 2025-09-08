@@ -5,6 +5,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import schema/resolver
 import schema/types.{
   type FieldType, type JsonSchema, type JsonValue, type NumberConstraints,
   type SchemaProperty, type StringConstraints, ArrayType, BooleanType,
@@ -29,7 +30,7 @@ pub type ParseError {
 /// 
 /// This is the main entry point for converting a JSON Schema document
 /// (as a string) into the internal JsonSchema type that can be used
-/// to generate forms.
+/// to generate forms. It automatically resolves all $ref references.
 /// 
 /// ## Parameters
 /// - `json_string`: A valid JSON string containing a JSON Schema
@@ -48,15 +49,31 @@ pub type ParseError {
 /// }
 /// ```
 pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
-  json_string
-  |> json.parse(using: schema_decoder())
+  use parsed_schema <- result.try(
+    json_string
+    |> json.parse(using: schema_decoder())
+    |> result.map_error(fn(error) {
+      case error {
+        json.UnableToDecode(errors) -> DecodingError(errors)
+        json.UnexpectedEndOfInput -> InvalidJson("Unexpected end of input")
+        json.UnexpectedByte(byte) -> InvalidJson("Unexpected byte: " <> byte)
+        json.UnexpectedSequence(seq) ->
+          InvalidJson("Unexpected sequence: " <> seq)
+      }
+    }),
+  )
+
+  // Resolve all $ref references in the schema
+  parsed_schema
+  |> resolver.resolve_refs()
   |> result.map_error(fn(error) {
     case error {
-      json.UnableToDecode(errors) -> DecodingError(errors)
-      json.UnexpectedEndOfInput -> InvalidJson("Unexpected end of input")
-      json.UnexpectedByte(byte) -> InvalidJson("Unexpected byte: " <> byte)
-      json.UnexpectedSequence(seq) ->
-        InvalidJson("Unexpected sequence: " <> seq)
+      resolver.ReferenceNotFound(ref) ->
+        UnexpectedValue("Reference not found: " <> ref)
+      resolver.CircularReference(ref) ->
+        UnexpectedValue("Circular reference detected: " <> ref)
+      resolver.InvalidReference(ref) ->
+        UnexpectedValue("Invalid reference format: " <> ref)
     }
   })
 }
@@ -88,6 +105,11 @@ fn schema_decoder() -> Decoder(JsonSchema) {
     [],
     decode.list(decode.string),
   )
+  use defs <- decode.optional_field(
+    "$defs",
+    None,
+    decode.optional(definitions_decoder()),
+  )
 
   // Try to extract constraints from the top level
   use dynamic_data <- decode.then(decode.dynamic)
@@ -101,6 +123,7 @@ fn schema_decoder() -> Decoder(JsonSchema) {
     field_type: field_type,
     properties: properties,
     required: required,
+    defs: defs,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
   ))
@@ -134,6 +157,14 @@ fn properties_decoder() -> Decoder(Dict(String, SchemaProperty)) {
   decode.dict(decode.string, property_decoder())
 }
 
+/// Decode the "$defs" object from a JSON Schema.
+/// 
+/// This decoder handles the definitions object which contains reusable
+/// schema definitions that can be referenced via $ref.
+fn definitions_decoder() -> Decoder(Dict(String, SchemaProperty)) {
+  decode.dict(decode.string, property_decoder())
+}
+
 /// Decode a single schema property definition.
 /// 
 /// This decoder handles both simple property definitions (just a type string)
@@ -158,6 +189,7 @@ fn property_decoder() -> Decoder(SchemaProperty) {
         description: None,
         default: None,
         enum_values: None,
+        ref: None,
         string_constraints: None,
         number_constraints: None,
         items: None,
@@ -199,6 +231,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     None,
     decode.optional(decode.list(json_value_decoder())),
   )
+  use ref <- decode.optional_field("$ref", None, decode.optional(decode.string))
   use items <- decode.optional_field(
     "items",
     None,
@@ -225,6 +258,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     description: description,
     default: default,
     enum_values: enum_values,
+    ref: ref,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
     items: items,

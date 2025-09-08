@@ -16,15 +16,9 @@ import schema/types.{type JsonSchema}
 /// including where to send data and how to handle responses.
 pub type SubmitConfig {
   /// Submit form data to an HTTP endpoint
-  HttpSubmit(
-    url: String,
-    method: String,
-    headers: List(#(String, String)),
-  )
+  HttpSubmit(url: String, method: String, headers: List(#(String, String)))
   /// Handle submission with a custom function
-  CustomSubmit(
-    handler: fn(model.FormModel) -> Result(String, String),
-  )
+  CustomSubmit(handler: fn(model.FormModel) -> Result(String, String))
   /// No submission handler (form values can be retrieved manually)
   NoSubmit
 }
@@ -93,11 +87,9 @@ pub fn config(schema: JsonSchema) -> FormConfig {
 pub fn with_submit_url(config: FormConfig, url: String) -> FormConfig {
   FormConfig(
     ..config,
-    submit_config: HttpSubmit(
-      url: url,
-      method: "POST",
-      headers: [#("Content-Type", "application/json")],
-    ),
+    submit_config: HttpSubmit(url: url, method: "POST", headers: [
+      #("Content-Type", "application/json"),
+    ]),
   )
 }
 
@@ -158,10 +150,7 @@ pub fn with_css_prefix(config: FormConfig, prefix: String) -> FormConfig {
 /// 
 /// ## Returns
 /// Updated FormConfig with error display setting
-pub fn with_show_errors_on_change(
-  config: FormConfig,
-  show: Bool,
-) -> FormConfig {
+pub fn with_show_errors_on_change(config: FormConfig, show: Bool) -> FormConfig {
   FormConfig(..config, show_errors_on_change: show)
 }
 
@@ -280,12 +269,13 @@ pub fn from_json_string_with_config(
 ) -> Result(FormApp, parser.ParseError) {
   case parser.parse_schema(json_string) {
     Ok(schema) -> {
-      let form_config = FormConfig(
-        schema: schema,
-        submit_config: submit_config,
-        css_prefix: "formosh",
-        show_errors_on_change: False,
-      )
+      let form_config =
+        FormConfig(
+          schema: schema,
+          submit_config: submit_config,
+          css_prefix: "formosh",
+          show_errors_on_change: False,
+        )
       Ok(from_config(form_config))
     }
     Error(err) -> Error(err)
@@ -349,9 +339,7 @@ pub fn get_errors(
 /// 
 /// ## Returns
 /// Dictionary of field names to their current values
-pub fn get_values(
-  model: model.FormModel,
-) -> dict.Dict(String, types.FieldValue) {
+pub fn get_values(model: model.FormModel) -> dict.Dict(String, types.FieldValue) {
   model.values
 }
 
@@ -367,10 +355,7 @@ pub fn get_values(
 /// A FormApp with custom update behavior
 pub fn from_config_with_custom_update(
   config: FormConfig,
-  custom_update: fn(
-    model.FormModel,
-    model.FormMsg,
-  ) ->
+  custom_update: fn(model.FormModel, model.FormMsg) ->
     #(model.FormModel, Effect(model.FormMsg)),
 ) -> FormApp {
   FormApp(
