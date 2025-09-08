@@ -1,17 +1,17 @@
 // Update functions for form MVU
 
+import form/model.{
+  type FormModel, type FormMsg, AddArrayItemPath, FormSubmit, FormSubmitted,
+  RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
+  UpdateFieldPath, ValidateForm,
+}
+import form/path
 import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import lustre/effect.{type Effect}
-import form/model.{
-  type FormModel, type FormMsg, AddArrayItemPath, FormSubmit, FormSubmitted, 
-  RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess, 
-  UpdateFieldPath, ValidateForm,
-}
-import form/path
-import schema/validator
 import schema/types
+import schema/validator
 
 /// Main update function for the form MVU architecture.
 /// 
@@ -44,17 +44,18 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       let root_value = case dict.to_list(model.values) {
         [] -> types.ObjectValue([])
         values -> {
-          let fields = list.map(values, fn(entry) {
-            let #(key, val) = entry
-            #(key, field_value_to_json_value(val))
-          })
+          let fields =
+            list.map(values, fn(entry) {
+              let #(key, val) = entry
+              #(key, field_value_to_json_value(val))
+            })
           types.ObjectValue(fields)
         }
       }
-      
+
       // Update at the path
       let updated_root = path.set_at_path(root_value, path, value)
-      
+
       // Convert back to model values
       let new_values = case updated_root {
         types.ObjectValue(fields) -> {
@@ -68,27 +69,30 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         }
         _ -> model.values
       }
-      
-      let new_model = model.FormModel(..model, values: new_values, is_dirty: True)
+
+      let new_model =
+        model.FormModel(..model, values: new_values, is_dirty: True)
       #(new_model, effect.none())
     }
-    
+
     AddArrayItemPath(path) -> {
       // Get the root value
       let root_value = case dict.to_list(model.values) {
         [] -> types.ObjectValue([])
         values -> {
-          let fields = list.map(values, fn(entry) {
-            let #(key, val) = entry
-            #(key, field_value_to_json_value(val))
-          })
+          let fields =
+            list.map(values, fn(entry) {
+              let #(key, val) = entry
+              #(key, field_value_to_json_value(val))
+            })
           types.ObjectValue(fields)
         }
       }
-      
+
       // Add an empty object as the new array item
-      let updated_root = path.add_array_item_at_path(root_value, path, types.JsonObject([]))
-      
+      let updated_root =
+        path.add_array_item_at_path(root_value, path, types.JsonObject([]))
+
       // Convert back to model values
       let new_values = case updated_root {
         types.ObjectValue(fields) -> {
@@ -102,27 +106,28 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         }
         _ -> model.values
       }
-      
+
       let new_model = model.FormModel(..model, values: new_values)
       #(new_model, effect.none())
     }
-    
+
     RemoveArrayItemPath(path, index) -> {
       // Get the root value
       let root_value = case dict.to_list(model.values) {
         [] -> types.ObjectValue([])
         values -> {
-          let fields = list.map(values, fn(entry) {
-            let #(key, val) = entry
-            #(key, field_value_to_json_value(val))
-          })
+          let fields =
+            list.map(values, fn(entry) {
+              let #(key, val) = entry
+              #(key, field_value_to_json_value(val))
+            })
           types.ObjectValue(fields)
         }
       }
-      
+
       // Remove the array item
       let updated_root = path.remove_array_item_at_path(root_value, path, index)
-      
+
       // Convert back to model values
       let new_values = case updated_root {
         types.ObjectValue(fields) -> {
@@ -136,7 +141,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         }
         _ -> model.values
       }
-      
+
       let new_model = model.FormModel(..model, values: new_values)
       #(new_model, effect.none())
     }
@@ -144,17 +149,15 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     FormSubmit -> {
       // Validate all fields before submission
       let validated_model = validate_all_fields(model)
-      
+
       case model.can_submit(validated_model) {
         True -> {
-          let submitting_model = model.FormModel(
-            ..validated_model,
-            is_submitting: True,
-          )
-          
+          let submitting_model =
+            model.FormModel(..validated_model, is_submitting: True)
+
           // Create submission effect
           let submit_effect = submit_form_effect(submitting_model)
-          
+
           #(submitting_model, submit_effect)
         }
         False -> {
@@ -166,19 +169,21 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     FormSubmitted(result) -> {
       case result {
         Ok(message) -> {
-          let new_model = model.FormModel(
-            ..model,
-            is_submitting: False,
-            submission_result: Some(SubmissionSuccess(message)),
-          )
+          let new_model =
+            model.FormModel(
+              ..model,
+              is_submitting: False,
+              submission_result: Some(SubmissionSuccess(message)),
+            )
           #(new_model, effect.none())
         }
         Error(message) -> {
-          let new_model = model.FormModel(
-            ..model,
-            is_submitting: False,
-            submission_result: Some(SubmissionError(message)),
-          )
+          let new_model =
+            model.FormModel(
+              ..model,
+              is_submitting: False,
+              submission_result: Some(SubmissionError(message)),
+            )
           #(new_model, effect.none())
         }
       }
@@ -193,7 +198,6 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       let new_model = model.reset(model)
       #(new_model, effect.none())
     }
-
   }
 }
 
@@ -212,7 +216,7 @@ fn field_value_to_json_value(value: types.FieldValue) -> types.JsonValue {
   case value {
     types.StringValue(s) -> types.JsonString(s)
     types.NumberValue(n) -> types.JsonNumber(n)
-    types.IntegerValue(i) -> types.JsonNumber(int.to_float(i))
+    types.IntegerValue(i) -> types.JsonInteger(i)
     types.BooleanValue(b) -> types.JsonBool(b)
     types.ArrayValue(items) -> types.JsonArray(items)
     types.ObjectValue(fields) -> types.JsonObject(fields)
@@ -230,18 +234,19 @@ fn field_value_to_json_value(value: types.FieldValue) -> types.JsonValue {
 /// 
 /// ## Returns
 /// The corresponding FieldValue representation wrapped in Option
-fn json_value_to_field_value(value: types.JsonValue) -> option.Option(types.FieldValue) {
+fn json_value_to_field_value(
+  value: types.JsonValue,
+) -> option.Option(types.FieldValue) {
   case value {
     types.JsonString(s) -> Some(types.StringValue(s))
     types.JsonNumber(n) -> Some(types.NumberValue(n))
+    types.JsonInteger(i) -> Some(types.IntegerValue(i))
     types.JsonBool(b) -> Some(types.BooleanValue(b))
     types.JsonArray(items) -> Some(types.ArrayValue(items))
     types.JsonObject(fields) -> Some(types.ObjectValue(fields))
     types.JsonNull -> Some(types.NullValue)
   }
 }
-
-import gleam/int
 
 /// Validate a single field against its schema definition.
 /// 
@@ -258,13 +263,14 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
   case dict.get(model.schema.properties, field_name) {
     Ok(property) -> {
       let value = model.get_field_value(model, field_name)
-      let errors = validator.validate_field(
-        field_name,
-        value,
-        property,
-        model.is_field_required(model, field_name),
-      )
-      
+      let errors =
+        validator.validate_field(
+          field_name,
+          value,
+          property,
+          model.is_field_required(model, field_name),
+        )
+
       case errors {
         [] -> model.clear_field_errors(model, field_name)
         _ -> {
@@ -280,7 +286,6 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
   }
 }
 
-
 /// Validate all fields in the form against their schema definitions.
 /// 
 /// This function runs validation on every field defined in the schema,
@@ -295,7 +300,6 @@ fn validate_all_fields(model: FormModel) -> FormModel {
   dict.keys(model.schema.properties)
   |> list.fold(model.clear_all_errors(model), validate_field)
 }
-
 
 /// Create an effect for form submission.
 /// 

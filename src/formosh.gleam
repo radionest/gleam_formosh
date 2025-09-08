@@ -1,14 +1,14 @@
 // Main module for Formosh - JSON Schema based form generator
 
+import form/model.{type FormModel, type FormMsg}
+import form/update
+import form/view
 import gleam/io
 import lustre
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
-import form/model.{type FormModel, type FormMsg}
-import form/update
-import form/view
-import schema/types.{type JsonSchema}
 import schema/parser
+import schema/types.{type JsonSchema}
 
 /// Create a form application from a JSON Schema definition.
 /// 
@@ -86,7 +86,9 @@ pub fn to_lustre_app(form_app: FormApp) -> lustre.App(Nil, FormModel, FormMsg) {
 ///   Error(parse_error) -> // Handle parsing error
 /// }
 /// ```
-pub fn from_json_string(json_string: String) -> Result(FormApp, parser.ParseError) {
+pub fn from_json_string(
+  json_string: String,
+) -> Result(FormApp, parser.ParseError) {
   case parser.parse_schema(json_string) {
     Ok(schema) -> Ok(from_schema(schema))
     Error(err) -> Error(err)
@@ -117,14 +119,15 @@ pub fn main() {
       Error(err)
     }
   }
-  
+
   case form_result {
     Ok(form) -> {
       let app = to_lustre_app(form)
       // Only start the app if we're in a browser environment
       case lustre.start(app, "#app", Nil) {
         Ok(_) -> Nil
-        Error(_) -> Nil // Silently ignore if not in browser
+        Error(_) -> Nil
+        // Silently ignore if not in browser
       }
     }
     Error(_) -> Nil
@@ -151,7 +154,15 @@ pub const example_schema = "
       \"diagnosis\": {
         \"description\": \"Диагноз\",
         \"type\": \"string\",
-        \"maxLength\": 200
+        \"maxLength\": 50
+      },
+      \"weight\": {
+        \"description\": \"Вес\",
+        \"type\": \"number\"
+      },
+      \"age\": {
+        \"description\": \"Возраст\",
+        \"type\": \"integer\"
       },
       \"diagnosis2\": {
         \"description\": \"Диагноз3\",
