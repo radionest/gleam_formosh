@@ -2,6 +2,7 @@
 
 import gleam/dict.{type Dict}
 import gleam/option.{type Option, None}
+
 /// JSON value type representing any valid JSON data.
 /// 
 /// This type models all possible JSON values that can appear in schemas,
@@ -10,6 +11,7 @@ import gleam/option.{type Option, None}
 pub type JsonValue {
   JsonString(String)
   JsonNumber(Float)
+  JsonInteger(Int)
   JsonBool(Bool)
   JsonNull
   JsonArray(List(JsonValue))
@@ -73,7 +75,6 @@ pub type NumberConstraints {
   )
 }
 
-
 /// A single property definition within a JSON Schema.
 /// 
 /// This type represents a complete field definition including its type,
@@ -96,7 +97,6 @@ pub type SchemaProperty {
     required: List(String),
   )
 }
-
 
 /// Root JSON Schema definition.
 /// 
@@ -138,11 +138,7 @@ pub type FieldMeta {
 /// This type represents a single validation failure with the field name,
 /// human-readable message, and the validation rule that failed.
 pub type ValidationError {
-  ValidationError(
-    field: String,
-    message: String,
-    rule: String,
-  )
+  ValidationError(field: String, message: String, rule: String)
 }
 
 /// A form field value with type information.
