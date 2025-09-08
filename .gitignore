@@ -2,3 +2,8 @@
 *.ez
 /build
 erl_crash.dump
+
+# Generated files
+priv/static/*.mjs
+priv/static/example/
+erl_crash.dump
