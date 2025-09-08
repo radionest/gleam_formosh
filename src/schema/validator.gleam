@@ -6,9 +6,8 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import schema/types.{
-  type FieldValue, type SchemaProperty, type ValidationError,
-  BooleanValue, IntegerValue, NullValue, NumberValue,
-  StringValue, ValidationError,
+  type FieldValue, type SchemaProperty, type ValidationError, BooleanValue,
+  IntegerValue, NullValue, NumberValue, StringValue, ValidationError,
 }
 
 /// Validate a field value against its schema property definition.
@@ -119,7 +118,7 @@ fn validate_string(
           let errors = []
 
           // Min length
-        
+
           let errors = case c.min_length {
             Some(min) -> {
               case string.length(str) < min {
@@ -127,7 +126,9 @@ fn validate_string(
                   list.append(errors, [
                     ValidationError(
                       field: field_name,
-                      message: "Must be at least " <> int.to_string(min) <> " characters",
+                      message: "Must be at least "
+                        <> int.to_string(min)
+                        <> " characters",
                       rule: "minLength",
                     ),
                   ])
@@ -145,7 +146,9 @@ fn validate_string(
                   list.append(errors, [
                     ValidationError(
                       field: field_name,
-                      message: "Must be at most " <> int.to_string(max) <> " characters",
+                      message: "Must be at most "
+                        <> int.to_string(max)
+                        <> " characters",
                       rule: "maxLength",
                     ),
                   ])
@@ -226,7 +229,8 @@ fn validate_number(
   constraints: Option(types.NumberConstraints),
 ) -> List(ValidationError) {
   case value {
-    NumberValue(num) -> validate_number_constraints(field_name, num, constraints)
+    NumberValue(num) ->
+      validate_number_constraints(field_name, num, constraints)
     IntegerValue(num) ->
       validate_number_constraints(field_name, int.to_float(num), constraints)
     _ -> [
@@ -349,7 +353,10 @@ fn validate_number_constraints(
 /// 
 /// ## Returns
 /// List of validation errors if the value is not a boolean
-fn validate_boolean(field_name: String, value: FieldValue) -> List(ValidationError) {
+fn validate_boolean(
+  field_name: String,
+  value: FieldValue,
+) -> List(ValidationError) {
   case value {
     BooleanValue(_) -> []
     _ -> [
@@ -361,7 +368,6 @@ fn validate_boolean(field_name: String, value: FieldValue) -> List(ValidationErr
     ]
   }
 }
-
 
 /// Validate that a field value is one of the allowed enum values.
 /// 
@@ -422,4 +428,3 @@ fn validate_email(email: String) -> Bool {
 fn validate_url(url: String) -> Bool {
   string.starts_with(url, "http://") || string.starts_with(url, "https://")
 }
-
