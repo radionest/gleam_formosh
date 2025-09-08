@@ -3,7 +3,8 @@
 /// This module handles rendering of numeric input fields for both integer
 /// and floating-point number types, with support for various numeric
 /// constraints like min/max values and step increments.
-
+import form/model.{type FormMsg, UpdateFieldPath}
+import form/path
 import gleam/float
 import gleam/int
 import gleam/list
@@ -13,8 +14,6 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import form/model.{type FormMsg, UpdateFieldPath}
-import form/path
 import schema/types
 
 /// Render a number or integer input field.
@@ -40,7 +39,7 @@ import schema/types
 /// - Multiple-of (step) constraints
 /// - Proper numeric parsing and validation
 pub fn render(
-  field_name: String,
+  field_path: path.FieldPath,
   property: types.SchemaProperty,
   value: Option(types.FieldValue),
   is_required: Bool,
@@ -57,10 +56,12 @@ pub fn render(
     _ -> ""
   }
 
+  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+
   html.div([attribute.class("formosh-field-wrapper")], [
     render_label(field_name, property, is_required),
     html.input([
-      attribute.id(field_name),
+      attribute.id(path.to_string(field_path)),
       attribute.name(field_name),
       attribute.type_("number"),
       attribute.value(current_value),
@@ -72,9 +73,9 @@ pub fn render(
         False -> attribute.step("any")
       },
       event.on_input(fn(val) {
-        handle_number_input(field_name, val, is_integer)
+        handle_number_input(field_path, val, is_integer)
       }),
-      ..get_number_constraints_attributes(property),
+      ..get_number_constraints_attributes(property)
     ]),
     render_help_text(property),
   ])
@@ -99,11 +100,10 @@ pub fn render(
 /// - Integer fields: parse as int → IntegerValue or StringValue if invalid
 /// - Number fields: parse as float, fallback to int, then StringValue if invalid
 fn handle_number_input(
-  field_name: String,
+  field_path: path.FieldPath,
   value: String,
   is_integer: Bool,
 ) -> FormMsg {
-  let field_path = path.from_field_name(field_name)
   case value {
     "" -> UpdateFieldPath(field_path, types.NullValue)
     str -> {
@@ -120,7 +120,11 @@ fn handle_number_input(
             Error(_) -> {
               // Try parsing as integer and convert
               case int.parse(str) {
-                Ok(i) -> UpdateFieldPath(field_path, types.NumberValue(int.to_float(i)))
+                Ok(i) ->
+                  UpdateFieldPath(
+                    field_path,
+                    types.NumberValue(int.to_float(i)),
+                  )
                 Error(_) -> UpdateFieldPath(field_path, types.StringValue(str))
               }
             }
@@ -153,16 +157,20 @@ fn render_label(
     None -> field_name |> string.replace("_", " ") |> string.capitalise()
   }
 
-  html.label([
-    attribute.for(field_name),
-    attribute.class("formosh-label"),
-  ], [
-    html.text(label_text),
-    case is_required {
-      True -> html.span([attribute.class("formosh-required")], [html.text(" *")])
-      False -> html.text("")
-    },
-  ])
+  html.label(
+    [
+      attribute.for(field_name),
+      attribute.class("formosh-label"),
+    ],
+    [
+      html.text(label_text),
+      case is_required {
+        True ->
+          html.span([attribute.class("formosh-required")], [html.text(" *")])
+        False -> html.text("")
+      },
+    ],
+  )
 }
 
 /// Render help text for the number field.
@@ -210,19 +218,17 @@ fn get_number_constraints_attributes(
   case property.number_constraints {
     Some(constraints) -> {
       let attrs = []
-      
+
       let attrs = case constraints.minimum {
-        Some(min) ->
-          list.append(attrs, [attribute.min(float.to_string(min))])
+        Some(min) -> list.append(attrs, [attribute.min(float.to_string(min))])
         None -> attrs
       }
-      
+
       let attrs = case constraints.maximum {
-        Some(max) ->
-          list.append(attrs, [attribute.max(float.to_string(max))])
+        Some(max) -> list.append(attrs, [attribute.max(float.to_string(max))])
         None -> attrs
       }
-      
+
       // For exclusive constraints, we adjust the min/max slightly
       let attrs = case constraints.exclusive_minimum {
         Some(min) -> {
@@ -232,7 +238,7 @@ fn get_number_constraints_attributes(
         }
         None -> attrs
       }
-      
+
       let attrs = case constraints.exclusive_maximum {
         Some(max) -> {
           // Use slightly lower value for HTML max attribute
@@ -241,13 +247,13 @@ fn get_number_constraints_attributes(
         }
         None -> attrs
       }
-      
+
       let attrs = case constraints.multiple_of {
         Some(step) ->
           list.append(attrs, [attribute.step(float.to_string(step))])
         None -> attrs
       }
-      
+
       attrs
     }
     None -> []
