@@ -3,6 +3,7 @@
 import fields/array_field
 import fields/boolean_field
 import fields/number_field
+import fields/object_field
 import fields/string_field
 import form/converter
 import form/model.{type FormModel, type FormMsg}
@@ -168,10 +169,7 @@ fn render_field(
       )
     }
     Some(types.ObjectType) ->
-      // Objects not yet implemented
-      html.div([attribute.class("formosh-field-unsupported")], [
-        html.text("Object field type not yet supported: " <> field_name),
-      ])
+      object_field.render(field_path, property, value, is_required, is_disabled)
     _ ->
       // Handle enum or unknown types
       case property.enum_values {
