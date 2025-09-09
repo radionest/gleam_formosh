@@ -103,6 +103,22 @@ pub type SchemaProperty {
   )
 }
 
+/// Conditional rule for if/then/else schema logic.
+///
+/// This type represents a conditional rule that modifies the schema based on
+/// runtime values. It implements JSON Schema's if/then/else keywords for
+/// dynamic form behavior.
+pub type ConditionalRule {
+  ConditionalRule(
+    // Condition to evaluate (JSON Schema format)
+    if_schema: SchemaProperty,
+    // Properties to add/modify when condition is true
+    then_schema: Option(SchemaProperty),
+    // Properties to add/modify when condition is false
+    else_schema: Option(SchemaProperty),
+  )
+}
+
 /// Root JSON Schema definition.
 /// 
 /// This represents a complete JSON Schema document that defines the structure
@@ -112,6 +128,9 @@ pub type SchemaProperty {
 /// 
 /// The `defs` field stores reusable schema definitions that can be referenced
 /// throughout the schema using JSON Pointer syntax (e.g., "#/$defs/Address").
+/// 
+/// The `conditionals` field contains if/then/else rules for dynamic schema
+/// behavior based on runtime form values.
 pub type JsonSchema {
   JsonSchema(
     title: String,
@@ -121,6 +140,8 @@ pub type JsonSchema {
     required: List(String),
     // Schema definitions for reuse via $ref
     defs: Option(Dict(String, SchemaProperty)),
+    // Conditional rules for dynamic schema behavior
+    conditionals: List(ConditionalRule),
     // Root-level constraints
     string_constraints: Option(StringConstraints),
     number_constraints: Option(NumberConstraints),

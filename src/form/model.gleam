@@ -16,6 +16,8 @@ pub type FormModel {
   FormModel(
     // The JSON Schema definition
     schema: JsonSchema,
+    // The resolved schema with conditionals applied
+    resolved_schema: JsonSchema,
     // Current form values
     values: Dict(String, FieldValue),
     // Form validation errors
@@ -81,8 +83,11 @@ pub type FormMsg {
 /// let form = model.init(schema)
 /// ```
 pub fn init(schema: JsonSchema) -> FormModel {
+  // Initially, resolved_schema is the same as the base schema
+  // It will be updated when form values change
   FormModel(
     schema: schema,
+    resolved_schema: schema,
     values: dict.new(),
     errors: dict.new(),
     is_submitting: False,
@@ -318,6 +323,8 @@ pub fn mark_field_touched(model: FormModel, field_name: String) -> FormModel {
 pub fn reset(model: FormModel) -> FormModel {
   FormModel(
     schema: model.schema,
+    resolved_schema: model.schema,
+    // Reset to base schema with no conditionals applied
     values: dict.new(),
     errors: dict.new(),
     is_submitting: False,

@@ -11,6 +11,7 @@ import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import lustre/effect.{type Effect}
+import schema/conditional_resolver
 import schema/types
 import schema/validator
 
@@ -96,8 +97,20 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       let updated_root = path.set_at_path(root_value, path, value)
       let new_values = root_value_to_model_values(updated_root)
 
+      // Recalculate resolved schema based on new values
+      let resolved_schema =
+        conditional_resolver.resolve_conditional_schema(
+          model.schema,
+          new_values,
+        )
+
       let new_model =
-        model.FormModel(..model, values: new_values, is_dirty: True)
+        model.FormModel(
+          ..model,
+          values: new_values,
+          resolved_schema: resolved_schema,
+          is_dirty: True,
+        )
       #(new_model, effect.none())
     }
 

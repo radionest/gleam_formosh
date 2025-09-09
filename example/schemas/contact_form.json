@@ -50,5 +50,15 @@
       "description": "Получать обновления и полезную информацию"
     }
   },
-  "required": ["name", "email", "subject", "message"]
+  "required": ["name", "email", "subject", "message"],
+  "if": {
+    "properties": {
+      "subject": { "const": "Общий вопрос" }
+    }
+  },
+  "then": {
+    "properties": {
+      "is_confidential": { "type": "boolean" }
+    }
+  }
 }

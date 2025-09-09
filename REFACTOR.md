@@ -1,297 +1,425 @@
-# Refactoring Plan for Formosh
+# Детальный план рефакторинга Formosh
 
-## Executive Summary
+## Анализ соответствия принципам YAGNI, KISS, DRY
 
-This document outlines critical refactoring needs for the Formosh codebase based on KISS (Keep It Simple, Stupid), YAGNI (You Aren't Gonna Need It), and DRY (Don't Repeat Yourself) principles analysis. The codebase shows good functional programming practices but suffers from significant code duplication, premature abstractions, and unnecessary complexity.
+### 🚫 YAGNI (You Aren't Gonna Need It) - Избыточная инженерия
 
-## Critical Issues by Principle
+#### 1. Система конфигурации отправки форм
 
-### 🔴 DRY Violations (Don't Repeat Yourself)
+**Проблема**: Весь механизм `SubmitConfig` не используется, но занимает значительное место в коде.
 
-#### 1. **Duplicated Label Rendering** [HIGH PRIORITY]
-**Files affected:**
-- `src/fields/field_common.gleam` (lines 26-50)
-- `src/fields/number_field.gleam` (lines 150-174)
-- `src/fields/boolean_field.gleam` (lines 254-278)
+**Файлы и строки**:
+- `src/formosh.gleam:17-24` - определение типа SubmitConfig
+- `src/formosh.gleam:87-131` - функции конфигурации (with_submit_url, with_http_submit, with_custom_submit)
+- `src/formosh.gleam:266-283` - from_json_string_with_config
+- `src/form/update.gleam:284-292` - submit_form_effect всегда возвращает фиктивный успех
 
-**Problem:**
+**Текущая реализация**:
 ```gleam
-// Identical code in 3+ files
-fn render_label(field_name: String, property: types.SchemaProperty, is_required: Bool) -> Element(FormMsg) {
-  let label_text = case property.title {
-    Some(title) -> title
-    None -> field_name |> string.replace("_", " ") |> string.capitalise()
-  }
-  // ... rest of identical implementation
+// src/formosh.gleam:17-24
+pub type SubmitConfig {
+  HttpSubmit(url: String, method: HttpMethod, headers: List(#(String, String)))
+  CustomSubmit(handler: fn(dict.Dict(String, JsonValue)) -> Effect(FormMsg))
+  NoSubmit
+}
+
+// src/form/update.gleam:284-292
+fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
+  use _dispatch <- effect.from
+  // Симулируем успешную отправку через 500ms
+  let _ = timer.set_timeout(500, fn() {
+    _dispatch(FormSubmitted(Ok(Nil)))
+  })
+  Nil
 }
 ```
 
-**Solution:** Use only the version in `field_common.gleam`, remove all duplicates.
-
-#### 2. **Duplicated Help Text Rendering** [HIGH PRIORITY]
-**Files affected:**
-- `src/fields/field_common.gleam` (lines 63-71)
-- `src/fields/number_field.gleam` (lines 186-194)
-- `src/fields/boolean_field.gleam` (lines 328-336)
-
-**Problem:** Same help text rendering logic repeated across modules.
-
-**Solution:** Consolidate into `field_common.gleam`.
-
-#### 3. **JSON/FieldValue Conversion Duplication** [HIGH PRIORITY]
-**Files affected:**
-- `src/form/model.gleam` (lines 418-428)
-- `src/form/path.gleam` (lines 237-248)
-- `src/form/view.gleam` (lines 302-312)
-- `src/form/update.gleam` (lines 237-248)
-
-**Problem:** Same conversion logic scattered across 4+ modules.
-
-**Solution:** Create a dedicated converter module `src/form/converter.gleam`.
-
-#### 4. **Validation Pattern Repetition** [MEDIUM PRIORITY]
-**File:** `src/schema/validator.gleam`
-
-**Problem:**
+**Рефакторинг**: Удалить всю систему до реальной реализации:
 ```gleam
-// This pattern repeats for every constraint check
-let errors = case constraints.minimum {
-  Some(min) -> {
-    case value <. min {
-      True -> list.append(errors, [ValidationError(...)])
-      False -> errors
+// Удалить из src/formosh.gleam:
+// - Тип SubmitConfig (строки 17-24)
+// - Тип HttpMethod (строки 11-15)
+// - Поле submit_config из FormConfig (строка 36)
+// - Все функции with_submit_* (строки 87-131)
+// - Функцию from_json_string_with_config (строки 266-283)
+// - Параметры submit из всех функций создания
+
+// Упростить src/form/update.gleam:
+// Оставить заглушку submit_form_effect до реализации
+```
+
+#### 2. Неиспользуемые поля FormConfig
+
+**Проблема**: Поля установлены, но никогда не используются в логике.
+
+**Файлы и строки**:
+- `src/formosh.gleam:35` - css_prefix: никогда не используется в view.gleam
+- `src/formosh.gleam:37` - show_errors_on_change: никогда не проверяется в update.gleam
+
+**Рефакторинг**:
+```gleam
+// Удалить из FormConfig:
+pub type FormConfig {
+  FormConfig(
+    // css_prefix: String,  // УДАЛИТЬ
+    // show_errors_on_change: Bool,  // УДАЛИТЬ
+    submit_config: SubmitConfig,  // Тоже удалить после удаления SubmitConfig
+  )
+}
+```
+
+#### 3. Неиспользуемые публичные API функции
+
+**Проблема**: Функции объявлены, но не используются ни в примерах, ни в тестах.
+
+**Файлы и строки**:
+- `src/formosh.gleam:304-309` - get_form_json: возвращает захардкоженный "{}"
+- `src/formosh.gleam:318-320` - is_valid: простая обёртка
+- `src/formosh.gleam:329-333` - get_errors: простая обёртка
+- `src/formosh.gleam:342-344` - get_values: простая обёртка
+- `src/formosh.gleam:356-366` - from_config_with_custom_update: нет использования
+
+**Рефакторинг**: Полностью удалить эти функции.
+
+#### 4. Переусложнённый тип FormApp
+
+**Проблема**: FormApp дублирует стандартную структуру Lustre App.
+
+**Файлы и строки**:
+- `src/formosh.gleam:44-50` - определение FormApp
+
+**Текущая реализация**:
+```gleam
+pub type FormApp {
+  FormApp(
+    init: fn(flags) -> #(FormModel, Effect(FormMsg)),
+    update: fn(FormMsg, FormModel) -> #(FormModel, Effect(FormMsg)),
+    view: fn(FormModel) -> Element(FormMsg),
+    on_attribute_change: fn(Attribute) -> FormMsg,
+  )
+}
+```
+
+**Рефакторинг**: Использовать напрямую lustre.App:
+```gleam
+// Вместо FormApp везде использовать:
+pub fn from_schema(schema: JsonSchema) -> lustre.App(Nil, FormModel, FormMsg) {
+  lustre.application(
+    fn(_) { #(model.init(schema), effect.none()) },
+    update.update,
+    view.view
+  )
+}
+```
+
+### 🔄 DRY (Don't Repeat Yourself) - Дублирование кода
+
+#### 1. Паттерн извлечения значений
+
+**Проблема**: Каждый рендерер поля повторяет один и тот же паттерн извлечения.
+
+**Файлы и дублирование**:
+```gleam
+// src/fields/string_field.gleam:97-100
+let current_value = case value {
+  Some(types.StringValue(s)) -> s
+  _ -> ""
+}
+
+// src/fields/number_field.gleam:53-57
+let current_value = case value {
+  Some(types.NumberValue(n)) -> float.to_string(n)
+  _ -> ""
+}
+
+// src/fields/boolean_field.gleam:45-49
+let current_value = case value {
+  Some(types.BooleanValue(b)) -> b
+  _ -> False
+}
+
+// src/fields/enum_field.gleam:125-129 (похожий паттерн)
+// src/fields/radio_field.gleam:38-42 (похожий паттерн)
+// src/fields/select_field.gleam:35-39 (похожий паттерн)
+```
+
+**Рефакторинг**: Создать утилиты в `src/fields/field_common.gleam`:
+```gleam
+// Добавить в field_common.gleam:
+pub fn extract_string_value(value: Option(FieldValue), default: String) -> String {
+  case value {
+    Some(StringValue(s)) -> s
+    Some(NumberValue(n)) -> float.to_string(n)
+    Some(BooleanValue(True)) -> "true"
+    Some(BooleanValue(False)) -> "false"
+    _ -> default
+  }
+}
+
+pub fn extract_number_value(value: Option(FieldValue), default: Float) -> Float {
+  case value {
+    Some(NumberValue(n)) -> n
+    Some(StringValue(s)) -> float.parse(s) |> result.unwrap(default)
+    _ -> default
+  }
+}
+
+pub fn extract_boolean_value(value: Option(FieldValue), default: Bool) -> Bool {
+  case value {
+    Some(BooleanValue(b)) -> b
+    Some(StringValue("true")) -> True
+    Some(StringValue("false")) -> False
+    _ -> default
+  }
+}
+```
+
+#### 2. Дублирование извлечения имени поля из пути
+
+**Проблема**: Один и тот же код во всех рендерерах.
+
+**Файлы**:
+```gleam
+// Паттерн повторяется в каждом field модуле:
+let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+```
+
+Встречается в:
+- `src/fields/string_field.gleam:96`
+- `src/fields/number_field.gleam:52`
+- `src/fields/boolean_field.gleam:44`
+- `src/fields/enum_field.gleam:124`
+- `src/fields/radio_field.gleam:37`
+- `src/fields/select_field.gleam:34`
+
+**Рефакторинг**:
+```gleam
+// Добавить в field_common.gleam:
+pub fn get_field_name_from_path(field_path: FieldPath) -> String {
+  path.get_field_name(field_path) |> option.unwrap("field")
+}
+
+// Использовать во всех рендерерах:
+let field_name = field_common.get_field_name_from_path(field_path)
+```
+
+#### 3. Дублирование функций атрибутов
+
+**Проблема**: `input_attributes` и `input_attributes_with_path` почти идентичны.
+
+**Файлы и строки**:
+- `src/fields/field_common.gleam:121-139` - input_attributes
+- `src/fields/field_common.gleam:156-176` - input_attributes_with_path
+
+**Рефакторинг**:
+```gleam
+// Оставить только одну функцию:
+pub fn input_attributes(
+  field_path: FieldPath,
+  schema: JsonSchema,
+  on_change: fn(String) -> msg,
+  additional_attrs: List(Attribute(msg)),
+) -> List(Attribute(msg)) {
+  let field_name = get_field_name_from_path(field_path)
+  let base_attrs = [
+    attribute.id(field_name),
+    attribute.name(field_name),
+    event.on_input(on_change),
+  ]
+  
+  // Добавить атрибуты из схемы
+  let schema_attrs = extract_schema_attributes(schema)
+  
+  list.append(base_attrs, list.append(schema_attrs, additional_attrs))
+}
+```
+
+#### 4. Дублирование создания label элементов
+
+**Проблема**: Каждый рендерер создаёт label похожим образом.
+
+**Файлы**: Все field модули имеют похожий код для создания label.
+
+**Рефакторинг**:
+```gleam
+// Добавить в field_common.gleam:
+pub fn create_field_label(field_path: FieldPath, schema: JsonSchema) -> Element(msg) {
+  let field_name = get_field_name_from_path(field_path)
+  let label_text = schema.title |> option.unwrap(field_name)
+  
+  html.label([attribute.for(field_name)], [
+    text(label_text),
+    case schema.required {
+      Some(True) -> html.span([attribute.class("required")], [text(" *")])
+      _ -> text("")
     }
+  ])
+}
+```
+
+### 🎯 KISS (Keep It Simple, Stupid) - Излишняя сложность
+
+#### 1. Сложная система преобразования значений
+
+**Проблема**: Преобразование между model values и hierarchical values слишком сложное.
+
+**Файлы и строки**:
+- `src/form/update.gleam:51-90` - model_to_root_value и root_value_to_model_values
+
+**Текущая реализация**:
+```gleam
+fn model_to_root_value(model: FormModel) -> types.FieldValue {
+  let root_dict = 
+    model.values
+    |> dict.to_list
+    |> list.fold(dict.new(), fn(acc, entry) {
+      let #(path_str, value) = entry
+      case path.from_string(path_str) {
+        Ok(field_path) -> insert_value_at_path(acc, field_path, value)
+        Error(_) -> acc
+      }
+    })
+  types.ObjectValue(root_dict)
+}
+```
+
+**Упрощение**: Поскольку пути всё равно конвертируются в строки, хранить значения напрямую:
+```gleam
+// Упростить FormModel:
+pub type FormModel {
+  FormModel(
+    schema: JsonSchema,
+    values: dict.Dict(String, FieldValue),  // Путь как строка
+    errors: dict.Dict(String, List(String)),
+    touched: set.Set(String),
+    submitted: Bool,
+  )
+}
+
+// Убрать сложные преобразования
+```
+
+#### 2. Переусложнённые функции обхода путей
+
+**Проблема**: Функции traverse_array_path и traverse_object_path слишком сложны для текущего использования.
+
+**Файлы и строки**:
+- `src/form/model.gleam:384-415` - traverse_array_path
+- `src/form/model.gleam:427-447` - traverse_object_path
+
+**Упрощение**: Удалить или значительно упростить до реальной необходимости в nested editing.
+
+#### 3. Ненужные Option обёртки
+
+**Проблема**: Функции возвращают Option там, где ошибка невозможна.
+
+**Файлы и строки**:
+- `src/form/converter.gleam:15-25` - json_to_field_value всегда успешна
+
+**Текущая реализация**:
+```gleam
+pub fn json_to_field_value(json: JsonValue) -> Option(FieldValue) {
+  case json {
+    json.String(s) -> Some(types.StringValue(s))
+    json.Number(n) -> Some(types.NumberValue(n))
+    json.Bool(b) -> Some(types.BooleanValue(b))
+    json.Array(items) -> Some(types.ArrayValue(...))
+    json.Object(obj) -> Some(types.ObjectValue(...))
+    json.Null -> None
   }
-  None -> errors
 }
 ```
 
-**Solution:** Extract helper function `check_constraint(value, constraint, error_builder)`.
-
-### ⚠️ YAGNI Violations (You Aren't Gonna Need It)
-
-#### 1. **Unused Boolean Renderers** [MEDIUM PRIORITY]
-**File:** `src/fields/boolean_field.gleam`
-
-**Problem:**
+**Упрощение**:
 ```gleam
-pub fn render_as_checkbox(...) // Never used
-pub fn render_as_toggle(...)    // Never used
-pub fn render(...)              // Only this is used
-```
-
-**Solution:** Remove `render_as_checkbox` and `render_as_toggle` functions.
-
-#### 2. **Premature Path Abstraction** [HIGH PRIORITY]
-**File:** `src/form/path.gleam`
-
-**Unused functions:**
-- `add_array_item_at_path` (lines 265-290)
-- `remove_array_item_at_path` (lines 292-320)
-- Complex nested operations that aren't needed
-
-**Solution:** Remove until actually needed, keep only basic path operations.
-
-#### 3. **Overbuilt Model API** [MEDIUM PRIORITY]
-**File:** `src/form/model.gleam`
-
-**Unused functions:**
-- `get_value_at_path` (lines 357-374)
-- `set_value_at_path` (lines 521-532)
-- `has_errors_at_path` (lines 483-488)
-- `get_errors_at_path` (lines 499-508)
-
-**Solution:** Remove all unused path-based accessors.
-
-#### 4. **Unused String Formats** [LOW PRIORITY]
-**File:** `src/schema/types.gleam`
-
-**Problem:**
-```gleam
-pub type StringFormat {
-  DateFormat        // Used
-  DateTimeFormat    // Not used
-  TimeFormat        // Not used
-  UuidFormat        // Not used
-  RegexFormat       // Not used
-  EmailFormat       // Used
-  UrlFormat         // Used
-}
-```
-
-**Solution:** Comment out or remove unused formats.
-
-### 💡 KISS Violations (Keep It Simple, Stupid)
-
-#### 1. **Over-Complex Path System** [HIGH PRIORITY]
-**File:** `src/form/path.gleam` (lines 111-300)
-
-**Problem:**
-```gleam
-pub fn modify_at_path(
-  root: types.FieldValue,
-  path: FieldPath,
-  modifier: fn(types.FieldValue) -> types.FieldValue,
-) -> types.FieldValue {
-  // Deep recursive nesting with multiple case statements
-  case path {
-    [] -> modifier(root)
-    [segment, ..rest] -> {
-      case segment {
-        PropertySegment(name) ->
-          modify_object_field(root, name, fn(field_value) {
-            modify_at_path(field_value, rest, modifier)
-          })
-        // ... more complex nesting
-```
-
-**Solution:** Simplify for actual use cases, reduce nesting depth.
-
-#### 2. **Excessive Conversion Complexity** [HIGH PRIORITY]
-**File:** `src/form/update.gleam` (lines 42-147)
-
-**Problem:** Multiple conversions between representations in every update:
-1. Model values → JSON values
-2. JSON values → Root value
-3. Root value → Field value
-4. Field value → Back to model
-
-**Solution:** Direct field updates without intermediate conversions where possible.
-
-#### 3. **Complex Array Handling** [MEDIUM PRIORITY]
-**Files:** Multiple files handling array operations
-
-**Problem:** Over-engineered array manipulation for simple add/remove operations.
-
-**Solution:** Simplify to basic list operations.
-
-## Implementation Strategy
-
-### Phase 1: Quick Wins (1-2 days)
-1. **Consolidate field rendering functions**
-   - Move all to `field_common.gleam`
-   - Update imports in field modules
-   - Run tests to ensure no breakage
-
-2. **Remove unused functions**
-   - Delete unused boolean renderers
-   - Remove unused model API functions
-   - Clean up unused string formats
-
-### Phase 2: Core Refactoring (2-3 days)
-3. **Create converter module**
-   - New file: `src/form/converter.gleam`
-   - Consolidate all JSON/FieldValue conversions
-   - Update all modules to use centralized converter
-
-4. **Simplify path system**
-   - Keep only used operations
-   - Reduce nesting complexity
-   - Optimize for common cases
-
-### Phase 3: Optimization (1-2 days)
-5. **Streamline update logic**
-   - Reduce conversion overhead
-   - Direct field updates where possible
-   - Profile and measure improvements
-
-6. **Extract validation helpers**
-   - Create constraint checking utilities
-   - Reduce code duplication in validator
-
-## Expected Benefits
-
-### Immediate Benefits
-- **30% less code** - Removing duplicates and unused functions
-- **Improved maintainability** - Single source of truth for common operations
-- **Faster compilation** - Less code to process
-
-### Long-term Benefits
-- **Easier to extend** - Clear, simple patterns to follow
-- **Better performance** - Fewer unnecessary conversions
-- **Lower cognitive load** - Simpler code is easier to understand
-
-## Success Metrics
-
-1. **Code reduction**: Target 25-30% reduction in LOC
-2. **Test coverage**: Maintain 100% coverage for critical paths
-3. **Performance**: 20% faster form updates (measure with benchmarks)
-4. **Complexity**: Reduce cyclomatic complexity by 40%
-
-## Risk Mitigation
-
-1. **Test thoroughly** after each refactoring phase
-2. **Keep old code commented** until new code is proven
-3. **Refactor in small, reviewable chunks**
-4. **Document breaking changes** if any
-5. **Run `gleam format` and `gleam test` after each change
-
-## Priority Order
-
-### 🔴 High Priority (Do First)
-1. Consolidate field rendering (DRY)
-2. Create converter module (DRY)
-3. Simplify path system (KISS)
-4. Remove unused path operations (YAGNI)
-
-### 🟡 Medium Priority (Do Second)
-5. Remove unused boolean renderers (YAGNI)
-6. Remove unused model API (YAGNI)
-7. Streamline update logic (KISS)
-8. Extract validation helpers (DRY)
-
-### 🟢 Low Priority (Do Later)
-9. Remove unused string formats (YAGNI)
-10. Further optimize conversions (KISS)
-11. Document simplified patterns
-
-## Code Examples
-
-### Before Refactoring
-```gleam
-// Duplicated in 3 files
-fn render_label(field_name: String, property: types.SchemaProperty, is_required: Bool) -> Element(FormMsg) {
-  let label_text = case property.title {
-    Some(title) -> title
-    None -> field_name |> string.replace("_", " ") |> string.capitalise()
+pub fn json_to_field_value(json: JsonValue) -> FieldValue {
+  case json {
+    json.String(s) -> types.StringValue(s)
+    json.Number(n) -> types.NumberValue(n)
+    json.Bool(b) -> types.BooleanValue(b)
+    json.Array(items) -> types.ArrayValue(...)
+    json.Object(obj) -> types.ObjectValue(...)
+    json.Null -> types.NullValue  // Добавить NullValue в FieldValue
   }
-  // ... 20 more lines of identical code
 }
 ```
 
-### After Refactoring
-```gleam
-// In field modules - just import and use
-import formosh/fields/field_common
+#### 4. Сложная система conditional полей
 
-// Usage
-field_common.render_label(field_name, property, is_required)
+**Проблема**: conditional_resolver.gleam содержит сложную логику, которая пока не используется полностью.
+
+**Файлы и строки**:
+- `src/schema/conditional_resolver.gleam` - весь файл
+
+**Упрощение**: Отложить до реальной необходимости или упростить до базовых if/then условий.
+
+### 📊 Метрики рефакторинга
+
+#### Удаление кода
+- **SubmitConfig система**: ~100 строк
+- **Неиспользуемые функции**: ~50 строк
+- **FormApp тип**: ~200 строк (включая связанные функции)
+- **Сложные path функции**: ~80 строк
+- **Итого к удалению**: ~430 строк
+
+#### Консолидация
+- **Извлечение значений**: 15 дублирований → 3 утилиты
+- **Работа с путями**: 10 дублирований → 1 утилита
+- **Label создание**: 6 дублирований → 1 функция
+- **Итого устранено дублирований**: ~31 → 5 функций
+
+#### Упрощение
+- **Path-based хранение**: -40 строк сложности
+- **Option обёртки**: -10 строк
+- **Итого упрощено**: ~50 строк
+
+### 📝 Приоритезированный план действий
+
+#### Фаза 1: Очистка (1-2 часа)
+1. Удалить SubmitConfig и всё связанное
+2. Удалить неиспользуемые публичные функции
+3. Удалить неиспользуемые поля FormConfig
+4. Удалить FormApp и использовать lustre.App напрямую
+
+#### Фаза 2: Консолидация (2-3 часа)
+1. Создать утилиты извлечения значений в field_common
+2. Создать утилиту работы с путями
+3. Создать общую функцию создания label
+4. Обновить все field рендереры
+
+#### Фаза 3: Упрощение (2-3 часа)
+1. Упростить хранение значений в FormModel
+2. Удалить ненужные Option обёртки
+3. Упростить или отложить conditional логику
+4. Удалить сложные path traversal функции
+
+### ✅ Ожидаемые результаты
+
+- **Размер кодовой базы**: -25% (примерно 500 строк)
+- **Дублирование**: -80% (с 31 до 5 паттернов)
+- **Сложность**: Значительное снижение когнитивной нагрузки
+- **Поддерживаемость**: Улучшение за счёт меньшего количества абстракций
+- **Производительность**: Небольшое улучшение за счёт упрощения path handling
+- **Тестируемость**: Улучшение за счёт удаления неиспользуемого кода
+
+### 🎯 Финальная архитектура
+
+После рефакторинга публичный API будет выглядеть так:
+
+```gleam
+// src/formosh.gleam - весь публичный API
+import lustre
+import schema/types.{type JsonSchema}
+import form/model.{type FormModel, type FormMsg}
+
+/// Создать форму из JSON Schema
+pub fn from_schema(schema: JsonSchema) -> lustre.App(Nil, FormModel, FormMsg)
+
+/// Создать форму из JSON строки
+pub fn from_json_string(json: String) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError)
+
+/// Запустить приложение формы
+pub fn run(app: lustre.App(Nil, FormModel, FormMsg)) -> Result(Nil, lustre.Error)
 ```
 
-### Before Path Complexity
-```gleam
-// 200+ lines of complex recursive path manipulation
-pub fn modify_at_path(...) { 
-  // Deep nesting, multiple cases
-}
-```
-
-### After Path Simplification
-```gleam
-// 50 lines of focused path operations
-pub fn update_field_value(model: FormModel, field_name: String, value: FieldValue) {
-  // Direct, simple update
-}
-```
-
-## Next Steps
-
-1. **Review this plan** with the team
-2. **Create feature branch** for refactoring
-3. **Start with Phase 1** quick wins
-4. **Measure improvements** after each phase
-5. **Update documentation** to reflect simplified patterns
-
-## Conclusion
-
-The Formosh codebase is well-architected but suffers from premature optimization and code duplication. By following this refactoring plan, we can reduce code by ~30%, improve performance by ~20%, and significantly enhance maintainability. The key is to embrace simplicity and only build what's actually needed.
+Всего 3 функции вместо текущих 15+, при этом вся текущая функциональность сохранена.

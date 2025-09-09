@@ -7,11 +7,12 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import schema/resolver
 import schema/types.{
-  type FieldType, type JsonSchema, type JsonValue, type NumberConstraints,
-  type SchemaProperty, type StringConstraints, ArrayType, BooleanType,
-  CustomFormat, EmailFormat, IntegerType, JsonBool, JsonNull, JsonNumber,
-  JsonSchema, JsonString, NullType, NumberConstraints, NumberType, ObjectType,
-  SchemaProperty, StringConstraints, StringType, UrlFormat, UuidFormat,
+  type ConditionalRule, type FieldType, type JsonSchema, type JsonValue,
+  type NumberConstraints, type SchemaProperty, type StringConstraints, ArrayType,
+  BooleanType, ConditionalRule, CustomFormat, EmailFormat, IntegerType, JsonBool,
+  JsonNull, JsonNumber, JsonSchema, JsonString, NullType, NumberConstraints,
+  NumberType, ObjectType, SchemaProperty, StringConstraints, StringType,
+  UrlFormat, UuidFormat,
 }
 
 /// Errors that can occur during JSON Schema parsing.
@@ -117,6 +118,9 @@ fn schema_decoder() -> Decoder(JsonSchema) {
   let string_constraints = extract_string_constraints(dynamic_data)
   let number_constraints = extract_number_constraints(dynamic_data)
 
+  // Extract conditional rules
+  let conditionals = extract_conditionals(dynamic_data)
+
   decode.success(JsonSchema(
     title: title,
     description: description,
@@ -124,6 +128,7 @@ fn schema_decoder() -> Decoder(JsonSchema) {
     properties: properties,
     required: required,
     defs: defs,
+    conditionals: conditionals,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
   ))
@@ -350,6 +355,51 @@ fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
         exclusive_maximum: exclusive_maximum,
         multiple_of: multiple_of,
       ))
+  }
+}
+
+/// Extract conditional rules from a JSON Schema.
+///
+/// Parses if/then/else keywords to create conditional rules that can
+/// dynamically modify the schema based on runtime values.
+fn extract_conditionals(data: Dynamic) -> List(ConditionalRule) {
+  // Check if there's an "if" field at the top level
+  let if_result = decode.run(data, decode.at(["if"], decode.dynamic))
+
+  case if_result {
+    Ok(if_data) -> {
+      // We have an if condition, now look for then/else
+      let then_result =
+        decode.run(data, decode.at(["then"], decode.dynamic))
+        |> result.map(fn(dyn) {
+          decode.run(dyn, property_decoder())
+          |> option.from_result()
+        })
+        |> result.unwrap(None)
+
+      let else_result =
+        decode.run(data, decode.at(["else"], decode.dynamic))
+        |> result.map(fn(dyn) {
+          decode.run(dyn, property_decoder())
+          |> option.from_result()
+        })
+        |> result.unwrap(None)
+
+      // Parse the if condition as a property schema
+      case decode.run(if_data, property_decoder()) {
+        Ok(if_schema) -> {
+          [
+            ConditionalRule(
+              if_schema: if_schema,
+              then_schema: then_result,
+              else_schema: else_result,
+            ),
+          ]
+        }
+        Error(_) -> []
+      }
+    }
+    Error(_) -> []
   }
 }
 
