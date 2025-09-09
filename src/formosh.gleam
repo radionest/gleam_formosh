@@ -5,8 +5,7 @@ import form/update
 import form/view
 import gleam/dict
 import lustre
-import lustre/effect.{type Effect}
-import lustre/element.{type Element}
+import lustre/effect
 import schema/parser
 import schema/types.{type JsonSchema}
 
@@ -35,19 +34,6 @@ pub type FormConfig {
     css_prefix: String,
     /// Whether to show validation errors immediately or only after blur
     show_errors_on_change: Bool,
-  )
-}
-
-/// A form application containing the MVU (Model-View-Update) functions.
-/// 
-/// This type encapsulates all the functions needed to run a form as a Lustre
-/// application. It provides the init, update, and view functions that follow
-/// the Elm/Lustre architecture pattern.
-pub type FormApp {
-  FormApp(
-    init: fn(Nil) -> #(FormModel, Effect(FormMsg)),
-    update: fn(FormModel, FormMsg) -> #(FormModel, Effect(FormMsg)),
-    view: fn(FormModel) -> Element(FormMsg),
   )
 }
 
@@ -162,10 +148,10 @@ pub fn with_show_errors_on_change(config: FormConfig, show: Bool) -> FormConfig 
 /// ## Example
 /// ```gleam
 /// let schema = JsonSchema(...)
-/// let form_app = formosh.from_schema(schema)
-/// let lustre_app = formosh.to_lustre_app(form_app)
+/// let app = formosh.from_schema(schema)
+/// lustre.start(app, "#form-container", Nil)
 /// ```
-pub fn from_schema(schema: JsonSchema) -> FormApp {
+pub fn from_schema(schema: JsonSchema) -> lustre.App(Nil, FormModel, FormMsg) {
   let default_config = config(schema)
   from_config(default_config)
 }
@@ -179,47 +165,35 @@ pub fn from_schema(schema: JsonSchema) -> FormApp {
 /// - `config`: The form configuration
 /// 
 /// ## Returns
-/// A FormApp ready to be converted to a Lustre application
+/// A Lustre application ready to be started
 /// 
 /// ## Example
 /// ```gleam
 /// let config = formosh.config(schema)
 ///   |> formosh.with_submit_url("https://api.example.com/submit")
 ///   |> formosh.with_css_prefix("my-form")
-/// let form_app = formosh.from_config(config)
+/// let app = formosh.from_config(config)
+/// lustre.start(app, "#form-container", Nil)
 /// ```
-pub fn from_config(config: FormConfig) -> FormApp {
+pub fn from_config(config: FormConfig) -> lustre.App(Nil, FormModel, FormMsg) {
   create_form_with_config(config)
 }
 
-/// Internal function to create a FormApp from a configuration.
+/// Internal function to create a Lustre application from a configuration.
 /// 
 /// This function sets up the MVU architecture by providing the init, update,
 /// and view functions needed for a Lustre application.
-fn create_form_with_config(config: FormConfig) -> FormApp {
+fn create_form_with_config(
+  config: FormConfig,
+) -> lustre.App(Nil, FormModel, FormMsg) {
   // Store config in a way that can be accessed by the update function
   // For now, use the existing init function
   // In a real implementation, we'd need to extend the model to store submit_config
-  FormApp(
-    init: fn(_) { #(model.init(config.schema), effect.none()) },
-    update: update.update,
-    view: view.view,
+  lustre.application(
+    fn(_) { #(model.init(config.schema), effect.none()) },
+    update.update,
+    view.view,
   )
-}
-
-/// Convert a FormApp into a standard Lustre application.
-/// 
-/// This function takes a FormApp and creates a proper Lustre application that
-/// can be started with `lustre.start()`. The resulting application follows the
-/// standard MVU pattern and can be mounted to a DOM element.
-/// 
-/// ## Example
-/// ```gleam
-/// let app = formosh.to_lustre_app(form_app)
-/// lustre.start(app, "#form-container", Nil)
-/// ```
-pub fn to_lustre_app(form_app: FormApp) -> lustre.App(Nil, FormModel, FormMsg) {
-  lustre.application(form_app.init, form_app.update, form_app.view)
 }
 
 /// Create a form application from a JSON Schema string.
@@ -232,20 +206,20 @@ pub fn to_lustre_app(form_app: FormApp) -> lustre.App(Nil, FormModel, FormMsg) {
 /// - `json_string`: A valid JSON string containing a JSON Schema definition
 /// 
 /// ## Returns
-/// - `Ok(FormApp)` if the JSON was valid and could be converted to a form
+/// - `Ok(lustre.App)` if the JSON was valid and could be converted to a form
 /// - `Error(ParseError)` if the JSON was invalid or couldn't be parsed
 /// 
 /// ## Example
 /// ```gleam
 /// let json = "{\"title\": \"My Form\", \"type\": \"object\", ...}"
 /// case formosh.from_json_string(json) {
-///   Ok(form_app) -> // Use the form
+///   Ok(app) -> lustre.start(app, "#form-container", Nil)
 ///   Error(parse_error) -> // Handle parsing error
 /// }
 /// ```
 pub fn from_json_string(
   json_string: String,
-) -> Result(FormApp, parser.ParseError) {
+) -> Result(lustre.App(Nil, FormModel, FormMsg), parser.ParseError) {
   case parser.parse_schema(json_string) {
     Ok(schema) -> Ok(from_schema(schema))
     Error(err) -> Error(err)
@@ -261,12 +235,12 @@ pub fn from_json_string(
 /// - `submit_config`: Submission configuration for the form
 /// 
 /// ## Returns
-/// - `Ok(FormApp)` if successful
+/// - `Ok(lustre.App)` if successful
 /// - `Error(ParseError)` if JSON parsing fails
 pub fn from_json_string_with_config(
   json_string: String,
   submit_config: SubmitConfig,
-) -> Result(FormApp, parser.ParseError) {
+) -> Result(lustre.App(Nil, FormModel, FormMsg), parser.ParseError) {
   case parser.parse_schema(json_string) {
     Ok(schema) -> {
       let form_config =
@@ -282,56 +256,6 @@ pub fn from_json_string_with_config(
   }
 }
 
-/// Extract the current form data as JSON.
-/// 
-/// This function extracts the current form values and converts them to
-/// a JSON string, useful for custom submission handling.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing the current values
-/// 
-/// ## Returns
-/// Result containing either the JSON string or an encoding error
-/// 
-/// ## Example
-/// ```gleam
-/// let json_result = formosh.get_form_json(model)
-/// case json_result {
-///   Ok(json) -> // Send JSON to API
-///   Error(_) -> // Handle error
-/// }
-/// ```
-pub fn get_form_json(_model: model.FormModel) -> Result(String, String) {
-  // Convert form values to JSON
-  // This would need implementation of a converter function
-  Ok("{}")
-  // TODO: Implement proper JSON conversion
-}
-
-/// Check if the form is valid and ready for submission.
-/// 
-/// ## Parameters
-/// - `model`: The form model to check
-/// 
-/// ## Returns
-/// True if the form has no validation errors and can be submitted
-pub fn is_valid(model: model.FormModel) -> Bool {
-  model.is_valid && !model.is_submitting
-}
-
-/// Get all current validation errors from the form.
-/// 
-/// ## Parameters
-/// - `model`: The form model
-/// 
-/// ## Returns
-/// List of field names and their validation errors
-pub fn get_errors(
-  model: model.FormModel,
-) -> List(#(String, List(types.ValidationError))) {
-  model.errors |> dict.to_list
-}
-
 /// Get all current form values.
 /// 
 /// ## Parameters
@@ -341,26 +265,4 @@ pub fn get_errors(
 /// Dictionary of field names to their current values
 pub fn get_values(model: model.FormModel) -> dict.Dict(String, types.FieldValue) {
   model.values
-}
-
-/// Create a form application with a custom update function.
-/// 
-/// This allows advanced users to intercept and modify the update behavior.
-/// 
-/// ## Parameters
-/// - `config`: The form configuration
-/// - `custom_update`: Custom update function that wraps the default one
-/// 
-/// ## Returns
-/// A FormApp with custom update behavior
-pub fn from_config_with_custom_update(
-  config: FormConfig,
-  custom_update: fn(model.FormModel, model.FormMsg) ->
-    #(model.FormModel, Effect(model.FormMsg)),
-) -> FormApp {
-  FormApp(
-    init: fn(_) { #(model.init(config.schema), effect.none()) },
-    update: custom_update,
-    view: view.view,
-  )
 }

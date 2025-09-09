@@ -68,49 +68,6 @@ pub type FormConfig {
 }
 ```
 
-#### 3. Неиспользуемые публичные API функции
-
-**Проблема**: Функции объявлены, но не используются ни в примерах, ни в тестах.
-
-**Файлы и строки**:
-- `src/formosh.gleam:304-309` - get_form_json: возвращает захардкоженный "{}"
-- `src/formosh.gleam:318-320` - is_valid: простая обёртка
-- `src/formosh.gleam:329-333` - get_errors: простая обёртка
-- `src/formosh.gleam:342-344` - get_values: простая обёртка
-- `src/formosh.gleam:356-366` - from_config_with_custom_update: нет использования
-
-**Рефакторинг**: Полностью удалить эти функции.
-
-#### 4. Переусложнённый тип FormApp
-
-**Проблема**: FormApp дублирует стандартную структуру Lustre App.
-
-**Файлы и строки**:
-- `src/formosh.gleam:44-50` - определение FormApp
-
-**Текущая реализация**:
-```gleam
-pub type FormApp {
-  FormApp(
-    init: fn(flags) -> #(FormModel, Effect(FormMsg)),
-    update: fn(FormMsg, FormModel) -> #(FormModel, Effect(FormMsg)),
-    view: fn(FormModel) -> Element(FormMsg),
-    on_attribute_change: fn(Attribute) -> FormMsg,
-  )
-}
-```
-
-**Рефакторинг**: Использовать напрямую lustre.App:
-```gleam
-// Вместо FormApp везде использовать:
-pub fn from_schema(schema: JsonSchema) -> lustre.App(Nil, FormModel, FormMsg) {
-  lustre.application(
-    fn(_) { #(model.init(schema), effect.none()) },
-    update.update,
-    view.view
-  )
-}
-```
 
 ### 🔄 DRY (Don't Repeat Yourself) - Дублирование кода
 

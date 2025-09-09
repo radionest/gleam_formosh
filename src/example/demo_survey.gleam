@@ -130,8 +130,7 @@ pub fn main() {
 
       // Note: In a real implementation, you'd use custom handler here
       // For demo, we just use the default form
-      let app = formosh.to_lustre_app(form_app)
-      case lustre.start(app, "#app", Nil) {
+      case lustre.start(form_app, "#app", Nil) {
         Ok(_) -> {
           io.println("✓ Form started successfully")
           io.println("📊 Survey form is ready at http://localhost:1234")

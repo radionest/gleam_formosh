@@ -3,6 +3,7 @@
 import formosh
 import gleam/io
 import lustre
+import schema/parser
 import schema_loader
 
 /// Main function demonstrating loading and using multiple schemas
@@ -30,8 +31,7 @@ pub fn demo_contact_form() {
     Ok(form_app) -> {
       io.println("✓ Contact form loaded successfully")
 
-      let app = formosh.to_lustre_app(form_app)
-      case lustre.start(app, "#app", Nil) {
+      case lustre.start(form_app, "#app", Nil) {
         Ok(_) -> io.println("✓ Form started successfully")
         Error(_) ->
           io.println("✗ Failed to start form (not in browser environment)")
@@ -66,8 +66,7 @@ pub fn demo_user_registration() {
     Ok(form_app) -> {
       io.println("✓ Registration form loaded successfully")
 
-      let app = formosh.to_lustre_app(form_app)
-      case lustre.start(app, "#app", Nil) {
+      case lustre.start(form_app, "#app", Nil) {
         Ok(_) -> io.println("✓ Form started successfully")
         Error(_) -> io.println("✗ Failed to start form")
       }
@@ -106,8 +105,7 @@ pub fn demo_survey_form() {
       // In a real implementation, you'd parse the schema separately
       io.println("✓ Survey form configured with custom handler")
 
-      let app = formosh.to_lustre_app(form_app)
-      case lustre.start(app, "#app", Nil) {
+      case lustre.start(form_app, "#app", Nil) {
         Ok(_) -> io.println("✓ Form started successfully")
         Error(_) -> io.println("✗ Failed to start form")
       }
@@ -142,8 +140,7 @@ pub fn demo_multiple_forms() {
     let schema_content = schema_loader.load_schema(schema_name)
     case formosh.from_json_string(schema_content) {
       Ok(form_app) -> {
-        let app = formosh.to_lustre_app(form_app)
-        case lustre.start(app, container_id, Nil) {
+        case lustre.start(form_app, container_id, Nil) {
           Ok(_) -> io.println("  ✓ " <> display_name <> " loaded")
           Error(_) -> io.println("  ✗ Failed to start " <> display_name)
         }
@@ -189,8 +186,7 @@ pub fn demo_schema_switcher(schema_name: schema_loader.SchemaName) {
 
   case formosh.from_json_string_with_config(schema, submit_config) {
     Ok(form_app) -> {
-      let app = formosh.to_lustre_app(form_app)
-      case lustre.start(app, "#app", Nil) {
+      case lustre.start(form_app, "#app", Nil) {
         Ok(_) -> io.println("✓ Switched to " <> display_name)
         Error(_) -> io.println("✗ Failed to display " <> display_name)
       }
@@ -215,19 +211,19 @@ fn handle_parse_error(err: formosh.ParseError) {
 
 /// Example: Form with validation feedback
 pub fn demo_with_validation() {
-  let schema = schema_loader.load_schema(schema_loader.ContactForm)
+  let schema_json = schema_loader.load_schema(schema_loader.ContactForm)
 
-  case formosh.from_json_string(schema) {
-    Ok(form_app) -> {
+  // Parse the schema to get the JsonSchema type
+  case parser.parse_schema(schema_json) {
+    Ok(parsed_schema) -> {
       // Configure to show errors immediately
       let config =
-        formosh.config(form_app.schema)
+        formosh.config(parsed_schema)
         |> formosh.with_submit_url("https://api.example.com/contact")
         |> formosh.with_show_errors_on_change(True)
         |> formosh.with_css_prefix("validated-form")
 
-      let configured_form = formosh.from_config(config)
-      let app = formosh.to_lustre_app(configured_form)
+      let app = formosh.from_config(config)
 
       case lustre.start(app, "#app", Nil) {
         Ok(_) -> io.println("✓ Form with validation started")
@@ -240,18 +236,18 @@ pub fn demo_with_validation() {
 
 /// Example: Form with custom styling
 pub fn demo_with_custom_styling() {
-  let schema = schema_loader.load_schema(schema_loader.SurveyForm)
+  let schema_json = schema_loader.load_schema(schema_loader.SurveyForm)
 
-  case formosh.from_json_string(schema) {
-    Ok(form_app) -> {
+  // Parse the schema to get the JsonSchema type
+  case parser.parse_schema(schema_json) {
+    Ok(parsed_schema) -> {
       // Use custom CSS prefix for styling
       let config =
-        formosh.config(form_app.schema)
+        formosh.config(parsed_schema)
         |> formosh.with_css_prefix("custom-survey")
         |> formosh.with_submit_url("https://api.example.com/survey")
 
-      let configured_form = formosh.from_config(config)
-      let app = formosh.to_lustre_app(configured_form)
+      let app = formosh.from_config(config)
 
       case lustre.start(app, "#app", Nil) {
         Ok(_) -> io.println("✓ Custom styled form started")

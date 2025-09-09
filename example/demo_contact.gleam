@@ -31,8 +31,7 @@ pub fn main() {
         Ok(form_app) -> {
           io.println("✓ Contact form created successfully")
 
-          let app = formosh.to_lustre_app(form_app)
-          case lustre.start(app, "#app", Nil) {
+          case lustre.start(form_app, "#app", Nil) {
             Ok(_) -> {
               io.println("✓ Form started successfully")
               io.println(
