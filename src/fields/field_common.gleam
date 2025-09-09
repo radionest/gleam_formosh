@@ -2,7 +2,9 @@
 
 import form/model.{type FormMsg, UpdateFieldPath}
 import form/path
-import gleam/option.{None, Some}
+import gleam/float
+import gleam/int
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import lustre/attribute
 import lustre/element.{type Element}
@@ -173,4 +175,67 @@ pub fn input_attributes_with_path(
     }),
     ..extra_attrs
   ]
+}
+
+/// Extract a string value from a FieldValue.
+/// 
+/// Converts any FieldValue to its string representation, useful for
+/// displaying values in text inputs and other string-based controls.
+/// 
+/// ## Parameters
+/// - `value`: Optional FieldValue to extract from
+/// 
+/// ## Returns
+/// - StringValue: Returns the contained string
+/// - IntegerValue: Converts to string representation
+/// - NumberValue: Converts to string representation
+/// - BooleanValue: Returns "true" or "false"
+/// - Others: Returns empty string as fallback
+pub fn extract_string_value(value: Option(types.FieldValue)) -> String {
+  case value {
+    Some(types.StringValue(s)) -> s
+    Some(types.IntegerValue(i)) -> int.to_string(i)
+    Some(types.NumberValue(n)) -> float.to_string(n)
+    Some(types.BooleanValue(True)) -> "true"
+    Some(types.BooleanValue(False)) -> "false"
+    _ -> ""
+  }
+}
+
+/// Extract a numeric value from a FieldValue as a string for display.
+/// 
+/// Specialized extractor for number fields that only handles numeric types,
+/// returning an appropriate string representation for HTML number inputs.
+/// 
+/// ## Parameters
+/// - `value`: Optional FieldValue to extract from
+/// 
+/// ## Returns
+/// - NumberValue: Float converted to string
+/// - IntegerValue: Integer converted to string
+/// - Others: Empty string
+pub fn extract_number_value(value: Option(types.FieldValue)) -> String {
+  case value {
+    Some(types.NumberValue(n)) -> float.to_string(n)
+    Some(types.IntegerValue(i)) -> int.to_string(i)
+    _ -> ""
+  }
+}
+
+/// Extract a boolean value from a FieldValue.
+/// 
+/// Converts a FieldValue to boolean, useful for checkbox and toggle controls.
+/// Non-boolean values default to false for safety.
+/// 
+/// ## Parameters
+/// - `value`: Optional FieldValue to extract from
+/// 
+/// ## Returns
+/// - BooleanValue: The contained boolean
+/// - Others: False as default
+pub fn extract_boolean_value(value: Option(types.FieldValue)) -> Bool {
+  case value {
+    Some(types.BooleanValue(b)) -> b
+    _ -> False
+  }
 }

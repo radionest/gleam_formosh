@@ -94,10 +94,7 @@ fn render_input(
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
-  let current_value = case value {
-    Some(types.StringValue(s)) -> s
-    _ -> ""
-  }
+  let current_value = field_common.extract_string_value(value)
 
   let input_type = get_input_type(property)
   let extra_attrs = [
@@ -141,10 +138,7 @@ fn render_textarea(
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
-  let current_value = case value {
-    Some(types.StringValue(s)) -> s
-    _ -> ""
-  }
+  let current_value = field_common.extract_string_value(value)
 
   let extra_attrs = [
     attribute.class("formosh-textarea"),
@@ -197,10 +191,7 @@ pub fn render_enum(
   case property.enum_values {
     None -> html.text("")
     Some(enum_vals) -> {
-      let current_value = case value {
-        Some(types.StringValue(s)) -> s
-        _ -> ""
-      }
+      let current_value = field_common.extract_string_value(value)
 
       // Use radio buttons for small lists, select for larger ones
       case list.length(enum_vals) <= 5 {

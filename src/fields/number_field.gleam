@@ -50,11 +50,7 @@ pub fn render(
     _ -> False
   }
 
-  let current_value = case value {
-    Some(types.NumberValue(n)) -> float.to_string(n)
-    Some(types.IntegerValue(i)) -> int.to_string(i)
-    _ -> ""
-  }
+  let current_value = field_common.extract_number_value(value)
 
   let field_name = path.get_field_name(field_path) |> option.unwrap("field")
 

@@ -40,10 +40,7 @@ pub fn render(
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
-  let current_value = case value {
-    Some(types.BooleanValue(b)) -> b
-    _ -> False
-  }
+  let current_value = field_common.extract_boolean_value(value)
 
   // Render as radio buttons (Yes/No) for better UX
   render_as_radio(field_path, property, current_value, is_required, is_disabled)
@@ -137,10 +134,7 @@ pub fn render_as_checkbox(
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
-  let current_value = case value {
-    Some(types.BooleanValue(b)) -> b
-    _ -> False
-  }
+  let current_value = field_common.extract_boolean_value(value)
 
   let field_name = path.get_field_name(field_path) |> option.unwrap("field")
 
@@ -194,10 +188,7 @@ pub fn render_as_toggle(
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
-  let current_value = case value {
-    Some(types.BooleanValue(b)) -> b
-    _ -> False
-  }
+  let current_value = field_common.extract_boolean_value(value)
 
   let field_name = path.get_field_name(field_path) |> option.unwrap("field")
 
