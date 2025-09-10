@@ -51,8 +51,7 @@ pub fn render(
   }
 
   let current_value = field_common.extract_number_value(value)
-
-  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+  let field_name = path.get_field_name(field_path)
 
   html.div([attribute.class("formosh-field-wrapper")], [
     field_common.render_label(field_name, property, is_required),

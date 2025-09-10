@@ -70,66 +70,7 @@ pub type FormConfig {
 
 
 ### 🔄 DRY (Don't Repeat Yourself) - Дублирование кода
-
-#### 1. Паттерн извлечения значений
-
-**Проблема**: Каждый рендерер поля повторяет один и тот же паттерн извлечения.
-
-**Файлы и дублирование**:
-```gleam
-// src/fields/string_field.gleam:97-100
-let current_value = case value {
-  Some(types.StringValue(s)) -> s
-  _ -> ""
-}
-
-// src/fields/number_field.gleam:53-57
-let current_value = case value {
-  Some(types.NumberValue(n)) -> float.to_string(n)
-  _ -> ""
-}
-
-// src/fields/boolean_field.gleam:45-49
-let current_value = case value {
-  Some(types.BooleanValue(b)) -> b
-  _ -> False
-}
-
-// src/fields/enum_field.gleam:125-129 (похожий паттерн)
-// src/fields/radio_field.gleam:38-42 (похожий паттерн)
-// src/fields/select_field.gleam:35-39 (похожий паттерн)
-```
-
-**Рефакторинг**: Создать утилиты в `src/fields/field_common.gleam`:
-```gleam
-// Добавить в field_common.gleam:
-pub fn extract_string_value(value: Option(FieldValue), default: String) -> String {
-  case value {
-    Some(StringValue(s)) -> s
-    Some(NumberValue(n)) -> float.to_string(n)
-    Some(BooleanValue(True)) -> "true"
-    Some(BooleanValue(False)) -> "false"
-    _ -> default
-  }
-}
-
-pub fn extract_number_value(value: Option(FieldValue), default: Float) -> Float {
-  case value {
-    Some(NumberValue(n)) -> n
-    Some(StringValue(s)) -> float.parse(s) |> result.unwrap(default)
-    _ -> default
-  }
-}
-
-pub fn extract_boolean_value(value: Option(FieldValue), default: Bool) -> Bool {
-  case value {
-    Some(BooleanValue(b)) -> b
-    Some(StringValue("true")) -> True
-    Some(StringValue("false")) -> False
-    _ -> default
-  }
-}
-```
+``
 
 #### 2. Дублирование извлечения имени поля из пути
 
@@ -160,36 +101,6 @@ pub fn get_field_name_from_path(field_path: FieldPath) -> String {
 let field_name = field_common.get_field_name_from_path(field_path)
 ```
 
-#### 3. Дублирование функций атрибутов
-
-**Проблема**: `input_attributes` и `input_attributes_with_path` почти идентичны.
-
-**Файлы и строки**:
-- `src/fields/field_common.gleam:121-139` - input_attributes
-- `src/fields/field_common.gleam:156-176` - input_attributes_with_path
-
-**Рефакторинг**:
-```gleam
-// Оставить только одну функцию:
-pub fn input_attributes(
-  field_path: FieldPath,
-  schema: JsonSchema,
-  on_change: fn(String) -> msg,
-  additional_attrs: List(Attribute(msg)),
-) -> List(Attribute(msg)) {
-  let field_name = get_field_name_from_path(field_path)
-  let base_attrs = [
-    attribute.id(field_name),
-    attribute.name(field_name),
-    event.on_input(on_change),
-  ]
-  
-  // Добавить атрибуты из схемы
-  let schema_attrs = extract_schema_attributes(schema)
-  
-  list.append(base_attrs, list.append(schema_attrs, additional_attrs))
-}
-```
 
 #### 4. Дублирование создания label элементов
 

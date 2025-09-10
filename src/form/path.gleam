@@ -57,11 +57,11 @@ pub fn to_string(path: FieldPath) -> String {
 /// - `[PropertySegment("email")]` -> `Some("email")`
 /// - `[PropertySegment("items"), ArraySegment(0), PropertySegment("name")]` -> `Some("name")`
 /// - `[ArraySegment(0)]` -> `None`
-pub fn get_field_name(path: FieldPath) -> Option(String) {
+pub fn get_field_name(path: FieldPath) -> String {
   case list.last(path) {
-    Ok(PropertySegment(name)) -> Some(name)
-    Ok(ArraySegment(_)) -> None
-    Error(_) -> None
+    Ok(PropertySegment(name)) -> name
+    Ok(ArraySegment(_)) -> "field"
+    Error(_) -> "field"
   }
 }
 

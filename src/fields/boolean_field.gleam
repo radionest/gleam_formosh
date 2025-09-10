@@ -67,7 +67,7 @@ fn render_as_radio(
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+  let field_name = path.get_field_name(field_path)
   let yes_id = field_name <> "_yes"
   let no_id = field_name <> "_no"
 
@@ -136,7 +136,7 @@ pub fn render_as_checkbox(
 ) -> Element(FormMsg) {
   let current_value = field_common.extract_boolean_value(value)
 
-  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+  let field_name = path.get_field_name(field_path)
 
   html.div([attribute.class("formosh-field-wrapper formosh-checkbox-wrapper")], [
     html.div([attribute.class("formosh-checkbox-group")], [
@@ -190,7 +190,7 @@ pub fn render_as_toggle(
 ) -> Element(FormMsg) {
   let current_value = field_common.extract_boolean_value(value)
 
-  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+  let field_name = path.get_field_name(field_path)
 
   html.div([attribute.class("formosh-field-wrapper")], [
     field_common.render_label(field_name, property, is_required),

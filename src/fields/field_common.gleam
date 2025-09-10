@@ -12,6 +12,47 @@ import lustre/element/html
 import lustre/event
 import schema/types
 
+
+/// Create a field label from path and property.
+/// 
+/// Creates a properly associated label element for a form field, using either
+/// the property's title or a formatted version of the field name from the path.
+/// Required fields get a visual indicator (typically an asterisk).
+/// 
+/// ## Parameters
+/// - `field_path`: The field path to generate the label for
+/// - `property`: The schema property containing title information
+/// - `is_required`: Whether the field is required
+/// 
+/// ## Returns
+/// A Lustre Element representing the field label
+pub fn create_field_label(
+  field_path: path.FieldPath,
+  property: types.SchemaProperty,
+  is_required: Bool,
+) -> Element(FormMsg) {
+  let field_name = path.get_field_name(field_path)
+  let label_text = case property.title {
+    Some(title) -> title
+    None -> field_name |> string.replace("_", " ") |> string.capitalise()
+  }
+
+  html.label(
+    [
+      attribute.for(field_name),
+      attribute.class("formosh-label"),
+    ],
+    [
+      html.text(label_text),
+      case is_required {
+        True ->
+          html.span([attribute.class("formosh-required")], [html.text(" *")])
+        False -> html.text("")
+      },
+    ],
+  )
+}
+
 /// Render a field label with optional required indicator.
 /// 
 /// Creates a properly associated label element for a form field, using either
@@ -99,14 +140,42 @@ pub fn field_wrapper(
   ])
 }
 
+/// Wrap a form field with label and help text using field path.
+/// 
+/// Creates a consistent structure for all field types with label, input element,
+/// and optional help text. This version uses a field path for better handling
+/// of nested structures.
+/// 
+/// ## Parameters
+/// - `field_path`: The field path for label generation
+/// - `property`: The schema property containing field metadata
+/// - `is_required`: Whether the field is required
+/// - `field_element`: The actual input/select/textarea element
+/// 
+/// ## Returns
+/// A complete field structure with label and help text
+pub fn field_wrapper_with_path(
+  field_path: path.FieldPath,
+  property: types.SchemaProperty,
+  is_required: Bool,
+  field_element: Element(FormMsg),
+) -> Element(FormMsg) {
+  html.div([attribute.class("formosh-field-wrapper")], [
+    create_field_label(field_path, property, is_required),
+    field_element,
+    render_help_text(property),
+  ])
+}
+
 /// Generate common input attributes for form fields.
 /// 
 /// Creates a standard set of HTML attributes that most form inputs need,
-/// including identification, value, state, and event handlers. Additional
-/// field-specific attributes can be merged with these common ones.
+/// including identification, value, state, and event handlers. This function
+/// uses a field path for proper handling of nested structures and consistent
+/// messaging throughout the form system.
 /// 
 /// ## Parameters
-/// - `field_name`: The field name used for id, name, and event handling
+/// - `field_path`: The field path for identification and event handling
 /// - `value`: The current string value of the field
 /// - `is_required`: Whether the field is required (HTML required attribute)
 /// - `is_disabled`: Whether the field is disabled (HTML disabled attribute)
@@ -116,53 +185,30 @@ pub fn field_wrapper(
 /// A list of HTML attributes ready for use on form input elements
 /// 
 /// ## Generated Attributes
-/// - `id` and `name`: Set to field_name for identification and form submission
+/// - `id`: Set to the full path string for unique identification in nested structures
+/// - `name`: Set to the field name (last segment of path) for form submission
 /// - `value`: Current field value
 /// - `required`/`disabled`: State attributes
-/// - Event handlers: `on_input` for value changes, `on_blur` for touch tracking
+/// - Event handlers: `on_input` for value changes with proper path-based messaging
+/// 
+/// ## Usage
+/// ```gleam
+/// // For a simple field
+/// let path = path.from_field_name("email")
+/// let attrs = input_attributes(path, "user@example.com", True, False, [])
+/// 
+/// // For a nested field in an array
+/// let path = path.to_array_item_field("items", 0, "name")
+/// let attrs = input_attributes(path, "Item 1", False, False, [attribute.class("custom")])
+/// ```
 pub fn input_attributes(
-  field_name: String,
-  value: String,
-  is_required: Bool,
-  is_disabled: Bool,
-  extra_attrs: List(attribute.Attribute(FormMsg)),
-) -> List(attribute.Attribute(FormMsg)) {
-  [
-    attribute.id(field_name),
-    attribute.name(field_name),
-    attribute.value(value),
-    attribute.required(is_required),
-    attribute.disabled(is_disabled),
-    event.on_input(fn(val) {
-      UpdateFieldPath(path.from_field_name(field_name), types.StringValue(val))
-    }),
-    ..extra_attrs
-  ]
-}
-
-/// Generate common input attributes for form fields using path.
-/// 
-/// Creates a standard set of HTML attributes that most form inputs need,
-/// using a field path for consistent messaging. The field name is extracted
-/// from the path for HTML attributes.
-/// 
-/// ## Parameters
-/// - `field_path`: The field path for event handling
-/// - `value`: The current string value of the field
-/// - `is_required`: Whether the field is required (HTML required attribute)
-/// - `is_disabled`: Whether the field is disabled (HTML disabled attribute)
-/// - `extra_attrs`: Additional field-specific attributes to include
-/// 
-/// ## Returns
-/// A list of HTML attributes ready for use on form input elements
-pub fn input_attributes_with_path(
   field_path: path.FieldPath,
   value: String,
   is_required: Bool,
   is_disabled: Bool,
   extra_attrs: List(attribute.Attribute(FormMsg)),
 ) -> List(attribute.Attribute(FormMsg)) {
-  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+  let field_name = path.get_field_name(field_path)
 
   [
     attribute.id(path.to_string(field_path)),

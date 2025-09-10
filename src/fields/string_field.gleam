@@ -103,10 +103,8 @@ fn render_input(
     ..get_string_constraints_attributes(property)
   ]
 
-  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
-
   let input_elem =
-    html.input(field_common.input_attributes_with_path(
+    html.input(field_common.input_attributes(
       field_path,
       current_value,
       is_required,
@@ -114,7 +112,12 @@ fn render_input(
       extra_attrs,
     ))
 
-  field_common.field_wrapper(field_name, property, is_required, input_elem)
+  field_common.field_wrapper_with_path(
+    field_path,
+    property,
+    is_required,
+    input_elem,
+  )
 }
 
 /// Render a textarea element for multi-line string input.
@@ -145,11 +148,9 @@ fn render_textarea(
     ..get_string_constraints_attributes(property)
   ]
 
-  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
-
   let textarea_elem =
     html.textarea(
-      field_common.input_attributes_with_path(
+      field_common.input_attributes(
         field_path,
         current_value,
         is_required,
@@ -159,7 +160,12 @@ fn render_textarea(
       current_value,
     )
 
-  field_common.field_wrapper(field_name, property, is_required, textarea_elem)
+  field_common.field_wrapper_with_path(
+    field_path,
+    property,
+    is_required,
+    textarea_elem,
+  )
 }
 
 /// Render an enum field as either radio buttons or a select dropdown.
@@ -241,7 +247,7 @@ fn render_radio_group(
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+  let field_name = path.get_field_name(field_path)
 
   let radio_group =
     html.div(
@@ -271,7 +277,12 @@ fn render_radio_group(
       }),
     )
 
-  field_common.field_wrapper(field_name, property, is_required, radio_group)
+  field_common.field_wrapper_with_path(
+    field_path,
+    property,
+    is_required,
+    radio_group,
+  )
 }
 
 /// Render a select dropdown for enum values.
@@ -298,7 +309,7 @@ fn render_select(
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path) |> option.unwrap("field")
+  let field_name = path.get_field_name(field_path)
 
   let select_elem =
     html.select(
@@ -327,7 +338,12 @@ fn render_select(
       ],
     )
 
-  field_common.field_wrapper(field_name, property, is_required, select_elem)
+  field_common.field_wrapper_with_path(
+    field_path,
+    property,
+    is_required,
+    select_elem,
+  )
 }
 
 /// Determine the appropriate HTML input type based on string format.
