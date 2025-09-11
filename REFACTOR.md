@@ -69,61 +69,6 @@ pub type FormConfig {
 ```
 
 
-### 🔄 DRY (Don't Repeat Yourself) - Дублирование кода
-``
-
-#### 2. Дублирование извлечения имени поля из пути
-
-**Проблема**: Один и тот же код во всех рендерерах.
-
-**Файлы**:
-```gleam
-// Паттерн повторяется в каждом field модуле:
-let field_name = path.get_field_name(field_path) |> option.unwrap("field")
-```
-
-Встречается в:
-- `src/fields/string_field.gleam:96`
-- `src/fields/number_field.gleam:52`
-- `src/fields/boolean_field.gleam:44`
-- `src/fields/enum_field.gleam:124`
-- `src/fields/radio_field.gleam:37`
-- `src/fields/select_field.gleam:34`
-
-**Рефакторинг**:
-```gleam
-// Добавить в field_common.gleam:
-pub fn get_field_name_from_path(field_path: FieldPath) -> String {
-  path.get_field_name(field_path) |> option.unwrap("field")
-}
-
-// Использовать во всех рендерерах:
-let field_name = field_common.get_field_name_from_path(field_path)
-```
-
-
-#### 4. Дублирование создания label элементов
-
-**Проблема**: Каждый рендерер создаёт label похожим образом.
-
-**Файлы**: Все field модули имеют похожий код для создания label.
-
-**Рефакторинг**:
-```gleam
-// Добавить в field_common.gleam:
-pub fn create_field_label(field_path: FieldPath, schema: JsonSchema) -> Element(msg) {
-  let field_name = get_field_name_from_path(field_path)
-  let label_text = schema.title |> option.unwrap(field_name)
-  
-  html.label([attribute.for(field_name)], [
-    text(label_text),
-    case schema.required {
-      Some(True) -> html.span([attribute.class("required")], [text(" *")])
-      _ -> text("")
-    }
-  ])
-}
-```
 
 ### 🎯 KISS (Keep It Simple, Stupid) - Излишняя сложность
 

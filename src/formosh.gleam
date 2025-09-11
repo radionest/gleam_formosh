@@ -226,6 +226,17 @@ pub fn from_json_string(
   }
 }
 
+
+pub fn from_json_string_to_html(
+  json_string: String,
+) -> Result(lustre.App(Nil, FormModel, FormMsg), parser.ParseError) {
+  case parser.parse_schema(json_string) {
+    Ok(schema) -> Ok(from_schema(schema))
+    Error(err) -> Error(err)
+  }
+}
+
+
 /// Create a form application from a JSON string with configuration.
 /// 
 /// Combines JSON parsing with custom configuration options.
