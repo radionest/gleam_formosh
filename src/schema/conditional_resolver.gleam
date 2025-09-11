@@ -7,10 +7,8 @@ import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{None, Some}
 import schema/types.{
-  type ConditionalRule, type FieldValue, type JsonSchema, type JsonValue,
-  type SchemaProperty, BooleanValue, IntegerValue, JsonBool, JsonInteger,
-  JsonNull, JsonNumber, JsonSchema, JsonString, NullValue, NumberValue,
-  StringValue,
+  type ConditionalRule, type JsonSchema, type SchemaProperty, type Value,
+  BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue, StringValue,
 }
 
 /// Resolve a schema with conditional rules applied based on current form values.
@@ -27,7 +25,7 @@ import schema/types.{
 /// A new JsonSchema with conditional properties merged based on evaluation
 pub fn resolve_conditional_schema(
   base_schema: JsonSchema,
-  form_values: Dict(String, FieldValue),
+  form_values: Dict(String, Value),
 ) -> JsonSchema {
   list.fold(base_schema.conditionals, base_schema, fn(schema, rule) {
     case evaluate_condition(rule.if_schema, form_values) {
@@ -43,7 +41,7 @@ pub fn resolve_conditional_schema(
 /// condition schema (typically checking for specific property values).
 fn evaluate_condition(
   condition: SchemaProperty,
-  form_values: Dict(String, FieldValue),
+  form_values: Dict(String, Value),
 ) -> Bool {
   // For object conditions, check if all properties match
   case condition.properties {
@@ -77,7 +75,7 @@ fn evaluate_condition(
 /// field value satisfies the constraints in the condition schema.
 fn check_property_match(
   prop_schema: SchemaProperty,
-  field_value: FieldValue,
+  field_value: Value,
 ) -> Bool {
   // Check for const constraint (exact value match)
   case prop_schema.enum_values {
@@ -99,14 +97,14 @@ fn check_property_match(
   }
 }
 
-/// Compare a JSON value with a field value for equality.
-fn compare_values(json_val: JsonValue, field_val: FieldValue) -> Bool {
-  case json_val, field_val {
-    JsonString(s1), StringValue(s2) -> s1 == s2
-    JsonNumber(n1), NumberValue(n2) -> n1 == n2
-    JsonInteger(i1), IntegerValue(i2) -> i1 == i2
-    JsonBool(b1), BooleanValue(b2) -> b1 == b2
-    JsonNull, NullValue -> True
+/// Compare two values for equality.
+fn compare_values(val1: Value, val2: Value) -> Bool {
+  case val1, val2 {
+    StringValue(s1), StringValue(s2) -> s1 == s2
+    NumberValue(n1), NumberValue(n2) -> n1 == n2
+    IntegerValue(i1), IntegerValue(i2) -> i1 == i2
+    BooleanValue(b1), BooleanValue(b2) -> b1 == b2
+    NullValue, NullValue -> True
     _, _ -> False
   }
 }
@@ -157,7 +155,7 @@ fn merge_schema_properties(
 pub fn is_field_visible(
   field_name: String,
   base_schema: JsonSchema,
-  form_values: Dict(String, FieldValue),
+  form_values: Dict(String, Value),
 ) -> Bool {
   // First check if field is in base properties
   let in_base = dict.has_key(base_schema.properties, field_name)

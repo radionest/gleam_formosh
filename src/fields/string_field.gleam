@@ -36,7 +36,7 @@ import schema/types
 pub fn render(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  value: Option(types.FieldValue),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
@@ -90,7 +90,7 @@ pub fn render(
 fn render_input(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  value: Option(types.FieldValue),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
@@ -137,7 +137,7 @@ fn render_input(
 fn render_textarea(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  value: Option(types.FieldValue),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
@@ -190,7 +190,7 @@ fn render_textarea(
 pub fn render_enum(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  value: Option(types.FieldValue),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
@@ -242,7 +242,7 @@ pub fn render_enum(
 fn render_radio_group(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  enum_vals: List(types.JsonValue),
+  enum_vals: List(types.Value),
   current_value: String,
   is_required: Bool,
   is_disabled: Bool,
@@ -253,7 +253,7 @@ fn render_radio_group(
     html.div(
       [attribute.class("formosh-radio-group")],
       list.map(enum_vals, fn(val) {
-        let str_val = json_value_to_string(val)
+        let str_val = value_to_string(val)
         let radio_id = field_name <> "_" <> str_val
 
         html.div([attribute.class("formosh-radio-item")], [
@@ -304,7 +304,7 @@ fn render_radio_group(
 fn render_select(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  enum_vals: List(types.JsonValue),
+  enum_vals: List(types.Value),
   current_value: String,
   is_required: Bool,
   is_disabled: Bool,
@@ -326,7 +326,7 @@ fn render_select(
       [
         html.option([attribute.value("")], "Select an option..."),
         ..list.map(enum_vals, fn(val) {
-          let str_val = json_value_to_string(val)
+          let str_val = value_to_string(val)
           html.option(
             [
               attribute.value(str_val),
@@ -422,13 +422,13 @@ fn get_string_constraints_attributes(
   }
 }
 
-/// Convert a JsonValue to its string representation.
+/// Convert a Value to its string representation.
 /// 
 /// Used primarily for rendering enum option values and labels.
-/// Handles different JSON value types appropriately for display.
+/// Handles different value types appropriately for display.
 /// 
 /// ## Parameters
-/// - `val`: The JsonValue to convert
+/// - `val`: The Value to convert
 /// 
 /// ## Returns
 /// A string representation of the value
@@ -439,14 +439,14 @@ fn get_string_constraints_attributes(
 /// - Booleans: "true" or "false"
 /// - Null: empty string
 /// - Arrays/Objects: empty string (not displayable as simple text)
-fn json_value_to_string(val: types.JsonValue) -> String {
+fn value_to_string(val: types.Value) -> String {
   case val {
-    types.JsonString(s) -> s
-    types.JsonNumber(n) -> float.to_string(n)
-    types.JsonInteger(i) -> int.to_string(i)
-    types.JsonBool(True) -> "true"
-    types.JsonBool(False) -> "false"
-    types.JsonNull -> ""
+    types.StringValue(s) -> s
+    types.NumberValue(n) -> float.to_string(n)
+    types.IntegerValue(i) -> int.to_string(i)
+    types.BooleanValue(True) -> "true"
+    types.BooleanValue(False) -> "false"
+    types.NullValue -> ""
     _ -> ""
   }
 }

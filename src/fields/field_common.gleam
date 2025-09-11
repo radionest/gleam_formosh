@@ -223,13 +223,13 @@ pub fn input_attributes(
   ]
 }
 
-/// Extract a string value from a FieldValue.
+/// Extract a string value from a Value.
 /// 
-/// Converts any FieldValue to its string representation, useful for
+/// Converts any Value to its string representation, useful for
 /// displaying values in text inputs and other string-based controls.
 /// 
 /// ## Parameters
-/// - `value`: Optional FieldValue to extract from
+/// - `value`: Optional Value to extract from
 /// 
 /// ## Returns
 /// - StringValue: Returns the contained string
@@ -237,7 +237,7 @@ pub fn input_attributes(
 /// - NumberValue: Converts to string representation
 /// - BooleanValue: Returns "true" or "false"
 /// - Others: Returns empty string as fallback
-pub fn extract_string_value(value: Option(types.FieldValue)) -> String {
+pub fn extract_string_value(value: Option(types.Value)) -> String {
   case value {
     Some(types.StringValue(s)) -> s
     Some(types.IntegerValue(i)) -> int.to_string(i)
@@ -248,19 +248,19 @@ pub fn extract_string_value(value: Option(types.FieldValue)) -> String {
   }
 }
 
-/// Extract a numeric value from a FieldValue as a string for display.
+/// Extract a numeric value from a Value as a string for display.
 /// 
 /// Specialized extractor for number fields that only handles numeric types,
 /// returning an appropriate string representation for HTML number inputs.
 /// 
 /// ## Parameters
-/// - `value`: Optional FieldValue to extract from
+/// - `value`: Optional Value to extract from
 /// 
 /// ## Returns
 /// - NumberValue: Float converted to string
 /// - IntegerValue: Integer converted to string
 /// - Others: Empty string
-pub fn extract_number_value(value: Option(types.FieldValue)) -> String {
+pub fn extract_number_value(value: Option(types.Value)) -> String {
   case value {
     Some(types.NumberValue(n)) -> float.to_string(n)
     Some(types.IntegerValue(i)) -> int.to_string(i)
@@ -268,18 +268,18 @@ pub fn extract_number_value(value: Option(types.FieldValue)) -> String {
   }
 }
 
-/// Extract a boolean value from a FieldValue.
+/// Extract a boolean value from a Value.
 /// 
-/// Converts a FieldValue to boolean, useful for checkbox and toggle controls.
+/// Converts a Value to boolean, useful for checkbox and toggle controls.
 /// Non-boolean values default to false for safety.
 /// 
 /// ## Parameters
-/// - `value`: Optional FieldValue to extract from
+/// - `value`: Optional Value to extract from
 /// 
 /// ## Returns
 /// - BooleanValue: The contained boolean
 /// - Others: False as default
-pub fn extract_boolean_value(value: Option(types.FieldValue)) -> Bool {
+pub fn extract_boolean_value(value: Option(types.Value)) -> Bool {
   case value {
     Some(types.BooleanValue(b)) -> b
     _ -> False

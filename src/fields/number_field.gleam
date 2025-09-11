@@ -41,7 +41,7 @@ import schema/types
 pub fn render(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  value: Option(types.FieldValue),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
@@ -78,7 +78,7 @@ pub fn render(
 
 /// Handle numeric input parsing and conversion to appropriate field value.
 /// 
-/// Parses user input and converts it to the appropriate FieldValue type
+/// Parses user input and converts it to the appropriate Value type
 /// (IntegerValue or NumberValue) based on the field type. Invalid input
 /// is temporarily stored as StringValue for validation to handle.
 /// 
@@ -88,7 +88,7 @@ pub fn render(
 /// - `is_integer`: Whether this should be parsed as integer or float
 /// 
 /// ## Returns
-/// A FieldChanged message with the appropriate FieldValue
+/// A FieldChanged message with the appropriate Value
 /// 
 /// ## Parsing Logic
 /// - Empty string → NullValue

@@ -5,7 +5,7 @@ import gleeunit
 import gleeunit/should
 import schema/conditional_resolver
 import schema/types.{
-  BooleanValue, ConditionalRule, JsonSchema, JsonString, SchemaProperty,
+  BooleanValue, ConditionalRule, JsonSchema, SchemaProperty,
   StringValue, empty_property,
 }
 
@@ -31,7 +31,7 @@ pub fn conditional_field_appears_when_condition_met_test() {
             "subject",
             SchemaProperty(
               ..empty_property(),
-              enum_values: Some([JsonString("Общий вопрос")]),
+              enum_values: Some([StringValue("Общий вопрос")]),
             ),
           ),
         ]),
@@ -121,7 +121,7 @@ pub fn conditional_else_branch_test() {
             "hasAccount",
             SchemaProperty(
               ..empty_property(),
-              enum_values: Some([types.JsonBool(True)]),
+              enum_values: Some([types.BooleanValue(True)]),
             ),
           ),
         ]),
@@ -252,7 +252,7 @@ pub fn is_field_visible_test() {
             "subject",
             SchemaProperty(
               ..empty_property(),
-              enum_values: Some([JsonString("Special")]),
+              enum_values: Some([StringValue("Special")]),
             ),
           ),
         ]),

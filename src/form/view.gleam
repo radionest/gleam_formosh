@@ -5,7 +5,6 @@ import fields/boolean_field
 import fields/number_field
 import fields/object_field
 import fields/string_field
-import form/converter
 import form/model.{type FormModel, type FormMsg}
 import form/path
 import gleam/dict
@@ -149,11 +148,7 @@ fn render_field(
         Some(types.ArrayValue(items)) ->
           list.map(items, fn(item) {
             case item {
-              types.JsonObject(fields) ->
-                list.fold(fields, dict.new(), fn(acc, field_pair) {
-                  let #(key, val) = field_pair
-                  dict.insert(acc, key, converter.json_to_field_value_safe(val))
-                })
+              types.ObjectValue(fields) -> dict.from_list(fields)
               _ -> dict.new()
             }
           })
@@ -287,13 +282,3 @@ fn render_submission_result(model: FormModel) -> Element(FormMsg) {
     None -> html.text("")
   }
 }
-/// Convert JsonValue to FieldValue for form rendering.
-/// 
-/// This helper function converts JsonValue data (typically from array items
-/// or default values) into FieldValue types that can be used in form fields.
-/// 
-/// ## Parameters
-/// - `value`: The JsonValue to convert
-/// 
-/// ## Returns
-/// The corresponding FieldValue representation

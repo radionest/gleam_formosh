@@ -6,7 +6,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import schema/types.{
-  type FieldValue, type SchemaProperty, type ValidationError, BooleanValue,
+  type SchemaProperty, type ValidationError, type Value, BooleanValue,
   IntegerValue, NullValue, NumberValue, StringValue, ValidationError,
 }
 
@@ -37,7 +37,7 @@ import schema/types.{
 /// ```
 pub fn validate_field(
   field_name: String,
-  value: Option(FieldValue),
+  value: Option(Value),
   property: SchemaProperty,
   is_required: Bool,
 ) -> List(ValidationError) {
@@ -107,7 +107,7 @@ pub fn validate_field(
 /// List of validation errors specific to string validation rules
 fn validate_string(
   field_name: String,
-  value: FieldValue,
+  value: Value,
   constraints: Option(types.StringConstraints),
 ) -> List(ValidationError) {
   case value {
@@ -225,7 +225,7 @@ fn validate_string(
 /// List of validation errors specific to numeric validation rules
 fn validate_number(
   field_name: String,
-  value: FieldValue,
+  value: Value,
   constraints: Option(types.NumberConstraints),
 ) -> List(ValidationError) {
   case value {
@@ -355,7 +355,7 @@ fn validate_number_constraints(
 /// List of validation errors if the value is not a boolean
 fn validate_boolean(
   field_name: String,
-  value: FieldValue,
+  value: Value,
 ) -> List(ValidationError) {
   case value {
     BooleanValue(_) -> []
@@ -386,10 +386,10 @@ fn validate_boolean(
 /// Implement proper enum validation with JSON value comparison
 fn validate_enum(
   _field_name: String,
-  _value: FieldValue,
-  _allowed_values: List(types.JsonValue),
+  _value: Value,
+  _allowed_values: List(types.Value),
 ) -> List(ValidationError) {
-  // TODO: Implement enum validation with proper JSON comparison
+  // TODO: Implement enum validation with proper value comparison
   []
 }
 

@@ -1,238 +1,205 @@
-# Детальный план рефакторинга Formosh
+# Type System Refactoring Plan
 
-## Анализ соответствия принципам YAGNI, KISS, DRY
+## Current Problem
 
-### 🚫 YAGNI (You Aren't Gonna Need It) - Избыточная инженерия
+The Formosh library currently has two nearly identical types that create unnecessary complexity:
 
-#### 1. Система конфигурации отправки форм
+### Current Type Definitions
 
-**Проблема**: Весь механизм `SubmitConfig` не используется, но занимает значительное место в коде.
-
-**Файлы и строки**:
-- `src/formosh.gleam:17-24` - определение типа SubmitConfig
-- `src/formosh.gleam:87-131` - функции конфигурации (with_submit_url, with_http_submit, with_custom_submit)
-- `src/formosh.gleam:266-283` - from_json_string_with_config
-- `src/form/update.gleam:284-292` - submit_form_effect всегда возвращает фиктивный успех
-
-**Текущая реализация**:
 ```gleam
-// src/formosh.gleam:17-24
-pub type SubmitConfig {
-  HttpSubmit(url: String, method: HttpMethod, headers: List(#(String, String)))
-  CustomSubmit(handler: fn(dict.Dict(String, JsonValue)) -> Effect(FormMsg))
-  NoSubmit
+// In schema/types.gleam
+
+pub type JsonValue {
+  JsonString(String)
+  JsonNumber(Float)
+  JsonInteger(Int)
+  JsonBool(Bool)
+  JsonNull
+  JsonArray(List(JsonValue))
+  JsonObject(List(#(String, JsonValue)))
 }
 
-// src/form/update.gleam:284-292
-fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
-  use _dispatch <- effect.from
-  // Симулируем успешную отправку через 500ms
-  let _ = timer.set_timeout(500, fn() {
-    _dispatch(FormSubmitted(Ok(Nil)))
-  })
-  Nil
+pub type FieldValue {
+  StringValue(String)
+  NumberValue(Float)
+  IntegerValue(Int)
+  BooleanValue(Bool)
+  NullValue
+  ArrayValue(List(JsonValue))    // ⚠️ Uses JsonValue, not FieldValue!
+  ObjectValue(List(#(String, JsonValue)))  // ⚠️ Uses JsonValue, not FieldValue!
 }
 ```
 
-**Рефакторинг**: Удалить всю систему до реальной реализации:
+### Issues with Current Architecture
+
+1. **Mixed Type System**: `FieldValue` uses `JsonValue` for nested structures, creating inconsistency
+2. **Redundant Conversions**: Need converters between two nearly identical types
+3. **Cognitive Overhead**: Developers must remember when to use which type
+4. **Maintenance Burden**: Changes need to be made in multiple places
+
+### Current Usage Patterns
+
+- **JsonValue** is used for:
+  - Schema defaults (`default: Option(JsonValue)`)
+  - Enum values (`enum_values: Option(List(JsonValue))`)
+  - Nested structures inside FieldValue
+
+- **FieldValue** is used for:
+  - Form values storage (`values: Dict(String, FieldValue)`)
+  - Validation functions
+  - Update operations
+
+## Proposed Solution: Unified Type System
+
+### Step 1: Create New Unified Type
+
 ```gleam
-// Удалить из src/formosh.gleam:
-// - Тип SubmitConfig (строки 17-24)
-// - Тип HttpMethod (строки 11-15)
-// - Поле submit_config из FormConfig (строка 36)
-// - Все функции with_submit_* (строки 87-131)
-// - Функцию from_json_string_with_config (строки 266-283)
-// - Параметры submit из всех функций создания
+// In schema/types.gleam
 
-// Упростить src/form/update.gleam:
-// Оставить заглушку submit_form_effect до реализации
-```
-
-#### 2. Неиспользуемые поля FormConfig
-
-**Проблема**: Поля установлены, но никогда не используются в логике.
-
-**Файлы и строки**:
-- `src/formosh.gleam:35` - css_prefix: никогда не используется в view.gleam
-- `src/formosh.gleam:37` - show_errors_on_change: никогда не проверяется в update.gleam
-
-**Рефакторинг**:
-```gleam
-// Удалить из FormConfig:
-pub type FormConfig {
-  FormConfig(
-    // css_prefix: String,  // УДАЛИТЬ
-    // show_errors_on_change: Bool,  // УДАЛИТЬ
-    submit_config: SubmitConfig,  // Тоже удалить после удаления SubmitConfig
-  )
+/// Unified value type for both schema definitions and form values
+pub type Value {
+  StringValue(String)
+  NumberValue(Float)
+  IntegerValue(Int)
+  BooleanValue(Bool)
+  NullValue
+  ArrayValue(List(Value))    // ✅ Recursive, uses Value
+  ObjectValue(List(#(String, Value)))  // ✅ Recursive, uses Value
 }
 ```
 
+### Step 2: Migration Strategy
 
+#### Phase 1: Add Unified Type (Non-breaking)
+1. Add the new `Value` type alongside existing types
+2. Create migration helpers:
+   ```gleam
+   pub fn field_value_to_value(fv: FieldValue) -> Value
+   pub fn json_value_to_value(jv: JsonValue) -> Value
+   pub fn value_to_field_value(v: Value) -> FieldValue
+   pub fn value_to_json_value(v: Value) -> JsonValue
+   ```
 
-### 🎯 KISS (Keep It Simple, Stupid) - Излишняя сложность
+#### Phase 2: Migrate Core Components
+1. Update `FormModel`:
+   ```gleam
+   pub type FormModel {
+     FormModel(
+       values: Dict(String, Value),  // Changed from FieldValue
+       // ... other fields
+     )
+   }
+   ```
 
-#### 1. Сложная система преобразования значений
+2. Update `SchemaProperty`:
+   ```gleam
+   pub type SchemaProperty {
+     SchemaProperty(
+       default: Option(Value),  // Changed from JsonValue
+       enum_values: Option(List(Value)),  // Changed from List(JsonValue)
+       // ... other fields
+     )
+   }
+   ```
 
-**Проблема**: Преобразование между model values и hierarchical values слишком сложное.
+#### Phase 3: Update Dependencies
+Files to modify (in order):
 
-**Файлы и строки**:
-- `src/form/update.gleam:51-90` - model_to_root_value и root_value_to_model_values
+1. **schema/types.gleam**
+   - Add new `Value` type
+   - Add migration functions
 
-**Текущая реализация**:
+2. **form/converter.gleam**
+   - Can be deleted after migration
+   - Or temporarily keep with migration helpers
+
+3. **form/model.gleam**
+   - Update `values: Dict(String, Value)`
+   - Update all functions using values
+
+4. **form/update.gleam**
+   - Update value handling functions
+   - Remove conversion calls
+
+5. **form/path.gleam**
+   - Update path traversal to use `Value`
+   - Simplify nested value handling
+
+6. **schema/validator.gleam**
+   - Update validation functions to use `Value`
+
+7. **schema/conditional_resolver.gleam**
+   - Update conditional logic to use `Value`
+
+8. **form/view.gleam**
+   - Update view rendering to use `Value`
+
+9. **fields/*.gleam** (all field modules)
+   - Update to use `Value` type
+
+10. **schema/parser.gleam**
+    - Update decoder to produce `Value`
+    - Rename `json_value_decoder()` to `value_decoder()`
+
+11. **formosh/component.gleam**
+    - Update to use `Value` for event emission
+    - Simplify conversion to `gleam/json`
+
+#### Phase 4: Cleanup
+1. Remove old `JsonValue` and `FieldValue` types
+2. Remove converter module if no longer needed
+3. Update documentation
+
+### Benefits of Unified System
+
+1. **Consistency**: Single type throughout the codebase
+2. **Simplicity**: No need for converters between similar types
+3. **Performance**: Fewer conversions = better performance
+4. **Maintainability**: Changes in one place affect entire system
+5. **Type Safety**: Recursive type definition ensures consistency at all levels
+
+### Implementation Checklist
+
+- [ ] Create new `Value` type in schema/types.gleam
+- [ ] Add migration helper functions
+- [ ] Update FormModel to use Value
+- [ ] Update SchemaProperty to use Value
+- [ ] Update form/update.gleam functions
+- [ ] Update form/path.gleam traversal
+- [ ] Update validators
+- [ ] Update conditional resolver
+- [ ] Update view rendering
+- [ ] Update all field modules
+- [ ] Update parser/decoder
+- [ ] Update component for event emission
+- [ ] Remove old types
+- [ ] Remove converter module
+- [ ] Update tests
+- [ ] Update documentation
+
+### Conversion to gleam/json
+
+With the unified type, conversion to `gleam/json` becomes straightforward:
+
 ```gleam
-fn model_to_root_value(model: FormModel) -> types.FieldValue {
-  let root_dict = 
-    model.values
-    |> dict.to_list
-    |> list.fold(dict.new(), fn(acc, entry) {
-      let #(path_str, value) = entry
-      case path.from_string(path_str) {
-        Ok(field_path) -> insert_value_at_path(acc, field_path, value)
-        Error(_) -> acc
-      }
-    })
-  types.ObjectValue(root_dict)
-}
-```
+import gleam/json
 
-**Упрощение**: Поскольку пути всё равно конвертируются в строки, хранить значения напрямую:
-```gleam
-// Упростить FormModel:
-pub type FormModel {
-  FormModel(
-    schema: JsonSchema,
-    values: dict.Dict(String, FieldValue),  // Путь как строка
-    errors: dict.Dict(String, List(String)),
-    touched: set.Set(String),
-    submitted: Bool,
-  )
-}
-
-// Убрать сложные преобразования
-```
-
-#### 2. Переусложнённые функции обхода путей
-
-**Проблема**: Функции traverse_array_path и traverse_object_path слишком сложны для текущего использования.
-
-**Файлы и строки**:
-- `src/form/model.gleam:384-415` - traverse_array_path
-- `src/form/model.gleam:427-447` - traverse_object_path
-
-**Упрощение**: Удалить или значительно упростить до реальной необходимости в nested editing.
-
-#### 3. Ненужные Option обёртки
-
-**Проблема**: Функции возвращают Option там, где ошибка невозможна.
-
-**Файлы и строки**:
-- `src/form/converter.gleam:15-25` - json_to_field_value всегда успешна
-
-**Текущая реализация**:
-```gleam
-pub fn json_to_field_value(json: JsonValue) -> Option(FieldValue) {
-  case json {
-    json.String(s) -> Some(types.StringValue(s))
-    json.Number(n) -> Some(types.NumberValue(n))
-    json.Bool(b) -> Some(types.BooleanValue(b))
-    json.Array(items) -> Some(types.ArrayValue(...))
-    json.Object(obj) -> Some(types.ObjectValue(...))
-    json.Null -> None
+pub fn value_to_json(value: Value) -> json.Json {
+  case value {
+    StringValue(s) -> json.string(s)
+    NumberValue(n) -> json.float(n)
+    IntegerValue(i) -> json.int(i)
+    BooleanValue(b) -> json.bool(b)
+    NullValue -> json.null()
+    ArrayValue(items) -> 
+      json.array(items, of: value_to_json)
+    ObjectValue(fields) -> 
+      json.object(
+        fields |> list.map(fn(pair) {
+          let #(key, val) = pair
+          #(key, value_to_json(val))
+        })
+      )
   }
 }
 ```
-
-**Упрощение**:
-```gleam
-pub fn json_to_field_value(json: JsonValue) -> FieldValue {
-  case json {
-    json.String(s) -> types.StringValue(s)
-    json.Number(n) -> types.NumberValue(n)
-    json.Bool(b) -> types.BooleanValue(b)
-    json.Array(items) -> types.ArrayValue(...)
-    json.Object(obj) -> types.ObjectValue(...)
-    json.Null -> types.NullValue  // Добавить NullValue в FieldValue
-  }
-}
-```
-
-#### 4. Сложная система conditional полей
-
-**Проблема**: conditional_resolver.gleam содержит сложную логику, которая пока не используется полностью.
-
-**Файлы и строки**:
-- `src/schema/conditional_resolver.gleam` - весь файл
-
-**Упрощение**: Отложить до реальной необходимости или упростить до базовых if/then условий.
-
-### 📊 Метрики рефакторинга
-
-#### Удаление кода
-- **SubmitConfig система**: ~100 строк
-- **Неиспользуемые функции**: ~50 строк
-- **FormApp тип**: ~200 строк (включая связанные функции)
-- **Сложные path функции**: ~80 строк
-- **Итого к удалению**: ~430 строк
-
-#### Консолидация
-- **Извлечение значений**: 15 дублирований → 3 утилиты
-- **Работа с путями**: 10 дублирований → 1 утилита
-- **Label создание**: 6 дублирований → 1 функция
-- **Итого устранено дублирований**: ~31 → 5 функций
-
-#### Упрощение
-- **Path-based хранение**: -40 строк сложности
-- **Option обёртки**: -10 строк
-- **Итого упрощено**: ~50 строк
-
-### 📝 Приоритезированный план действий
-
-#### Фаза 1: Очистка (1-2 часа)
-1. Удалить SubmitConfig и всё связанное
-2. Удалить неиспользуемые публичные функции
-3. Удалить неиспользуемые поля FormConfig
-4. Удалить FormApp и использовать lustre.App напрямую
-
-#### Фаза 2: Консолидация (2-3 часа)
-1. Создать утилиты извлечения значений в field_common
-2. Создать утилиту работы с путями
-3. Создать общую функцию создания label
-4. Обновить все field рендереры
-
-#### Фаза 3: Упрощение (2-3 часа)
-1. Упростить хранение значений в FormModel
-2. Удалить ненужные Option обёртки
-3. Упростить или отложить conditional логику
-4. Удалить сложные path traversal функции
-
-### ✅ Ожидаемые результаты
-
-- **Размер кодовой базы**: -25% (примерно 500 строк)
-- **Дублирование**: -80% (с 31 до 5 паттернов)
-- **Сложность**: Значительное снижение когнитивной нагрузки
-- **Поддерживаемость**: Улучшение за счёт меньшего количества абстракций
-- **Производительность**: Небольшое улучшение за счёт упрощения path handling
-- **Тестируемость**: Улучшение за счёт удаления неиспользуемого кода
-
-### 🎯 Финальная архитектура
-
-После рефакторинга публичный API будет выглядеть так:
-
-```gleam
-// src/formosh.gleam - весь публичный API
-import lustre
-import schema/types.{type JsonSchema}
-import form/model.{type FormModel, type FormMsg}
-
-/// Создать форму из JSON Schema
-pub fn from_schema(schema: JsonSchema) -> lustre.App(Nil, FormModel, FormMsg)
-
-/// Создать форму из JSON строки
-pub fn from_json_string(json: String) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError)
-
-/// Запустить приложение формы
-pub fn run(app: lustre.App(Nil, FormModel, FormMsg)) -> Result(Nil, lustre.Error)
-```
-
-Всего 3 функции вместо текущих 15+, при этом вся текущая функциональность сохранена.

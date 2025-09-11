@@ -20,7 +20,7 @@ import lustre/attribute.{class, type_}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import schema/types.{type FieldValue, type SchemaProperty}
+import schema/types.{type Value, type SchemaProperty}
 
 /// Render an array field with dynamic add/remove functionality.
 /// 
@@ -49,7 +49,7 @@ import schema/types.{type FieldValue, type SchemaProperty}
 pub fn view(
   name: String,
   property: SchemaProperty,
-  values: List(dict.Dict(String, FieldValue)),
+  values: List(dict.Dict(String, Value)),
   errors: List(String),
   required: Bool,
 ) -> Element(FormMsg) {
@@ -113,7 +113,7 @@ pub fn view(
 fn render_array_item(
   array_name: String,
   property: SchemaProperty,
-  item_values: dict.Dict(String, FieldValue),
+  item_values: dict.Dict(String, Value),
   index: Int,
 ) -> Element(FormMsg) {
   case property.items {
@@ -162,7 +162,7 @@ fn render_array_item(
 fn render_item_fields(
   array_name: String,
   item_schema: SchemaProperty,
-  item_values: dict.Dict(String, FieldValue),
+  item_values: dict.Dict(String, Value),
   index: Int,
 ) -> List(Element(FormMsg)) {
   case item_schema.properties {
@@ -210,7 +210,7 @@ fn render_field(
   index: Int,
   field_name: String,
   property: SchemaProperty,
-  value: FieldValue,
+  value: Value,
   required: Bool,
 ) -> Element(FormMsg) {
   // Create a path for this nested field

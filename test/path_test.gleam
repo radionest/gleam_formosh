@@ -43,8 +43,8 @@ pub fn to_string_test() {
 pub fn get_at_path_simple_test() {
   let data =
     types.ObjectValue([
-      #("name", types.JsonString("Test")),
-      #("age", types.JsonNumber(25.0)),
+      #("name", types.StringValue("Test")),
+      #("age", types.NumberValue(25.0)),
     ])
 
   let path = [path.PropertySegment("name")]
@@ -60,15 +60,15 @@ pub fn get_at_path_nested_array_test() {
     types.ObjectValue([
       #(
         "lesions",
-        types.JsonArray([
-          types.JsonObject([
-            #("description", types.JsonString("Lesion 1")),
+        types.ArrayValue([
+          types.ObjectValue([
+            #("description", types.StringValue("Lesion 1")),
             #(
               "measurements",
-              types.JsonArray([
-                types.JsonObject([
-                  #("value", types.JsonNumber(10.0)),
-                  #("unit", types.JsonString("mm")),
+              types.ArrayValue([
+                types.ObjectValue([
+                  #("value", types.NumberValue(10.0)),
+                  #("unit", types.StringValue("mm")),
                 ]),
               ]),
             ),
@@ -94,7 +94,7 @@ pub fn get_at_path_nested_array_test() {
 pub fn set_at_path_simple_test() {
   let data =
     types.ObjectValue([
-      #("name", types.JsonString("Old")),
+      #("name", types.StringValue("Old")),
     ])
 
   let path = [path.PropertySegment("name")]
@@ -103,7 +103,7 @@ pub fn set_at_path_simple_test() {
   new_data
   |> should.equal(
     types.ObjectValue([
-      #("name", types.JsonString("New")),
+      #("name", types.StringValue("New")),
     ]),
   )
 }
@@ -114,15 +114,15 @@ pub fn set_at_path_nested_array_test() {
     types.ObjectValue([
       #(
         "lesions",
-        types.JsonArray([
-          types.JsonObject([
-            #("description", types.JsonString("Lesion 1")),
+        types.ArrayValue([
+          types.ObjectValue([
+            #("description", types.StringValue("Lesion 1")),
             #(
               "measurements",
-              types.JsonArray([
-                types.JsonObject([
-                  #("value", types.JsonNumber(10.0)),
-                  #("unit", types.JsonString("mm")),
+              types.ArrayValue([
+                types.ObjectValue([
+                  #("value", types.NumberValue(10.0)),
+                  #("unit", types.StringValue("mm")),
                 ]),
               ]),
             ),
@@ -153,9 +153,9 @@ pub fn add_array_item_nested_test() {
     types.ObjectValue([
       #(
         "lesions",
-        types.JsonArray([
-          types.JsonObject([
-            #("measurements", types.JsonArray([])),
+        types.ArrayValue([
+          types.ObjectValue([
+            #("measurements", types.ArrayValue([])),
           ]),
         ]),
       ),
@@ -168,9 +168,9 @@ pub fn add_array_item_nested_test() {
   ]
 
   let new_item =
-    types.JsonObject([
-      #("value", types.JsonNumber(15.0)),
-      #("unit", types.JsonString("cm")),
+    types.ObjectValue([
+      #("value", types.NumberValue(15.0)),
+      #("unit", types.StringValue("cm")),
     ])
 
   let new_data = path.add_array_item_at_path(data, path, new_item)

@@ -3,19 +3,19 @@
 import gleam/dict.{type Dict}
 import gleam/option.{type Option, None}
 
-/// JSON value type representing any valid JSON data.
+/// Unified value type for both schema definitions and form values.
 /// 
-/// This type models all possible JSON values that can appear in schemas,
-/// form data, or validation constraints. It's used throughout the library
-/// for handling dynamic JSON content.
-pub type JsonValue {
-  JsonString(String)
-  JsonNumber(Float)
-  JsonInteger(Int)
-  JsonBool(Bool)
-  JsonNull
-  JsonArray(List(JsonValue))
-  JsonObject(List(#(String, JsonValue)))
+/// This type represents any value that can appear in schemas, form data,
+/// or validation constraints. It's used throughout the library for handling
+/// all dynamic data in a consistent, type-safe manner.
+pub type Value {
+  StringValue(String)
+  NumberValue(Float)
+  IntegerValue(Int)
+  BooleanValue(Bool)
+  NullValue
+  ArrayValue(List(Value))
+  ObjectValue(List(#(String, Value)))
 }
 
 /// Field types supported by JSON Schema.
@@ -88,8 +88,8 @@ pub type SchemaProperty {
     field_type: Option(FieldType),
     title: Option(String),
     description: Option(String),
-    default: Option(JsonValue),
-    enum_values: Option(List(JsonValue)),
+    default: Option(Value),
+    enum_values: Option(List(Value)),
     // Reference to another schema definition
     ref: Option(String),
     // Type-specific constraints
@@ -171,20 +171,6 @@ pub type FieldMeta {
 /// human-readable message, and the validation rule that failed.
 pub type ValidationError {
   ValidationError(field: String, message: String, rule: String)
-}
-
-/// A form field value with type information.
-/// 
-/// This type represents the actual data entered in form fields, maintaining
-/// type information to enable proper validation and serialization.
-pub type FieldValue {
-  StringValue(String)
-  NumberValue(Float)
-  IntegerValue(Int)
-  BooleanValue(Bool)
-  ArrayValue(List(JsonValue))
-  ObjectValue(List(#(String, JsonValue)))
-  NullValue
 }
 
 /// Create an empty StringConstraints with no validation rules.

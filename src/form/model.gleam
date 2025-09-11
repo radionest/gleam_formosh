@@ -1,11 +1,10 @@
 // Form model for MVU architecture
 
-import form/converter
 import form/path.{type FieldPath}
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option}
-import schema/types.{type FieldValue, type JsonSchema, type ValidationError}
+import schema/types.{type JsonSchema, type ValidationError, type Value}
 
 /// The main form state model for the MVU architecture.
 /// 
@@ -19,7 +18,7 @@ pub type FormModel {
     // The resolved schema with conditionals applied
     resolved_schema: JsonSchema,
     // Current form values
-    values: Dict(String, FieldValue),
+    values: Dict(String, Value),
     // Form validation errors
     errors: Dict(String, List(ValidationError)),
     // Form metadata
@@ -51,7 +50,7 @@ pub type SubmissionResult {
 /// update operation in the form's update function.
 pub type FormMsg {
   // Path-based operations (simplified approach)
-  UpdateFieldPath(path: FieldPath, value: FieldValue)
+  UpdateFieldPath(path: FieldPath, value: Value)
   AddArrayItemPath(path: FieldPath)
   RemoveArrayItemPath(path: FieldPath, index: Int)
 
@@ -171,12 +170,12 @@ pub fn is_field_disabled(model: FormModel, field_name: String) -> Bool {
 /// - `field_name`: The name of the field to retrieve
 /// 
 /// ## Returns
-/// - `Some(FieldValue)` if the field has a value
+/// - `Some(Value)` if the field has a value
 /// - `None` if the field has not been set or doesn't exist
 pub fn get_field_value(
   model: FormModel,
   field_name: String,
-) -> Option(FieldValue) {
+) -> Option(Value) {
   case dict.get(model.values, field_name) {
     Ok(value) -> option.Some(value)
     Error(_) -> option.None
@@ -219,7 +218,7 @@ pub fn get_field_errors(
 pub fn set_field_value(
   model: FormModel,
   field_name: String,
-  value: FieldValue,
+  value: Value,
 ) -> FormModel {
   FormModel(
     ..model,
@@ -346,7 +345,7 @@ pub fn reset(model: FormModel) -> FormModel {
 /// 
 /// ## Returns
 /// A dictionary mapping field names to their current values
-pub fn get_form_values(model: FormModel) -> Dict(String, FieldValue) {
+pub fn get_form_values(model: FormModel) -> Dict(String, Value) {
   model.values
 }
 
@@ -360,12 +359,12 @@ pub fn get_form_values(model: FormModel) -> Dict(String, FieldValue) {
 /// - `path`: The field path to traverse
 /// 
 /// ## Returns
-/// - `Some(FieldValue)` if a value exists at the path
+/// - `Some(Value)` if a value exists at the path
 /// - `None` if the path doesn't exist or has no value
 pub fn get_value_at_path(
   model: FormModel,
   field_path: FieldPath,
-) -> Option(FieldValue) {
+) -> Option(Value) {
   case field_path {
     [] -> option.None
     [path.PropertySegment(name)] -> get_field_value(model, name)
@@ -383,26 +382,26 @@ pub fn get_value_at_path(
 
 /// Helper function to traverse an array with a path.
 fn traverse_array_path(
-  items: List(types.JsonValue),
+  items: List(types.Value),
   remaining_path: FieldPath,
-) -> Option(FieldValue) {
+) -> Option(Value) {
   case remaining_path {
     [] -> option.None
     [path.ArraySegment(index), ..rest] ->
       case list_at(items, index) {
-        option.Some(types.JsonObject(obj_fields)) ->
+        option.Some(types.ObjectValue(obj_fields)) ->
           case rest {
             [] -> option.None
             [path.PropertySegment(field_name)] ->
               case list.find(obj_fields, fn(f) { f.0 == field_name }) {
-                Ok(#(_, json_val)) -> converter.json_to_field_value(json_val)
+                Ok(#(_, val)) -> option.Some(val)
                 Error(_) -> option.None
               }
             [path.PropertySegment(field_name), ..more] ->
               case list.find(obj_fields, fn(f) { f.0 == field_name }) {
-                Ok(#(_, types.JsonArray(nested_items))) ->
+                Ok(#(_, types.ArrayValue(nested_items))) ->
                   traverse_array_path(nested_items, more)
-                Ok(#(_, types.JsonObject(nested_obj))) ->
+                Ok(#(_, types.ObjectValue(nested_obj))) ->
                   traverse_object_path(nested_obj, more)
                 _ -> option.None
               }
@@ -425,20 +424,20 @@ fn list_at(items: List(a), index: Int) -> Option(a) {
 
 /// Helper function to traverse an object with a path.
 fn traverse_object_path(
-  obj: List(#(String, types.JsonValue)),
+  obj: List(#(String, types.Value)),
   remaining_path: FieldPath,
-) -> Option(FieldValue) {
+) -> Option(Value) {
   case remaining_path {
     [] -> option.None
     [path.PropertySegment(field_name)] ->
       case list.find(obj, fn(f) { f.0 == field_name }) {
-        Ok(#(_, json_val)) -> converter.json_to_field_value(json_val)
+        Ok(#(_, val)) -> option.Some(val)
         Error(_) -> option.None
       }
     [path.PropertySegment(field_name), ..rest] ->
       case list.find(obj, fn(f) { f.0 == field_name }) {
-        Ok(#(_, types.JsonArray(items))) -> traverse_array_path(items, rest)
-        Ok(#(_, types.JsonObject(nested_obj))) ->
+        Ok(#(_, types.ArrayValue(items))) -> traverse_array_path(items, rest)
+        Ok(#(_, types.ObjectValue(nested_obj))) ->
           traverse_object_path(nested_obj, rest)
         _ -> option.None
       }
@@ -516,7 +515,7 @@ pub fn get_errors_at_path(
 pub fn set_value_at_path(
   model: FormModel,
   field_path: FieldPath,
-  value: FieldValue,
+  value: Value,
 ) -> FormModel {
   let path_key = path.to_string(field_path)
   FormModel(

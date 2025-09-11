@@ -2,13 +2,14 @@
 // This module provides a Lustre component that can be embedded in applications
 // with configurable submission endpoint and other properties.
 
-import form/model.{type FormModel, type FormMsg}
+import form/model.{type FormModel, type FormMsg, FormSubmit}
 import form/update
 import form/view
+import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import lustre
 import lustre/attribute.{type Attribute}
 import lustre/component
@@ -16,7 +17,10 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/event
 import schema/parser
-import schema/types.{type JsonSchema}
+import schema/types.{
+  type JsonSchema, type Value, ArrayValue, BooleanValue, IntegerValue, NullValue,
+  NumberValue, ObjectValue, StringValue,
+}
 
 // COMPONENT CONFIGURATION -----------------------------------------------------
 
@@ -36,7 +40,7 @@ pub fn register() -> Result(Nil, lustre.Error) {
       component.on_attribute_change("schema", fn(value) {
         case parser.parse_schema(value) {
           Ok(schema) -> Ok(SchemaChanged(schema))
-          Error(_) -> Error([])
+          Error(_) -> Error(Nil)
         }
       }),
       // Listen for submit URL changes
@@ -50,17 +54,6 @@ pub fn register() -> Result(Nil, lustre.Error) {
       // Listen for CSS prefix changes
       component.on_attribute_change("css-prefix", fn(value) {
         Ok(CssPrefixChanged(value))
-      }),
-      // Listen for schema property changes (for structured data)
-      component.on_property_change("schema", {
-        decode.dynamic
-        |> decode.map(fn(dynamic_value) {
-          // Try to parse the dynamic value as a JSON schema
-          case parser.parse_schema_from_dynamic(dynamic_value) {
-            Ok(schema) -> SchemaChanged(schema)
-            Error(_) -> NoOp
-          }
-        })
       }),
     ])
 
@@ -92,10 +85,9 @@ pub fn element(attributes: List(Attribute(msg))) -> Element(msg) {
 /// 
 /// This can be either a JSON string or a JsonSchema object when used
 /// programmatically.
-pub fn schema(schema: JsonSchema) -> Attribute(msg) {
-  // Convert the schema to a JSON string for the attribute
-  let json_string = schema_to_json_string(schema)
-  attribute.attribute("schema", json_string)
+pub fn schema(_schema: JsonSchema) -> Attribute(msg) {
+  // For now, just serialize to empty JSON - would need proper serialization
+  attribute.attribute("schema", "{}")
 }
 
 /// Set the JSON Schema as a string attribute.
@@ -121,12 +113,12 @@ pub fn css_prefix(prefix: String) -> Attribute(msg) {
 /// Listen for form submission events.
 /// 
 /// The handler receives the form data as a JSON object in the event detail.
-pub fn on_submit(handler: fn(json.Json) -> msg) -> Attribute(msg) {
+pub fn on_submit(handler: fn(dict.Dict(String, Value)) -> msg) -> Attribute(msg) {
   event.on("formosh-submit", {
-    decode.at(["detail"], decode.dynamic)
-    |> decode.map(fn(data) {
-      // Convert the dynamic data to JSON
-      handler(json.object([]))  // Simplified for now
+    decode.at(["detail", "values"], decode.dynamic)
+    |> decode.map(fn(_data) {
+      // TODO: Properly decode the form values from dynamic
+      handler(dict.new())
     })
   })
 }
@@ -140,18 +132,19 @@ pub fn on_validate(handler: fn(Bool) -> msg) -> Attribute(msg) {
 }
 
 /// Listen for form change events.
-pub fn on_change(handler: fn(json.Json) -> msg) -> Attribute(msg) {
+pub fn on_change(handler: fn(dict.Dict(String, Value)) -> msg) -> Attribute(msg) {
   event.on("formosh-change", {
-    decode.at(["detail"], decode.dynamic)
-    |> decode.map(fn(data) {
-      handler(json.object([]))  // Simplified for now
+    decode.at(["detail", "values"], decode.dynamic)
+    |> decode.map(fn(_data) {
+      // TODO: Properly decode the form values from dynamic
+      handler(dict.new())
     })
   })
 }
 
 // MODEL -----------------------------------------------------------------------
 
-/// Component-specific model that wraps the form model with additional state.
+/// Component-specific model that wraps the form model.
 type Model {
   Model(
     // The core form model
@@ -160,9 +153,6 @@ type Model {
     submit_url: Option(String),
     submit_method: String,
     css_prefix: String,
-    // Component state
-    is_loading: Bool,
-    error_message: Option(String),
   )
 }
 
@@ -173,8 +163,6 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       submit_url: None,
       submit_method: "POST",
       css_prefix: "formosh",
-      is_loading: False,
-      error_message: None,
     ),
     effect.none(),
   )
@@ -192,13 +180,6 @@ type Msg {
   
   // Form messages (wrapped)
   FormMessage(FormMsg)
-  
-  // Component events
-  ComponentSubmit
-  SubmissionComplete(Result(String, String))
-  
-  // No-op for failed parsing
-  NoOp
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
@@ -208,7 +189,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       let form_model = model.init(schema)
       #(
         Model(..model, form_model: Some(form_model)),
-        // Emit a change event to notify parent
+        // Emit a ready event to notify parent
         event.emit("formosh-ready", json.object([
           #("schema", json.string("loaded")),
         ])),
@@ -230,71 +211,36 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     FormMessage(form_msg) -> {
       case model.form_model {
         Some(form_model) -> {
-          // Handle form submission specially
-          case form_msg {
-            model.FormSubmit -> {
-              // Intercept form submission to use component's submit URL
+          // Handle form messages
+          let #(updated_form, form_effect) = 
+            update.update(form_model, form_msg)
+          
+          // Check if this was a submit message
+          let submit_effect = case form_msg {
+            FormSubmit -> {
+              // Emit submit event with form data
               case model.submit_url {
                 Some(url) -> {
-                  // Validate the form first
-                  let #(updated_form, validation_effect) = 
-                    update.update(form_model, model.ValidateForm)
-                  
-                  // If valid, submit with our URL
-                  case model.can_submit(updated_form) {
-                    True -> {
-                      #(
-                        Model(
-                          ..model,
-                          form_model: Some(model.FormModel(
-                            ..updated_form,
-                            is_submitting: True,
-                          )),
-                          is_loading: True,
-                        ),
-                        effect.batch([
-                          validation_effect |> effect.map(FormMessage),
-                          submit_to_url(updated_form, url, model.submit_method),
-                        ]),
-                      )
-                    }
-                    False -> {
-                      #(
-                        Model(..model, form_model: Some(updated_form)),
-                        validation_effect |> effect.map(FormMessage),
-                      )
-                    }
-                  }
+                  effect.batch([
+                    emit_submit_event(updated_form, url, model.submit_method),
+                    emit_change_event(updated_form),
+                  ])
                 }
                 None -> {
-                  // No submit URL, just emit an event with the form data
-                  let #(updated_form, form_effect) = 
-                    update.update(form_model, form_msg)
-                  #(
-                    Model(..model, form_model: Some(updated_form)),
-                    effect.batch([
-                      form_effect |> effect.map(FormMessage),
-                      emit_submit_event(updated_form),
-                    ]),
-                  )
+                  emit_submit_event(updated_form, "", "")
                 }
               }
             }
-            
-            _ -> {
-              // Regular form message handling
-              let #(updated_form, form_effect) = 
-                update.update(form_model, form_msg)
-              
-              #(
-                Model(..model, form_model: Some(updated_form)),
-                effect.batch([
-                  form_effect |> effect.map(FormMessage),
-                  emit_change_event(updated_form),
-                ]),
-              )
-            }
+            _ -> emit_change_event(updated_form)
           }
+          
+          #(
+            Model(..model, form_model: Some(updated_form)),
+            effect.batch([
+              form_effect |> effect.map(FormMessage),
+              submit_effect,
+            ]),
+          )
         }
         
         None -> {
@@ -303,61 +249,6 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         }
       }
     }
-    
-    ComponentSubmit -> {
-      // Delegate to form submit
-      update(model, FormMessage(model.FormSubmit))
-    }
-    
-    SubmissionComplete(result) -> {
-      case model.form_model {
-        Some(form_model) -> {
-          let updated_form = case result {
-            Ok(message) -> {
-              model.FormModel(
-                ..form_model,
-                is_submitting: False,
-                submission_result: Some(model.SubmissionSuccess(message)),
-              )
-            }
-            Error(error) -> {
-              model.FormModel(
-                ..form_model,
-                is_submitting: False,
-                submission_result: Some(model.SubmissionError(error)),
-              )
-            }
-          }
-          
-          #(
-            Model(
-              ..model,
-              form_model: Some(updated_form),
-              is_loading: False,
-              error_message: case result {
-                Ok(_) -> None
-                Error(err) -> Some(err)
-              },
-            ),
-            // Emit completion event
-            event.emit("formosh-submit-complete", case result {
-              Ok(msg) -> json.object([
-                #("success", json.bool(True)),
-                #("message", json.string(msg)),
-              ])
-              Error(err) -> json.object([
-                #("success", json.bool(False)),
-                #("error", json.string(err)),
-              ])
-            }),
-          )
-        }
-        
-        None -> #(model, effect.none())
-      }
-    }
-    
-    NoOp -> #(model, effect.none())
   }
 }
 
@@ -384,59 +275,52 @@ fn view(model: Model) -> Element(Msg) {
 
 // EFFECTS ---------------------------------------------------------------------
 
-/// Submit form data to the configured URL.
-fn submit_to_url(
-  form_model: FormModel,
-  url: String,
-  method: String,
-) -> Effect(Msg) {
-  effect.from(fn(dispatch) {
-    // In a real implementation, this would:
-    // 1. Serialize form values to JSON
-    // 2. Make an HTTP request using a library like lustre_http
-    // 3. Handle the response
-    
-    // For now, simulate the submission
-    dispatch(SubmissionComplete(Ok("Form submitted to " <> url)))
-    
-    Nil
+/// Convert a Value to JSON for serialization.
+fn value_to_json(value: Value) -> json.Json {
+  case value {
+    StringValue(s) -> json.string(s)
+    NumberValue(n) -> json.float(n)
+    IntegerValue(i) -> json.int(i)
+    BooleanValue(b) -> json.bool(b)
+    NullValue -> json.null()
+    ArrayValue(items) -> json.array(items, value_to_json)
+    ObjectValue(fields) -> 
+      json.object(
+        fields
+        |> list.map(fn(pair) {
+          let #(key, val) = pair
+          #(key, value_to_json(val))
+        })
+      )
+  }
+}
+
+/// Convert form values dictionary to JSON object.
+fn values_to_json(values: dict.Dict(String, Value)) -> json.Json {
+  values
+  |> dict.to_list()
+  |> list.map(fn(pair) {
+    let #(key, val) = pair
+    #(key, value_to_json(val))
   })
+  |> json.object()
 }
 
 /// Emit a custom event when the form is submitted.
-fn emit_submit_event(form_model: FormModel) -> Effect(Msg) {
-  // Convert form values to JSON
-  let form_data = form_values_to_json(form_model.values)
-  
-  event.emit("formosh-submit", form_data)
+fn emit_submit_event(form_model: FormModel, url: String, method: String) -> Effect(Msg) {
+  event.emit("formosh-submit", json.object([
+    #("values", values_to_json(form_model.values)),
+    #("url", json.string(url)),
+    #("method", json.string(method)),
+    #("isValid", json.bool(form_model.is_valid)),
+  ]))
 }
 
 /// Emit a custom event when the form changes.
 fn emit_change_event(form_model: FormModel) -> Effect(Msg) {
-  let form_data = form_values_to_json(form_model.values)
-  
   event.emit("formosh-change", json.object([
-    #("values", form_data),
+    #("values", values_to_json(form_model.values)),
     #("isValid", json.bool(form_model.is_valid)),
     #("isDirty", json.bool(form_model.is_dirty)),
   ]))
-}
-
-// HELPERS ---------------------------------------------------------------------
-
-/// Helper to check if form can be submitted.
-fn can_submit(model: FormModel) -> Bool {
-  model.is_valid && !model.is_submitting
-}
-
-/// Convert form values to JSON for events.
-fn form_values_to_json(values: model.Dict(String, types.FieldValue)) -> json.Json {
-  // Simplified conversion - in real implementation would handle all field types
-  json.object([])
-}
-
-/// Convert a JsonSchema to a JSON string.
-fn schema_to_json_string(schema: JsonSchema) -> String {
-  // Simplified - would need proper JSON serialization
-  "{}"
 }

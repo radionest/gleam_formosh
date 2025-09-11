@@ -1,6 +1,5 @@
 // Update functions for form MVU
 
-import form/converter
 import form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, FormSubmit, FormSubmitted,
   RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
@@ -38,53 +37,38 @@ import schema/validator
 /// - `ResetForm`: Reset form to initial state
 /// - `EnableField`/`DisableField`: Control field enabled state
 /// - Array operations: `AddArrayItem`, `RemoveArrayItem`, `ArrayItemChanged`
-/// Convert model values to a hierarchical FieldValue root for path operations.
+/// Convert model values to a hierarchical Value root for path operations.
 /// 
 /// This helper function converts the flat dictionary of field values in the model
-/// to a hierarchical FieldValue object that can be used with path-based operations.
+/// to a hierarchical Value object that can be used with path-based operations.
 /// 
 /// ## Parameters
 /// - `model`: The form model containing the values dictionary
 /// 
 /// ## Returns
-/// A FieldValue (ObjectValue) representing the hierarchical form data
-fn model_to_root_value(model: FormModel) -> types.FieldValue {
+/// A Value (ObjectValue) representing the hierarchical form data
+fn model_to_root_value(model: FormModel) -> types.Value {
   case dict.to_list(model.values) {
     [] -> types.ObjectValue([])
-    values -> {
-      let fields =
-        list.map(values, fn(entry) {
-          let #(key, val) = entry
-          #(key, converter.field_value_to_json_value(val))
-        })
-      types.ObjectValue(fields)
-    }
+    values -> types.ObjectValue(values)
   }
 }
 
-/// Convert a hierarchical FieldValue root back to model values dictionary.
+/// Convert a hierarchical Value root back to model values dictionary.
 /// 
-/// This helper function converts the hierarchical FieldValue object returned from
+/// This helper function converts the hierarchical Value object returned from
 /// path operations back to the flat dictionary format used by the model.
 /// 
 /// ## Parameters
-/// - `root_value`: The hierarchical FieldValue to convert
+/// - `root_value`: The hierarchical Value to convert
 /// 
 /// ## Returns
-/// A dictionary of field names to FieldValues
+/// A dictionary of field names to Values
 fn root_value_to_model_values(
-  root_value: types.FieldValue,
-) -> dict.Dict(String, types.FieldValue) {
+  root_value: types.Value,
+) -> dict.Dict(String, types.Value) {
   case root_value {
-    types.ObjectValue(fields) -> {
-      list.fold(fields, dict.new(), fn(acc, field) {
-        let #(key, json_val) = field
-        case converter.json_to_field_value(json_val) {
-          Some(field_val) -> dict.insert(acc, key, field_val)
-          None -> acc
-        }
-      })
-    }
+    types.ObjectValue(fields) -> dict.from_list(fields)
     _ -> dict.new()
   }
 }
@@ -117,7 +101,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     AddArrayItemPath(path) -> {
       let root_value = model_to_root_value(model)
       let updated_root =
-        path.add_array_item_at_path(root_value, path, types.JsonObject([]))
+        path.add_array_item_at_path(root_value, path, types.ObjectValue([]))
       let new_values = root_value_to_model_values(updated_root)
 
       let new_model = model.FormModel(..model, values: new_values)
@@ -188,27 +172,6 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   }
 }
 
-/// Convert a FieldValue to JsonValue for serialization.
-/// 
-/// This helper function is used when updating array items to convert the
-/// strongly-typed FieldValue into a JsonValue that can be stored in the
-/// JSON object structure.
-/// 
-/// ## Parameters
-/// - `value`: The FieldValue to convert
-/// 
-/// ## Returns
-/// The corresponding JsonValue representation
-/// Convert a JsonValue to FieldValue.
-/// 
-/// This helper function is used when converting from JsonValue 
-/// back to FieldValue after path-based updates.
-/// 
-/// ## Parameters
-/// - `value`: The JsonValue to convert
-/// 
-/// ## Returns
-/// The corresponding FieldValue representation wrapped in Option
 /// Validate a single field against its schema definition.
 /// 
 /// This function looks up the field's schema property and runs validation

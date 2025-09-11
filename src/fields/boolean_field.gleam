@@ -36,7 +36,7 @@ import schema/types
 pub fn render(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  value: Option(types.FieldValue),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
@@ -130,7 +130,7 @@ fn render_as_radio(
 pub fn render_as_checkbox(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  value: Option(types.FieldValue),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
@@ -184,7 +184,7 @@ pub fn render_as_checkbox(
 pub fn render_as_toggle(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  value: Option(types.FieldValue),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {

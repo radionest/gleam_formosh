@@ -6,7 +6,6 @@
 import fields/boolean_field
 import fields/number_field
 import fields/string_field
-import form/converter
 import form/model.{type FormMsg}
 import form/path.{PropertySegment}
 import gleam/dict
@@ -15,7 +14,7 @@ import gleam/option.{type Option, None, Some}
 import lustre/attribute.{class}
 import lustre/element.{type Element}
 import lustre/element/html
-import schema/types.{type FieldValue, type SchemaProperty}
+import schema/types.{type Value, type SchemaProperty}
 
 /// Render an object field with all its nested properties.
 /// 
@@ -28,7 +27,7 @@ import schema/types.{type FieldValue, type SchemaProperty}
 /// ## Parameters
 /// - `field_path`: The path to this object field
 /// - `property`: Schema property defining the object structure
-/// - `value`: Current object value as Option(FieldValue)
+/// - `value`: Current object value as Option(Value)
 /// - `is_required`: Whether the object field itself is required
 /// - `is_disabled`: Whether the field is disabled
 /// 
@@ -37,7 +36,7 @@ import schema/types.{type FieldValue, type SchemaProperty}
 pub fn render(
   field_path: path.FieldPath,
   property: SchemaProperty,
-  value: Option(FieldValue),
+  value: Option(Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
@@ -45,13 +44,9 @@ pub fn render(
   let title = option.unwrap(property.title, field_name)
   let description = property.description
 
-  // Extract nested values from ObjectValue and convert to FieldValue dict
+  // Extract nested values from ObjectValue
   let nested_values = case value {
-    Some(types.ObjectValue(fields)) ->
-      list.fold(fields, dict.new(), fn(acc, field_pair) {
-        let #(key, val) = field_pair
-        dict.insert(acc, key, converter.json_to_field_value_safe(val))
-      })
+    Some(types.ObjectValue(fields)) -> dict.from_list(fields)
     _ -> dict.new()
   }
 
@@ -94,7 +89,7 @@ pub fn render(
 fn render_nested_fields(
   parent_path: path.FieldPath,
   property: SchemaProperty,
-  values: dict.Dict(String, FieldValue),
+  values: dict.Dict(String, Value),
   is_disabled: Bool,
 ) -> List(Element(FormMsg)) {
   case property.properties {
@@ -139,7 +134,7 @@ fn render_nested_fields(
 fn render_nested_field(
   field_path: path.FieldPath,
   property: SchemaProperty,
-  value: Option(types.FieldValue),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {

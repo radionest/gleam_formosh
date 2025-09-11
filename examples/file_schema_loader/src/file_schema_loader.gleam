@@ -1,45 +1,61 @@
-import gleam/result
 import formosh
+import formosh/component
+import gleam/dict
+import gleam/dynamic/decode
 import gleam/list
 import gleam/option.{type Option}
 import gleam/string
+import gleam/http/request
 import lustre
 import lustre/attribute
 import lustre/effect
-import lustre/element
+import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import rsvp
 
 pub type Model {
   Model(
     selected_schema: Option(String),
     schema_content: Option(String),
-    form_html: Option(String),
     available_schemas: List(String),
     error: Option(String),
+    submission_result: Option(String),
   )
 }
 
 pub type Msg {
   LoadSchema(String)
-  SchemaFetched(String, Result(String, String))
+  SchemaFetched(Result(String, String))
+  FormSubmitted(dict.Dict(String, String))
+  FormChanged(dict.Dict(String, String))
 }
 
 pub fn main() {
+  // Register the formosh web component
+  let _ = component.register()
+  
   let app = lustre.application(init, update, view)
   let assert Ok(_) = lustre.start(app, "#app", Nil)
   Nil
 }
 
 fn init(_) -> #(Model, effect.Effect(Msg)) {
-  let schemas = ["contact_form.json"]
+  // List of available schema files
+  // In browser environment, we can't read directory, so we hardcode the list
+  let schemas = [
+    "contact_form.json",
+    "survey_form.json", 
+    "user_registration.json",
+  ]
+  
   #(
     Model(
       selected_schema: option.None,
       schema_content: option.None,
-      form_html: option.None,
       available_schemas: schemas,
       error: option.None,
+      submission_result: option.None,
     ),
     effect.none(),
   )
@@ -48,29 +64,22 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
 fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
   case msg {
     LoadSchema(filename) -> {
-      // Start HTTP fetch for schema file
       #(
-        Model(
-          ..model,
-          selected_schema: option.Some(filename),
-          error: option.Some("Loading schema..."),
-        ),
-        fetch_schema_effect(filename),
+        Model(..model, selected_schema: option.Some(filename), error: option.None),
+        fetch_schema(filename),
       )
     }
     
-    SchemaFetched(filename, result) -> {
+    SchemaFetched(result) -> {
       case result {
         Ok(content) -> {
-          echo "Get content"
+          // Validate that it's a valid JSON schema
           case formosh.from_json_string(content) {
-            Ok(_form_app) -> {
+            Ok(_) -> {
               #(
                 Model(
                   ..model,
-                  selected_schema: option.Some(filename),
                   schema_content: option.Some(content),
-                  form_html: option.Some(generate_form_preview(content)),
                   error: option.None,
                 ),
                 effect.none(),
@@ -80,42 +89,52 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
               #(
                 Model(
                   ..model,
-                  selected_schema: option.Some(filename),
                   schema_content: option.None,
-                  form_html: option.None,
-                  error: option.Some("Error parsing JSON schema"),
+                  error: option.Some("Invalid JSON Schema format"),
                 ),
                 effect.none(),
               )
             }
           }
         }
-        Error(err) -> {
-          echo "Get error "<>err
+        Error(error) -> {
           #(
             Model(
               ..model,
-              selected_schema: option.Some(filename),
               schema_content: option.None,
-              form_html: option.None,
-              error: option.Some("Error loading schema: " <> err),
+              error: option.Some("Failed to load schema: " <> error),
             ),
             effect.none(),
           )
         }
-        _ -> {
-          echo "Else"
-          #(model, effect.none())
-        }
       }
+    }
+    
+    FormSubmitted(values) -> {
+      // Handle form submission
+      let _ = values // TODO: Process form values
+      #(
+        Model(
+          ..model,
+          submission_result: option.Some("Form submitted successfully!"),
+        ),
+        effect.none(),
+      )
+    }
+    
+    FormChanged(values) -> {
+      // Handle form changes (could be used for validation feedback)
+      let _ = values
+      #(model, effect.none())
     }
   }
 }
 
-fn view(model: Model) -> element.Element(Msg) {
+fn view(model: Model) -> Element(Msg) {
   html.div([attribute.class("container")], [
     html.h1([], [html.text("JSON Schema File Loader")]),
     
+    // Schema selector
     html.div([attribute.class("schema-selector")], [
       html.h2([], [html.text("Select a schema:")]),
       html.div(
@@ -146,6 +165,7 @@ fn view(model: Model) -> element.Element(Msg) {
       ),
     ]),
     
+    // Error message
     case model.error {
       option.Some(error) -> {
         html.div([attribute.class("error-message")], [
@@ -155,22 +175,37 @@ fn view(model: Model) -> element.Element(Msg) {
       option.None -> element.none()
     },
     
-    case model.form_html {
-      option.Some(form_info) -> {
+    // Submission result
+    case model.submission_result {
+      option.Some(result) -> {
+        html.div([attribute.class("form-status success")], [
+          html.text(result),
+        ])
+      }
+      option.None -> element.none()
+    },
+    
+    // Form display using web component
+    case model.schema_content {
+      option.Some(schema_json) -> {
         html.div([attribute.class("form-container")], [
-          html.h2([], [html.text("Schema Information:")]),
+          html.h2([], [html.text("Generated Form:")]),
           html.div([attribute.class("info-box")], [
-            html.p([], [html.text("File: " <> option.unwrap(model.selected_schema, ""))]),
-          ]),
-          html.div([attribute.class("schema-preview")], [
-            html.pre([], [html.text(form_info)]),
-          ]),
-          html.div([attribute.class("action-box")], [
             html.p([], [
-              html.text("To see the full interactive form, run "),
-              html.code([], [html.text("gleam run")]),
-              html.text(" in the project root."),
+              html.text("Schema: " <> option.unwrap(model.selected_schema, "")),
             ]),
+          ]),
+          
+          // Render the formosh web component
+          html.div([attribute.id("form-mount-point")], [
+            element.element("formosh-form", [
+              attribute.attribute("schema", schema_json),
+              attribute.attribute("submit-url", "/api/submit"),
+              attribute.attribute("submit-method", "POST"),
+              // Listen for form events
+              event.on("formosh-submit", decode_form_submit()),
+              event.on("formosh-change", decode_form_change()),
+            ], []),
           ]),
         ])
       }
@@ -178,10 +213,14 @@ fn view(model: Model) -> element.Element(Msg) {
         case model.selected_schema {
           option.None -> {
             html.div([attribute.class("placeholder")], [
-              html.p([], [html.text("Select a schema to load")]),
+              html.p([], [html.text("Select a schema to load and display the form")]),
             ])
           }
-          option.Some(_) -> element.none()
+          option.Some(_) -> {
+            html.div([attribute.class("placeholder")], [
+              html.p([], [html.text("Loading schema...")]),
+            ])
+          }
         }
       }
     },
@@ -196,34 +235,41 @@ fn get_display_name(filename: String) -> String {
   |> string.capitalise()
 }
 
-fn generate_form_preview(json_content: String) -> String {
-  case formosh.from_json_string(json_content) {
-    Ok(_) -> {
-      "Schema successfully parsed and can be used for form generation.\n\n"
-      <> "First 500 characters of JSON schema:\n\n"
-      <> string.slice(json_content, 0, 500)
+// Effect to fetch schema content via HTTP
+fn fetch_schema(filename: String) -> effect.Effect(Msg) {
+  let url = "./schemas/" <> filename
+  let handler = rsvp.expect_any_response(fn(fetch_result){
+    case fetch_result{
+        Ok(json_string) -> SchemaFetched(Ok(json_string.body))
+        Error(error) -> {
+          echo error
+          case error {
+            rsvp.HttpError(resp) -> SchemaFetched(Error(resp.body))
+            rsvp.NetworkError -> SchemaFetched(Error("Network error"))
+            rsvp.BadUrl(u) -> SchemaFetched(Error("BAD url " <> u))
+            rsvp.BadBody -> SchemaFetched(Error("Bad body")) 
+            _ -> SchemaFetched(Error("Can't fetch schema at " <> url))
+          }
+        }
     }
-    Error(_) -> "Error parsing schema"
-  }
+  })
+  rsvp.get(url, handler)
 }
 
-// Effect to fetch schema from static folder via HTTP
-fn fetch_schema_effect(filename: String) -> effect.Effect(Msg) {
-  use dispatch <- effect.from
-  let url = "./schemas/" <> filename
-
-  fetch_json(url, fn(result) {
-    case string.starts_with(result,"Error:"){
-      True -> {    
-            echo "ERROR"
-            dispatch(SchemaFetched(filename, Error(result)))
-            }
-      False ->  dispatch(SchemaFetched(filename, Ok(result)))
-    }
-    
+// Decoders for form events
+fn decode_form_submit() -> decode.Decoder(Msg) {
+  
+  decode.at(["detail", "values"], decode.dynamic)
+  |> decode.map(fn(_values) {
+    // TODO: Properly decode the form values
+    FormSubmitted(dict.new())
   })
 }
 
-// External function to call JavaScript fetch
-@external(javascript, "./fetch_schema.mjs", "fetchSchema")
-fn fetch_json(url: String, callback: fn(String) -> Nil) -> Nil
+fn decode_form_change() -> decode.Decoder(Msg) {
+  decode.at(["detail", "values"], decode.dynamic)
+  |> decode.map(fn(_values) {
+    // TODO: Properly decode the form values
+    FormChanged(dict.new())
+  })
+}

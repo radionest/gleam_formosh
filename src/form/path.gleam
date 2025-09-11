@@ -1,4 +1,3 @@
-import form/converter
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -74,21 +73,19 @@ fn get_list_item(items: List(a), index: Int) -> Option(a) {
   }
 }
 
-/// Get a value at a specific path from a FieldValue.
+/// Get a value at a specific path from a Value.
 pub fn get_at_path(
-  value: types.FieldValue,
+  value: types.Value,
   path: FieldPath,
-) -> Option(types.FieldValue) {
+) -> Option(types.Value) {
   case path {
     [] -> Some(value)
     [segment, ..rest] -> {
       case segment, value {
         PropertySegment(name), types.ObjectValue(fields) -> {
           case list.find(fields, fn(field) { field.0 == name }) {
-            Ok(#(_key, json_value)) -> {
-              json_value
-              |> converter.json_to_field_value
-              |> option.then(fn(field_value) { get_at_path(field_value, rest) })
+            Ok(#(_key, value)) -> {
+              get_at_path(value, rest)
             }
             Error(_) -> None
           }
@@ -96,9 +93,7 @@ pub fn get_at_path(
         ArraySegment(index), types.ArrayValue(items) -> {
           case get_list_item(items, index) {
             Some(item) -> {
-              item
-              |> converter.json_to_field_value
-              |> option.then(fn(field_value) { get_at_path(field_value, rest) })
+              get_at_path(item, rest)
             }
             None -> None
           }
@@ -109,23 +104,23 @@ pub fn get_at_path(
   }
 }
 
-/// Set a value at a specific path in a FieldValue.
+/// Set a value at a specific path in a Value.
 /// Creates intermediate structures as needed.
 pub fn set_at_path(
-  root: types.FieldValue,
+  root: types.Value,
   path: FieldPath,
-  value: types.FieldValue,
-) -> types.FieldValue {
+  value: types.Value,
+) -> types.Value {
   modify_at_path(root, path, fn(_) { value })
 }
 
 /// Universal function for modifying a value at a path.
 /// Takes a modifier function that is applied to the target value.
 pub fn modify_at_path(
-  root: types.FieldValue,
+  root: types.Value,
   path: FieldPath,
-  modifier: fn(types.FieldValue) -> types.FieldValue,
-) -> types.FieldValue {
+  modifier: fn(types.Value) -> types.Value,
+) -> types.Value {
   case path {
     [] -> modifier(root)
     [segment, ..rest] -> {
@@ -146,10 +141,10 @@ pub fn modify_at_path(
 
 /// Modifies a field in an object.
 fn modify_object_field(
-  value: types.FieldValue,
+  value: types.Value,
   field_name: String,
-  modifier: fn(types.FieldValue) -> types.FieldValue,
-) -> types.FieldValue {
+  modifier: fn(types.Value) -> types.Value,
+) -> types.Value {
   let fields = get_object_fields(value)
   let current_value = get_field_value(fields, field_name)
   let new_value = modifier(current_value)
@@ -159,19 +154,16 @@ fn modify_object_field(
 
 /// Modifies an array item.
 fn modify_array_item(
-  value: types.FieldValue,
+  value: types.Value,
   index: Int,
-  modifier: fn(types.FieldValue) -> types.FieldValue,
-) -> types.FieldValue {
+  modifier: fn(types.Value) -> types.Value,
+) -> types.Value {
   let items = get_array_items(value)
   let padded = ensure_array_size(items, index + 1)
   let updated =
     list.index_map(padded, fn(item, i) {
       case i == index {
-        True ->
-          converter.field_value_to_json_value(
-            modifier(converter.json_to_field_value_safe(item)),
-          )
+        True -> modifier(item)
         False -> item
       }
     })
@@ -180,15 +172,15 @@ fn modify_array_item(
 
 // Helper functions for working with types
 fn get_object_fields(
-  value: types.FieldValue,
-) -> List(#(String, types.JsonValue)) {
+  value: types.Value,
+) -> List(#(String, types.Value)) {
   case value {
     types.ObjectValue(fields) -> fields
     _ -> []
   }
 }
 
-fn get_array_items(value: types.FieldValue) -> List(types.JsonValue) {
+fn get_array_items(value: types.Value) -> List(types.Value) {
   case value {
     types.ArrayValue(items) -> items
     _ -> []
@@ -196,50 +188,49 @@ fn get_array_items(value: types.FieldValue) -> List(types.JsonValue) {
 }
 
 fn get_field_value(
-  fields: List(#(String, types.JsonValue)),
+  fields: List(#(String, types.Value)),
   name: String,
-) -> types.FieldValue {
+) -> types.Value {
   case list.find(fields, fn(f) { f.0 == name }) {
-    Ok(#(_, json)) -> converter.json_to_field_value_safe(json)
+    Ok(#(_, value)) -> value
     Error(_) -> types.NullValue
   }
 }
 
 fn set_field_value(
-  fields: List(#(String, types.JsonValue)),
+  fields: List(#(String, types.Value)),
   name: String,
-  value: types.FieldValue,
-) -> List(#(String, types.JsonValue)) {
-  let json_value = converter.field_value_to_json_value(value)
+  value: types.Value,
+) -> List(#(String, types.Value)) {
   case list.find(fields, fn(f) { f.0 == name }) {
     Ok(_) ->
       list.map(fields, fn(field) {
         case field.0 == name {
-          True -> #(name, json_value)
+          True -> #(name, value)
           False -> field
         }
       })
-    Error(_) -> list.append(fields, [#(name, json_value)])
+    Error(_) -> list.append(fields, [#(name, value)])
   }
 }
 
 fn ensure_array_size(
-  items: List(types.JsonValue),
+  items: List(types.Value),
   size: Int,
-) -> List(types.JsonValue) {
+) -> List(types.Value) {
   let current = list.length(items)
   case size > current {
-    True -> list.append(items, list.repeat(types.JsonNull, size - current))
+    True -> list.append(items, list.repeat(types.NullValue, size - current))
     False -> items
   }
 }
 
 /// Add an item to an array at a specific path.
 pub fn add_array_item_at_path(
-  root: types.FieldValue,
+  root: types.Value,
   path: FieldPath,
-  item: types.JsonValue,
-) -> types.FieldValue {
+  item: types.Value,
+) -> types.Value {
   modify_at_path(root, path, fn(value) {
     // Simple logic: if this is an array - add element
     case value {
@@ -251,10 +242,10 @@ pub fn add_array_item_at_path(
 
 /// Remove an item from an array at a specific path.
 pub fn remove_array_item_at_path(
-  root: types.FieldValue,
+  root: types.Value,
   path: FieldPath,
   index: Int,
-) -> types.FieldValue {
+) -> types.Value {
   modify_at_path(root, path, fn(value) {
     case value {
       types.ArrayValue(items) -> {

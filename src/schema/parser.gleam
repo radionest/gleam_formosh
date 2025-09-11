@@ -7,12 +7,12 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import schema/resolver
 import schema/types.{
-  type ConditionalRule, type FieldType, type JsonSchema, type JsonValue,
+  type ConditionalRule, type FieldType, type JsonSchema, type Value,
   type NumberConstraints, type SchemaProperty, type StringConstraints, ArrayType,
-  BooleanType, ConditionalRule, CustomFormat, EmailFormat, IntegerType, JsonBool,
-  JsonNull, JsonNumber, JsonSchema, JsonString, NullType, NumberConstraints,
-  NumberType, ObjectType, SchemaProperty, StringConstraints, StringType,
-  UrlFormat, UuidFormat,
+  BooleanType, BooleanValue, ConditionalRule, CustomFormat, EmailFormat, 
+  IntegerType, IntegerValue, JsonSchema, NullType, NullValue, NumberConstraints, NumberType, 
+  NumberValue, ObjectType, SchemaProperty, StringConstraints, StringType, 
+  StringValue, UrlFormat, UuidFormat,
 }
 
 /// Errors that can occur during JSON Schema parsing.
@@ -229,12 +229,12 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   use default <- decode.optional_field(
     "default",
     None,
-    decode.optional(json_value_decoder()),
+    decode.optional(value_decoder()),
   )
   use enum_values <- decode.optional_field(
     "enum",
     None,
-    decode.optional(decode.list(json_value_decoder())),
+    decode.optional(decode.list(value_decoder())),
   )
   use ref <- decode.optional_field("$ref", None, decode.optional(decode.string))
   use items <- decode.optional_field(
@@ -422,35 +422,35 @@ fn format_decoder() -> Decoder(types.StringFormat) {
 /// Decode arbitrary JSON values for enum values and default values.
 /// 
 /// This decoder can handle any valid JSON value (string, number, boolean,
-/// array, object, null) and converts it to the appropriate JsonValue variant.
+/// array, object, null) and converts it to the appropriate Value variant.
 /// It's used for parsing enum options and default values in schemas.
-fn json_value_decoder() -> Decoder(JsonValue) {
+fn value_decoder() -> Decoder(Value) {
   use dynamic_value <- decode.then(decode.dynamic)
 
   // Try different decoders in order of preference
   case decode.run(dynamic_value, decode.string) {
-    Ok(s) -> decode.success(JsonString(s))
+    Ok(s) -> decode.success(StringValue(s))
     Error(_) ->
       case decode.run(dynamic_value, decode.int) {
-        Ok(i) -> decode.success(types.JsonInteger(i))
+        Ok(i) -> decode.success(IntegerValue(i))
         Error(_) ->
           case decode.run(dynamic_value, decode.float) {
-            Ok(f) -> decode.success(JsonNumber(f))
+            Ok(f) -> decode.success(NumberValue(f))
             Error(_) ->
               case decode.run(dynamic_value, decode.bool) {
-                Ok(b) -> decode.success(JsonBool(b))
+                Ok(b) -> decode.success(BooleanValue(b))
                 Error(_) ->
                   case decode.run(dynamic_value, decode.list(decode.dynamic)) {
                     Ok(arr) -> {
                       let decoded_items =
                         arr
                         |> list.filter_map(fn(item) {
-                          case decode.run(item, json_value_decoder()) {
+                          case decode.run(item, value_decoder()) {
                             Ok(value) -> Ok(value)
                             Error(_) -> Error(Nil)
                           }
                         })
-                      decode.success(types.JsonArray(decoded_items))
+                      decode.success(types.ArrayValue(decoded_items))
                     }
                     Error(_) ->
                       case
@@ -464,14 +464,14 @@ fn json_value_decoder() -> Decoder(JsonValue) {
                             dict.to_list(obj)
                             |> list.filter_map(fn(pair) {
                               let #(key, value) = pair
-                              case decode.run(value, json_value_decoder()) {
+                              case decode.run(value, value_decoder()) {
                                 Ok(decoded_value) -> Ok(#(key, decoded_value))
                                 Error(_) -> Error(Nil)
                               }
                             })
-                          decode.success(types.JsonObject(decoded_list))
+                          decode.success(types.ObjectValue(decoded_list))
                         }
-                        Error(_) -> decode.success(JsonNull)
+                        Error(_) -> decode.success(NullValue)
                       }
                   }
               }

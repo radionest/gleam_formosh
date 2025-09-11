@@ -274,6 +274,6 @@ pub fn from_json_string_with_config(
 /// 
 /// ## Returns
 /// Dictionary of field names to their current values
-pub fn get_values(model: model.FormModel) -> dict.Dict(String, types.FieldValue) {
+pub fn get_values(model: model.FormModel) -> dict.Dict(String, types.Value) {
   model.values
 }
