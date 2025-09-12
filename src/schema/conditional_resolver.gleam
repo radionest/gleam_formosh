@@ -73,10 +73,7 @@ fn evaluate_condition(
 ///
 /// This is used to evaluate if conditions, checking if the actual
 /// field value satisfies the constraints in the condition schema.
-fn check_property_match(
-  prop_schema: SchemaProperty,
-  field_value: Value,
-) -> Bool {
+fn check_property_match(prop_schema: SchemaProperty, field_value: Value) -> Bool {
   // Check for const constraint (exact value match)
   case prop_schema.enum_values {
     Some([expected_value]) -> {

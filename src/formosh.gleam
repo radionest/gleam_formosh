@@ -1,6 +1,9 @@
 // Main module for Formosh - JSON Schema based form generator
 
-import form/model.{type FormModel, type FormMsg, type SubmitConfig, CustomSubmit, HttpSubmit, NoSubmit}
+import form/model.{
+  type FormModel, type FormMsg, type SubmitConfig, CustomSubmit, HttpSubmit,
+  NoSubmit,
+}
 import form/update
 import form/view
 import gleam/dict
@@ -175,11 +178,11 @@ fn create_form_with_config(
   config: FormConfig,
 ) -> lustre.App(Nil, FormModel, FormMsg) {
   lustre.application(
-    fn(_) { 
+    fn(_) {
       #(
-        model.init_with_config(config.schema, option.Some(config.submit_config)), 
-        effect.none()
-      ) 
+        model.init_with_config(config.schema, option.Some(config.submit_config)),
+        effect.none(),
+      )
     },
     update.update,
     view.view,
@@ -215,17 +218,6 @@ pub fn from_json_string(
     Error(err) -> Error(err)
   }
 }
-
-
-pub fn from_json_string_to_html(
-  json_string: String,
-) -> Result(lustre.App(Nil, FormModel, FormMsg), parser.ParseError) {
-  case parser.parse_schema(json_string) {
-    Ok(schema) -> Ok(from_schema(schema))
-    Error(err) -> Error(err)
-  }
-}
-
 
 /// Create a form application from a JSON string with configuration.
 /// 

@@ -5,8 +5,8 @@ import gleeunit
 import gleeunit/should
 import schema/conditional_resolver
 import schema/types.{
-  BooleanValue, ConditionalRule, JsonSchema, SchemaProperty,
-  StringValue, empty_property,
+  BooleanValue, ConditionalRule, JsonSchema, SchemaProperty, StringValue,
+  empty_property,
 }
 
 pub fn main() {

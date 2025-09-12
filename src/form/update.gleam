@@ -1,8 +1,9 @@
 // Update functions for form MVU
 
+import form/json_utils
 import form/model.{
-  type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit,
-  FormSubmit, FormSubmitted, HttpSubmit, NoSubmit, RemoveArrayItemPath, ResetForm,
+  type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit, FormSubmit,
+  FormSubmitted, HttpSubmit, NoSubmit, RemoveArrayItemPath, ResetForm,
   SubmissionError, SubmissionSuccess, UpdateFieldPath, ValidateForm,
 }
 import form/path
@@ -17,8 +18,7 @@ import lustre/effect.{type Effect}
 import rsvp
 import schema/conditional_resolver
 import schema/types.{
-  ArrayValue, BooleanValue, IntegerValue, NullValue, NumberValue, ObjectValue,
-  StringValue, type Value,
+  type Value,
 }
 import schema/validator
 
@@ -259,43 +259,53 @@ fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
       // Convert form values to JSON
       let json_data = values_to_json(model.values)
       let json_string = json.to_string(json_data)
-      
+
       // Make HTTP request based on method
       case method {
-        "POST" -> 
-          rsvp.post(url, json_data, rsvp.expect_any_response(handle_http_response))
+        "POST" ->
+          rsvp.post(
+            url,
+            json_data,
+            rsvp.expect_any_response(handle_http_response),
+          )
         "PUT" -> {
           // Use rsvp.send for PUT requests
           case request.to(url) {
             Ok(req) -> {
-              let put_request = req
+              let put_request =
+                req
                 |> request.set_method(http.Put)
                 |> request.set_header("content-type", "application/json")
                 |> request.set_body(json_string)
-              
-              rsvp.send(put_request, rsvp.expect_any_response(handle_http_response))
+
+              rsvp.send(
+                put_request,
+                rsvp.expect_any_response(handle_http_response),
+              )
             }
-            Error(_) -> 
+            Error(_) ->
               effect.from(fn(dispatch) {
                 dispatch(FormSubmitted(Error("Invalid URL: " <> url)))
                 Nil
               })
           }
         }
-        "GET" -> 
+        "GET" ->
           // For GET, we would need to add query params - not implemented yet
           effect.from(fn(dispatch) {
             dispatch(FormSubmitted(Error("GET method not yet supported")))
             Nil
           })
-        _ -> 
+        _ ->
           effect.from(fn(dispatch) {
-            dispatch(FormSubmitted(Error("Unsupported HTTP method: " <> method)))
+            dispatch(
+              FormSubmitted(Error("Unsupported HTTP method: " <> method)),
+            )
             Nil
           })
       }
     }
-    
+
     Some(CustomSubmit(handler)) -> {
       // Use custom handler function
       effect.from(fn(dispatch) {
@@ -306,7 +316,7 @@ fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
         Nil
       })
     }
-    
+
     Some(NoSubmit) | None -> {
       // No submission configured - just mark as successful
       effect.from(fn(dispatch) {
@@ -318,7 +328,9 @@ fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
 }
 
 /// Handle HTTP response from form submission.
-fn handle_http_response(result: Result(response.Response(String), rsvp.Error)) -> FormMsg {
+fn handle_http_response(
+  result: Result(response.Response(String), rsvp.Error),
+) -> FormMsg {
   case result {
     Ok(resp) -> {
       // Check status code for success
@@ -347,27 +359,7 @@ fn values_to_json(values: dict.Dict(String, Value)) -> json.Json {
   |> dict.to_list()
   |> list.map(fn(pair) {
     let #(key, val) = pair
-    #(key, value_to_json(val))
+    #(key, json_utils.value_to_json(val))
   })
   |> json.object()
-}
-
-/// Convert a Value to JSON for serialization.
-fn value_to_json(value: Value) -> json.Json {
-  case value {
-    StringValue(s) -> json.string(s)
-    NumberValue(n) -> json.float(n)
-    IntegerValue(i) -> json.int(i)
-    BooleanValue(b) -> json.bool(b)
-    NullValue -> json.null()
-    ArrayValue(items) -> json.array(items, value_to_json)
-    ObjectValue(fields) -> 
-      json.object(
-        fields
-        |> list.map(fn(pair) {
-          let #(key, val) = pair
-          #(key, value_to_json(val))
-        })
-      )
-  }
 }

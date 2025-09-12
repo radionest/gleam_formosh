@@ -6,8 +6,7 @@
 import fields/field_common
 import form/model.{type FormMsg, UpdateFieldPath}
 import form/path
-import gleam/option.{type Option, None, Some}
-import gleam/string
+import gleam/option.{type Option}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -230,4 +229,3 @@ pub fn render_as_toggle(
     field_common.render_help_text(property),
   ])
 }
-

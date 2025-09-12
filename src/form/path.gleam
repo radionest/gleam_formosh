@@ -74,10 +74,7 @@ fn get_list_item(items: List(a), index: Int) -> Option(a) {
 }
 
 /// Get a value at a specific path from a Value.
-pub fn get_at_path(
-  value: types.Value,
-  path: FieldPath,
-) -> Option(types.Value) {
+pub fn get_at_path(value: types.Value, path: FieldPath) -> Option(types.Value) {
   case path {
     [] -> Some(value)
     [segment, ..rest] -> {
@@ -171,9 +168,7 @@ fn modify_array_item(
 }
 
 // Helper functions for working with types
-fn get_object_fields(
-  value: types.Value,
-) -> List(#(String, types.Value)) {
+fn get_object_fields(value: types.Value) -> List(#(String, types.Value)) {
   case value {
     types.ObjectValue(fields) -> fields
     _ -> []
@@ -214,10 +209,7 @@ fn set_field_value(
   }
 }
 
-fn ensure_array_size(
-  items: List(types.Value),
-  size: Int,
-) -> List(types.Value) {
+fn ensure_array_size(items: List(types.Value), size: Int) -> List(types.Value) {
   let current = list.length(items)
   case size > current {
     True -> list.append(items, list.repeat(types.NullValue, size - current))

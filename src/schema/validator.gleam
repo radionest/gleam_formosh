@@ -353,10 +353,7 @@ fn validate_number_constraints(
 /// 
 /// ## Returns
 /// List of validation errors if the value is not a boolean
-fn validate_boolean(
-  field_name: String,
-  value: Value,
-) -> List(ValidationError) {
+fn validate_boolean(field_name: String, value: Value) -> List(ValidationError) {
   case value {
     BooleanValue(_) -> []
     _ -> [

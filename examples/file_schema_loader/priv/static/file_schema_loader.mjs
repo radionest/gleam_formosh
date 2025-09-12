@@ -7917,6 +7917,45 @@ function post(url, body, handler) {
   }
 }
 
+// build/dev/javascript/formosh/form/json_utils.mjs
+function value_to_json(value2) {
+  if (value2 instanceof StringValue) {
+    let s = value2[0];
+    return string3(s);
+  } else if (value2 instanceof NumberValue) {
+    let n = value2[0];
+    return float3(n);
+  } else if (value2 instanceof IntegerValue) {
+    let i = value2[0];
+    return int3(i);
+  } else if (value2 instanceof BooleanValue) {
+    let b = value2[0];
+    return bool2(b);
+  } else if (value2 instanceof NullValue) {
+    return null$();
+  } else if (value2 instanceof ArrayValue) {
+    let items = value2[0];
+    return array2(items, value_to_json);
+  } else {
+    let fields = value2[0];
+    return object2(
+      (() => {
+        let _pipe = fields;
+        return map(
+          _pipe,
+          (pair) => {
+            let key;
+            let val;
+            key = pair[0];
+            val = pair[1];
+            return [key, value_to_json(val)];
+          }
+        );
+      })()
+    );
+  }
+}
+
 // build/dev/javascript/formosh/schema/conditional_resolver.mjs
 function compare_values(val1, val2) {
   if (val2 instanceof StringValue && val1 instanceof StringValue) {
@@ -8489,43 +8528,6 @@ function handle_http_response(result) {
     return new FormSubmitted(new Error(error_message));
   }
 }
-function value_to_json(value2) {
-  if (value2 instanceof StringValue) {
-    let s = value2[0];
-    return string3(s);
-  } else if (value2 instanceof NumberValue) {
-    let n = value2[0];
-    return float3(n);
-  } else if (value2 instanceof IntegerValue) {
-    let i = value2[0];
-    return int3(i);
-  } else if (value2 instanceof BooleanValue) {
-    let b = value2[0];
-    return bool2(b);
-  } else if (value2 instanceof NullValue) {
-    return null$();
-  } else if (value2 instanceof ArrayValue) {
-    let items = value2[0];
-    return array2(items, value_to_json);
-  } else {
-    let fields = value2[0];
-    return object2(
-      (() => {
-        let _pipe = fields;
-        return map(
-          _pipe,
-          (pair) => {
-            let key;
-            let val;
-            key = pair[0];
-            val = pair[1];
-            return [key, value_to_json(val)];
-          }
-        );
-      })()
-    );
-  }
-}
 function values_to_json(values3) {
   let _pipe = values3;
   let _pipe$1 = map_to_list(_pipe);
@@ -8896,36 +8898,6 @@ function on_submit(msg) {
 }
 
 // build/dev/javascript/formosh/fields/field_common.mjs
-function create_field_label(field_path, property3, is_required) {
-  let field_name = get_field_name(field_path);
-  let _block;
-  let $ = property3.title;
-  if ($ instanceof Some) {
-    let title = $[0];
-    _block = title;
-  } else {
-    let _pipe = field_name;
-    let _pipe$1 = replace(_pipe, "_", " ");
-    _block = capitalise(_pipe$1);
-  }
-  let label_text = _block;
-  return label(
-    toList([for$(field_name), class$("formosh-label")]),
-    toList([
-      text3(label_text),
-      (() => {
-        if (is_required) {
-          return span(
-            toList([class$("formosh-required")]),
-            toList([text3(" *")])
-          );
-        } else {
-          return text3("");
-        }
-      })()
-    ])
-  );
-}
 function render_label(field_name, property3, is_required) {
   let _block;
   let $ = property3.title;
@@ -8954,6 +8926,10 @@ function render_label(field_name, property3, is_required) {
       })()
     ])
   );
+}
+function create_field_label(field_path, property3, is_required) {
+  let field_name = get_field_name(field_path);
+  return render_label(field_name, property3, is_required);
 }
 function render_help_text(property3) {
   let $ = property3.description;
@@ -11122,43 +11098,6 @@ function view3(model) {
     );
   }
 }
-function value_to_json2(value2) {
-  if (value2 instanceof StringValue) {
-    let s = value2[0];
-    return string3(s);
-  } else if (value2 instanceof NumberValue) {
-    let n = value2[0];
-    return float3(n);
-  } else if (value2 instanceof IntegerValue) {
-    let i = value2[0];
-    return int3(i);
-  } else if (value2 instanceof BooleanValue) {
-    let b = value2[0];
-    return bool2(b);
-  } else if (value2 instanceof NullValue) {
-    return null$();
-  } else if (value2 instanceof ArrayValue) {
-    let items = value2[0];
-    return array2(items, value_to_json2);
-  } else {
-    let fields = value2[0];
-    return object2(
-      (() => {
-        let _pipe = fields;
-        return map(
-          _pipe,
-          (pair) => {
-            let key;
-            let val;
-            key = pair[0];
-            val = pair[1];
-            return [key, value_to_json2(val)];
-          }
-        );
-      })()
-    );
-  }
-}
 function values_to_json2(values3) {
   let _pipe = values3;
   let _pipe$1 = map_to_list(_pipe);
@@ -11169,7 +11108,7 @@ function values_to_json2(values3) {
       let val;
       key = pair[0];
       val = pair[1];
-      return [key, value_to_json2(val)];
+      return [key, value_to_json(val)];
     }
   );
   return object2(_pipe$2);
@@ -11781,7 +11720,7 @@ function main() {
       40,
       "main",
       "Pattern match failed, no pattern matched the value.",
-      { value: $1, start: 873, end: 922, pattern_start: 884, pattern_end: 889 }
+      { value: $1, start: 871, end: 920, pattern_start: 882, pattern_end: 887 }
     );
   }
   return void 0;

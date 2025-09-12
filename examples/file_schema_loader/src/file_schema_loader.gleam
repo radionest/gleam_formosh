@@ -4,8 +4,8 @@ import gleam/dict
 import gleam/dynamic/decode
 import gleam/list
 import gleam/option.{type Option}
-import gleam/string
 import gleam/result
+import gleam/string
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -35,7 +35,7 @@ pub type Msg {
 pub fn main() {
   // Register the formosh web component
   let _ = component.register()
-  
+
   let app = lustre.application(init, update, view)
   let assert Ok(_) = lustre.start(app, "#app", Nil)
   Nil
@@ -46,10 +46,10 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
   // In browser environment, we can't read directory, so we hardcode the list
   let schemas = [
     "contact_form.json",
-    "survey_form.json", 
+    "survey_form.json",
     "user_registration.json",
   ]
-  
+
   #(
     Model(
       selected_schema: option.None,
@@ -66,11 +66,15 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
   case msg {
     LoadSchema(filename) -> {
       #(
-        Model(..model, selected_schema: option.Some(filename), error: option.None),
+        Model(
+          ..model,
+          selected_schema: option.Some(filename),
+          error: option.None,
+        ),
         fetch_schema(filename),
       )
     }
-    
+
     SchemaFetched(result) -> {
       case result {
         Ok(content) -> {
@@ -110,32 +114,30 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
         }
       }
     }
-    
+
     FormSubmitted(values) -> {
       // Handle form submission
       let result_message = case dict.get(values, "error") {
         Ok(error) -> "Error: " <> error
-        Error(_) -> case dict.get(values, "response") {
-          Ok(response) -> "Success! Server response: " <> response
-          Error(_) -> "Form submitted to http://localhost:8888"
-        }
+        Error(_) ->
+          case dict.get(values, "response") {
+            Ok(response) -> "Success! Server response: " <> response
+            Error(_) -> "Form submitted to http://localhost:8888"
+          }
       }
-      
+
       #(
-        Model(
-          ..model,
-          submission_result: option.Some(result_message),
-        ),
+        Model(..model, submission_result: option.Some(result_message)),
         effect.none(),
       )
     }
-    
+
     FormChanged(values) -> {
       // Handle form changes (could be used for validation feedback)
       let _ = values
       #(model, effect.none())
     }
-    
+
     ClearSubmissionResult -> {
       #(Model(..model, submission_result: option.None), effect.none())
     }
@@ -145,7 +147,7 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
 fn view(model: Model) -> Element(Msg) {
   html.div([attribute.class("container")], [
     html.h1([], [html.text("JSON Schema File Loader")]),
-    
+
     // Schema selector
     html.div([attribute.class("schema-selector")], [
       html.h2([], [html.text("Select a schema:")]),
@@ -156,7 +158,7 @@ fn view(model: Model) -> Element(Msg) {
             option.Some(selected) -> selected == filename
             option.None -> False
           }
-          
+
           html.button(
             [
               event.on_click(LoadSchema(filename)),
@@ -176,7 +178,7 @@ fn view(model: Model) -> Element(Msg) {
         }),
       ),
     ]),
-    
+
     // Error message
     case model.error {
       option.Some(error) -> {
@@ -186,27 +188,33 @@ fn view(model: Model) -> Element(Msg) {
       }
       option.None -> element.none()
     },
-    
+
     // Submission result with styling
     case model.submission_result {
       option.Some(result) -> {
         let is_error = string.contains(result, "Error")
-        html.div([
-          attribute.class(case is_error {
-            True -> "form-status error"
-            False -> "form-status success"
-          })
-        ], [
-          html.text(result),
-          html.button([
-            event.on_click(ClearSubmissionResult),
-            attribute.class("clear-button")
-          ], [html.text(" ×")])
-        ])
+        html.div(
+          [
+            attribute.class(case is_error {
+              True -> "form-status error"
+              False -> "form-status success"
+            }),
+          ],
+          [
+            html.text(result),
+            html.button(
+              [
+                event.on_click(ClearSubmissionResult),
+                attribute.class("clear-button"),
+              ],
+              [html.text(" ×")],
+            ),
+          ],
+        )
       }
       option.None -> element.none()
     },
-    
+
     // Form display using web component
     case model.schema_content {
       option.Some(schema_json) -> {
@@ -217,17 +225,21 @@ fn view(model: Model) -> Element(Msg) {
               html.text("Schema: " <> option.unwrap(model.selected_schema, "")),
             ]),
           ]),
-          
+
           // Render the formosh web component
           html.div([attribute.id("form-mount-point")], [
-            element.element("formosh-form", [
-              attribute.attribute("schema", schema_json),
-              attribute.attribute("submit-url", "http://localhost:8888"),
-              attribute.attribute("submit-method", "POST"),
-              // Listen for form events
-              event.on("formosh-submit", decode_form_submit()),
-              event.on("formosh-change", decode_form_change()),
-            ], []),
+            element.element(
+              "formosh-form",
+              [
+                attribute.attribute("schema", schema_json),
+                attribute.attribute("submit-url", "http://localhost:8888"),
+                attribute.attribute("submit-method", "POST"),
+                // Listen for form events
+                event.on("formosh-submit", decode_form_submit()),
+                event.on("formosh-change", decode_form_change()),
+              ],
+              [],
+            ),
           ]),
         ])
       }
@@ -235,7 +247,9 @@ fn view(model: Model) -> Element(Msg) {
         case model.selected_schema {
           option.None -> {
             html.div([attribute.class("placeholder")], [
-              html.p([], [html.text("Select a schema to load and display the form")]),
+              html.p([], [
+                html.text("Select a schema to load and display the form"),
+              ]),
             ])
           }
           option.Some(_) -> {
@@ -260,47 +274,49 @@ fn get_display_name(filename: String) -> String {
 // Effect to fetch schema content via HTTP
 fn fetch_schema(filename: String) -> effect.Effect(Msg) {
   let url = "./schemas/" <> filename
-  let handler = rsvp.expect_any_response(fn(fetch_result){
-    case fetch_result{
+  let handler =
+    rsvp.expect_any_response(fn(fetch_result) {
+      case fetch_result {
         Ok(json_string) -> SchemaFetched(Ok(json_string.body))
         Error(error) -> {
           case error {
             rsvp.HttpError(resp) -> SchemaFetched(Error(resp.body))
             rsvp.NetworkError -> SchemaFetched(Error("Network error"))
             rsvp.BadUrl(u) -> SchemaFetched(Error("BAD url " <> u))
-            rsvp.BadBody -> SchemaFetched(Error("Bad body")) 
+            rsvp.BadBody -> SchemaFetched(Error("Bad body"))
             _ -> SchemaFetched(Error("Can't fetch schema at " <> url))
           }
         }
-    }
-  })
+      }
+    })
   rsvp.get(url, handler)
 }
 
 // Decoders for form events
 fn decode_form_submit() -> decode.Decoder(Msg) {
   use event_data <- decode.then(decode.at(["detail"], decode.dynamic))
-  
+
   // Try to extract status and data/error from the event
-  let status = decode.run(event_data, decode.at(["status"], decode.string))
+  let status =
+    decode.run(event_data, decode.at(["status"], decode.string))
     |> result.unwrap("unknown")
-  
+
   let values = case status {
     "success" -> {
       // Extract server response data
       decode.run(event_data, decode.at(["data"], decode.string))
-        |> result.map(fn(data) { dict.from_list([#("response", data)]) })
-        |> result.unwrap(dict.new())
+      |> result.map(fn(data) { dict.from_list([#("response", data)]) })
+      |> result.unwrap(dict.new())
     }
     "error" -> {
       // Extract error message
       decode.run(event_data, decode.at(["error"], decode.string))
-        |> result.map(fn(error) { dict.from_list([#("error", error)]) })
-        |> result.unwrap(dict.new())
+      |> result.map(fn(error) { dict.from_list([#("error", error)]) })
+      |> result.unwrap(dict.new())
     }
     _ -> dict.new()
   }
-  
+
   decode.success(FormSubmitted(values))
 }
 

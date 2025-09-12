@@ -7,12 +7,12 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import schema/resolver
 import schema/types.{
-  type ConditionalRule, type FieldType, type JsonSchema, type Value,
-  type NumberConstraints, type SchemaProperty, type StringConstraints, ArrayType,
-  BooleanType, BooleanValue, ConditionalRule, CustomFormat, EmailFormat, 
-  IntegerType, IntegerValue, JsonSchema, NullType, NullValue, NumberConstraints, NumberType, 
-  NumberValue, ObjectType, SchemaProperty, StringConstraints, StringType, 
-  StringValue, UrlFormat, UuidFormat,
+  type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
+  type SchemaProperty, type StringConstraints, type Value, ArrayType,
+  BooleanType, BooleanValue, ConditionalRule, CustomFormat, EmailFormat,
+  IntegerType, IntegerValue, JsonSchema, NullType, NullValue, NumberConstraints,
+  NumberType, NumberValue, ObjectType, SchemaProperty, StringConstraints,
+  StringType, StringValue, UrlFormat, UuidFormat,
 }
 
 /// Errors that can occur during JSON Schema parsing.

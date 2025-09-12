@@ -12,7 +12,6 @@ import lustre/element/html
 import lustre/event
 import schema/types
 
-
 /// Create a field label from path and property.
 /// 
 /// Creates a properly associated label element for a form field, using either
@@ -93,33 +92,6 @@ pub fn render_help_text(property: types.SchemaProperty) -> Element(FormMsg) {
       ])
     None -> html.text("")
   }
-}
-
-/// Create a complete field wrapper with label, input, and help text.
-/// 
-/// This function provides a consistent structure for all form fields by
-/// wrapping the field input element with its label and help text. This
-/// ensures consistent styling and accessibility across all field types.
-/// 
-/// ## Parameters
-/// - `field_name`: The field name for label association
-/// - `property`: The schema property for label and help text
-/// - `is_required`: Whether to show required indicator on the label
-/// - `field_element`: The actual input element (input, select, etc.)
-/// 
-/// ## Returns
-/// A Lustre Element containing the complete field structure
-pub fn field_wrapper(
-  field_name: String,
-  property: types.SchemaProperty,
-  is_required: Bool,
-  field_element: Element(FormMsg),
-) -> Element(FormMsg) {
-  html.div([attribute.class("formosh-field-wrapper")], [
-    render_label(field_name, property, is_required),
-    field_element,
-    render_help_text(property),
-  ])
 }
 
 /// Wrap a form field with label and help text using field path.

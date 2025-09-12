@@ -20,7 +20,7 @@ import lustre/attribute.{class, type_}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import schema/types.{type Value, type SchemaProperty}
+import schema/types.{type SchemaProperty, type Value}
 
 /// Render an array field with dynamic add/remove functionality.
 /// 

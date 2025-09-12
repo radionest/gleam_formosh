@@ -14,7 +14,7 @@ import gleam/option.{type Option, None, Some}
 import lustre/attribute.{class}
 import lustre/element.{type Element}
 import lustre/element/html
-import schema/types.{type Value, type SchemaProperty}
+import schema/types.{type SchemaProperty, type Value}
 
 /// Render an object field with all its nested properties.
 /// 

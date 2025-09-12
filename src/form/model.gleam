@@ -205,10 +205,7 @@ pub fn is_field_disabled(model: FormModel, field_name: String) -> Bool {
 /// ## Returns
 /// - `Some(Value)` if the field has a value
 /// - `None` if the field has not been set or doesn't exist
-pub fn get_field_value(
-  model: FormModel,
-  field_name: String,
-) -> Option(Value) {
+pub fn get_field_value(model: FormModel, field_name: String) -> Option(Value) {
   case dict.get(model.values, field_name) {
     Ok(value) -> option.Some(value)
     Error(_) -> option.None
@@ -300,11 +297,7 @@ pub fn add_field_error(
 /// A new FormModel with the field's errors cleared
 pub fn clear_field_errors(model: FormModel, field_name: String) -> FormModel {
   let new_errors = dict.delete(model.errors, field_name)
-  FormModel(
-    ..model,
-    errors: new_errors,
-    is_valid: dict.size(new_errors) == 0,
-  )
+  FormModel(..model, errors: new_errors, is_valid: dict.size(new_errors) == 0)
 }
 
 /// Clear all validation errors from the form.
