@@ -2,8 +2,11 @@
 // This module provides a Lustre component that can be embedded in applications
 // with configurable submission endpoint and other properties.
 
-import form/model.{type FormModel, type FormMsg, FormSubmit}
-import form/update
+import form/model.{
+  type FormModel, type FormMsg, FormSubmit, FormSubmitted,
+  HttpSubmit, init_with_config,
+}
+import form/update.{validate_all_fields}
 import form/view
 import gleam/dict
 import gleam/dynamic/decode
@@ -180,15 +183,35 @@ type Msg {
   
   // Form messages (wrapped)
   FormMessage(FormMsg)
+  
+  // HTTP submission result
+  SubmissionResponse(Result(String, String))
+}
+
+/// Helper function to reinitialize form with current configuration
+fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
+  // Create submit config if URL is present
+  let submit_config = case model.submit_url {
+    Some(url) -> Some(HttpSubmit(url, model.submit_method, [
+      #("Content-Type", "application/json"),
+    ]))
+    None -> None
+  }
+  
+  // Initialize form with the schema and submit config
+  let form_model = init_with_config(schema, submit_config)
+  // Validate the form initially to check required fields
+  let validated_form = validate_all_fields(form_model)
+  Model(..model, form_model: Some(validated_form))
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     SchemaChanged(schema) -> {
-      // Initialize a new form model with the schema
-      let form_model = model.init(schema)
+      // Store the schema but reinitialize the form with current config
+      let new_model = reinitialize_form_with_schema(model, schema)
       #(
-        Model(..model, form_model: Some(form_model)),
+        new_model,
         // Emit a ready event to notify parent
         event.emit("formosh-ready", json.object([
           #("schema", json.string("loaded")),
@@ -197,11 +220,33 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     }
     
     SubmitUrlChanged(url) -> {
-      #(Model(..model, submit_url: Some(url)), effect.none())
+      // Update the submit URL and reinitialize form if schema exists
+      let new_model = Model(..model, submit_url: Some(url))
+      let final_model = case new_model.form_model {
+        Some(form_model) -> {
+          // Reinitialize with the new submit config
+          case form_model.schema {
+            schema -> reinitialize_form_with_schema(new_model, schema)
+          }
+        }
+        None -> new_model
+      }
+      #(final_model, effect.none())
     }
     
     SubmitMethodChanged(method) -> {
-      #(Model(..model, submit_method: method), effect.none())
+      // Update the submit method and reinitialize form if both schema and URL exist
+      let new_model = Model(..model, submit_method: method)
+      let final_model = case new_model.form_model {
+        Some(form_model) -> {
+          case new_model.submit_url {
+            Some(_) -> reinitialize_form_with_schema(new_model, form_model.schema)
+            None -> new_model
+          }
+        }
+        None -> new_model
+      }
+      #(final_model, effect.none())
     }
     
     CssPrefixChanged(prefix) -> {
@@ -215,20 +260,20 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           let #(updated_form, form_effect) = 
             update.update(form_model, form_msg)
           
-          // Check if this was a submit message
-          let submit_effect = case form_msg {
+          // Handle form events
+          let event_effect = case form_msg {
             FormSubmit -> {
-              // Emit submit event with form data
-              case model.submit_url {
-                Some(url) -> {
-                  effect.batch([
-                    emit_submit_event(updated_form, url, model.submit_method),
-                    emit_change_event(updated_form),
-                  ])
-                }
-                None -> {
-                  emit_submit_event(updated_form, "", "")
-                }
+              // Form will handle the submission internally
+              // Just emit a submitting event
+              event.emit("formosh-submitting", json.object([
+                #("status", json.string("submitting")),
+              ]))
+            }
+            FormSubmitted(result) -> {
+              // Form submitted, emit result
+              case result {
+                Ok(message) -> emit_submit_result(Ok(message))
+                Error(error) -> emit_submit_result(Error(error))
               }
             }
             _ -> emit_change_event(updated_form)
@@ -238,7 +283,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
             Model(..model, form_model: Some(updated_form)),
             effect.batch([
               form_effect |> effect.map(FormMessage),
-              submit_effect,
+              event_effect,
             ]),
           )
         }
@@ -248,6 +293,11 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           #(model, effect.none())
         }
       }
+    }
+    
+    SubmissionResponse(result) -> {
+      // Emit the result to parent component
+      #(model, emit_submit_result(result))
     }
   }
 }
@@ -306,14 +356,22 @@ fn values_to_json(values: dict.Dict(String, Value)) -> json.Json {
   |> json.object()
 }
 
-/// Emit a custom event when the form is submitted.
-fn emit_submit_event(form_model: FormModel, url: String, method: String) -> Effect(Msg) {
-  event.emit("formosh-submit", json.object([
-    #("values", values_to_json(form_model.values)),
-    #("url", json.string(url)),
-    #("method", json.string(method)),
-    #("isValid", json.bool(form_model.is_valid)),
-  ]))
+
+/// Emit the submission result to parent component.
+fn emit_submit_result(result: Result(String, String)) -> Effect(Msg) {
+  // Convert Result to JSON for event emission
+  let json_result = case result {
+    Ok(body) -> json.object([
+      #("status", json.string("success")),
+      #("data", json.string(body)),
+    ])
+    Error(message) -> json.object([
+      #("status", json.string("error")),
+      #("error", json.string(message)),
+    ])
+  }
+  
+  event.emit("formosh-submit", json_result)
 }
 
 /// Emit a custom event when the form changes.

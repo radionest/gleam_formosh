@@ -11,54 +11,5 @@
       "description": "Введите ваше имя и фамилию",
       "minLength": 2,
       "maxLength": 100
-    },
-    "email": {
-      "type": "string",
-      "title": "Email адрес",
-      "description": "Мы используем его только для ответа на ваш запрос",
-      "format": "email"
-    },
-    "phone": {
-      "type": "string",
-      "title": "Телефон",
-      "description": "Необязательно, но поможет связаться быстрее",
-      "pattern": "^[+]?[0-9\\s()-]+$",
-      "minLength": 10,
-      "maxLength": 20
-    },
-    "subject": {
-      "type": "string",
-      "title": "Тема обращения",
-      "enum": [
-        "Общий вопрос",
-        "Техническая поддержка",
-        "Коммерческое предложение",
-        "Жалоба",
-        "Другое"
-      ]
-    },
-    "message": {
-      "type": "string",
-      "title": "Сообщение",
-      "description": "Опишите ваш вопрос или предложение",
-      "minLength": 10,
-      "maxLength": 1000
-    },
-    "subscribe": {
-      "type": "boolean",
-      "title": "Подписаться на новости",
-      "description": "Получать обновления и полезную информацию"
     }
-  },
-  "required": ["name", "email", "subject", "message"],
-  "if": {
-    "properties": {
-      "subject": { "const": "Общий вопрос" }
-    }
-  },
-  "then": {
-    "properties": {
-      "is_confidential": { "type": "boolean" }
-    }
-  }
-}
+}}

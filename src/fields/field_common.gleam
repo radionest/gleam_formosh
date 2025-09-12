@@ -32,25 +32,7 @@ pub fn create_field_label(
   is_required: Bool,
 ) -> Element(FormMsg) {
   let field_name = path.get_field_name(field_path)
-  let label_text = case property.title {
-    Some(title) -> title
-    None -> field_name |> string.replace("_", " ") |> string.capitalise()
-  }
-
-  html.label(
-    [
-      attribute.for(field_name),
-      attribute.class("formosh-label"),
-    ],
-    [
-      html.text(label_text),
-      case is_required {
-        True ->
-          html.span([attribute.class("formosh-required")], [html.text(" *")])
-        False -> html.text("")
-      },
-    ],
-  )
+  render_label(field_name, property, is_required)
 }
 
 /// Render a field label with optional required indicator.

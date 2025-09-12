@@ -1,17 +1,25 @@
 // Update functions for form MVU
 
 import form/model.{
-  type FormModel, type FormMsg, AddArrayItemPath, FormSubmit, FormSubmitted,
-  RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
-  UpdateFieldPath, ValidateForm,
+  type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit,
+  FormSubmit, FormSubmitted, HttpSubmit, NoSubmit, RemoveArrayItemPath, ResetForm,
+  SubmissionError, SubmissionSuccess, UpdateFieldPath, ValidateForm,
 }
 import form/path
 import gleam/dict
+import gleam/http
+import gleam/http/request
+import gleam/http/response
+import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import lustre/effect.{type Effect}
+import rsvp
 import schema/conditional_resolver
-import schema/types
+import schema/types.{
+  ArrayValue, BooleanValue, IntegerValue, NullValue, NumberValue, ObjectValue,
+  StringValue, type Value,
+}
 import schema/validator
 
 /// Main update function for the form MVU architecture.
@@ -95,7 +103,8 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           resolved_schema: resolved_schema,
           is_dirty: True,
         )
-      #(new_model, effect.none())
+      let validated_model = validate_all_fields(new_model)
+      #(validated_model, effect.none())
     }
 
     AddArrayItemPath(path) -> {
@@ -220,7 +229,7 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
 /// 
 /// ## Returns
 /// A new FormModel with validation errors for all invalid fields
-fn validate_all_fields(model: FormModel) -> FormModel {
+pub fn validate_all_fields(model: FormModel) -> FormModel {
   dict.keys(model.schema.properties)
   |> list.fold(model.clear_all_errors(model), validate_field)
 }
@@ -244,12 +253,121 @@ fn validate_all_fields(model: FormModel) -> FormModel {
 /// 2. Make an HTTP request
 /// 3. Handle success/error responses
 /// 4. Dispatch appropriate FormSubmitted messages
-fn submit_form_effect(_model: FormModel) -> Effect(FormMsg) {
-  // In a real application, this would make an HTTP request
-  // For now, we'll just simulate a successful submission
-  effect.from(fn(dispatch) {
-    // Simulate async submission
-    dispatch(FormSubmitted(Ok("Form submitted successfully!")))
-    Nil
+fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
+  case model.submit_config {
+    Some(HttpSubmit(url, method, _headers)) -> {
+      // Convert form values to JSON
+      let json_data = values_to_json(model.values)
+      let json_string = json.to_string(json_data)
+      
+      // Make HTTP request based on method
+      case method {
+        "POST" -> 
+          rsvp.post(url, json_data, rsvp.expect_any_response(handle_http_response))
+        "PUT" -> {
+          // Use rsvp.send for PUT requests
+          case request.to(url) {
+            Ok(req) -> {
+              let put_request = req
+                |> request.set_method(http.Put)
+                |> request.set_header("content-type", "application/json")
+                |> request.set_body(json_string)
+              
+              rsvp.send(put_request, rsvp.expect_any_response(handle_http_response))
+            }
+            Error(_) -> 
+              effect.from(fn(dispatch) {
+                dispatch(FormSubmitted(Error("Invalid URL: " <> url)))
+                Nil
+              })
+          }
+        }
+        "GET" -> 
+          // For GET, we would need to add query params - not implemented yet
+          effect.from(fn(dispatch) {
+            dispatch(FormSubmitted(Error("GET method not yet supported")))
+            Nil
+          })
+        _ -> 
+          effect.from(fn(dispatch) {
+            dispatch(FormSubmitted(Error("Unsupported HTTP method: " <> method)))
+            Nil
+          })
+      }
+    }
+    
+    Some(CustomSubmit(handler)) -> {
+      // Use custom handler function
+      effect.from(fn(dispatch) {
+        case handler(model) {
+          Ok(message) -> dispatch(FormSubmitted(Ok(message)))
+          Error(error) -> dispatch(FormSubmitted(Error(error)))
+        }
+        Nil
+      })
+    }
+    
+    Some(NoSubmit) | None -> {
+      // No submission configured - just mark as successful
+      effect.from(fn(dispatch) {
+        dispatch(FormSubmitted(Ok("Form validated successfully")))
+        Nil
+      })
+    }
+  }
+}
+
+/// Handle HTTP response from form submission.
+fn handle_http_response(result: Result(response.Response(String), rsvp.Error)) -> FormMsg {
+  case result {
+    Ok(resp) -> {
+      // Check status code for success
+      case resp.status >= 200 && resp.status < 300 {
+        True -> FormSubmitted(Ok(resp.body))
+        False -> FormSubmitted(Error("Server error: " <> resp.body))
+      }
+    }
+    Error(error) -> {
+      let error_message = case error {
+        rsvp.NetworkError -> "Network connection failed"
+        rsvp.HttpError(resp) -> "HTTP error: " <> resp.body
+        rsvp.BadUrl(url) -> "Invalid URL: " <> url
+        rsvp.JsonError(_) -> "Invalid response format"
+        rsvp.BadBody -> "Invalid request body format"
+        rsvp.UnhandledResponse(resp) -> "Unexpected response: " <> resp.body
+      }
+      FormSubmitted(Error(error_message))
+    }
+  }
+}
+
+/// Convert form values dictionary to JSON.
+fn values_to_json(values: dict.Dict(String, Value)) -> json.Json {
+  values
+  |> dict.to_list()
+  |> list.map(fn(pair) {
+    let #(key, val) = pair
+    #(key, value_to_json(val))
   })
+  |> json.object()
+}
+
+/// Convert a Value to JSON for serialization.
+fn value_to_json(value: Value) -> json.Json {
+  case value {
+    StringValue(s) -> json.string(s)
+    NumberValue(n) -> json.float(n)
+    IntegerValue(i) -> json.int(i)
+    BooleanValue(b) -> json.bool(b)
+    NullValue -> json.null()
+    ArrayValue(items) -> json.array(items, value_to_json)
+    ObjectValue(fields) -> 
+      json.object(
+        fields
+        |> list.map(fn(pair) {
+          let #(key, val) = pair
+          #(key, value_to_json(val))
+        })
+      )
+  }
 }

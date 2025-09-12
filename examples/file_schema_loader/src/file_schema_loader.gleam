@@ -5,7 +5,7 @@ import gleam/dynamic/decode
 import gleam/list
 import gleam/option.{type Option}
 import gleam/string
-import gleam/http/request
+import gleam/result
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -29,6 +29,7 @@ pub type Msg {
   SchemaFetched(Result(String, String))
   FormSubmitted(dict.Dict(String, String))
   FormChanged(dict.Dict(String, String))
+  ClearSubmissionResult
 }
 
 pub fn main() {
@@ -112,11 +113,18 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
     
     FormSubmitted(values) -> {
       // Handle form submission
-      let _ = values // TODO: Process form values
+      let result_message = case dict.get(values, "error") {
+        Ok(error) -> "Error: " <> error
+        Error(_) -> case dict.get(values, "response") {
+          Ok(response) -> "Success! Server response: " <> response
+          Error(_) -> "Form submitted to http://localhost:8888"
+        }
+      }
+      
       #(
         Model(
           ..model,
-          submission_result: option.Some("Form submitted successfully!"),
+          submission_result: option.Some(result_message),
         ),
         effect.none(),
       )
@@ -126,6 +134,10 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
       // Handle form changes (could be used for validation feedback)
       let _ = values
       #(model, effect.none())
+    }
+    
+    ClearSubmissionResult -> {
+      #(Model(..model, submission_result: option.None), effect.none())
     }
   }
 }
@@ -175,11 +187,21 @@ fn view(model: Model) -> Element(Msg) {
       option.None -> element.none()
     },
     
-    // Submission result
+    // Submission result with styling
     case model.submission_result {
       option.Some(result) -> {
-        html.div([attribute.class("form-status success")], [
+        let is_error = string.contains(result, "Error")
+        html.div([
+          attribute.class(case is_error {
+            True -> "form-status error"
+            False -> "form-status success"
+          })
+        ], [
           html.text(result),
+          html.button([
+            event.on_click(ClearSubmissionResult),
+            attribute.class("clear-button")
+          ], [html.text(" ×")])
         ])
       }
       option.None -> element.none()
@@ -200,7 +222,7 @@ fn view(model: Model) -> Element(Msg) {
           html.div([attribute.id("form-mount-point")], [
             element.element("formosh-form", [
               attribute.attribute("schema", schema_json),
-              attribute.attribute("submit-url", "/api/submit"),
+              attribute.attribute("submit-url", "http://localhost:8888"),
               attribute.attribute("submit-method", "POST"),
               // Listen for form events
               event.on("formosh-submit", decode_form_submit()),
@@ -242,7 +264,6 @@ fn fetch_schema(filename: String) -> effect.Effect(Msg) {
     case fetch_result{
         Ok(json_string) -> SchemaFetched(Ok(json_string.body))
         Error(error) -> {
-          echo error
           case error {
             rsvp.HttpError(resp) -> SchemaFetched(Error(resp.body))
             rsvp.NetworkError -> SchemaFetched(Error("Network error"))
@@ -258,12 +279,29 @@ fn fetch_schema(filename: String) -> effect.Effect(Msg) {
 
 // Decoders for form events
 fn decode_form_submit() -> decode.Decoder(Msg) {
+  use event_data <- decode.then(decode.at(["detail"], decode.dynamic))
   
-  decode.at(["detail", "values"], decode.dynamic)
-  |> decode.map(fn(_values) {
-    // TODO: Properly decode the form values
-    FormSubmitted(dict.new())
-  })
+  // Try to extract status and data/error from the event
+  let status = decode.run(event_data, decode.at(["status"], decode.string))
+    |> result.unwrap("unknown")
+  
+  let values = case status {
+    "success" -> {
+      // Extract server response data
+      decode.run(event_data, decode.at(["data"], decode.string))
+        |> result.map(fn(data) { dict.from_list([#("response", data)]) })
+        |> result.unwrap(dict.new())
+    }
+    "error" -> {
+      // Extract error message
+      decode.run(event_data, decode.at(["error"], decode.string))
+        |> result.map(fn(error) { dict.from_list([#("error", error)]) })
+        |> result.unwrap(dict.new())
+    }
+    _ -> dict.new()
+  }
+  
+  decode.success(FormSubmitted(values))
 }
 
 fn decode_form_change() -> decode.Decoder(Msg) {

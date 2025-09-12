@@ -1,26 +1,14 @@
 // Main module for Formosh - JSON Schema based form generator
 
-import form/model.{type FormModel, type FormMsg}
+import form/model.{type FormModel, type FormMsg, type SubmitConfig, CustomSubmit, HttpSubmit, NoSubmit}
 import form/update
 import form/view
 import gleam/dict
+import gleam/option
 import lustre
 import lustre/effect
 import schema/parser
 import schema/types.{type JsonSchema}
-
-/// Configuration for form submission behavior.
-/// 
-/// This type allows customization of how the form handles submission,
-/// including where to send data and how to handle responses.
-pub type SubmitConfig {
-  /// Submit form data to an HTTP endpoint
-  HttpSubmit(url: String, method: String, headers: List(#(String, String)))
-  /// Handle submission with a custom function
-  CustomSubmit(handler: fn(model.FormModel) -> Result(String, String))
-  /// No submission handler (form values can be retrieved manually)
-  NoSubmit
-}
 
 /// Configuration options for creating a form.
 /// 
@@ -186,11 +174,13 @@ pub fn from_config(config: FormConfig) -> lustre.App(Nil, FormModel, FormMsg) {
 fn create_form_with_config(
   config: FormConfig,
 ) -> lustre.App(Nil, FormModel, FormMsg) {
-  // Store config in a way that can be accessed by the update function
-  // For now, use the existing init function
-  // In a real implementation, we'd need to extend the model to store submit_config
   lustre.application(
-    fn(_) { #(model.init(config.schema), effect.none()) },
+    fn(_) { 
+      #(
+        model.init_with_config(config.schema, option.Some(config.submit_config)), 
+        effect.none()
+      ) 
+    },
     update.update,
     view.view,
   )

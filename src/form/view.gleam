@@ -38,7 +38,6 @@ pub fn view(model: FormModel) -> Element(FormMsg) {
   html.div([attribute.class("formosh-container")], [
     render_form_header(model),
     render_form_body(model),
-    render_form_footer(model),
     render_submission_result(model),
   ])
 }
@@ -90,7 +89,7 @@ fn render_form_body(model: FormModel) -> Element(FormMsg) {
       attribute.class("formosh-form"),
       event.on_submit(fn(_) { model.FormSubmit }),
     ],
-    fields,
+    list.append(fields, [render_form_footer_content(model)]),
   )
 }
 
@@ -232,7 +231,7 @@ fn render_field_errors(errors: List(types.ValidationError)) -> Element(FormMsg) 
 /// 
 /// ## Returns
 /// A Lustre Element containing the form action buttons
-fn render_form_footer(model: FormModel) -> Element(FormMsg) {
+fn render_form_footer_content(model: FormModel) -> Element(FormMsg) {
   html.div([attribute.class("formosh-footer")], [
     html.button(
       [

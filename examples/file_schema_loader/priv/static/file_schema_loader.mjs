@@ -257,11 +257,6 @@ function bitArrayByteAt(buffer, bitOffset, index5) {
     return a | b;
   }
 }
-var UtfCodepoint = class {
-  constructor(value2) {
-    this.value = value2;
-  }
-};
 var isBitArrayDeprecationMessagePrinted = {};
 function bitArrayPrintDeprecationWarning(name2, message2) {
   if (isBitArrayDeprecationMessagePrinted[name2]) {
@@ -1758,6 +1753,33 @@ function repeat_loop(loop$item, loop$times, loop$acc) {
 function repeat(a, times) {
   return repeat_loop(a, times, toList([]));
 }
+function key_set_loop(loop$list, loop$key, loop$value, loop$inspected) {
+  while (true) {
+    let list4 = loop$list;
+    let key = loop$key;
+    let value2 = loop$value;
+    let inspected = loop$inspected;
+    if (list4 instanceof Empty) {
+      return reverse(prepend([key, value2], inspected));
+    } else {
+      let k = list4.head[0];
+      if (isEqual(k, key)) {
+        let rest$1 = list4.tail;
+        return reverse_and_prepend(inspected, prepend([k, value2], rest$1));
+      } else {
+        let first$1 = list4.head;
+        let rest$1 = list4.tail;
+        loop$list = rest$1;
+        loop$key = key;
+        loop$value = value2;
+        loop$inspected = prepend(first$1, inspected);
+      }
+    }
+  }
+}
+function key_set(list4, key, value2) {
+  return key_set_loop(list4, key, value2, toList([]));
+}
 function last(loop$list) {
   while (true) {
     let list4 = loop$list;
@@ -2675,6 +2697,9 @@ function identity2(x) {
 }
 
 // build/dev/javascript/gleam_json/gleam_json_ffi.mjs
+function json_to_string(json2) {
+  return JSON.stringify(json2);
+}
 function object(entries) {
   return Object.fromEntries(entries);
 }
@@ -2803,6 +2828,9 @@ function do_parse(json2, decoder) {
 }
 function parse(json2, decoder) {
   return do_parse(json2, decoder);
+}
+function to_string2(json2) {
+  return json_to_string(json2);
 }
 function string3(input2) {
   return identity3(input2);
@@ -3297,14 +3325,14 @@ function do_to_string(loop$path, loop$acc) {
     }
   }
 }
-function to_string2(path) {
+function to_string3(path) {
   return do_to_string(path, toList([]));
 }
 function matches(path, candidates) {
   if (candidates instanceof Empty) {
     return false;
   } else {
-    return do_matches(to_string2(path), candidates);
+    return do_matches(to_string3(path), candidates);
   }
 }
 var separator_event = "\n";
@@ -5782,7 +5810,7 @@ var SystemRequestedShutdown = class extends CustomType {
 };
 
 // build/dev/javascript/lustre/lustre/runtime/client/component.ffi.mjs
-var make_component = ({ init: init4, update: update5, view: view5, config: config2 }, name2) => {
+var make_component = ({ init: init3, update: update5, view: view5, config: config2 }, name2) => {
   if (!is_browser()) return new Error(new NotABrowser());
   if (!name2.includes("-")) return new Error(new BadComponentName(name2));
   if (customElements.get(name2)) {
@@ -5796,7 +5824,7 @@ var make_component = ({ init: init4, update: update5, view: view5, config: confi
     attributes.set(name3, decoder);
     observedAttributes.push(name3);
   }
-  const [model, effects] = init4(void 0);
+  const [model, effects] = init3(void 0);
   const component2 = class Component extends HTMLElement {
     static get observedAttributes() {
       return observedAttributes;
@@ -5967,7 +5995,7 @@ var Option = class extends CustomType {
   }
 };
 function new$6(options) {
-  let init4 = new Config2(
+  let init3 = new Config2(
     true,
     true,
     false,
@@ -5981,7 +6009,7 @@ function new$6(options) {
   );
   return fold(
     options,
-    init4,
+    init3,
     (config2, option2) => {
       return option2.apply(config2);
     }
@@ -6010,8 +6038,8 @@ function on_attribute_change(name2, decoder) {
 // build/dev/javascript/lustre/lustre/runtime/client/spa.ffi.mjs
 var Spa = class {
   #runtime;
-  constructor(root3, [init4, effects], update5, view5) {
-    this.#runtime = new Runtime(root3, [init4, effects], view5, update5);
+  constructor(root3, [init3, effects], update5, view5) {
+    this.#runtime = new Runtime(root3, [init3, effects], view5, update5);
   }
   send(message2) {
     switch (message2.constructor) {
@@ -6034,18 +6062,18 @@ var Spa = class {
     this.#runtime.emit(event4, data);
   }
 };
-var start = ({ init: init4, update: update5, view: view5 }, selector, flags) => {
+var start = ({ init: init3, update: update5, view: view5 }, selector, flags) => {
   if (!is_browser()) return new Error(new NotABrowser());
   const root3 = selector instanceof HTMLElement ? selector : document().querySelector(selector);
   if (!root3) return new Error(new ElementNotFound(selector));
-  return new Ok(new Spa(root3, init4(flags), update5, view5));
+  return new Ok(new Spa(root3, init3(flags), update5, view5));
 };
 
 // build/dev/javascript/lustre/lustre.mjs
 var App = class extends CustomType {
-  constructor(init4, update5, view5, config2) {
+  constructor(init3, update5, view5, config2) {
     super();
-    this.init = init4;
+    this.init = init3;
     this.update = update5;
     this.view = view5;
     this.config = config2;
@@ -6071,11 +6099,11 @@ var ElementNotFound = class extends CustomType {
 };
 var NotABrowser = class extends CustomType {
 };
-function component(init4, update5, view5, options) {
-  return new App(init4, update5, view5, new$6(options));
+function component(init3, update5, view5, options) {
+  return new App(init3, update5, view5, new$6(options));
 }
-function application(init4, update5, view5) {
-  return new App(init4, update5, view5, new$6(empty_list));
+function application(init3, update5, view5) {
+  return new App(init3, update5, view5, new$6(empty_list));
 }
 function start3(app, selector, start_args) {
   return guard(
@@ -6249,7 +6277,7 @@ function to_array_item_field(array_name, index5, field_name) {
     new PropertySegment(field_name)
   ]);
 }
-function to_string4(path) {
+function to_string5(path) {
   let _pipe = path;
   let _pipe$1 = map(
     _pipe,
@@ -6435,8 +6463,24 @@ function remove_array_item_at_path(root3, path, index5) {
 }
 
 // build/dev/javascript/formosh/form/model.mjs
+var HttpSubmit = class extends CustomType {
+  constructor(url, method, headers) {
+    super();
+    this.url = url;
+    this.method = method;
+    this.headers = headers;
+  }
+};
+var CustomSubmit = class extends CustomType {
+  constructor(handler) {
+    super();
+    this.handler = handler;
+  }
+};
+var NoSubmit = class extends CustomType {
+};
 var FormModel = class extends CustomType {
-  constructor(schema, resolved_schema, values3, errors, is_submitting, is_dirty, is_valid, touched_fields, disabled_fields, submission_result) {
+  constructor(schema, resolved_schema, values3, errors, is_submitting, is_dirty, is_valid, touched_fields, disabled_fields, submission_result, submit_config) {
     super();
     this.schema = schema;
     this.resolved_schema = resolved_schema;
@@ -6448,6 +6492,7 @@ var FormModel = class extends CustomType {
     this.touched_fields = touched_fields;
     this.disabled_fields = disabled_fields;
     this.submission_result = submission_result;
+    this.submit_config = submit_config;
   }
 };
 var SubmissionSuccess = class extends CustomType {
@@ -6494,7 +6539,7 @@ var ValidateForm = class extends CustomType {
 };
 var ResetForm = class extends CustomType {
 };
-function init(schema) {
+function init_with_config(schema, submit_config) {
   return new FormModel(
     schema,
     schema,
@@ -6505,7 +6550,8 @@ function init(schema) {
     true,
     toList([]),
     toList([]),
-    new None()
+    new None(),
+    submit_config
   );
 }
 function is_field_required(model, field_name) {
@@ -6557,21 +6603,24 @@ function add_field_error(model, field_name, error) {
     false,
     model.touched_fields,
     model.disabled_fields,
-    model.submission_result
+    model.submission_result,
+    model.submit_config
   );
 }
 function clear_field_errors(model, field_name) {
+  let new_errors = delete$(model.errors, field_name);
   return new FormModel(
     model.schema,
     model.resolved_schema,
     model.values,
-    delete$(model.errors, field_name),
+    new_errors,
     model.is_submitting,
     model.is_dirty,
-    map_size(model.errors) === 1,
+    map_size(new_errors) === 0,
     model.touched_fields,
     model.disabled_fields,
-    model.submission_result
+    model.submission_result,
+    model.submit_config
   );
 }
 function clear_all_errors(model) {
@@ -6585,7 +6634,8 @@ function clear_all_errors(model) {
     true,
     model.touched_fields,
     model.disabled_fields,
-    model.submission_result
+    model.submission_result,
+    model.submit_config
   );
 }
 function reset(model) {
@@ -6599,11 +6649,1272 @@ function reset(model) {
     true,
     toList([]),
     toList([]),
-    new None()
+    new None(),
+    model.submit_config
   );
 }
 function can_submit(model) {
-  return model.is_valid && !model.is_submitting && model.is_dirty;
+  return model.is_valid && !model.is_submitting;
+}
+
+// build/dev/javascript/gleam_http/gleam/http.mjs
+var Get = class extends CustomType {
+};
+var Post = class extends CustomType {
+};
+var Head = class extends CustomType {
+};
+var Put = class extends CustomType {
+};
+var Delete = class extends CustomType {
+};
+var Trace = class extends CustomType {
+};
+var Connect = class extends CustomType {
+};
+var Options = class extends CustomType {
+};
+var Patch2 = class extends CustomType {
+};
+var Http = class extends CustomType {
+};
+var Https = class extends CustomType {
+};
+function method_to_string(method) {
+  if (method instanceof Get) {
+    return "GET";
+  } else if (method instanceof Post) {
+    return "POST";
+  } else if (method instanceof Head) {
+    return "HEAD";
+  } else if (method instanceof Put) {
+    return "PUT";
+  } else if (method instanceof Delete) {
+    return "DELETE";
+  } else if (method instanceof Trace) {
+    return "TRACE";
+  } else if (method instanceof Connect) {
+    return "CONNECT";
+  } else if (method instanceof Options) {
+    return "OPTIONS";
+  } else if (method instanceof Patch2) {
+    return "PATCH";
+  } else {
+    let s = method[0];
+    return s;
+  }
+}
+function scheme_to_string(scheme) {
+  if (scheme instanceof Http) {
+    return "http";
+  } else {
+    return "https";
+  }
+}
+function scheme_from_string(scheme) {
+  let $ = lowercase(scheme);
+  if ($ === "http") {
+    return new Ok(new Http());
+  } else if ($ === "https") {
+    return new Ok(new Https());
+  } else {
+    return new Error(void 0);
+  }
+}
+
+// build/dev/javascript/gleam_stdlib/gleam/uri.mjs
+var Uri = class extends CustomType {
+  constructor(scheme, userinfo, host, port, path, query, fragment3) {
+    super();
+    this.scheme = scheme;
+    this.userinfo = userinfo;
+    this.host = host;
+    this.port = port;
+    this.path = path;
+    this.query = query;
+    this.fragment = fragment3;
+  }
+};
+function is_valid_host_within_brackets_char(char) {
+  return 48 >= char && char <= 57 || 65 >= char && char <= 90 || 97 >= char && char <= 122 || char === 58 || char === 46;
+}
+function parse_fragment(rest, pieces) {
+  return new Ok(
+    new Uri(
+      pieces.scheme,
+      pieces.userinfo,
+      pieces.host,
+      pieces.port,
+      pieces.path,
+      pieces.query,
+      new Some(rest)
+    )
+  );
+}
+function parse_query_with_question_mark_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+  while (true) {
+    let original = loop$original;
+    let uri_string = loop$uri_string;
+    let pieces = loop$pieces;
+    let size2 = loop$size;
+    if (uri_string.startsWith("#")) {
+      if (size2 === 0) {
+        let rest = uri_string.slice(1);
+        return parse_fragment(rest, pieces);
+      } else {
+        let rest = uri_string.slice(1);
+        let query = string_codeunit_slice(original, 0, size2);
+        let pieces$1 = new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          pieces.host,
+          pieces.port,
+          pieces.path,
+          new Some(query),
+          pieces.fragment
+        );
+        return parse_fragment(rest, pieces$1);
+      }
+    } else if (uri_string === "") {
+      return new Ok(
+        new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          pieces.host,
+          pieces.port,
+          pieces.path,
+          new Some(original),
+          pieces.fragment
+        )
+      );
+    } else {
+      let $ = pop_codeunit(uri_string);
+      let rest;
+      rest = $[1];
+      loop$original = original;
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$size = size2 + 1;
+    }
+  }
+}
+function parse_query_with_question_mark(uri_string, pieces) {
+  return parse_query_with_question_mark_loop(uri_string, uri_string, pieces, 0);
+}
+function parse_path_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+  while (true) {
+    let original = loop$original;
+    let uri_string = loop$uri_string;
+    let pieces = loop$pieces;
+    let size2 = loop$size;
+    if (uri_string.startsWith("?")) {
+      let rest = uri_string.slice(1);
+      let path = string_codeunit_slice(original, 0, size2);
+      let pieces$1 = new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        pieces.host,
+        pieces.port,
+        path,
+        pieces.query,
+        pieces.fragment
+      );
+      return parse_query_with_question_mark(rest, pieces$1);
+    } else if (uri_string.startsWith("#")) {
+      let rest = uri_string.slice(1);
+      let path = string_codeunit_slice(original, 0, size2);
+      let pieces$1 = new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        pieces.host,
+        pieces.port,
+        path,
+        pieces.query,
+        pieces.fragment
+      );
+      return parse_fragment(rest, pieces$1);
+    } else if (uri_string === "") {
+      return new Ok(
+        new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          pieces.host,
+          pieces.port,
+          original,
+          pieces.query,
+          pieces.fragment
+        )
+      );
+    } else {
+      let $ = pop_codeunit(uri_string);
+      let rest;
+      rest = $[1];
+      loop$original = original;
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$size = size2 + 1;
+    }
+  }
+}
+function parse_path(uri_string, pieces) {
+  return parse_path_loop(uri_string, uri_string, pieces, 0);
+}
+function parse_port_loop(loop$uri_string, loop$pieces, loop$port) {
+  while (true) {
+    let uri_string = loop$uri_string;
+    let pieces = loop$pieces;
+    let port = loop$port;
+    if (uri_string.startsWith("0")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10;
+    } else if (uri_string.startsWith("1")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10 + 1;
+    } else if (uri_string.startsWith("2")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10 + 2;
+    } else if (uri_string.startsWith("3")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10 + 3;
+    } else if (uri_string.startsWith("4")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10 + 4;
+    } else if (uri_string.startsWith("5")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10 + 5;
+    } else if (uri_string.startsWith("6")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10 + 6;
+    } else if (uri_string.startsWith("7")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10 + 7;
+    } else if (uri_string.startsWith("8")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10 + 8;
+    } else if (uri_string.startsWith("9")) {
+      let rest = uri_string.slice(1);
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$port = port * 10 + 9;
+    } else if (uri_string.startsWith("?")) {
+      let rest = uri_string.slice(1);
+      let pieces$1 = new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        pieces.host,
+        new Some(port),
+        pieces.path,
+        pieces.query,
+        pieces.fragment
+      );
+      return parse_query_with_question_mark(rest, pieces$1);
+    } else if (uri_string.startsWith("#")) {
+      let rest = uri_string.slice(1);
+      let pieces$1 = new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        pieces.host,
+        new Some(port),
+        pieces.path,
+        pieces.query,
+        pieces.fragment
+      );
+      return parse_fragment(rest, pieces$1);
+    } else if (uri_string.startsWith("/")) {
+      let pieces$1 = new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        pieces.host,
+        new Some(port),
+        pieces.path,
+        pieces.query,
+        pieces.fragment
+      );
+      return parse_path(uri_string, pieces$1);
+    } else if (uri_string === "") {
+      return new Ok(
+        new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          pieces.host,
+          new Some(port),
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        )
+      );
+    } else {
+      return new Error(void 0);
+    }
+  }
+}
+function parse_port(uri_string, pieces) {
+  if (uri_string.startsWith(":0")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 0);
+  } else if (uri_string.startsWith(":1")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 1);
+  } else if (uri_string.startsWith(":2")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 2);
+  } else if (uri_string.startsWith(":3")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 3);
+  } else if (uri_string.startsWith(":4")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 4);
+  } else if (uri_string.startsWith(":5")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 5);
+  } else if (uri_string.startsWith(":6")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 6);
+  } else if (uri_string.startsWith(":7")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 7);
+  } else if (uri_string.startsWith(":8")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 8);
+  } else if (uri_string.startsWith(":9")) {
+    let rest = uri_string.slice(2);
+    return parse_port_loop(rest, pieces, 9);
+  } else if (uri_string === ":") {
+    return new Ok(pieces);
+  } else if (uri_string === "") {
+    return new Ok(pieces);
+  } else if (uri_string.startsWith("?")) {
+    let rest = uri_string.slice(1);
+    return parse_query_with_question_mark(rest, pieces);
+  } else if (uri_string.startsWith(":?")) {
+    let rest = uri_string.slice(2);
+    return parse_query_with_question_mark(rest, pieces);
+  } else if (uri_string.startsWith("#")) {
+    let rest = uri_string.slice(1);
+    return parse_fragment(rest, pieces);
+  } else if (uri_string.startsWith(":#")) {
+    let rest = uri_string.slice(2);
+    return parse_fragment(rest, pieces);
+  } else if (uri_string.startsWith("/")) {
+    return parse_path(uri_string, pieces);
+  } else if (uri_string.startsWith(":")) {
+    let rest = uri_string.slice(1);
+    if (rest.startsWith("/")) {
+      return parse_path(rest, pieces);
+    } else {
+      return new Error(void 0);
+    }
+  } else {
+    return new Error(void 0);
+  }
+}
+function parse_host_outside_of_brackets_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+  while (true) {
+    let original = loop$original;
+    let uri_string = loop$uri_string;
+    let pieces = loop$pieces;
+    let size2 = loop$size;
+    if (uri_string === "") {
+      return new Ok(
+        new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          new Some(original),
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        )
+      );
+    } else if (uri_string.startsWith(":")) {
+      let host = string_codeunit_slice(original, 0, size2);
+      let pieces$1 = new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        new Some(host),
+        pieces.port,
+        pieces.path,
+        pieces.query,
+        pieces.fragment
+      );
+      return parse_port(uri_string, pieces$1);
+    } else if (uri_string.startsWith("/")) {
+      let host = string_codeunit_slice(original, 0, size2);
+      let pieces$1 = new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        new Some(host),
+        pieces.port,
+        pieces.path,
+        pieces.query,
+        pieces.fragment
+      );
+      return parse_path(uri_string, pieces$1);
+    } else if (uri_string.startsWith("?")) {
+      let rest = uri_string.slice(1);
+      let host = string_codeunit_slice(original, 0, size2);
+      let pieces$1 = new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        new Some(host),
+        pieces.port,
+        pieces.path,
+        pieces.query,
+        pieces.fragment
+      );
+      return parse_query_with_question_mark(rest, pieces$1);
+    } else if (uri_string.startsWith("#")) {
+      let rest = uri_string.slice(1);
+      let host = string_codeunit_slice(original, 0, size2);
+      let pieces$1 = new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        new Some(host),
+        pieces.port,
+        pieces.path,
+        pieces.query,
+        pieces.fragment
+      );
+      return parse_fragment(rest, pieces$1);
+    } else {
+      let $ = pop_codeunit(uri_string);
+      let rest;
+      rest = $[1];
+      loop$original = original;
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$size = size2 + 1;
+    }
+  }
+}
+function parse_host_within_brackets_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+  while (true) {
+    let original = loop$original;
+    let uri_string = loop$uri_string;
+    let pieces = loop$pieces;
+    let size2 = loop$size;
+    if (uri_string === "") {
+      return new Ok(
+        new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          new Some(uri_string),
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        )
+      );
+    } else if (uri_string.startsWith("]")) {
+      if (size2 === 0) {
+        let rest = uri_string.slice(1);
+        return parse_port(rest, pieces);
+      } else {
+        let rest = uri_string.slice(1);
+        let host = string_codeunit_slice(original, 0, size2 + 1);
+        let pieces$1 = new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          new Some(host),
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        );
+        return parse_port(rest, pieces$1);
+      }
+    } else if (uri_string.startsWith("/")) {
+      if (size2 === 0) {
+        return parse_path(uri_string, pieces);
+      } else {
+        let host = string_codeunit_slice(original, 0, size2);
+        let pieces$1 = new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          new Some(host),
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        );
+        return parse_path(uri_string, pieces$1);
+      }
+    } else if (uri_string.startsWith("?")) {
+      if (size2 === 0) {
+        let rest = uri_string.slice(1);
+        return parse_query_with_question_mark(rest, pieces);
+      } else {
+        let rest = uri_string.slice(1);
+        let host = string_codeunit_slice(original, 0, size2);
+        let pieces$1 = new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          new Some(host),
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        );
+        return parse_query_with_question_mark(rest, pieces$1);
+      }
+    } else if (uri_string.startsWith("#")) {
+      if (size2 === 0) {
+        let rest = uri_string.slice(1);
+        return parse_fragment(rest, pieces);
+      } else {
+        let rest = uri_string.slice(1);
+        let host = string_codeunit_slice(original, 0, size2);
+        let pieces$1 = new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          new Some(host),
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        );
+        return parse_fragment(rest, pieces$1);
+      }
+    } else {
+      let $ = pop_codeunit(uri_string);
+      let char;
+      let rest;
+      char = $[0];
+      rest = $[1];
+      let $1 = is_valid_host_within_brackets_char(char);
+      if ($1) {
+        loop$original = original;
+        loop$uri_string = rest;
+        loop$pieces = pieces;
+        loop$size = size2 + 1;
+      } else {
+        return parse_host_outside_of_brackets_loop(
+          original,
+          original,
+          pieces,
+          0
+        );
+      }
+    }
+  }
+}
+function parse_host_within_brackets(uri_string, pieces) {
+  return parse_host_within_brackets_loop(uri_string, uri_string, pieces, 0);
+}
+function parse_host_outside_of_brackets(uri_string, pieces) {
+  return parse_host_outside_of_brackets_loop(uri_string, uri_string, pieces, 0);
+}
+function parse_host(uri_string, pieces) {
+  if (uri_string.startsWith("[")) {
+    return parse_host_within_brackets(uri_string, pieces);
+  } else if (uri_string.startsWith(":")) {
+    let pieces$1 = new Uri(
+      pieces.scheme,
+      pieces.userinfo,
+      new Some(""),
+      pieces.port,
+      pieces.path,
+      pieces.query,
+      pieces.fragment
+    );
+    return parse_port(uri_string, pieces$1);
+  } else if (uri_string === "") {
+    return new Ok(
+      new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        new Some(""),
+        pieces.port,
+        pieces.path,
+        pieces.query,
+        pieces.fragment
+      )
+    );
+  } else {
+    return parse_host_outside_of_brackets(uri_string, pieces);
+  }
+}
+function parse_userinfo_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+  while (true) {
+    let original = loop$original;
+    let uri_string = loop$uri_string;
+    let pieces = loop$pieces;
+    let size2 = loop$size;
+    if (uri_string.startsWith("@")) {
+      if (size2 === 0) {
+        let rest = uri_string.slice(1);
+        return parse_host(rest, pieces);
+      } else {
+        let rest = uri_string.slice(1);
+        let userinfo = string_codeunit_slice(original, 0, size2);
+        let pieces$1 = new Uri(
+          pieces.scheme,
+          new Some(userinfo),
+          pieces.host,
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        );
+        return parse_host(rest, pieces$1);
+      }
+    } else if (uri_string === "") {
+      return parse_host(original, pieces);
+    } else if (uri_string.startsWith("/")) {
+      return parse_host(original, pieces);
+    } else if (uri_string.startsWith("?")) {
+      return parse_host(original, pieces);
+    } else if (uri_string.startsWith("#")) {
+      return parse_host(original, pieces);
+    } else {
+      let $ = pop_codeunit(uri_string);
+      let rest;
+      rest = $[1];
+      loop$original = original;
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$size = size2 + 1;
+    }
+  }
+}
+function parse_authority_pieces(string5, pieces) {
+  return parse_userinfo_loop(string5, string5, pieces, 0);
+}
+function parse_authority_with_slashes(uri_string, pieces) {
+  if (uri_string === "//") {
+    return new Ok(
+      new Uri(
+        pieces.scheme,
+        pieces.userinfo,
+        new Some(""),
+        pieces.port,
+        pieces.path,
+        pieces.query,
+        pieces.fragment
+      )
+    );
+  } else if (uri_string.startsWith("//")) {
+    let rest = uri_string.slice(2);
+    return parse_authority_pieces(rest, pieces);
+  } else {
+    return parse_path(uri_string, pieces);
+  }
+}
+function parse_scheme_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+  while (true) {
+    let original = loop$original;
+    let uri_string = loop$uri_string;
+    let pieces = loop$pieces;
+    let size2 = loop$size;
+    if (uri_string.startsWith("/")) {
+      if (size2 === 0) {
+        return parse_authority_with_slashes(uri_string, pieces);
+      } else {
+        let scheme = string_codeunit_slice(original, 0, size2);
+        let pieces$1 = new Uri(
+          new Some(lowercase(scheme)),
+          pieces.userinfo,
+          pieces.host,
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        );
+        return parse_authority_with_slashes(uri_string, pieces$1);
+      }
+    } else if (uri_string.startsWith("?")) {
+      if (size2 === 0) {
+        let rest = uri_string.slice(1);
+        return parse_query_with_question_mark(rest, pieces);
+      } else {
+        let rest = uri_string.slice(1);
+        let scheme = string_codeunit_slice(original, 0, size2);
+        let pieces$1 = new Uri(
+          new Some(lowercase(scheme)),
+          pieces.userinfo,
+          pieces.host,
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        );
+        return parse_query_with_question_mark(rest, pieces$1);
+      }
+    } else if (uri_string.startsWith("#")) {
+      if (size2 === 0) {
+        let rest = uri_string.slice(1);
+        return parse_fragment(rest, pieces);
+      } else {
+        let rest = uri_string.slice(1);
+        let scheme = string_codeunit_slice(original, 0, size2);
+        let pieces$1 = new Uri(
+          new Some(lowercase(scheme)),
+          pieces.userinfo,
+          pieces.host,
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        );
+        return parse_fragment(rest, pieces$1);
+      }
+    } else if (uri_string.startsWith(":")) {
+      if (size2 === 0) {
+        return new Error(void 0);
+      } else {
+        let rest = uri_string.slice(1);
+        let scheme = string_codeunit_slice(original, 0, size2);
+        let pieces$1 = new Uri(
+          new Some(lowercase(scheme)),
+          pieces.userinfo,
+          pieces.host,
+          pieces.port,
+          pieces.path,
+          pieces.query,
+          pieces.fragment
+        );
+        return parse_authority_with_slashes(rest, pieces$1);
+      }
+    } else if (uri_string === "") {
+      return new Ok(
+        new Uri(
+          pieces.scheme,
+          pieces.userinfo,
+          pieces.host,
+          pieces.port,
+          original,
+          pieces.query,
+          pieces.fragment
+        )
+      );
+    } else {
+      let $ = pop_codeunit(uri_string);
+      let rest;
+      rest = $[1];
+      loop$original = original;
+      loop$uri_string = rest;
+      loop$pieces = pieces;
+      loop$size = size2 + 1;
+    }
+  }
+}
+function to_string6(uri) {
+  let _block;
+  let $ = uri.fragment;
+  if ($ instanceof Some) {
+    let fragment3 = $[0];
+    _block = toList(["#", fragment3]);
+  } else {
+    _block = toList([]);
+  }
+  let parts = _block;
+  let _block$1;
+  let $1 = uri.query;
+  if ($1 instanceof Some) {
+    let query = $1[0];
+    _block$1 = prepend("?", prepend(query, parts));
+  } else {
+    _block$1 = parts;
+  }
+  let parts$1 = _block$1;
+  let parts$2 = prepend(uri.path, parts$1);
+  let _block$2;
+  let $2 = uri.host;
+  let $3 = starts_with(uri.path, "/");
+  if (!$3 && $2 instanceof Some) {
+    let host = $2[0];
+    if (host !== "") {
+      _block$2 = prepend("/", parts$2);
+    } else {
+      _block$2 = parts$2;
+    }
+  } else {
+    _block$2 = parts$2;
+  }
+  let parts$3 = _block$2;
+  let _block$3;
+  let $4 = uri.host;
+  let $5 = uri.port;
+  if ($5 instanceof Some && $4 instanceof Some) {
+    let port = $5[0];
+    _block$3 = prepend(":", prepend(to_string(port), parts$3));
+  } else {
+    _block$3 = parts$3;
+  }
+  let parts$4 = _block$3;
+  let _block$4;
+  let $6 = uri.scheme;
+  let $7 = uri.userinfo;
+  let $8 = uri.host;
+  if ($8 instanceof Some) {
+    if ($7 instanceof Some) {
+      if ($6 instanceof Some) {
+        let h = $8[0];
+        let u = $7[0];
+        let s = $6[0];
+        _block$4 = prepend(
+          s,
+          prepend(
+            "://",
+            prepend(u, prepend("@", prepend(h, parts$4)))
+          )
+        );
+      } else {
+        _block$4 = parts$4;
+      }
+    } else if ($6 instanceof Some) {
+      let h = $8[0];
+      let s = $6[0];
+      _block$4 = prepend(s, prepend("://", prepend(h, parts$4)));
+    } else {
+      let h = $8[0];
+      _block$4 = prepend("//", prepend(h, parts$4));
+    }
+  } else if ($7 instanceof Some) {
+    if ($6 instanceof Some) {
+      let s = $6[0];
+      _block$4 = prepend(s, prepend(":", parts$4));
+    } else {
+      _block$4 = parts$4;
+    }
+  } else if ($6 instanceof Some) {
+    let s = $6[0];
+    _block$4 = prepend(s, prepend(":", parts$4));
+  } else {
+    _block$4 = parts$4;
+  }
+  let parts$5 = _block$4;
+  return concat2(parts$5);
+}
+var empty3 = /* @__PURE__ */ new Uri(
+  /* @__PURE__ */ new None(),
+  /* @__PURE__ */ new None(),
+  /* @__PURE__ */ new None(),
+  /* @__PURE__ */ new None(),
+  "",
+  /* @__PURE__ */ new None(),
+  /* @__PURE__ */ new None()
+);
+function parse2(uri_string) {
+  return parse_scheme_loop(uri_string, uri_string, empty3, 0);
+}
+
+// build/dev/javascript/gleam_http/gleam/http/request.mjs
+var Request = class extends CustomType {
+  constructor(method, headers, body, scheme, host, port, path, query) {
+    super();
+    this.method = method;
+    this.headers = headers;
+    this.body = body;
+    this.scheme = scheme;
+    this.host = host;
+    this.port = port;
+    this.path = path;
+    this.query = query;
+  }
+};
+function to_uri(request) {
+  return new Uri(
+    new Some(scheme_to_string(request.scheme)),
+    new None(),
+    new Some(request.host),
+    request.port,
+    request.path,
+    request.query,
+    new None()
+  );
+}
+function from_uri(uri) {
+  return try$(
+    (() => {
+      let _pipe = uri.scheme;
+      let _pipe$1 = unwrap(_pipe, "");
+      return scheme_from_string(_pipe$1);
+    })(),
+    (scheme) => {
+      return try$(
+        (() => {
+          let _pipe = uri.host;
+          return to_result(_pipe, void 0);
+        })(),
+        (host) => {
+          let req = new Request(
+            new Get(),
+            toList([]),
+            "",
+            scheme,
+            host,
+            uri.port,
+            uri.path,
+            uri.query
+          );
+          return new Ok(req);
+        }
+      );
+    }
+  );
+}
+function set_header(request, key, value2) {
+  let headers = key_set(request.headers, lowercase(key), value2);
+  return new Request(
+    request.method,
+    headers,
+    request.body,
+    request.scheme,
+    request.host,
+    request.port,
+    request.path,
+    request.query
+  );
+}
+function set_body(req, body) {
+  let method;
+  let headers;
+  let scheme;
+  let host;
+  let port;
+  let path;
+  let query;
+  method = req.method;
+  headers = req.headers;
+  scheme = req.scheme;
+  host = req.host;
+  port = req.port;
+  path = req.path;
+  query = req.query;
+  return new Request(method, headers, body, scheme, host, port, path, query);
+}
+function set_method(req, method) {
+  return new Request(
+    method,
+    req.headers,
+    req.body,
+    req.scheme,
+    req.host,
+    req.port,
+    req.path,
+    req.query
+  );
+}
+function to(url) {
+  let _pipe = url;
+  let _pipe$1 = parse2(_pipe);
+  return try$(_pipe$1, from_uri);
+}
+
+// build/dev/javascript/gleam_http/gleam/http/response.mjs
+var Response = class extends CustomType {
+  constructor(status, headers, body) {
+    super();
+    this.status = status;
+    this.headers = headers;
+    this.body = body;
+  }
+};
+
+// build/dev/javascript/gleam_javascript/gleam_javascript_ffi.mjs
+var PromiseLayer = class _PromiseLayer {
+  constructor(promise) {
+    this.promise = promise;
+  }
+  static wrap(value2) {
+    return value2 instanceof Promise ? new _PromiseLayer(value2) : value2;
+  }
+  static unwrap(value2) {
+    return value2 instanceof _PromiseLayer ? value2.promise : value2;
+  }
+};
+function resolve(value2) {
+  return Promise.resolve(PromiseLayer.wrap(value2));
+}
+function then_await(promise, fn) {
+  return promise.then((value2) => fn(PromiseLayer.unwrap(value2)));
+}
+function map_promise(promise, fn) {
+  return promise.then(
+    (value2) => PromiseLayer.wrap(fn(PromiseLayer.unwrap(value2)))
+  );
+}
+
+// build/dev/javascript/gleam_javascript/gleam/javascript/promise.mjs
+function tap(promise, callback) {
+  let _pipe = promise;
+  return map_promise(
+    _pipe,
+    (a) => {
+      callback(a);
+      return a;
+    }
+  );
+}
+function try_await(promise, callback) {
+  let _pipe = promise;
+  return then_await(
+    _pipe,
+    (result) => {
+      if (result instanceof Ok) {
+        let a = result[0];
+        return callback(a);
+      } else {
+        let e = result[0];
+        return resolve(new Error(e));
+      }
+    }
+  );
+}
+
+// build/dev/javascript/gleam_fetch/gleam_fetch_ffi.mjs
+async function raw_send(request) {
+  try {
+    return new Ok(await fetch(request));
+  } catch (error) {
+    return new Error(new NetworkError(error.toString()));
+  }
+}
+function from_fetch_response(response) {
+  return new Response(
+    response.status,
+    List.fromArray([...response.headers]),
+    response
+  );
+}
+function request_common(request) {
+  let url = to_string6(to_uri(request));
+  let method = method_to_string(request.method).toUpperCase();
+  let options = {
+    headers: make_headers(request.headers),
+    method
+  };
+  return [url, options];
+}
+function to_fetch_request(request) {
+  let [url, options] = request_common(request);
+  if (options.method !== "GET" && options.method !== "HEAD") options.body = request.body;
+  return new globalThis.Request(url, options);
+}
+function make_headers(headersList) {
+  let headers = new globalThis.Headers();
+  for (let [k, v] of headersList) headers.append(k.toLowerCase(), v);
+  return headers;
+}
+async function read_text_body(response) {
+  let body;
+  try {
+    body = await response.body.text();
+  } catch (error) {
+    return new Error(new UnableToReadBody());
+  }
+  return new Ok(response.withFields({ body }));
+}
+
+// build/dev/javascript/gleam_fetch/gleam/fetch.mjs
+var NetworkError = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var UnableToReadBody = class extends CustomType {
+};
+function send2(request) {
+  let _pipe = request;
+  let _pipe$1 = to_fetch_request(_pipe);
+  let _pipe$2 = raw_send(_pipe$1);
+  return try_await(
+    _pipe$2,
+    (resp) => {
+      return resolve(new Ok(from_fetch_response(resp)));
+    }
+  );
+}
+
+// build/dev/javascript/gleam_stdlib/gleam/pair.mjs
+function new$7(first, second2) {
+  return [first, second2];
+}
+
+// build/dev/javascript/rsvp/rsvp.ffi.mjs
+var from_relative_url = (url_string) => {
+  if (!globalThis.location) return new Error(void 0);
+  const url = new URL(url_string, globalThis.location.href);
+  const uri = uri_from_url(url);
+  return new Ok(uri);
+};
+var uri_from_url = (url) => {
+  const optional2 = (value2) => value2 ? new Some(value2) : new None();
+  return new Uri(
+    /* scheme   */
+    optional2(url.protocol?.slice(0, -1)),
+    /* userinfo */
+    new None(),
+    /* host     */
+    optional2(url.hostname),
+    /* port     */
+    optional2(url.port && Number(url.port)),
+    /* path     */
+    url.pathname,
+    /* query    */
+    optional2(url.search?.slice(1)),
+    /* fragment */
+    optional2(url.hash?.slice(1))
+  );
+};
+
+// build/dev/javascript/rsvp/rsvp.mjs
+var BadBody = class extends CustomType {
+};
+var BadUrl = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var HttpError = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var JsonError = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var NetworkError2 = class extends CustomType {
+};
+var Handler2 = class extends CustomType {
+  constructor(run2) {
+    super();
+    this.run = run2;
+  }
+};
+function expect_any_response(handler) {
+  return new Handler2(handler);
+}
+function do_send(request, handler) {
+  return from(
+    (dispatch) => {
+      let _pipe = send2(request);
+      let _pipe$1 = try_await(_pipe, read_text_body);
+      let _pipe$2 = map_promise(
+        _pipe$1,
+        (_capture) => {
+          return map_error(
+            _capture,
+            (error) => {
+              if (error instanceof NetworkError) {
+                return new NetworkError2();
+              } else if (error instanceof UnableToReadBody) {
+                return new BadBody();
+              } else {
+                return new BadBody();
+              }
+            }
+          );
+        }
+      );
+      let _pipe$3 = map_promise(_pipe$2, handler.run);
+      tap(_pipe$3, dispatch);
+      return void 0;
+    }
+  );
+}
+function send3(request, handler) {
+  return do_send(request, handler);
+}
+function reject(err, handler) {
+  return from(
+    (dispatch) => {
+      let _pipe = new Error(err);
+      let _pipe$1 = handler.run(_pipe);
+      return dispatch(_pipe$1);
+    }
+  );
+}
+function to_uri2(uri_string) {
+  let _block;
+  if (uri_string.startsWith("./")) {
+    _block = from_relative_url(uri_string);
+  } else if (uri_string.startsWith("/")) {
+    _block = from_relative_url(uri_string);
+  } else {
+    _block = parse2(uri_string);
+  }
+  let _pipe = _block;
+  return replace_error(_pipe, new BadUrl(uri_string));
+}
+function get2(url, handler) {
+  let $ = to_uri2(url);
+  if ($ instanceof Ok) {
+    let uri = $[0];
+    let _pipe = from_uri(uri);
+    let _pipe$1 = map3(
+      _pipe,
+      (_capture) => {
+        return send3(_capture, handler);
+      }
+    );
+    let _pipe$2 = map_error(
+      _pipe$1,
+      (_) => {
+        return reject(new BadUrl(url), handler);
+      }
+    );
+    return unwrap_both(_pipe$2);
+  } else {
+    let err = $[0];
+    return reject(err, handler);
+  }
+}
+function post(url, body, handler) {
+  let $ = to_uri2(url);
+  if ($ instanceof Ok) {
+    let uri = $[0];
+    let _pipe = from_uri(uri);
+    let _pipe$1 = map3(
+      _pipe,
+      (request) => {
+        let _pipe$12 = request;
+        let _pipe$22 = set_method(_pipe$12, new Post());
+        let _pipe$3 = set_header(
+          _pipe$22,
+          "content-type",
+          "application/json"
+        );
+        let _pipe$4 = set_body(_pipe$3, to_string2(body));
+        return send3(_pipe$4, handler);
+      }
+    );
+    let _pipe$2 = map_error(
+      _pipe$1,
+      (_) => {
+        return reject(new BadUrl(url), handler);
+      }
+    );
+    return unwrap_both(_pipe$2);
+  } else {
+    let err = $[0];
+    return reject(err, handler);
+  }
 }
 
 // build/dev/javascript/formosh/schema/conditional_resolver.mjs
@@ -7146,13 +8457,181 @@ function validate_all_fields(model) {
   let _pipe = keys(model.schema.properties);
   return fold(_pipe, clear_all_errors(model), validate_field2);
 }
-function submit_form_effect(_) {
-  return from(
-    (dispatch) => {
-      dispatch(new FormSubmitted(new Ok("Form submitted successfully!")));
-      return void 0;
+function handle_http_response(result) {
+  if (result instanceof Ok) {
+    let resp = result[0];
+    let $ = resp.status >= 200 && resp.status < 300;
+    if ($) {
+      return new FormSubmitted(new Ok(resp.body));
+    } else {
+      return new FormSubmitted(new Error("Server error: " + resp.body));
+    }
+  } else {
+    let error = result[0];
+    let _block;
+    if (error instanceof BadBody) {
+      _block = "Invalid request body format";
+    } else if (error instanceof BadUrl) {
+      let url = error[0];
+      _block = "Invalid URL: " + url;
+    } else if (error instanceof HttpError) {
+      let resp = error[0];
+      _block = "HTTP error: " + resp.body;
+    } else if (error instanceof JsonError) {
+      _block = "Invalid response format";
+    } else if (error instanceof NetworkError2) {
+      _block = "Network connection failed";
+    } else {
+      let resp = error[0];
+      _block = "Unexpected response: " + resp.body;
+    }
+    let error_message = _block;
+    return new FormSubmitted(new Error(error_message));
+  }
+}
+function value_to_json(value2) {
+  if (value2 instanceof StringValue) {
+    let s = value2[0];
+    return string3(s);
+  } else if (value2 instanceof NumberValue) {
+    let n = value2[0];
+    return float3(n);
+  } else if (value2 instanceof IntegerValue) {
+    let i = value2[0];
+    return int3(i);
+  } else if (value2 instanceof BooleanValue) {
+    let b = value2[0];
+    return bool2(b);
+  } else if (value2 instanceof NullValue) {
+    return null$();
+  } else if (value2 instanceof ArrayValue) {
+    let items = value2[0];
+    return array2(items, value_to_json);
+  } else {
+    let fields = value2[0];
+    return object2(
+      (() => {
+        let _pipe = fields;
+        return map(
+          _pipe,
+          (pair) => {
+            let key;
+            let val;
+            key = pair[0];
+            val = pair[1];
+            return [key, value_to_json(val)];
+          }
+        );
+      })()
+    );
+  }
+}
+function values_to_json(values3) {
+  let _pipe = values3;
+  let _pipe$1 = map_to_list(_pipe);
+  let _pipe$2 = map(
+    _pipe$1,
+    (pair) => {
+      let key;
+      let val;
+      key = pair[0];
+      val = pair[1];
+      return [key, value_to_json(val)];
     }
   );
+  return object2(_pipe$2);
+}
+function submit_form_effect(model) {
+  let $ = model.submit_config;
+  if ($ instanceof Some) {
+    let $1 = $[0];
+    if ($1 instanceof HttpSubmit) {
+      let url = $1.url;
+      let method = $1.method;
+      let json_data = values_to_json(model.values);
+      let json_string = to_string2(json_data);
+      if (method === "POST") {
+        return post(
+          url,
+          json_data,
+          expect_any_response(handle_http_response)
+        );
+      } else if (method === "PUT") {
+        let $2 = to(url);
+        if ($2 instanceof Ok) {
+          let req = $2[0];
+          let _block;
+          let _pipe = req;
+          let _pipe$1 = set_method(_pipe, new Put());
+          let _pipe$2 = set_header(
+            _pipe$1,
+            "content-type",
+            "application/json"
+          );
+          _block = set_body(_pipe$2, json_string);
+          let put_request = _block;
+          return send3(
+            put_request,
+            expect_any_response(handle_http_response)
+          );
+        } else {
+          return from(
+            (dispatch) => {
+              dispatch(new FormSubmitted(new Error("Invalid URL: " + url)));
+              return void 0;
+            }
+          );
+        }
+      } else if (method === "GET") {
+        return from(
+          (dispatch) => {
+            dispatch(
+              new FormSubmitted(new Error("GET method not yet supported"))
+            );
+            return void 0;
+          }
+        );
+      } else {
+        return from(
+          (dispatch) => {
+            dispatch(
+              new FormSubmitted(new Error("Unsupported HTTP method: " + method))
+            );
+            return void 0;
+          }
+        );
+      }
+    } else if ($1 instanceof CustomSubmit) {
+      let handler = $1.handler;
+      return from(
+        (dispatch) => {
+          let $2 = handler(model);
+          if ($2 instanceof Ok) {
+            let message2 = $2[0];
+            dispatch(new FormSubmitted(new Ok(message2)));
+          } else {
+            let error = $2[0];
+            dispatch(new FormSubmitted(new Error(error)));
+          }
+          return void 0;
+        }
+      );
+    } else {
+      return from(
+        (dispatch) => {
+          dispatch(new FormSubmitted(new Ok("Form validated successfully")));
+          return void 0;
+        }
+      );
+    }
+  } else {
+    return from(
+      (dispatch) => {
+        dispatch(new FormSubmitted(new Ok("Form validated successfully")));
+        return void 0;
+      }
+    );
+  }
 }
 function update2(model, msg) {
   if (msg instanceof UpdateFieldPath) {
@@ -7175,9 +8654,11 @@ function update2(model, msg) {
       model.is_valid,
       model.touched_fields,
       model.disabled_fields,
-      model.submission_result
+      model.submission_result,
+      model.submit_config
     );
-    return [new_model, none()];
+    let validated_model = validate_all_fields(new_model);
+    return [validated_model, none()];
   } else if (msg instanceof AddArrayItemPath) {
     let path = msg.path;
     let root_value = model_to_root_value(model);
@@ -7197,7 +8678,8 @@ function update2(model, msg) {
       model.is_valid,
       model.touched_fields,
       model.disabled_fields,
-      model.submission_result
+      model.submission_result,
+      model.submit_config
     );
     return [new_model, none()];
   } else if (msg instanceof RemoveArrayItemPath) {
@@ -7216,7 +8698,8 @@ function update2(model, msg) {
       model.is_valid,
       model.touched_fields,
       model.disabled_fields,
-      model.submission_result
+      model.submission_result,
+      model.submit_config
     );
     return [new_model, none()];
   } else if (msg instanceof FormSubmit) {
@@ -7233,7 +8716,8 @@ function update2(model, msg) {
         validated_model.is_valid,
         validated_model.touched_fields,
         validated_model.disabled_fields,
-        validated_model.submission_result
+        validated_model.submission_result,
+        validated_model.submit_config
       );
       let submit_effect = submit_form_effect(submitting_model);
       return [submitting_model, submit_effect];
@@ -7254,7 +8738,8 @@ function update2(model, msg) {
         model.is_valid,
         model.touched_fields,
         model.disabled_fields,
-        new Some(new SubmissionSuccess(message2))
+        new Some(new SubmissionSuccess(message2)),
+        model.submit_config
       );
       return [new_model, none()];
     } else {
@@ -7269,7 +8754,8 @@ function update2(model, msg) {
         model.is_valid,
         model.touched_fields,
         model.disabled_fields,
-        new Some(new SubmissionError(message2))
+        new Some(new SubmissionError(message2)),
+        model.submit_config
       );
       return [new_model, none()];
     }
@@ -7280,11 +8766,6 @@ function update2(model, msg) {
     let new_model = reset(model);
     return [new_model, none()];
   }
-}
-
-// build/dev/javascript/gleam_stdlib/gleam/pair.mjs
-function new$7(first, second2) {
-  return [first, second2];
 }
 
 // build/dev/javascript/lustre/lustre/event.mjs
@@ -7499,7 +8980,7 @@ function field_wrapper_with_path(field_path, property3, is_required, field_eleme
 function input_attributes(field_path, value2, is_required, is_disabled, extra_attrs) {
   let field_name = get_field_name(field_path);
   return prepend(
-    id(to_string4(field_path)),
+    id(to_string5(field_path)),
     prepend(
       name(field_name),
       prepend(
@@ -7790,7 +9271,7 @@ function render2(field_path, property3, value2, is_required, is_disabled) {
       render_label(field_name, property3, is_required),
       input(
         prepend(
-          id(to_string4(field_path)),
+          id(to_string5(field_path)),
           prepend(
             name(field_name),
             prepend(
@@ -8424,7 +9905,7 @@ function render_nested_field(field_path, property3, value2, is_required, is_disa
   );
 }
 function render4(field_path, property3, value2, is_required, is_disabled) {
-  let field_name = to_string4(field_path);
+  let field_name = to_string5(field_path);
   let title = unwrap(property3.title, field_name);
   let description = property3.description;
   let _block;
@@ -8690,31 +10171,7 @@ function render_field2(model, field_name, property3) {
     ])
   );
 }
-function render_form_body(model) {
-  let _block;
-  let _pipe = map_to_list(model.resolved_schema.properties);
-  _block = map(
-    _pipe,
-    (pair) => {
-      let field_name;
-      let property3;
-      field_name = pair[0];
-      property3 = pair[1];
-      return render_field2(model, field_name, property3);
-    }
-  );
-  let fields = _block;
-  return form(
-    toList([
-      class$("formosh-form"),
-      on_submit((_) => {
-        return new FormSubmit();
-      })
-    ]),
-    fields
-  );
-}
-function render_form_footer(model) {
+function render_form_footer_content(model) {
   return div(
     toList([class$("formosh-footer")]),
     toList([
@@ -8749,6 +10206,30 @@ function render_form_footer(model) {
     ])
   );
 }
+function render_form_body(model) {
+  let _block;
+  let _pipe = map_to_list(model.resolved_schema.properties);
+  _block = map(
+    _pipe,
+    (pair) => {
+      let field_name;
+      let property3;
+      field_name = pair[0];
+      property3 = pair[1];
+      return render_field2(model, field_name, property3);
+    }
+  );
+  let fields = _block;
+  return form(
+    toList([
+      class$("formosh-form"),
+      on_submit((_) => {
+        return new FormSubmit();
+      })
+    ]),
+    append(fields, toList([render_form_footer_content(model)]))
+  );
+}
 function render_submission_result(model) {
   let $ = model.submission_result;
   if ($ instanceof Some) {
@@ -8776,7 +10257,6 @@ function view2(model) {
     toList([
       render_form_header(model),
       render_form_body(model),
-      render_form_footer(model),
       render_submission_result(model)
     ])
   );
@@ -9514,8 +10994,6 @@ function parse_schema(json_string) {
 }
 
 // build/dev/javascript/formosh/formosh.mjs
-var NoSubmit = class extends CustomType {
-};
 var FormConfig = class extends CustomType {
   constructor(schema, submit_config, css_prefix, show_errors_on_change) {
     super();
@@ -9531,7 +11009,13 @@ function config(schema) {
 function create_form_with_config(config2) {
   return application(
     (_) => {
-      return [init(config2.schema), none()];
+      return [
+        init_with_config(
+          config2.schema,
+          new Some(config2.submit_config)
+        ),
+        none()
+      ];
     },
     update2,
     view2
@@ -9594,8 +11078,33 @@ var FormMessage = class extends CustomType {
     this[0] = $0;
   }
 };
-function init2(_) {
+function init(_) {
   return [new Model(new None(), new None(), "POST", "formosh"), none()];
+}
+function reinitialize_form_with_schema(model, schema) {
+  let _block;
+  let $ = model.submit_url;
+  if ($ instanceof Some) {
+    let url = $[0];
+    _block = new Some(
+      new HttpSubmit(
+        url,
+        model.submit_method,
+        toList([["Content-Type", "application/json"]])
+      )
+    );
+  } else {
+    _block = $;
+  }
+  let submit_config = _block;
+  let form_model = init_with_config(schema, submit_config);
+  let validated_form = validate_all_fields(form_model);
+  return new Model(
+    new Some(validated_form),
+    model.submit_url,
+    model.submit_method,
+    model.css_prefix
+  );
 }
 function view3(model) {
   let $ = model.form_model;
@@ -9613,7 +11122,7 @@ function view3(model) {
     );
   }
 }
-function value_to_json(value2) {
+function value_to_json2(value2) {
   if (value2 instanceof StringValue) {
     let s = value2[0];
     return string3(s);
@@ -9630,7 +11139,7 @@ function value_to_json(value2) {
     return null$();
   } else if (value2 instanceof ArrayValue) {
     let items = value2[0];
-    return array2(items, value_to_json);
+    return array2(items, value_to_json2);
   } else {
     let fields = value2[0];
     return object2(
@@ -9643,14 +11152,14 @@ function value_to_json(value2) {
             let val;
             key = pair[0];
             val = pair[1];
-            return [key, value_to_json(val)];
+            return [key, value_to_json2(val)];
           }
         );
       })()
     );
   }
 }
-function values_to_json(values3) {
+function values_to_json2(values3) {
   let _pipe = values3;
   let _pipe$1 = map_to_list(_pipe);
   let _pipe$2 = map(
@@ -9660,30 +11169,36 @@ function values_to_json(values3) {
       let val;
       key = pair[0];
       val = pair[1];
-      return [key, value_to_json(val)];
+      return [key, value_to_json2(val)];
     }
   );
   return object2(_pipe$2);
 }
-function emit_submit_event(form_model, url, method) {
-  return emit2(
-    "formosh-submit",
-    object2(
+function emit_submit_result(result) {
+  let _block;
+  if (result instanceof Ok) {
+    let body = result[0];
+    _block = object2(
+      toList([["status", string3("success")], ["data", string3(body)]])
+    );
+  } else {
+    let message2 = result[0];
+    _block = object2(
       toList([
-        ["values", values_to_json(form_model.values)],
-        ["url", string3(url)],
-        ["method", string3(method)],
-        ["isValid", bool2(form_model.is_valid)]
+        ["status", string3("error")],
+        ["error", string3(message2)]
       ])
-    )
-  );
+    );
+  }
+  let json_result = _block;
+  return emit2("formosh-submit", json_result);
 }
 function emit_change_event(form_model) {
   return emit2(
     "formosh-change",
     object2(
       toList([
-        ["values", values_to_json(form_model.values)],
+        ["values", values_to_json2(form_model.values)],
         ["isValid", bool2(form_model.is_valid)],
         ["isDirty", bool2(form_model.is_dirty)]
       ])
@@ -9693,14 +11208,9 @@ function emit_change_event(form_model) {
 function update3(model, msg) {
   if (msg instanceof SchemaChanged) {
     let schema$1 = msg[0];
-    let form_model = init(schema$1);
+    let new_model = reinitialize_form_with_schema(model, schema$1);
     return [
-      new Model(
-        new Some(form_model),
-        model.submit_url,
-        model.submit_method,
-        model.css_prefix
-      ),
+      new_model,
       emit2(
         "formosh-ready",
         object2(toList([["schema", string3("loaded")]]))
@@ -9708,28 +11218,54 @@ function update3(model, msg) {
     ];
   } else if (msg instanceof SubmitUrlChanged) {
     let url = msg[0];
-    return [
-      new Model(
-        model.form_model,
-        new Some(url),
-        model.submit_method,
-        model.css_prefix
-      ),
-      none()
-    ];
+    let new_model = new Model(
+      model.form_model,
+      new Some(url),
+      model.submit_method,
+      model.css_prefix
+    );
+    let _block;
+    let $ = new_model.form_model;
+    if ($ instanceof Some) {
+      let form_model = $[0];
+      let $1 = form_model.schema;
+      let schema$1 = $1;
+      _block = reinitialize_form_with_schema(new_model, schema$1);
+    } else {
+      _block = new_model;
+    }
+    let final_model = _block;
+    return [final_model, none()];
   } else if (msg instanceof SubmitMethodChanged) {
     let method = msg[0];
-    return [
-      new Model(model.form_model, model.submit_url, method, model.css_prefix),
-      none()
-    ];
+    let new_model = new Model(
+      model.form_model,
+      model.submit_url,
+      method,
+      model.css_prefix
+    );
+    let _block;
+    let $ = new_model.form_model;
+    if ($ instanceof Some) {
+      let form_model = $[0];
+      let $1 = new_model.submit_url;
+      if ($1 instanceof Some) {
+        _block = reinitialize_form_with_schema(new_model, form_model.schema);
+      } else {
+        _block = new_model;
+      }
+    } else {
+      _block = new_model;
+    }
+    let final_model = _block;
+    return [final_model, none()];
   } else if (msg instanceof CssPrefixChanged) {
     let prefix = msg[0];
     return [
       new Model(model.form_model, model.submit_url, model.submit_method, prefix),
       none()
     ];
-  } else {
+  } else if (msg instanceof FormMessage) {
     let form_msg = msg[0];
     let $ = model.form_model;
     if ($ instanceof Some) {
@@ -9741,22 +11277,23 @@ function update3(model, msg) {
       form_effect = $1[1];
       let _block;
       if (form_msg instanceof FormSubmit) {
-        let $2 = model.submit_url;
-        if ($2 instanceof Some) {
-          let url = $2[0];
-          _block = batch(
-            toList([
-              emit_submit_event(updated_form, url, model.submit_method),
-              emit_change_event(updated_form)
-            ])
-          );
+        _block = emit2(
+          "formosh-submitting",
+          object2(toList([["status", string3("submitting")]]))
+        );
+      } else if (form_msg instanceof FormSubmitted) {
+        let result = form_msg[0];
+        if (result instanceof Ok) {
+          let message2 = result[0];
+          _block = emit_submit_result(new Ok(message2));
         } else {
-          _block = emit_submit_event(updated_form, "", "");
+          let error = result[0];
+          _block = emit_submit_result(new Error(error));
         }
       } else {
         _block = emit_change_event(updated_form);
       }
-      let submit_effect = _block;
+      let event_effect = _block;
       return [
         new Model(
           new Some(updated_form),
@@ -9775,18 +11312,21 @@ function update3(model, msg) {
                 }
               );
             })(),
-            submit_effect
+            event_effect
           ])
         )
       ];
     } else {
       return [model, none()];
     }
+  } else {
+    let result = msg[0];
+    return [model, emit_submit_result(result)];
   }
 }
 function register() {
   let component2 = component(
-    init2,
+    init,
     update3,
     view3,
     toList([
@@ -9825,1177 +11365,6 @@ function register() {
   return make_component(component2, "formosh-form");
 }
 
-// build/dev/javascript/gleam_stdlib/gleam/uri.mjs
-var Uri = class extends CustomType {
-  constructor(scheme, userinfo, host, port, path, query, fragment3) {
-    super();
-    this.scheme = scheme;
-    this.userinfo = userinfo;
-    this.host = host;
-    this.port = port;
-    this.path = path;
-    this.query = query;
-    this.fragment = fragment3;
-  }
-};
-function is_valid_host_within_brackets_char(char) {
-  return 48 >= char && char <= 57 || 65 >= char && char <= 90 || 97 >= char && char <= 122 || char === 58 || char === 46;
-}
-function parse_fragment(rest, pieces) {
-  return new Ok(
-    new Uri(
-      pieces.scheme,
-      pieces.userinfo,
-      pieces.host,
-      pieces.port,
-      pieces.path,
-      pieces.query,
-      new Some(rest)
-    )
-  );
-}
-function parse_query_with_question_mark_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
-  while (true) {
-    let original = loop$original;
-    let uri_string = loop$uri_string;
-    let pieces = loop$pieces;
-    let size2 = loop$size;
-    if (uri_string.startsWith("#")) {
-      if (size2 === 0) {
-        let rest = uri_string.slice(1);
-        return parse_fragment(rest, pieces);
-      } else {
-        let rest = uri_string.slice(1);
-        let query = string_codeunit_slice(original, 0, size2);
-        let pieces$1 = new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          pieces.host,
-          pieces.port,
-          pieces.path,
-          new Some(query),
-          pieces.fragment
-        );
-        return parse_fragment(rest, pieces$1);
-      }
-    } else if (uri_string === "") {
-      return new Ok(
-        new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          pieces.host,
-          pieces.port,
-          pieces.path,
-          new Some(original),
-          pieces.fragment
-        )
-      );
-    } else {
-      let $ = pop_codeunit(uri_string);
-      let rest;
-      rest = $[1];
-      loop$original = original;
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$size = size2 + 1;
-    }
-  }
-}
-function parse_query_with_question_mark(uri_string, pieces) {
-  return parse_query_with_question_mark_loop(uri_string, uri_string, pieces, 0);
-}
-function parse_path_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
-  while (true) {
-    let original = loop$original;
-    let uri_string = loop$uri_string;
-    let pieces = loop$pieces;
-    let size2 = loop$size;
-    if (uri_string.startsWith("?")) {
-      let rest = uri_string.slice(1);
-      let path = string_codeunit_slice(original, 0, size2);
-      let pieces$1 = new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        pieces.host,
-        pieces.port,
-        path,
-        pieces.query,
-        pieces.fragment
-      );
-      return parse_query_with_question_mark(rest, pieces$1);
-    } else if (uri_string.startsWith("#")) {
-      let rest = uri_string.slice(1);
-      let path = string_codeunit_slice(original, 0, size2);
-      let pieces$1 = new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        pieces.host,
-        pieces.port,
-        path,
-        pieces.query,
-        pieces.fragment
-      );
-      return parse_fragment(rest, pieces$1);
-    } else if (uri_string === "") {
-      return new Ok(
-        new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          pieces.host,
-          pieces.port,
-          original,
-          pieces.query,
-          pieces.fragment
-        )
-      );
-    } else {
-      let $ = pop_codeunit(uri_string);
-      let rest;
-      rest = $[1];
-      loop$original = original;
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$size = size2 + 1;
-    }
-  }
-}
-function parse_path(uri_string, pieces) {
-  return parse_path_loop(uri_string, uri_string, pieces, 0);
-}
-function parse_port_loop(loop$uri_string, loop$pieces, loop$port) {
-  while (true) {
-    let uri_string = loop$uri_string;
-    let pieces = loop$pieces;
-    let port = loop$port;
-    if (uri_string.startsWith("0")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10;
-    } else if (uri_string.startsWith("1")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10 + 1;
-    } else if (uri_string.startsWith("2")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10 + 2;
-    } else if (uri_string.startsWith("3")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10 + 3;
-    } else if (uri_string.startsWith("4")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10 + 4;
-    } else if (uri_string.startsWith("5")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10 + 5;
-    } else if (uri_string.startsWith("6")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10 + 6;
-    } else if (uri_string.startsWith("7")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10 + 7;
-    } else if (uri_string.startsWith("8")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10 + 8;
-    } else if (uri_string.startsWith("9")) {
-      let rest = uri_string.slice(1);
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$port = port * 10 + 9;
-    } else if (uri_string.startsWith("?")) {
-      let rest = uri_string.slice(1);
-      let pieces$1 = new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        pieces.host,
-        new Some(port),
-        pieces.path,
-        pieces.query,
-        pieces.fragment
-      );
-      return parse_query_with_question_mark(rest, pieces$1);
-    } else if (uri_string.startsWith("#")) {
-      let rest = uri_string.slice(1);
-      let pieces$1 = new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        pieces.host,
-        new Some(port),
-        pieces.path,
-        pieces.query,
-        pieces.fragment
-      );
-      return parse_fragment(rest, pieces$1);
-    } else if (uri_string.startsWith("/")) {
-      let pieces$1 = new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        pieces.host,
-        new Some(port),
-        pieces.path,
-        pieces.query,
-        pieces.fragment
-      );
-      return parse_path(uri_string, pieces$1);
-    } else if (uri_string === "") {
-      return new Ok(
-        new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          pieces.host,
-          new Some(port),
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        )
-      );
-    } else {
-      return new Error(void 0);
-    }
-  }
-}
-function parse_port(uri_string, pieces) {
-  if (uri_string.startsWith(":0")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 0);
-  } else if (uri_string.startsWith(":1")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 1);
-  } else if (uri_string.startsWith(":2")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 2);
-  } else if (uri_string.startsWith(":3")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 3);
-  } else if (uri_string.startsWith(":4")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 4);
-  } else if (uri_string.startsWith(":5")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 5);
-  } else if (uri_string.startsWith(":6")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 6);
-  } else if (uri_string.startsWith(":7")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 7);
-  } else if (uri_string.startsWith(":8")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 8);
-  } else if (uri_string.startsWith(":9")) {
-    let rest = uri_string.slice(2);
-    return parse_port_loop(rest, pieces, 9);
-  } else if (uri_string === ":") {
-    return new Ok(pieces);
-  } else if (uri_string === "") {
-    return new Ok(pieces);
-  } else if (uri_string.startsWith("?")) {
-    let rest = uri_string.slice(1);
-    return parse_query_with_question_mark(rest, pieces);
-  } else if (uri_string.startsWith(":?")) {
-    let rest = uri_string.slice(2);
-    return parse_query_with_question_mark(rest, pieces);
-  } else if (uri_string.startsWith("#")) {
-    let rest = uri_string.slice(1);
-    return parse_fragment(rest, pieces);
-  } else if (uri_string.startsWith(":#")) {
-    let rest = uri_string.slice(2);
-    return parse_fragment(rest, pieces);
-  } else if (uri_string.startsWith("/")) {
-    return parse_path(uri_string, pieces);
-  } else if (uri_string.startsWith(":")) {
-    let rest = uri_string.slice(1);
-    if (rest.startsWith("/")) {
-      return parse_path(rest, pieces);
-    } else {
-      return new Error(void 0);
-    }
-  } else {
-    return new Error(void 0);
-  }
-}
-function parse_host_outside_of_brackets_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
-  while (true) {
-    let original = loop$original;
-    let uri_string = loop$uri_string;
-    let pieces = loop$pieces;
-    let size2 = loop$size;
-    if (uri_string === "") {
-      return new Ok(
-        new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          new Some(original),
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        )
-      );
-    } else if (uri_string.startsWith(":")) {
-      let host = string_codeunit_slice(original, 0, size2);
-      let pieces$1 = new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        new Some(host),
-        pieces.port,
-        pieces.path,
-        pieces.query,
-        pieces.fragment
-      );
-      return parse_port(uri_string, pieces$1);
-    } else if (uri_string.startsWith("/")) {
-      let host = string_codeunit_slice(original, 0, size2);
-      let pieces$1 = new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        new Some(host),
-        pieces.port,
-        pieces.path,
-        pieces.query,
-        pieces.fragment
-      );
-      return parse_path(uri_string, pieces$1);
-    } else if (uri_string.startsWith("?")) {
-      let rest = uri_string.slice(1);
-      let host = string_codeunit_slice(original, 0, size2);
-      let pieces$1 = new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        new Some(host),
-        pieces.port,
-        pieces.path,
-        pieces.query,
-        pieces.fragment
-      );
-      return parse_query_with_question_mark(rest, pieces$1);
-    } else if (uri_string.startsWith("#")) {
-      let rest = uri_string.slice(1);
-      let host = string_codeunit_slice(original, 0, size2);
-      let pieces$1 = new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        new Some(host),
-        pieces.port,
-        pieces.path,
-        pieces.query,
-        pieces.fragment
-      );
-      return parse_fragment(rest, pieces$1);
-    } else {
-      let $ = pop_codeunit(uri_string);
-      let rest;
-      rest = $[1];
-      loop$original = original;
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$size = size2 + 1;
-    }
-  }
-}
-function parse_host_within_brackets_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
-  while (true) {
-    let original = loop$original;
-    let uri_string = loop$uri_string;
-    let pieces = loop$pieces;
-    let size2 = loop$size;
-    if (uri_string === "") {
-      return new Ok(
-        new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          new Some(uri_string),
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        )
-      );
-    } else if (uri_string.startsWith("]")) {
-      if (size2 === 0) {
-        let rest = uri_string.slice(1);
-        return parse_port(rest, pieces);
-      } else {
-        let rest = uri_string.slice(1);
-        let host = string_codeunit_slice(original, 0, size2 + 1);
-        let pieces$1 = new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          new Some(host),
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        );
-        return parse_port(rest, pieces$1);
-      }
-    } else if (uri_string.startsWith("/")) {
-      if (size2 === 0) {
-        return parse_path(uri_string, pieces);
-      } else {
-        let host = string_codeunit_slice(original, 0, size2);
-        let pieces$1 = new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          new Some(host),
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        );
-        return parse_path(uri_string, pieces$1);
-      }
-    } else if (uri_string.startsWith("?")) {
-      if (size2 === 0) {
-        let rest = uri_string.slice(1);
-        return parse_query_with_question_mark(rest, pieces);
-      } else {
-        let rest = uri_string.slice(1);
-        let host = string_codeunit_slice(original, 0, size2);
-        let pieces$1 = new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          new Some(host),
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        );
-        return parse_query_with_question_mark(rest, pieces$1);
-      }
-    } else if (uri_string.startsWith("#")) {
-      if (size2 === 0) {
-        let rest = uri_string.slice(1);
-        return parse_fragment(rest, pieces);
-      } else {
-        let rest = uri_string.slice(1);
-        let host = string_codeunit_slice(original, 0, size2);
-        let pieces$1 = new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          new Some(host),
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        );
-        return parse_fragment(rest, pieces$1);
-      }
-    } else {
-      let $ = pop_codeunit(uri_string);
-      let char;
-      let rest;
-      char = $[0];
-      rest = $[1];
-      let $1 = is_valid_host_within_brackets_char(char);
-      if ($1) {
-        loop$original = original;
-        loop$uri_string = rest;
-        loop$pieces = pieces;
-        loop$size = size2 + 1;
-      } else {
-        return parse_host_outside_of_brackets_loop(
-          original,
-          original,
-          pieces,
-          0
-        );
-      }
-    }
-  }
-}
-function parse_host_within_brackets(uri_string, pieces) {
-  return parse_host_within_brackets_loop(uri_string, uri_string, pieces, 0);
-}
-function parse_host_outside_of_brackets(uri_string, pieces) {
-  return parse_host_outside_of_brackets_loop(uri_string, uri_string, pieces, 0);
-}
-function parse_host(uri_string, pieces) {
-  if (uri_string.startsWith("[")) {
-    return parse_host_within_brackets(uri_string, pieces);
-  } else if (uri_string.startsWith(":")) {
-    let pieces$1 = new Uri(
-      pieces.scheme,
-      pieces.userinfo,
-      new Some(""),
-      pieces.port,
-      pieces.path,
-      pieces.query,
-      pieces.fragment
-    );
-    return parse_port(uri_string, pieces$1);
-  } else if (uri_string === "") {
-    return new Ok(
-      new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        new Some(""),
-        pieces.port,
-        pieces.path,
-        pieces.query,
-        pieces.fragment
-      )
-    );
-  } else {
-    return parse_host_outside_of_brackets(uri_string, pieces);
-  }
-}
-function parse_userinfo_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
-  while (true) {
-    let original = loop$original;
-    let uri_string = loop$uri_string;
-    let pieces = loop$pieces;
-    let size2 = loop$size;
-    if (uri_string.startsWith("@")) {
-      if (size2 === 0) {
-        let rest = uri_string.slice(1);
-        return parse_host(rest, pieces);
-      } else {
-        let rest = uri_string.slice(1);
-        let userinfo = string_codeunit_slice(original, 0, size2);
-        let pieces$1 = new Uri(
-          pieces.scheme,
-          new Some(userinfo),
-          pieces.host,
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        );
-        return parse_host(rest, pieces$1);
-      }
-    } else if (uri_string === "") {
-      return parse_host(original, pieces);
-    } else if (uri_string.startsWith("/")) {
-      return parse_host(original, pieces);
-    } else if (uri_string.startsWith("?")) {
-      return parse_host(original, pieces);
-    } else if (uri_string.startsWith("#")) {
-      return parse_host(original, pieces);
-    } else {
-      let $ = pop_codeunit(uri_string);
-      let rest;
-      rest = $[1];
-      loop$original = original;
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$size = size2 + 1;
-    }
-  }
-}
-function parse_authority_pieces(string5, pieces) {
-  return parse_userinfo_loop(string5, string5, pieces, 0);
-}
-function parse_authority_with_slashes(uri_string, pieces) {
-  if (uri_string === "//") {
-    return new Ok(
-      new Uri(
-        pieces.scheme,
-        pieces.userinfo,
-        new Some(""),
-        pieces.port,
-        pieces.path,
-        pieces.query,
-        pieces.fragment
-      )
-    );
-  } else if (uri_string.startsWith("//")) {
-    let rest = uri_string.slice(2);
-    return parse_authority_pieces(rest, pieces);
-  } else {
-    return parse_path(uri_string, pieces);
-  }
-}
-function parse_scheme_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
-  while (true) {
-    let original = loop$original;
-    let uri_string = loop$uri_string;
-    let pieces = loop$pieces;
-    let size2 = loop$size;
-    if (uri_string.startsWith("/")) {
-      if (size2 === 0) {
-        return parse_authority_with_slashes(uri_string, pieces);
-      } else {
-        let scheme = string_codeunit_slice(original, 0, size2);
-        let pieces$1 = new Uri(
-          new Some(lowercase(scheme)),
-          pieces.userinfo,
-          pieces.host,
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        );
-        return parse_authority_with_slashes(uri_string, pieces$1);
-      }
-    } else if (uri_string.startsWith("?")) {
-      if (size2 === 0) {
-        let rest = uri_string.slice(1);
-        return parse_query_with_question_mark(rest, pieces);
-      } else {
-        let rest = uri_string.slice(1);
-        let scheme = string_codeunit_slice(original, 0, size2);
-        let pieces$1 = new Uri(
-          new Some(lowercase(scheme)),
-          pieces.userinfo,
-          pieces.host,
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        );
-        return parse_query_with_question_mark(rest, pieces$1);
-      }
-    } else if (uri_string.startsWith("#")) {
-      if (size2 === 0) {
-        let rest = uri_string.slice(1);
-        return parse_fragment(rest, pieces);
-      } else {
-        let rest = uri_string.slice(1);
-        let scheme = string_codeunit_slice(original, 0, size2);
-        let pieces$1 = new Uri(
-          new Some(lowercase(scheme)),
-          pieces.userinfo,
-          pieces.host,
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        );
-        return parse_fragment(rest, pieces$1);
-      }
-    } else if (uri_string.startsWith(":")) {
-      if (size2 === 0) {
-        return new Error(void 0);
-      } else {
-        let rest = uri_string.slice(1);
-        let scheme = string_codeunit_slice(original, 0, size2);
-        let pieces$1 = new Uri(
-          new Some(lowercase(scheme)),
-          pieces.userinfo,
-          pieces.host,
-          pieces.port,
-          pieces.path,
-          pieces.query,
-          pieces.fragment
-        );
-        return parse_authority_with_slashes(rest, pieces$1);
-      }
-    } else if (uri_string === "") {
-      return new Ok(
-        new Uri(
-          pieces.scheme,
-          pieces.userinfo,
-          pieces.host,
-          pieces.port,
-          original,
-          pieces.query,
-          pieces.fragment
-        )
-      );
-    } else {
-      let $ = pop_codeunit(uri_string);
-      let rest;
-      rest = $[1];
-      loop$original = original;
-      loop$uri_string = rest;
-      loop$pieces = pieces;
-      loop$size = size2 + 1;
-    }
-  }
-}
-function to_string5(uri) {
-  let _block;
-  let $ = uri.fragment;
-  if ($ instanceof Some) {
-    let fragment3 = $[0];
-    _block = toList(["#", fragment3]);
-  } else {
-    _block = toList([]);
-  }
-  let parts = _block;
-  let _block$1;
-  let $1 = uri.query;
-  if ($1 instanceof Some) {
-    let query = $1[0];
-    _block$1 = prepend("?", prepend(query, parts));
-  } else {
-    _block$1 = parts;
-  }
-  let parts$1 = _block$1;
-  let parts$2 = prepend(uri.path, parts$1);
-  let _block$2;
-  let $2 = uri.host;
-  let $3 = starts_with(uri.path, "/");
-  if (!$3 && $2 instanceof Some) {
-    let host = $2[0];
-    if (host !== "") {
-      _block$2 = prepend("/", parts$2);
-    } else {
-      _block$2 = parts$2;
-    }
-  } else {
-    _block$2 = parts$2;
-  }
-  let parts$3 = _block$2;
-  let _block$3;
-  let $4 = uri.host;
-  let $5 = uri.port;
-  if ($5 instanceof Some && $4 instanceof Some) {
-    let port = $5[0];
-    _block$3 = prepend(":", prepend(to_string(port), parts$3));
-  } else {
-    _block$3 = parts$3;
-  }
-  let parts$4 = _block$3;
-  let _block$4;
-  let $6 = uri.scheme;
-  let $7 = uri.userinfo;
-  let $8 = uri.host;
-  if ($8 instanceof Some) {
-    if ($7 instanceof Some) {
-      if ($6 instanceof Some) {
-        let h = $8[0];
-        let u = $7[0];
-        let s = $6[0];
-        _block$4 = prepend(
-          s,
-          prepend(
-            "://",
-            prepend(u, prepend("@", prepend(h, parts$4)))
-          )
-        );
-      } else {
-        _block$4 = parts$4;
-      }
-    } else if ($6 instanceof Some) {
-      let h = $8[0];
-      let s = $6[0];
-      _block$4 = prepend(s, prepend("://", prepend(h, parts$4)));
-    } else {
-      let h = $8[0];
-      _block$4 = prepend("//", prepend(h, parts$4));
-    }
-  } else if ($7 instanceof Some) {
-    if ($6 instanceof Some) {
-      let s = $6[0];
-      _block$4 = prepend(s, prepend(":", parts$4));
-    } else {
-      _block$4 = parts$4;
-    }
-  } else if ($6 instanceof Some) {
-    let s = $6[0];
-    _block$4 = prepend(s, prepend(":", parts$4));
-  } else {
-    _block$4 = parts$4;
-  }
-  let parts$5 = _block$4;
-  return concat2(parts$5);
-}
-var empty3 = /* @__PURE__ */ new Uri(
-  /* @__PURE__ */ new None(),
-  /* @__PURE__ */ new None(),
-  /* @__PURE__ */ new None(),
-  /* @__PURE__ */ new None(),
-  "",
-  /* @__PURE__ */ new None(),
-  /* @__PURE__ */ new None()
-);
-function parse2(uri_string) {
-  return parse_scheme_loop(uri_string, uri_string, empty3, 0);
-}
-
-// build/dev/javascript/gleam_http/gleam/http.mjs
-var Get = class extends CustomType {
-};
-var Post = class extends CustomType {
-};
-var Head = class extends CustomType {
-};
-var Put = class extends CustomType {
-};
-var Delete = class extends CustomType {
-};
-var Trace = class extends CustomType {
-};
-var Connect = class extends CustomType {
-};
-var Options = class extends CustomType {
-};
-var Patch2 = class extends CustomType {
-};
-var Http = class extends CustomType {
-};
-var Https = class extends CustomType {
-};
-function method_to_string(method) {
-  if (method instanceof Get) {
-    return "GET";
-  } else if (method instanceof Post) {
-    return "POST";
-  } else if (method instanceof Head) {
-    return "HEAD";
-  } else if (method instanceof Put) {
-    return "PUT";
-  } else if (method instanceof Delete) {
-    return "DELETE";
-  } else if (method instanceof Trace) {
-    return "TRACE";
-  } else if (method instanceof Connect) {
-    return "CONNECT";
-  } else if (method instanceof Options) {
-    return "OPTIONS";
-  } else if (method instanceof Patch2) {
-    return "PATCH";
-  } else {
-    let s = method[0];
-    return s;
-  }
-}
-function scheme_to_string(scheme) {
-  if (scheme instanceof Http) {
-    return "http";
-  } else {
-    return "https";
-  }
-}
-function scheme_from_string(scheme) {
-  let $ = lowercase(scheme);
-  if ($ === "http") {
-    return new Ok(new Http());
-  } else if ($ === "https") {
-    return new Ok(new Https());
-  } else {
-    return new Error(void 0);
-  }
-}
-
-// build/dev/javascript/gleam_http/gleam/http/request.mjs
-var Request = class extends CustomType {
-  constructor(method, headers, body, scheme, host, port, path, query) {
-    super();
-    this.method = method;
-    this.headers = headers;
-    this.body = body;
-    this.scheme = scheme;
-    this.host = host;
-    this.port = port;
-    this.path = path;
-    this.query = query;
-  }
-};
-function to_uri(request) {
-  return new Uri(
-    new Some(scheme_to_string(request.scheme)),
-    new None(),
-    new Some(request.host),
-    request.port,
-    request.path,
-    request.query,
-    new None()
-  );
-}
-function from_uri(uri) {
-  return try$(
-    (() => {
-      let _pipe = uri.scheme;
-      let _pipe$1 = unwrap(_pipe, "");
-      return scheme_from_string(_pipe$1);
-    })(),
-    (scheme) => {
-      return try$(
-        (() => {
-          let _pipe = uri.host;
-          return to_result(_pipe, void 0);
-        })(),
-        (host) => {
-          let req = new Request(
-            new Get(),
-            toList([]),
-            "",
-            scheme,
-            host,
-            uri.port,
-            uri.path,
-            uri.query
-          );
-          return new Ok(req);
-        }
-      );
-    }
-  );
-}
-
-// build/dev/javascript/gleam_http/gleam/http/response.mjs
-var Response = class extends CustomType {
-  constructor(status, headers, body) {
-    super();
-    this.status = status;
-    this.headers = headers;
-    this.body = body;
-  }
-};
-
-// build/dev/javascript/gleam_javascript/gleam_javascript_ffi.mjs
-var PromiseLayer = class _PromiseLayer {
-  constructor(promise) {
-    this.promise = promise;
-  }
-  static wrap(value2) {
-    return value2 instanceof Promise ? new _PromiseLayer(value2) : value2;
-  }
-  static unwrap(value2) {
-    return value2 instanceof _PromiseLayer ? value2.promise : value2;
-  }
-};
-function resolve(value2) {
-  return Promise.resolve(PromiseLayer.wrap(value2));
-}
-function then_await(promise, fn) {
-  return promise.then((value2) => fn(PromiseLayer.unwrap(value2)));
-}
-function map_promise(promise, fn) {
-  return promise.then(
-    (value2) => PromiseLayer.wrap(fn(PromiseLayer.unwrap(value2)))
-  );
-}
-
-// build/dev/javascript/gleam_javascript/gleam/javascript/promise.mjs
-function tap(promise, callback) {
-  let _pipe = promise;
-  return map_promise(
-    _pipe,
-    (a) => {
-      callback(a);
-      return a;
-    }
-  );
-}
-function try_await(promise, callback) {
-  let _pipe = promise;
-  return then_await(
-    _pipe,
-    (result) => {
-      if (result instanceof Ok) {
-        let a = result[0];
-        return callback(a);
-      } else {
-        let e = result[0];
-        return resolve(new Error(e));
-      }
-    }
-  );
-}
-
-// build/dev/javascript/gleam_fetch/gleam_fetch_ffi.mjs
-async function raw_send(request) {
-  try {
-    return new Ok(await fetch(request));
-  } catch (error) {
-    return new Error(new NetworkError(error.toString()));
-  }
-}
-function from_fetch_response(response) {
-  return new Response(
-    response.status,
-    List.fromArray([...response.headers]),
-    response
-  );
-}
-function request_common(request) {
-  let url = to_string5(to_uri(request));
-  let method = method_to_string(request.method).toUpperCase();
-  let options = {
-    headers: make_headers(request.headers),
-    method
-  };
-  return [url, options];
-}
-function to_fetch_request(request) {
-  let [url, options] = request_common(request);
-  if (options.method !== "GET" && options.method !== "HEAD") options.body = request.body;
-  return new globalThis.Request(url, options);
-}
-function make_headers(headersList) {
-  let headers = new globalThis.Headers();
-  for (let [k, v] of headersList) headers.append(k.toLowerCase(), v);
-  return headers;
-}
-async function read_text_body(response) {
-  let body;
-  try {
-    body = await response.body.text();
-  } catch (error) {
-    return new Error(new UnableToReadBody());
-  }
-  return new Ok(response.withFields({ body }));
-}
-
-// build/dev/javascript/gleam_fetch/gleam/fetch.mjs
-var NetworkError = class extends CustomType {
-  constructor($0) {
-    super();
-    this[0] = $0;
-  }
-};
-var UnableToReadBody = class extends CustomType {
-};
-function send2(request) {
-  let _pipe = request;
-  let _pipe$1 = to_fetch_request(_pipe);
-  let _pipe$2 = raw_send(_pipe$1);
-  return try_await(
-    _pipe$2,
-    (resp) => {
-      return resolve(new Ok(from_fetch_response(resp)));
-    }
-  );
-}
-
-// build/dev/javascript/rsvp/rsvp.ffi.mjs
-var from_relative_url = (url_string) => {
-  if (!globalThis.location) return new Error(void 0);
-  const url = new URL(url_string, globalThis.location.href);
-  const uri = uri_from_url(url);
-  return new Ok(uri);
-};
-var uri_from_url = (url) => {
-  const optional2 = (value2) => value2 ? new Some(value2) : new None();
-  return new Uri(
-    /* scheme   */
-    optional2(url.protocol?.slice(0, -1)),
-    /* userinfo */
-    new None(),
-    /* host     */
-    optional2(url.hostname),
-    /* port     */
-    optional2(url.port && Number(url.port)),
-    /* path     */
-    url.pathname,
-    /* query    */
-    optional2(url.search?.slice(1)),
-    /* fragment */
-    optional2(url.hash?.slice(1))
-  );
-};
-
-// build/dev/javascript/rsvp/rsvp.mjs
-var BadBody = class extends CustomType {
-};
-var BadUrl = class extends CustomType {
-  constructor($0) {
-    super();
-    this[0] = $0;
-  }
-};
-var HttpError = class extends CustomType {
-  constructor($0) {
-    super();
-    this[0] = $0;
-  }
-};
-var NetworkError2 = class extends CustomType {
-};
-var Handler2 = class extends CustomType {
-  constructor(run2) {
-    super();
-    this.run = run2;
-  }
-};
-function expect_any_response(handler) {
-  return new Handler2(handler);
-}
-function do_send(request, handler) {
-  return from(
-    (dispatch) => {
-      let _pipe = send2(request);
-      let _pipe$1 = try_await(_pipe, read_text_body);
-      let _pipe$2 = map_promise(
-        _pipe$1,
-        (_capture) => {
-          return map_error(
-            _capture,
-            (error) => {
-              if (error instanceof NetworkError) {
-                return new NetworkError2();
-              } else if (error instanceof UnableToReadBody) {
-                return new BadBody();
-              } else {
-                return new BadBody();
-              }
-            }
-          );
-        }
-      );
-      let _pipe$3 = map_promise(_pipe$2, handler.run);
-      tap(_pipe$3, dispatch);
-      return void 0;
-    }
-  );
-}
-function send3(request, handler) {
-  return do_send(request, handler);
-}
-function reject(err, handler) {
-  return from(
-    (dispatch) => {
-      let _pipe = new Error(err);
-      let _pipe$1 = handler.run(_pipe);
-      return dispatch(_pipe$1);
-    }
-  );
-}
-function to_uri2(uri_string) {
-  let _block;
-  if (uri_string.startsWith("./")) {
-    _block = from_relative_url(uri_string);
-  } else if (uri_string.startsWith("/")) {
-    _block = from_relative_url(uri_string);
-  } else {
-    _block = parse2(uri_string);
-  }
-  let _pipe = _block;
-  return replace_error(_pipe, new BadUrl(uri_string));
-}
-function get2(url, handler) {
-  let $ = to_uri2(url);
-  if ($ instanceof Ok) {
-    let uri = $[0];
-    let _pipe = from_uri(uri);
-    let _pipe$1 = map3(
-      _pipe,
-      (_capture) => {
-        return send3(_capture, handler);
-      }
-    );
-    let _pipe$2 = map_error(
-      _pipe$1,
-      (_) => {
-        return reject(new BadUrl(url), handler);
-      }
-    );
-    return unwrap_both(_pipe$2);
-  } else {
-    let err = $[0];
-    return reject(err, handler);
-  }
-}
-
 // build/dev/javascript/file_schema_loader/file_schema_loader.mjs
 var FILEPATH = "src/file_schema_loader.gleam";
 var Model2 = class extends CustomType {
@@ -11032,7 +11401,9 @@ var FormChanged = class extends CustomType {
     this[0] = $0;
   }
 };
-function init3(_) {
+var ClearSubmissionResult = class extends CustomType {
+};
+function init2(_) {
   let schemas = toList([
     "contact_form.json",
     "survey_form.json",
@@ -11065,7 +11436,6 @@ function fetch_schema(filename) {
         return new SchemaFetched(new Ok(json_string.body));
       } else {
         let error = fetch_result[0];
-        echo(error, void 0, "src/file_schema_loader.gleam", 245);
         if (error instanceof BadBody) {
           return new SchemaFetched(new Error("Bad body"));
         } else if (error instanceof BadUrl) {
@@ -11140,26 +11510,90 @@ function update4(model, msg) {
     }
   } else if (msg instanceof FormSubmitted2) {
     let values3 = msg[0];
+    let _block;
+    let $ = map_get(values3, "error");
+    if ($ instanceof Ok) {
+      let error = $[0];
+      _block = "Error: " + error;
+    } else {
+      let $1 = map_get(values3, "response");
+      if ($1 instanceof Ok) {
+        let response = $1[0];
+        _block = "Success! Server response: " + response;
+      } else {
+        _block = "Form submitted to http://localhost:8888";
+      }
+    }
+    let result_message = _block;
     return [
       new Model2(
         model.selected_schema,
         model.schema_content,
         model.available_schemas,
         model.error,
-        new Some("Form submitted successfully!")
+        new Some(result_message)
       ),
       none()
     ];
-  } else {
+  } else if (msg instanceof FormChanged) {
     let values3 = msg[0];
     return [model, none()];
+  } else {
+    return [
+      new Model2(
+        model.selected_schema,
+        model.schema_content,
+        model.available_schemas,
+        model.error,
+        new None()
+      ),
+      none()
+    ];
   }
 }
 function decode_form_submit() {
-  let _pipe = at(toList(["detail", "values"]), dynamic);
-  return map2(_pipe, (_) => {
-    return new FormSubmitted2(new_map());
-  });
+  return then$(
+    at(toList(["detail"]), dynamic),
+    (event_data) => {
+      let _block;
+      let _pipe = run(
+        event_data,
+        at(toList(["status"]), string2)
+      );
+      _block = unwrap2(_pipe, "unknown");
+      let status = _block;
+      let _block$1;
+      if (status === "success") {
+        let _pipe$1 = run(
+          event_data,
+          at(toList(["data"]), string2)
+        );
+        let _pipe$2 = map3(
+          _pipe$1,
+          (data) => {
+            return from_list(toList([["response", data]]));
+          }
+        );
+        _block$1 = unwrap2(_pipe$2, new_map());
+      } else if (status === "error") {
+        let _pipe$1 = run(
+          event_data,
+          at(toList(["error"]), string2)
+        );
+        let _pipe$2 = map3(
+          _pipe$1,
+          (error) => {
+            return from_list(toList([["error", error]]));
+          }
+        );
+        _block$1 = unwrap2(_pipe$2, new_map());
+      } else {
+        _block$1 = new_map();
+      }
+      let values3 = _block$1;
+      return success(new FormSubmitted2(values3));
+    }
+  );
 }
 function decode_form_change() {
   let _pipe = at(toList(["detail", "values"]), dynamic);
@@ -11238,9 +11672,29 @@ function view4(model) {
         let $ = model.submission_result;
         if ($ instanceof Some) {
           let result = $[0];
+          let is_error = contains_string(result, "Error");
           return div(
-            toList([class$("form-status success")]),
-            toList([text3(result)])
+            toList([
+              class$(
+                (() => {
+                  if (is_error) {
+                    return "form-status error";
+                  } else {
+                    return "form-status success";
+                  }
+                })()
+              )
+            ]),
+            toList([
+              text3(result),
+              button(
+                toList([
+                  on_click(new ClearSubmissionResult()),
+                  class$("clear-button")
+                ]),
+                toList([text3(" \xD7")])
+              )
+            ])
           );
         } else {
           return none2();
@@ -11274,7 +11728,10 @@ function view4(model) {
                     "formosh-form",
                     toList([
                       attribute2("schema", schema_json),
-                      attribute2("submit-url", "/api/submit"),
+                      attribute2(
+                        "submit-url",
+                        "http://localhost:8888"
+                      ),
                       attribute2("submit-method", "POST"),
                       on("formosh-submit", decode_form_submit()),
                       on("formosh-change", decode_form_change())
@@ -11314,224 +11771,21 @@ function view4(model) {
 }
 function main() {
   let $ = register();
-  let app = application(init3, update4, view4);
+  let app = application(init2, update4, view4);
   let $1 = start3(app, "#app", void 0);
   if (!($1 instanceof Ok)) {
     throw makeError(
       "let_assert",
       FILEPATH,
       "file_schema_loader",
-      39,
+      40,
       "main",
       "Pattern match failed, no pattern matched the value.",
-      { value: $1, start: 855, end: 904, pattern_start: 866, pattern_end: 871 }
+      { value: $1, start: 873, end: 922, pattern_start: 884, pattern_end: 889 }
     );
   }
   return void 0;
 }
-function echo(value2, message2, file, line) {
-  const grey = "\x1B[90m";
-  const reset_color = "\x1B[39m";
-  const file_line = `${file}:${line}`;
-  const inspector = new Echo$Inspector();
-  const string_value = inspector.inspect(value2);
-  const string_message = message2 === void 0 ? "" : " " + message2;
-  if (globalThis.process?.stderr?.write) {
-    const string5 = `${grey}${file_line}${reset_color}${string_message}
-${string_value}
-`;
-    globalThis.process.stderr.write(string5);
-  } else if (globalThis.Deno) {
-    const string5 = `${grey}${file_line}${reset_color}${string_message}
-${string_value}
-`;
-    globalThis.Deno.stderr.writeSync(new TextEncoder().encode(string5));
-  } else {
-    const string5 = `${file_line}
-${string_value}`;
-    globalThis.console.log(string5);
-  }
-  return value2;
-}
-var Echo$Inspector = class {
-  #references = /* @__PURE__ */ new Set();
-  #isDict(value2) {
-    try {
-      return value2 instanceof Dict;
-    } catch {
-      return false;
-    }
-  }
-  #float(float4) {
-    const string5 = float4.toString().replace("+", "");
-    if (string5.indexOf(".") >= 0) {
-      return string5;
-    } else {
-      const index5 = string5.indexOf("e");
-      if (index5 >= 0) {
-        return string5.slice(0, index5) + ".0" + string5.slice(index5);
-      } else {
-        return string5 + ".0";
-      }
-    }
-  }
-  inspect(v) {
-    const t = typeof v;
-    if (v === true) return "True";
-    if (v === false) return "False";
-    if (v === null) return "//js(null)";
-    if (v === void 0) return "Nil";
-    if (t === "string") return this.#string(v);
-    if (t === "bigint" || Number.isInteger(v)) return v.toString();
-    if (t === "number") return this.#float(v);
-    if (v instanceof UtfCodepoint) return this.#utfCodepoint(v);
-    if (v instanceof BitArray) return this.#bit_array(v);
-    if (v instanceof RegExp) return `//js(${v})`;
-    if (v instanceof Date) return `//js(Date("${v.toISOString()}"))`;
-    if (v instanceof globalThis.Error) return `//js(${v.toString()})`;
-    if (v instanceof Function) {
-      const args = [];
-      for (const i of Array(v.length).keys())
-        args.push(String.fromCharCode(i + 97));
-      return `//fn(${args.join(", ")}) { ... }`;
-    }
-    if (this.#references.size === this.#references.add(v).size) {
-      return "//js(circular reference)";
-    }
-    let printed;
-    if (Array.isArray(v)) {
-      printed = `#(${v.map((v2) => this.inspect(v2)).join(", ")})`;
-    } else if (v instanceof List) {
-      printed = this.#list(v);
-    } else if (v instanceof CustomType) {
-      printed = this.#customType(v);
-    } else if (this.#isDict(v)) {
-      printed = this.#dict(v);
-    } else if (v instanceof Set) {
-      return `//js(Set(${[...v].map((v2) => this.inspect(v2)).join(", ")}))`;
-    } else {
-      printed = this.#object(v);
-    }
-    this.#references.delete(v);
-    return printed;
-  }
-  #object(v) {
-    const name2 = Object.getPrototypeOf(v)?.constructor?.name || "Object";
-    const props = [];
-    for (const k of Object.keys(v)) {
-      props.push(`${this.inspect(k)}: ${this.inspect(v[k])}`);
-    }
-    const body = props.length ? " " + props.join(", ") + " " : "";
-    const head = name2 === "Object" ? "" : name2 + " ";
-    return `//js(${head}{${body}})`;
-  }
-  #dict(map8) {
-    let body = "dict.from_list([";
-    let first = true;
-    let key_value_pairs = [];
-    map8.forEach((value2, key) => {
-      key_value_pairs.push([key, value2]);
-    });
-    key_value_pairs.sort();
-    key_value_pairs.forEach(([key, value2]) => {
-      if (!first) body = body + ", ";
-      body = body + "#(" + this.inspect(key) + ", " + this.inspect(value2) + ")";
-      first = false;
-    });
-    return body + "])";
-  }
-  #customType(record) {
-    const props = Object.keys(record).map((label2) => {
-      const value2 = this.inspect(record[label2]);
-      return isNaN(parseInt(label2)) ? `${label2}: ${value2}` : value2;
-    }).join(", ");
-    return props ? `${record.constructor.name}(${props})` : record.constructor.name;
-  }
-  #list(list4) {
-    if (list4 instanceof Empty) {
-      return "[]";
-    }
-    let char_out = 'charlist.from_string("';
-    let list_out = "[";
-    let current = list4;
-    while (current instanceof NonEmpty) {
-      let element4 = current.head;
-      current = current.tail;
-      if (list_out !== "[") {
-        list_out += ", ";
-      }
-      list_out += this.inspect(element4);
-      if (char_out) {
-        if (Number.isInteger(element4) && element4 >= 32 && element4 <= 126) {
-          char_out += String.fromCharCode(element4);
-        } else {
-          char_out = null;
-        }
-      }
-    }
-    if (char_out) {
-      return char_out + '")';
-    } else {
-      return list_out + "]";
-    }
-  }
-  #string(str) {
-    let new_str = '"';
-    for (let i = 0; i < str.length; i++) {
-      const char = str[i];
-      switch (char) {
-        case "\n":
-          new_str += "\\n";
-          break;
-        case "\r":
-          new_str += "\\r";
-          break;
-        case "	":
-          new_str += "\\t";
-          break;
-        case "\f":
-          new_str += "\\f";
-          break;
-        case "\\":
-          new_str += "\\\\";
-          break;
-        case '"':
-          new_str += '\\"';
-          break;
-        default:
-          if (char < " " || char > "~" && char < "\xA0") {
-            new_str += "\\u{" + char.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0") + "}";
-          } else {
-            new_str += char;
-          }
-      }
-    }
-    new_str += '"';
-    return new_str;
-  }
-  #utfCodepoint(codepoint2) {
-    return `//utfcodepoint(${String.fromCodePoint(codepoint2.value)})`;
-  }
-  #bit_array(bits) {
-    if (bits.bitSize === 0) {
-      return "<<>>";
-    }
-    let acc = "<<";
-    for (let i = 0; i < bits.byteSize - 1; i++) {
-      acc += bits.byteAt(i).toString();
-      acc += ", ";
-    }
-    if (bits.byteSize * 8 === bits.bitSize) {
-      acc += bits.byteAt(bits.byteSize - 1).toString();
-    } else {
-      const trailingBitsCount = bits.bitSize % 8;
-      acc += bits.byteAt(bits.byteSize - 1) >> 8 - trailingBitsCount;
-      acc += `:size(${trailingBitsCount})`;
-    }
-    acc += ">>";
-    return acc;
-  }
-};
 
 // build/.lustre/entry.mjs
 main();

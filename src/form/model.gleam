@@ -6,6 +6,19 @@ import gleam/list
 import gleam/option.{type Option}
 import schema/types.{type JsonSchema, type ValidationError, type Value}
 
+/// Configuration for form submission behavior.
+/// 
+/// This type allows customization of how the form handles submission,
+/// including where to send data and how to handle responses.
+pub type SubmitConfig {
+  /// Submit form data to an HTTP endpoint
+  HttpSubmit(url: String, method: String, headers: List(#(String, String)))
+  /// Handle submission with a custom function
+  CustomSubmit(handler: fn(FormModel) -> Result(String, String))
+  /// No submission handler (form values can be retrieved manually)
+  NoSubmit
+}
+
 /// The main form state model for the MVU architecture.
 /// 
 /// This type contains all the state needed to render and manage a form,
@@ -31,6 +44,8 @@ pub type FormModel {
     disabled_fields: List(String),
     // Form submission result
     submission_result: Option(SubmissionResult),
+    // Submission configuration
+    submit_config: Option(SubmitConfig),
   )
 }
 
@@ -82,6 +97,23 @@ pub type FormMsg {
 /// let form = model.init(schema)
 /// ```
 pub fn init(schema: JsonSchema) -> FormModel {
+  init_with_config(schema, option.None)
+}
+
+/// Initialize a new form model with submission configuration.
+/// 
+/// Creates a form with optional submission handling configuration.
+/// 
+/// ## Parameters
+/// - `schema`: The JSON Schema definition for this form
+/// - `submit_config`: Optional submission configuration
+/// 
+/// ## Returns
+/// A new FormModel with the provided configuration
+pub fn init_with_config(
+  schema: JsonSchema,
+  submit_config: Option(SubmitConfig),
+) -> FormModel {
   // Initially, resolved_schema is the same as the base schema
   // It will be updated when form values change
   FormModel(
@@ -95,6 +127,7 @@ pub fn init(schema: JsonSchema) -> FormModel {
     touched_fields: [],
     disabled_fields: [],
     submission_result: option.None,
+    submit_config: submit_config,
   )
 }
 
@@ -266,10 +299,11 @@ pub fn add_field_error(
 /// ## Returns
 /// A new FormModel with the field's errors cleared
 pub fn clear_field_errors(model: FormModel, field_name: String) -> FormModel {
+  let new_errors = dict.delete(model.errors, field_name)
   FormModel(
     ..model,
-    errors: dict.delete(model.errors, field_name),
-    is_valid: dict.size(model.errors) == 1,
+    errors: new_errors,
+    is_valid: dict.size(new_errors) == 0,
   )
 }
 
@@ -332,6 +366,7 @@ pub fn reset(model: FormModel) -> FormModel {
     touched_fields: [],
     disabled_fields: [],
     submission_result: option.None,
+    submit_config: model.submit_config,
   )
 }
 
@@ -536,5 +571,5 @@ pub fn set_value_at_path(
 /// ## Returns
 /// True if the form can be submitted, False otherwise
 pub fn can_submit(model: FormModel) -> Bool {
-  model.is_valid && !model.is_submitting && model.is_dirty
+  model.is_valid && !model.is_submitting
 }
