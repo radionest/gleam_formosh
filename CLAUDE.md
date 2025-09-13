@@ -46,14 +46,35 @@ The codebase strictly follows Model-View-Update separation:
 Critical for nested data handling:
 ```gleam
 // Path segments: PropertySegment(name) or ArraySegment(index)
-// Example: ["lesions", ArraySegment(0), "side"] → lesions[0].side
+// Example: [PropertySegment("lesions"), ArraySegment(0), PropertySegment("side")] → lesions[0].side
+
+// Path operations in src/form/path.gleam:
+path_to_string(path: Path) -> String  // Convert to dot notation
+get_parent_path(path: Path) -> Path   // Navigate up hierarchy
+get_field_name(path: Path) -> String  // Extract final segment
+
+// Value transformation in src/form/value.gleam:
+hierarchical_to_flat(value: Value) -> Dict(String, FieldValue)  // Flatten nested structure
+flat_to_hierarchical(values: Dict(String, FieldValue)) -> Value  // Reconstruct hierarchy
 ```
 
 ### Core Modules
 - `src/formosh.gleam`: Public API entry point
+- `src/formosh/component.gleam`: Web Component integration
 - `src/schema/`: JSON Schema parsing and validation
+  - `types.gleam`: Core schema type definitions
+  - `parser.gleam`: JSON to schema conversion
+  - `validator.gleam`: Validation rule execution
+  - `resolver.gleam`: $ref and conditional resolution
 - `src/form/`: MVU components and state management
+  - `model.gleam`: Form state with field map
+  - `update.gleam`: All state transitions and effects
+  - `view.gleam`: HTML generation pipeline
+  - `path.gleam`: Path manipulation utilities
+  - `value.gleam`: Value transformation logic
 - `src/fields/`: Field-specific rendering logic
+  - Each field type has dedicated renderer
+  - Handles both display and input generation
 
 ## Critical Gleam/Dynamic Decoding Knowledge
 
@@ -63,6 +84,20 @@ The codebase uses specific patterns for `gleam/dynamic/decode`:
 3. **Error conversion**: `option.from_result()` exists, `result.to_option()` does NOT
 4. **Nested extraction**: Use `decode.run()` with `decode.dynamic` for conditional logic
 
+### Common Decoding Patterns
+```gleam
+// Modern decode pattern with use
+use type_value <- decode.field("type", decode.string)
+use properties <- decode.optional_field("properties", dict.new(), decode.dict(decode.string, decode.dynamic))
+
+// Conditional decoding
+case type_value {
+  "object" -> decode_object_schema(data)
+  "array" -> decode_array_schema(data)
+  _ -> decode_primitive_schema(data)
+}
+```
+
 ## Field Type Rendering Rules
 
 - `maxLength > 100` → textarea
@@ -70,6 +105,10 @@ The codebase uses specific patterns for `gleam/dynamic/decode`:
 - `enum` with >5 options → select dropdown
 - Boolean fields → Yes/No radio buttons
 - Format-specific inputs for email, date, url
+- Arrays → Dynamic list with add/remove controls
+- Objects → Nested fieldset with proper indentation
+- Numbers with `multipleOf` → step attribute
+- Fields with `description` → Help text below input
 
 ## Testing Strategy
 
@@ -78,6 +117,10 @@ Tests are in `test/` directory. Focus areas:
 - Update functions (contain business logic)
 - Path-based addressing for nested structures
 - Validation rules and error handling
+- Value transformation (flat ↔ hierarchical)
+- Schema resolution ($ref, conditionals)
+- Array field operations (add/remove/reorder)
+- Form submission and error states
 
 ## Development Patterns
 
@@ -86,14 +129,23 @@ Tests are in `test/` directory. Focus areas:
 3. **Use pattern matching** for control flow
 4. **Keep update functions pure** for testability
 5. **Place side effects only at boundaries** via Lustre effects
+6. **Path-based operations** - Always use path utilities for nested fields
+7. **Validation pipeline** - Validators compose and aggregate errors
+8. **Effect management** - Use rsvp library for HTTP submissions
 
 ## Public API
 
 Main functions in `src/formosh.gleam`:
 ```gleam
-from_schema(schema: JsonSchema) -> FormApp
-from_json_string(json: String) -> Result(FormApp, ParseError)
-to_lustre_app(form_app: FormApp) -> lustre.App(Nil, FormModel, FormMsg)
+// Core form creation
+from_schema(schema: JsonSchema) -> lustre.App(Nil, FormModel, FormMsg)
+from_json_string(json: String) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError)
+
+// Configuration builder pattern
+config(schema: JsonSchema) -> FormConfig
+from_config(config: FormConfig) -> lustre.App(Nil, FormModel, FormMsg)
+
+// Note: to_lustre_app() function does NOT exist - forms already return lustre.App
 ```
 
 ## Important Files
@@ -101,13 +153,117 @@ to_lustre_app(form_app: FormApp) -> lustre.App(Nil, FormModel, FormMsg)
 - `index.html`: Development UI with embedded CSS
 - `gleam.toml`: Dependencies and configuration
 - `SHOULD_KNOW.md`: Detailed Gleam API quirks documentation
+- `manifest.toml`: Package metadata
+- `build/`: Generated JavaScript output (DO NOT EDIT)
 
-**Note**: mjs все файлы если не указано обратное являются автоматически сгененрированными и читать их не надо
+**Note**: All .mjs files are auto-generated - do not read or edit them
+
+## Advanced Implementation Details
+
+### Schema Resolution Pipeline
+The schema resolver handles complex JSON Schema features:
+
+1. **$ref Resolution** (`src/schema/resolver.gleam`):
+   - Resolves internal references (#/definitions/...)
+   - Maintains visited set to prevent circular references
+   - Merges resolved schemas with parent properties
+
+2. **Conditional Schemas** (if/then/else):
+   - Evaluates conditions based on current form values
+   - Dynamically switches schema based on field values
+   - Properly merges conditional properties
+
+3. **Composition Keywords**:
+   - `allOf`: Merges all schemas (currently implemented)
+   - `oneOf/anyOf`: Not yet implemented
+
+### Value Transformation System
+Critical for handling nested data:
+
+```gleam
+// Hierarchical value (from JSON)
+Value.Object([
+  #("user", Value.Object([
+    #("name", Value.String("John")),
+    #("age", Value.Number(30))
+  ]))
+])
+
+// Flat representation (for form state)
+dict.from_list([
+  #("user.name", FieldValue.String("John")),
+  #("user.age", FieldValue.Number(30))
+])
+```
+
+### Effect Management with RSVP
+HTTP submissions use the rsvp library:
+- Constructs proper HTTP requests
+- Handles JSON serialization
+- Returns success/error messages
+- Manages loading states
+
+### Web Component Integration
+The `formosh/component.gleam` module:
+- Exports as custom HTML element
+- Handles attribute changes
+- Emits custom events for parent communication
+- Manages shadow DOM isolation
+
+## Common Pitfalls & Solutions
+
+### Path Operations
+- **Problem**: Incorrect path construction for nested fields
+- **Solution**: Always use `path.gleam` utilities, never manual string concatenation
+
+### Validation Timing
+- **Problem**: Validation errors shown too early
+- **Solution**: Check `touched` state before displaying errors
+
+### Array Field Indexing
+- **Problem**: Index out of bounds after deletion
+- **Solution**: Reindex array fields after any modification
+
+### Schema Resolution
+- **Problem**: Infinite loop with circular $refs
+- **Solution**: Maintain visited set in resolver
+
+## Debugging Tips
+
+1. **Form State Inspection**:
+   ```gleam
+   io.debug(model.values)  // Check current values
+   io.debug(model.errors)  // Check validation errors
+   io.debug(model.touched) // Check touched fields
+   ```
+
+2. **Path Debugging**:
+   ```gleam
+   io.debug(path_to_string(field.path))  // Verify path construction
+   ```
+
+3. **Schema Resolution**:
+   ```gleam
+   io.debug(resolved_schema)  // Check after resolution
+   ```
+
+4. **Update Flow**:
+   - Add debug statements in update.gleam
+   - Track message flow for complex operations
+
+## Performance Considerations
+
+1. **Large Forms**: Consider virtualizing array fields
+2. **Validation**: Debounce validation for expensive rules
+3. **Re-renders**: Use targeted updates via path system
+4. **Schema Resolution**: Cache resolved schemas when possible
 
 ## Dependencies
 
 - `lustre`: Web framework (5.3.4+)
 - `gleam_json`: JSON parsing (3.0.0+)
 - `gleam_stdlib`: Standard library
+- `gleam_dynamic`: Dynamic type decoding
+- `rsvp`: HTTP client for submissions
 - `gleeunit`: Testing framework (dev)
 - `lustre_dev_tools`: Development server (dev)

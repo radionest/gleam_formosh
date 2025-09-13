@@ -243,15 +243,11 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     SubmitMethodChanged(method) -> {
       // Update the submit method and reinitialize form if both schema and URL exist
       let new_model = Model(..model, submit_method: method)
-      let final_model = case new_model.form_model {
-        Some(form_model) -> {
-          case new_model.submit_url {
-            Some(_) ->
+      let final_model = case new_model {
+        Model(form_model: Some(form_model), submit_url: Some(_), .. ) -> {
               reinitialize_form_with_schema(new_model, form_model.schema)
-            None -> new_model
           }
-        }
-        None -> new_model
+        _ -> new_model
       }
       #(final_model, effect.none())
     }

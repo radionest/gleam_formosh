@@ -57,7 +57,7 @@ pub type StringFormat {
   UriFormat
   UrlFormat
   UuidFormat
-  RegexFormat
+  RegexFormat(String)
   CustomFormat(String)
 }
 
