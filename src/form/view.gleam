@@ -15,6 +15,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import schema/types
+import validation/field_requirements
 
 /// Render the entire form as a Lustre element.
 /// 
@@ -118,7 +119,7 @@ fn render_field(
   field_name: String,
   property: types.SchemaProperty,
 ) -> Element(FormMsg) {
-  let is_required = model.is_field_required(model, field_name)
+  let is_required = field_requirements.is_required(model.schema, field_name)
   let is_disabled = model.is_field_disabled(model, field_name)
   let is_touched = model.is_field_touched(model, field_name)
   let has_errors = model.field_has_errors(model, field_name)

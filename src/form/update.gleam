@@ -21,6 +21,7 @@ import schema/types.{
   type Value,
 }
 import schema/validator
+import validation/field_requirements
 
 /// Main update function for the form MVU architecture.
 /// 
@@ -201,7 +202,7 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
           field_name,
           value,
           property,
-          model.is_field_required(model, field_name),
+          field_requirements.is_required(model.schema, field_name),
         )
 
       case errors {

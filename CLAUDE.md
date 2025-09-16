@@ -52,10 +52,6 @@ Critical for nested data handling:
 path_to_string(path: Path) -> String  // Convert to dot notation
 get_parent_path(path: Path) -> Path   // Navigate up hierarchy
 get_field_name(path: Path) -> String  // Extract final segment
-
-// Value transformation in src/form/value.gleam:
-hierarchical_to_flat(value: Value) -> Dict(String, FieldValue)  // Flatten nested structure
-flat_to_hierarchical(values: Dict(String, FieldValue)) -> Value  // Reconstruct hierarchy
 ```
 
 ### Core Modules
@@ -71,10 +67,12 @@ flat_to_hierarchical(values: Dict(String, FieldValue)) -> Value  // Reconstruct 
   - `update.gleam`: All state transitions and effects
   - `view.gleam`: HTML generation pipeline
   - `path.gleam`: Path manipulation utilities
-  - `value.gleam`: Value transformation logic
+  - `json_utils.gleam`: JSON value utilities
 - `src/fields/`: Field-specific rendering logic
   - Each field type has dedicated renderer
   - Handles both display and input generation
+- `src/validation/`: Validation utilities
+  - `field_requirements.gleam`: Field requirement validation
 
 ## Critical Gleam/Dynamic Decoding Knowledge
 
@@ -117,7 +115,6 @@ Tests are in `test/` directory. Focus areas:
 - Update functions (contain business logic)
 - Path-based addressing for nested structures
 - Validation rules and error handling
-- Value transformation (flat ↔ hierarchical)
 - Schema resolution ($ref, conditionals)
 - Array field operations (add/remove/reorder)
 - Form submission and error states
@@ -144,8 +141,14 @@ from_json_string(json: String) -> Result(lustre.App(Nil, FormModel, FormMsg), Pa
 // Configuration builder pattern
 config(schema: JsonSchema) -> FormConfig
 from_config(config: FormConfig) -> lustre.App(Nil, FormModel, FormMsg)
+with_http_submit(config, url, method, headers) -> FormConfig
+with_submit_url(config, url) -> FormConfig
+with_custom_submit(config, handler) -> FormConfig
+with_css_prefix(config, prefix) -> FormConfig
+with_show_errors_on_change(config, show) -> FormConfig
 
-// Note: to_lustre_app() function does NOT exist - forms already return lustre.App
+// Utility functions
+get_values(model: FormModel) -> Dict(String, Value)
 ```
 
 ## Important Files
@@ -177,22 +180,17 @@ The schema resolver handles complex JSON Schema features:
    - `allOf`: Merges all schemas (currently implemented)
    - `oneOf/anyOf`: Not yet implemented
 
-### Value Transformation System
-Critical for handling nested data:
+### Value Storage System
+Form values are stored in a dictionary with dot-notation keys:
 
 ```gleam
-// Hierarchical value (from JSON)
-Value.Object([
-  #("user", Value.Object([
-    #("name", Value.String("John")),
-    #("age", Value.Number(30))
-  ]))
-])
+// Values stored in model as Dict(String, Value)
+model.values: Dict(String, Value)
 
-// Flat representation (for form state)
+// Example for nested object:
 dict.from_list([
-  #("user.name", FieldValue.String("John")),
-  #("user.age", FieldValue.Number(30))
+  #("user.name", StringValue("John")),
+  #("user.age", NumberValue(30))
 ])
 ```
 

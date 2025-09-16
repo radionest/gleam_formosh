@@ -205,15 +205,17 @@ let schema = "
 
 ```gleam
 import formosh
-import formosh/config
 import lustre
 
 pub fn main() {
   let schema_string = "{ ... }"  // Your JSON Schema
-  let assert Ok(schema) = formosh.parse_schema(schema_string)
+  let assert Ok(app) = formosh.from_json_string(schema_string)
 
-  let form_config = config.new(schema)
-    |> config.with_http_submit(
+  // Or with configuration:
+  let assert Ok(schema) = schema/parser.parse_schema(schema_string)
+
+  let form_config = formosh.config(schema)
+    |> formosh.with_http_submit(
       url: "https://api.example.com/forms",
       method: "POST",
       headers: [
@@ -221,7 +223,7 @@ pub fn main() {
         #("Content-Type", "application/json")
       ]
     )
-    |> config.with_css_prefix("my-form")
+    |> formosh.with_css_prefix("my-form")
 
   let app = formosh.from_config(form_config)
   let assert Ok(_) = lustre.start(app, "#app", Nil)
@@ -232,30 +234,25 @@ pub fn main() {
 
 ```gleam
 import formosh
-import formosh/config
 import gleam/io
 import gleam/json
+import schema/parser
 
 pub fn handle_submission(model) {
   // Extract form values
   let values = formosh.get_values(model)
 
   // Custom processing
-  case formosh.get_form_json(model) {
-    Ok(json_string) -> {
-      io.println("Submitting: " <> json_string)
-      // Your custom logic here
-      Ok("Successfully processed!")
-    }
-    Error(e) -> Error("Failed to serialize: " <> e)
-  }
+  io.println("Form values received")
+  // Your custom logic here
+  Ok("Successfully processed!")
 }
 
 pub fn main() {
-  let schema = formosh.parse_schema("{ ... }")
+  let assert Ok(schema) = parser.parse_schema("{ ... }")
 
-  let config = config.new(schema)
-    |> config.with_custom_submit(handle_submission)
+  let config = formosh.config(schema)
+    |> formosh.with_custom_submit(handle_submission)
 
   let app = formosh.from_config(config)
   let assert Ok(_) = lustre.start(app, "#app", Nil)
@@ -338,36 +335,38 @@ Create a form application from a parsed JSON Schema.
 #### `formosh.from_json_string(json: String) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError)`
 Parse a JSON Schema string and create a form application.
 
-#### `formosh.parse_schema(json: String) -> Result(JsonSchema, ParseError)`
-Parse a JSON Schema string into a schema type.
-
 ### Configuration Builder
 
-#### `config.new(schema: JsonSchema) -> FormConfig`
+#### `formosh.config(schema: JsonSchema) -> FormConfig`
 Create a new form configuration.
 
-#### `config.with_http_submit(config, url, method, headers) -> FormConfig`
+#### `formosh.from_config(config: FormConfig) -> lustre.App(Nil, FormModel, FormMsg)`
+Create a form application from a configuration.
+
+#### `formosh.with_http_submit(config, url, method, headers) -> FormConfig`
 Configure HTTP submission.
 
-#### `config.with_custom_submit(config, handler) -> FormConfig`
+#### `formosh.with_submit_url(config, url) -> FormConfig`
+Configure HTTP submission with POST method.
+
+#### `formosh.with_custom_submit(config, handler) -> FormConfig`
 Set a custom submission handler.
 
-#### `config.with_css_prefix(config, prefix) -> FormConfig`
+#### `formosh.with_css_prefix(config, prefix) -> FormConfig`
 Set CSS class prefix for styling.
 
-#### `config.with_initial_values(config, values) -> FormConfig`
-Set initial form values.
+#### `formosh.with_show_errors_on_change(config, show) -> FormConfig`
+Configure when validation errors are shown.
 
 ### Utility Functions
 
-#### `formosh.get_values(model: FormModel) -> Dict(String, FieldValue)`
-Extract current form values as a flat dictionary.
+#### `formosh.get_values(model: FormModel) -> Dict(String, Value)`
+Extract current form values.
 
-#### `formosh.get_form_json(model: FormModel) -> Result(String, String)`
-Convert form values to JSON string.
+#### Schema Parsing (from schema/parser module)
 
-#### `formosh.is_valid(model: FormModel) -> Bool`
-Check if the form is currently valid.
+#### `parser.parse_schema(json: String) -> Result(JsonSchema, ParseError)`
+Parse a JSON Schema string into a schema type.
 
 ## 🏗️ Project Structure
 

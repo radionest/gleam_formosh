@@ -9,6 +9,7 @@ import schema/types.{
   type SchemaProperty, type ValidationError, type Value, BooleanValue,
   IntegerValue, NullValue, NumberValue, StringValue, ValidationError,
 }
+import validation/field_requirements
 
 /// Validate a field value against its schema property definition.
 /// 
@@ -41,36 +42,15 @@ pub fn validate_field(
   property: SchemaProperty,
   is_required: Bool,
 ) -> List(ValidationError) {
-  let errors = []
-
-  // Check required
-  let errors = case is_required {
-    True ->
-      case value {
-        None | Some(NullValue) ->
-          list.append(errors, [
-            ValidationError(
-              field: field_name,
-              message: "This field is required",
-              rule: "required",
-            ),
-          ])
-        Some(StringValue("")) ->
-          list.append(errors, [
-            ValidationError(
-              field: field_name,
-              message: "This field is required",
-              rule: "required",
-            ),
-          ])
-        _ -> errors
-      }
-    False -> errors
+  // Use centralized required validation
+  let required_errors = case field_requirements.check_required_value(field_name, value, is_required) {
+    Ok(_) -> []
+    Error(validation_error) -> [validation_error]
   }
 
   // Skip further validation if no value
   case value {
-    None | Some(NullValue) -> errors
+    None | Some(NullValue) -> required_errors
     Some(val) -> {
       // Type-specific validation
       let type_errors = case property.field_type {
@@ -88,7 +68,7 @@ pub fn validate_field(
         None -> []
       }
 
-      list.flatten([errors, type_errors, enum_errors])
+      list.flatten([required_errors, type_errors, enum_errors])
     }
   }
 }

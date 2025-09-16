@@ -5,6 +5,7 @@ import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option}
 import schema/types.{type JsonSchema, type ValidationError, type Value}
+import validation/field_requirements
 
 /// Configuration for form submission behavior.
 /// 
@@ -132,18 +133,19 @@ pub fn init_with_config(
 }
 
 /// Check if a field is required according to the schema.
-/// 
-/// Looks up whether a field name is in the required fields list of the schema.
-/// This is used for validation and rendering required field indicators.
-/// 
+///
+/// Delegates to the centralized field_requirements module to determine
+/// if a field is required. This is used for validation and rendering
+/// required field indicators.
+///
 /// ## Parameters
 /// - `model`: The form model containing the schema
 /// - `field_name`: The name of the field to check
-/// 
+///
 /// ## Returns
 /// True if the field is required, False otherwise
 pub fn is_field_required(model: FormModel, field_name: String) -> Bool {
-  list.contains(model.schema.required, field_name)
+  field_requirements.is_required(model.schema, field_name)
 }
 
 /// Check if a field has any validation errors.
