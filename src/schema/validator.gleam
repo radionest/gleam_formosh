@@ -43,7 +43,9 @@ pub fn validate_field(
   is_required: Bool,
 ) -> List(ValidationError) {
   // Use centralized required validation
-  let required_errors = case field_requirements.check_required_value(field_name, value, is_required) {
+  let required_errors = case
+    field_requirements.check_required_value(field_name, value, is_required)
+  {
     Ok(_) -> []
     Error(validation_error) -> [validation_error]
   }

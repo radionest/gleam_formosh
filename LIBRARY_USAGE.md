@@ -29,14 +29,11 @@ import formosh
 import lustre
 
 pub fn create_form(schema_string: String) {
-  // Parse and create form
+  // Parse and create form - returns a Lustre app directly
   case formosh.from_json_string(schema_string) {
     Ok(form_app) -> {
-      // Convert to Lustre app
-      let app = formosh.to_lustre_app(form_app)
-      
-      // Mount to DOM element
-      lustre.start(app, "#my-form-container", Nil)
+      // Mount directly to DOM element - no conversion needed
+      lustre.start(form_app, "#my-form-container", Nil)
     }
     Error(err) -> {
       // Handle parsing error
@@ -52,20 +49,18 @@ pub fn create_form(schema_string: String) {
 
 ```gleam
 import formosh
+import lustre
 
 pub fn create_form_with_api(schema_string: String, api_url: String) {
-  // Create form with HTTP submission
-  case formosh.from_json_string_with_config(
-    schema_string,
-    formosh.HttpSubmit(
-      url: api_url,
-      method: "POST",
-      headers: [#("Content-Type", "application/json")],
-    ),
-  ) {
-    Ok(form_app) -> {
-      let app = formosh.to_lustre_app(form_app)
-      lustre.start(app, "#form", Nil)
+  // Parse schema first
+  case formosh.parse_schema(schema_string) {
+    Ok(schema) -> {
+      // Create form with HTTP submission
+      let config = formosh.config(schema)
+        |> formosh.with_submit_url(api_url)
+
+      let form_app = formosh.from_config(config)
+      lustre.start(form_app, "#form", Nil)
     }
     Error(err) -> Error(err)
   }
@@ -76,29 +71,34 @@ pub fn create_form_with_api(schema_string: String, api_url: String) {
 
 ```gleam
 import formosh
+import gleam/dict
+import lustre
+import lustre/effect
 import my_app/api
 
-pub fn create_form_with_handler(schema: JsonSchema) {
+pub fn create_form_with_handler(schema: formosh.JsonSchema) {
   // Define how to handle form submission
-  let submit_handler = fn(model) {
-    // Extract form data
-    let values = formosh.get_values(model)
-    
+  let submit_handler = fn(values: dict.Dict(String, formosh.Value)) {
     // Process with your application logic
     case api.submit_form_data(values) {
-      Ok(response) -> Ok("Success: " <> response.message)
-      Error(err) -> Error("Failed: " <> err.message)
+      Ok(response) -> effect.from(fn(_) {
+        // Handle success - could dispatch a message or perform an action
+        Nil
+      })
+      Error(err) -> effect.from(fn(_) {
+        // Handle error
+        Nil
+      })
     }
   }
-  
+
   // Configure form
   let config = formosh.config(schema)
     |> formosh.with_custom_submit(submit_handler)
-  
+
   // Create and start form
   let form = formosh.from_config(config)
-  let app = formosh.to_lustre_app(form)
-  lustre.start(app, "#form", Nil)
+  lustre.start(form, "#form", Nil)
 }
 ```
 
@@ -107,41 +107,22 @@ pub fn create_form_with_handler(schema: JsonSchema) {
 ```gleam
 import formosh
 import gleam/json
+import lustre
 
-pub fn create_form_with_manual_submit(schema: JsonSchema) {
+pub fn create_form_with_manual_submit(schema: formosh.JsonSchema) {
   // Create form without submission handler
   let config = formosh.config(schema)
   let form = formosh.from_config(config)
-  
-  // In your update function, handle submission manually
-  let custom_update = fn(model, msg) {
-    case msg {
-      formosh.FormSubmit -> {
-        // Extract and process data
-        let values = formosh.get_values(model)
-        let json_result = formosh.get_form_json(model)
-        
-        // Send to your API
-        case json_result {
-          Ok(json) -> send_to_api(json)
-          Error(_) -> handle_error()
-        }
-        
-        // Continue with normal update
-        #(model, effect.none())
-      }
-      _ -> formosh.update(model, msg)
-    }
-  }
-  
-  // Use custom update function
-  let form_with_custom = formosh.from_config_with_custom_update(
-    config,
-    custom_update,
-  )
-  
-  let app = formosh.to_lustre_app(form_with_custom)
-  lustre.start(app, "#form", Nil)
+
+  // Note: To handle submission manually, you would need to:
+  // 1. Extract values using formosh.get_values() after mounting
+  // 2. Listen for form submission events in your parent application
+  // 3. Process the extracted values with your custom logic
+
+  lustre.start(form, "#form", Nil)
+
+  // In your parent app, you can access the form model's values:
+  // let values = formosh.get_values(form_model)
 }
 ```
 
@@ -166,7 +147,7 @@ pub fn init() {
         |> formosh.with_css_prefix("app-form")
       
       let form = formosh.from_config(form_config)
-      render_form(form)
+      lustre.start(form, "#form-container", Nil)
     }
     _ -> render_other_content()
   }
@@ -189,8 +170,7 @@ pub fn load_and_create_form(schema_url: String) {
       // Create form from fetched schema
       case formosh.from_json_string(schema_json) {
         Ok(form) -> {
-          let app = formosh.to_lustre_app(form)
-          lustre.start(app, "#dynamic-form", Nil)
+          lustre.start(form, "#dynamic-form", Nil)
         }
         Error(err) -> handle_parse_error(err)
       }
@@ -214,9 +194,8 @@ pub fn create_multiple_forms(schemas: List(#(String, JsonSchema))) {
       |> formosh.with_css_prefix(container_id)
     
     let form = formosh.from_config(config)
-    let app = formosh.to_lustre_app(form)
-    
-    lustre.start(app, "#" <> container_id, Nil)
+
+    lustre.start(form, "#" <> container_id, Nil)
   })
 }
 ```
@@ -246,38 +225,22 @@ Always handle potential errors when creating forms:
 case formosh.from_json_string(schema_json) {
   Ok(form) -> {
     // Success path
-    start_form(form)
+    lustre.start(form, "#form", Nil)
   }
   Error(err) -> {
-    case err {
-      formosh.InvalidJson(msg) -> log_error("Invalid JSON: " <> msg)
-      formosh.MissingField(field) -> log_error("Missing: " <> field)
-      formosh.InvalidType(msg) -> log_error("Type error: " <> msg)
-      formosh.UnexpectedValue(msg) -> log_error("Unexpected: " <> msg)
-      formosh.DecodingError(_) -> log_error("Decoding failed")
-    }
+    // ParseError contains the error message
+    io.println("Failed to parse schema: " <> string.inspect(err))
   }
 }
 ```
 
-## Migration Checklist
-
-- [ ] Remove direct imports of `formosh.main()`
-- [ ] Replace `formosh.example_schema` with your own schema
-- [ ] Add submission configuration (HTTP or custom handler)
-- [ ] Update CSS classes if using custom prefix
-- [ ] Handle parsing errors appropriately
-- [ ] Test form submission with your backend
 
 ## Example Migration
 
 ### Before (as application):
 ```gleam
-import formosh
-
-pub fn main() {
-  formosh.main()  // Used built-in example
-}
+// The old version had a built-in example that ran automatically
+// This is no longer available - you must provide your own schema
 ```
 
 ### After (as library):
@@ -292,18 +255,10 @@ pub fn main() {
     |> formosh.with_css_prefix("contact-form")
   
   let form = formosh.from_config(config)
-  let app = formosh.to_lustre_app(form)
-  
-  case lustre.start(app, "#contact-form", Nil) {
+
+  case lustre.start(form, "#contact-form", Nil) {
     Ok(_) -> io.println("Form initialized")
     Error(err) -> io.println("Failed to start: " <> string.inspect(err))
   }
 }
 ```
-
-## Support
-
-For issues or questions about using Formosh as a library, please refer to:
-- [API Documentation](https://hexdocs.pm/formosh)
-- [GitHub Issues](https://github.com/youruser/formosh/issues)
-- [Example Application](./example/)

@@ -21,9 +21,8 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/event
 import schema/parser
-import schema/types.{
-  type JsonSchema, type Value,
-}
+import schema/serializer
+import schema/types.{type JsonSchema, type Value}
 
 // COMPONENT CONFIGURATION -----------------------------------------------------
 
@@ -85,12 +84,13 @@ pub fn element(attributes: List(Attribute(msg))) -> Element(msg) {
 // ATTRIBUTES ------------------------------------------------------------------
 
 /// Set the JSON Schema for the form.
-/// 
+///
 /// This can be either a JSON string or a JsonSchema object when used
 /// programmatically.
-pub fn schema(_schema: JsonSchema) -> Attribute(msg) {
-  // For now, just serialize to empty JSON - would need proper serialization
-  attribute.attribute("schema", "{}")
+pub fn schema(schema: JsonSchema) -> Attribute(msg) {
+  let json_obj = serializer.schema_to_json(schema)
+  let json_string = json.to_string(json_obj)
+  attribute.attribute("schema", json_string)
 }
 
 /// Set the JSON Schema as a string attribute.
@@ -244,9 +244,9 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       // Update the submit method and reinitialize form if both schema and URL exist
       let new_model = Model(..model, submit_method: method)
       let final_model = case new_model {
-        Model(form_model: Some(form_model), submit_url: Some(_), .. ) -> {
-              reinitialize_form_with_schema(new_model, form_model.schema)
-          }
+        Model(form_model: Some(form_model), submit_url: Some(_), ..) -> {
+          reinitialize_form_with_schema(new_model, form_model.schema)
+        }
         _ -> new_model
       }
       #(final_model, effect.none())

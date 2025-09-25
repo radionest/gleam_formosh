@@ -17,9 +17,7 @@ import gleam/option.{None, Some}
 import lustre/effect.{type Effect}
 import rsvp
 import schema/conditional_resolver
-import schema/types.{
-  type Value,
-}
+import schema/types.{type Value}
 import schema/validator
 import validation/field_requirements
 
@@ -37,15 +35,15 @@ import validation/field_requirements
 /// A tuple containing the new model state and any effects to execute
 /// 
 /// ## Supported Messages
-/// - `FieldChanged`: Update field value and validate if touched
-/// - `FieldFocused`: Track field focus (no state change)
-/// - `FieldBlurred`: Mark field as touched and validate
+/// - `UpdateFieldPath(path, value)`: Update field value at specific path
+/// - `AddArrayItemPath(path)`: Add new item to array at path
+/// - `RemoveArrayItemPath(path, index)`: Remove array item at index
 /// - `FormSubmit`: Validate and submit the form
-/// - `FormSubmitted`: Handle submission result
-/// - `ValidateField`/`ValidateForm`: Trigger validation
+/// - `FormSubmitted(result)`: Handle submission result (internal)
+/// - `SubmissionSuccess(message)`: Submission succeeded (internal)
+/// - `SubmissionError(message)`: Submission failed (internal)
+/// - `ValidateForm`: Validate entire form
 /// - `ResetForm`: Reset form to initial state
-/// - `EnableField`/`DisableField`: Control field enabled state
-/// - Array operations: `AddArrayItem`, `RemoveArrayItem`, `ArrayItemChanged`
 /// Convert model values to a hierarchical Value root for path operations.
 /// 
 /// This helper function converts the flat dictionary of field values in the model
