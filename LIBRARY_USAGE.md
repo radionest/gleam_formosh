@@ -228,7 +228,7 @@ case formosh.from_json_string(schema_json) {
     lustre.start(form, "#form", Nil)
   }
   Error(err) -> {
-    // ParseError contains the error message
+    // The 'err' variable contains the error message
     io.println("Failed to parse schema: " <> string.inspect(err))
   }
 }

@@ -3,7 +3,7 @@
 import gleam/dict
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option
 import schema/types.{
   type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
   type SchemaProperty, type StringConstraints, type StringFormat, type Value,
@@ -13,203 +13,203 @@ import schema/types.{
   StringValue, TimeFormat, UriFormat, UrlFormat, UuidFormat,
 }
 
-/// Convert a JsonSchema to a JSON object for serialization.
-///
-/// This function converts the internal JsonSchema representation to a JSON object
-/// that can be serialized to a string. It produces valid JSON Schema draft 2020-12.
-pub fn schema_to_json(schema: JsonSchema) -> json.Json {
-  let base_fields = [
-    #("$schema", json.string("https://json-schema.org/draft/2020-12/schema")),
-    #("title", json.string(schema.title)),
-    #("type", json.string(field_type_to_string(schema.field_type))),
-  ]
+// Helper function to add a field if a value exists
+fn add_optional_json_field(
+  fields: List(#(String, json.Json)),
+  name: String,
+  value: option.Option(a),
+  mapper: fn(a) -> json.Json,
+) -> List(#(String, json.Json)) {
+  value
+  |> option.map(fn(v) { [#(name, mapper(v))] })
+  |> option.unwrap([])
+  |> list.append(fields, _)
+}
 
-  let fields_with_description = case schema.description {
-    Some(desc) ->
-      list.append(base_fields, [#("description", json.string(desc))])
-    None -> base_fields
-  }
+// Helper to add multiple fields at once
+fn add_fields(
+  fields: List(#(String, json.Json)),
+  new_fields: List(#(String, json.Json)),
+) -> List(#(String, json.Json)) {
+  list.append(fields, new_fields)
+}
 
-  let fields_with_properties = case dict.is_empty(schema.properties) {
-    True -> fields_with_description
+// Helper to add properties object if not empty
+fn add_properties_object(
+  fields: List(#(String, json.Json)),
+  properties: dict.Dict(String, SchemaProperty),
+) -> List(#(String, json.Json)) {
+  case dict.is_empty(properties) {
+    True -> fields
     False -> {
-      let props_json =
-        schema.properties
+      properties
+      |> dict.to_list()
+      |> list.map(fn(pair) {
+        let #(key, prop) = pair
+        #(key, property_to_json(prop))
+      })
+      |> json.object()
+      |> fn(props_json) { add_fields(fields, [#("properties", props_json)]) }
+    }
+  }
+}
+
+// Helper to add required array if not empty
+fn add_required_array(
+  fields: List(#(String, json.Json)),
+  required: List(String),
+) -> List(#(String, json.Json)) {
+  case required {
+    [] -> fields
+    _ -> add_fields(fields, [#("required", json.array(required, of: json.string))])
+  }
+}
+
+// Helper to add definitions
+fn add_definitions(
+  fields: List(#(String, json.Json)),
+  defs: option.Option(dict.Dict(String, SchemaProperty)),
+) -> List(#(String, json.Json)) {
+  defs
+  |> option.map(fn(d) {
+    case dict.is_empty(d) {
+      True -> fields
+      False -> {
+        d
         |> dict.to_list()
         |> list.map(fn(pair) {
           let #(key, prop) = pair
           #(key, property_to_json(prop))
         })
         |> json.object()
-
-      list.append(fields_with_description, [#("properties", props_json)])
-    }
-  }
-
-  let fields_with_required = case schema.required {
-    [] -> fields_with_properties
-    required -> {
-      let required_json = json.array(required, of: json.string)
-      list.append(fields_with_properties, [#("required", required_json)])
-    }
-  }
-
-  let fields_with_defs = case schema.defs {
-    Some(defs) -> {
-      case dict.is_empty(defs) {
-        True -> fields_with_required
-        False -> {
-          let defs_json =
-            defs
-            |> dict.to_list()
-            |> list.map(fn(pair) {
-              let #(key, prop) = pair
-              #(key, property_to_json(prop))
-            })
-            |> json.object()
-          list.append(fields_with_required, [#("$defs", defs_json)])
-        }
+        |> fn(defs_json) { add_fields(fields, [#("$defs", defs_json)]) }
       }
     }
-    None -> fields_with_required
+  })
+  |> option.unwrap(fields)
+}
+
+// Helper to add conditionals
+fn add_conditionals(
+  fields: List(#(String, json.Json)),
+  conditionals: List(ConditionalRule),
+) -> List(#(String, json.Json)) {
+  case conditionals {
+    [] -> fields
+    [single] -> add_conditional_fields(fields, single)
+    multiple -> {
+      multiple
+      |> list.map(conditional_to_json)
+      |> json.array(of: fn(x) { x })
+      |> fn(all_of) { add_fields(fields, [#("allOf", all_of)]) }
+    }
   }
+}
 
-  let fields_with_conditionals = case schema.conditionals {
-    [] -> fields_with_defs
-    conditionals -> {
-      // For multiple conditionals, we need to use allOf
-      let conditional_jsons =
-        conditionals
-        |> list.map(conditional_to_json)
+/// Convert a JsonSchema to a JSON object for serialization.
+///
+/// This function converts the internal JsonSchema representation to a JSON object
+/// that can be serialized to a string. It produces valid JSON Schema draft 2020-12.
+pub fn schema_to_json(schema: JsonSchema) -> json.Json {
+  []
+  |> add_fields([
+    #("$schema", json.string("https://json-schema.org/draft/2020-12/schema")),
+    #("title", json.string(schema.title)),
+    #("type", json.string(field_type_to_string(schema.field_type))),
+  ])
+  |> add_optional_json_field("description", schema.description, json.string)
+  |> add_properties_object(schema.properties)
+  |> add_required_array(schema.required)
+  |> add_definitions(schema.defs)
+  |> add_conditionals(schema.conditionals)
+  |> fn(fields) {
+    schema.string_constraints
+    |> option.map(add_string_constraint_fields(fields, _))
+    |> option.unwrap(fields)
+  }
+  |> fn(fields) {
+    schema.number_constraints
+    |> option.map(add_number_constraint_fields(fields, _))
+    |> option.unwrap(fields)
+  }
+  |> json.object()
+}
 
-      case conditionals {
-        [_single] -> {
-          // Single conditional - add if/then/else directly
-          case conditionals {
-            [cond] -> add_conditional_fields(fields_with_defs, cond)
-            _ -> fields_with_defs
-          }
-        }
-        _ -> {
-          // Multiple conditionals - wrap in allOf
-          list.append(fields_with_defs, [
-            #("allOf", json.array(conditional_jsons, of: fn(x) { x })),
-          ])
-        }
+// Helper to add enum values if present
+fn add_optional_enum(
+  fields: List(#(String, json.Json)),
+  enum_values: option.Option(List(Value)),
+) -> List(#(String, json.Json)) {
+  enum_values
+  |> option.map(fn(values) {
+    add_fields(fields, [#("enum", json.array(values, of: value_to_json))])
+  })
+  |> option.unwrap(fields)
+}
+
+// Helper to add items property
+fn add_optional_items(
+  fields: List(#(String, json.Json)),
+  items: option.Option(SchemaProperty),
+) -> List(#(String, json.Json)) {
+  items
+  |> option.map(fn(items_prop) {
+    add_fields(fields, [#("items", property_to_json(items_prop))])
+  })
+  |> option.unwrap(fields)
+}
+
+// Helper to add properties dict if present
+fn add_optional_properties(
+  fields: List(#(String, json.Json)),
+  properties: option.Option(dict.Dict(String, SchemaProperty)),
+) -> List(#(String, json.Json)) {
+  properties
+  |> option.map(fn(props) {
+    case dict.is_empty(props) {
+      True -> fields
+      False -> {
+        props
+        |> dict.to_list()
+        |> list.map(fn(pair) {
+          let #(key, p) = pair
+          #(key, property_to_json(p))
+        })
+        |> json.object()
+        |> fn(props_json) { add_fields(fields, [#("properties", props_json)]) }
       }
     }
-  }
-
-  let fields_with_string_constraints = case schema.string_constraints {
-    Some(constraints) -> {
-      add_string_constraint_fields(fields_with_conditionals, constraints)
-    }
-    None -> fields_with_conditionals
-  }
-
-  let fields_with_number_constraints = case schema.number_constraints {
-    Some(constraints) -> {
-      add_number_constraint_fields(fields_with_string_constraints, constraints)
-    }
-    None -> fields_with_string_constraints
-  }
-  
-  json.object(fields_with_number_constraints)
+  })
+  |> option.unwrap(fields)
 }
 
 /// Convert a SchemaProperty to JSON.
 fn property_to_json(prop: SchemaProperty) -> json.Json {
-  let base_fields = []
-
-  // Handle $ref first - if present, it takes precedence
-  let fields_with_ref = case prop.ref {
-    Some(ref) -> list.append(base_fields, [#("$ref", json.string(ref))])
-    None -> base_fields
+  []
+  |> add_optional_json_field("$ref", prop.ref, json.string)
+  |> add_optional_json_field(
+    "type",
+    prop.field_type,
+    fn(ft) { json.string(field_type_to_string(ft)) },
+  )
+  |> add_optional_json_field("title", prop.title, json.string)
+  |> add_optional_json_field("description", prop.description, json.string)
+  |> add_optional_json_field("default", prop.default, value_to_json)
+  |> add_optional_enum(prop.enum_values)
+  |> fn(fields) {
+    prop.string_constraints
+    |> option.map(add_string_constraint_fields(fields, _))
+    |> option.unwrap(fields)
   }
-
-  let fields_with_type = case prop.field_type {
-    Some(ft) ->
-      list.append(fields_with_ref, [
-        #("type", json.string(field_type_to_string(ft))),
-      ])
-    None -> fields_with_ref
+  |> fn(fields) {
+    prop.number_constraints
+    |> option.map(add_number_constraint_fields(fields, _))
+    |> option.unwrap(fields)
   }
-
-  let fields_with_title = case prop.title {
-    Some(t) -> list.append(fields_with_type, [#("title", json.string(t))])
-    None -> fields_with_type
-  }
-
-  let fields_with_description = case prop.description {
-    Some(d) ->
-      list.append(fields_with_title, [#("description", json.string(d))])
-    None -> fields_with_title
-  }
-
-  let fields_with_default = case prop.default {
-    Some(def) ->
-      list.append(fields_with_description, [#("default", value_to_json(def))])
-    None -> fields_with_description
-  }
-
-  let fields_with_enum = case prop.enum_values {
-    Some(values) -> {
-      let enum_json = json.array(values, of: value_to_json)
-      list.append(fields_with_default, [#("enum", enum_json)])
-    }
-    None -> fields_with_default
-  }
-
-  let fields_with_string_constraints = case prop.string_constraints {
-    Some(constraints) ->
-      add_string_constraint_fields(fields_with_enum, constraints)
-    None -> fields_with_enum
-  }
-
-  let fields_with_number_constraints = case prop.number_constraints {
-    Some(constraints) ->
-      add_number_constraint_fields(fields_with_string_constraints, constraints)
-    None -> fields_with_string_constraints
-  }
-
-  let fields_with_items = case prop.items {
-    Some(items_prop) -> {
-      list.append(fields_with_number_constraints, [
-        #("items", property_to_json(items_prop)),
-      ])
-    }
-    None -> fields_with_number_constraints
-  }
-
-  let fields_with_properties = case prop.properties {
-    Some(props) -> {
-      case dict.is_empty(props) {
-        True -> fields_with_items
-        False -> {
-          let props_json =
-            props
-            |> dict.to_list()
-            |> list.map(fn(pair) {
-              let #(key, p) = pair
-              #(key, property_to_json(p))
-            })
-            |> json.object()
-          list.append(fields_with_items, [#("properties", props_json)])
-        }
-      }
-    }
-    None -> fields_with_items
-  }
-
-  let final_fields = case prop.required {
-    [] -> fields_with_properties
-    required -> {
-      let required_json = json.array(required, of: json.string)
-      list.append(fields_with_properties, [#("required", required_json)])
-    }
-  }
-
-  json.object(final_fields)
+  |> add_optional_items(prop.items)
+  |> add_optional_properties(prop.properties)
+  |> add_required_array(prop.required)
+  |> json.object()
 }
 
 /// Convert a FieldType to its JSON Schema string representation.
@@ -250,29 +250,15 @@ fn add_string_constraint_fields(
   fields: List(#(String, json.Json)),
   constraints: StringConstraints,
 ) -> List(#(String, json.Json)) {
-  let fields_with_min = case constraints.min_length {
-    Some(min) -> list.append(fields, [#("minLength", json.int(min))])
-    None -> fields
-  }
-
-  let fields_with_max = case constraints.max_length {
-    Some(max) -> list.append(fields_with_min, [#("maxLength", json.int(max))])
-    None -> fields_with_min
-  }
-
-  let fields_with_pattern = case constraints.pattern {
-    Some(pattern) ->
-      list.append(fields_with_max, [#("pattern", json.string(pattern))])
-    None -> fields_with_max
-  }
-
-  case constraints.format {
-    Some(format) -> {
-      let format_string = string_format_to_string(format)
-      list.append(fields_with_pattern, [#("format", json.string(format_string))])
-    }
-    None -> fields_with_pattern
-  }
+  fields
+  |> add_optional_json_field("minLength", constraints.min_length, json.int)
+  |> add_optional_json_field("maxLength", constraints.max_length, json.int)
+  |> add_optional_json_field("pattern", constraints.pattern, json.string)
+  |> add_optional_json_field(
+    "format",
+    constraints.format,
+    fn(fmt) { json.string(string_format_to_string(fmt)) },
+  )
 }
 
 /// Add number constraint fields to a field list.
@@ -280,37 +266,20 @@ fn add_number_constraint_fields(
   fields: List(#(String, json.Json)),
   constraints: NumberConstraints,
 ) -> List(#(String, json.Json)) {
-  let fields_with_min = case constraints.minimum {
-    Some(min) -> list.append(fields, [#("minimum", json.float(min))])
-    None -> fields
-  }
-
-  let fields_with_max = case constraints.maximum {
-    Some(max) -> list.append(fields_with_min, [#("maximum", json.float(max))])
-    None -> fields_with_min
-  }
-
-  let fields_with_exclusive_min = case constraints.exclusive_minimum {
-    Some(min) ->
-      list.append(fields_with_max, [#("exclusiveMinimum", json.float(min))])
-    None -> fields_with_max
-  }
-
-  let fields_with_exclusive_max = case constraints.exclusive_maximum {
-    Some(max) ->
-      list.append(fields_with_exclusive_min, [
-        #("exclusiveMaximum", json.float(max)),
-      ])
-    None -> fields_with_exclusive_min
-  }
-
-  case constraints.multiple_of {
-    Some(multiple) ->
-      list.append(fields_with_exclusive_max, [
-        #("multipleOf", json.float(multiple)),
-      ])
-    None -> fields_with_exclusive_max
-  }
+  fields
+  |> add_optional_json_field("minimum", constraints.minimum, json.float)
+  |> add_optional_json_field("maximum", constraints.maximum, json.float)
+  |> add_optional_json_field(
+    "exclusiveMinimum",
+    constraints.exclusive_minimum,
+    json.float,
+  )
+  |> add_optional_json_field(
+    "exclusiveMaximum",
+    constraints.exclusive_maximum,
+    json.float,
+  )
+  |> add_optional_json_field("multipleOf", constraints.multiple_of, json.float)
 }
 
 /// Convert a StringFormat to its JSON Schema string representation.
@@ -330,21 +299,19 @@ fn string_format_to_string(format: StringFormat) -> String {
 
 /// Convert a ConditionalRule to JSON.
 fn conditional_to_json(conditional: ConditionalRule) -> json.Json {
-  let base_fields = [#("if", property_to_json(conditional.if_schema))]
-
-  let fields_with_then = case conditional.then_schema {
-    Some(then_prop) ->
-      list.append(base_fields, [#("then", property_to_json(then_prop))])
-    None -> base_fields
-  }
-
-  let final_fields = case conditional.else_schema {
-    Some(else_prop) ->
-      list.append(fields_with_then, [#("else", property_to_json(else_prop))])
-    None -> fields_with_then
-  }
-
-  json.object(final_fields)
+  []
+  |> add_fields([#("if", property_to_json(conditional.if_schema))])
+  |> add_optional_json_field(
+    "then",
+    conditional.then_schema,
+    property_to_json,
+  )
+  |> add_optional_json_field(
+    "else",
+    conditional.else_schema,
+    property_to_json,
+  )
+  |> json.object()
 }
 
 /// Add conditional fields directly to schema fields (for single conditional).
@@ -352,18 +319,16 @@ fn add_conditional_fields(
   fields: List(#(String, json.Json)),
   conditional: ConditionalRule,
 ) -> List(#(String, json.Json)) {
-  let fields_with_if =
-    list.append(fields, [#("if", property_to_json(conditional.if_schema))])
-
-  let fields_with_then = case conditional.then_schema {
-    Some(then_prop) ->
-      list.append(fields_with_if, [#("then", property_to_json(then_prop))])
-    None -> fields_with_if
-  }
-
-  case conditional.else_schema {
-    Some(else_prop) ->
-      list.append(fields_with_then, [#("else", property_to_json(else_prop))])
-    None -> fields_with_then
-  }
+  fields
+  |> add_fields([#("if", property_to_json(conditional.if_schema))])
+  |> add_optional_json_field(
+    "then",
+    conditional.then_schema,
+    property_to_json,
+  )
+  |> add_optional_json_field(
+    "else",
+    conditional.else_schema,
+    property_to_json,
+  )
 }

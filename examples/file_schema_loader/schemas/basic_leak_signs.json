@@ -1,0 +1,101 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/product.schema.json",
+    "title": "Оценка базовых признаков несостоятельности",
+    "description": "Требуется оценить базовые КТ признаки несостоятельности анастомоза",
+    "type": "object",
+    "properties": {
+      "invalid": {
+        "type": "boolean",
+        "description": "Исследование непригодно"
+      },
+      "air_bubble": {
+        "type": "boolean",
+        "description": "Наличие пузырька воздуха вблизи анастомоза (воздух внутри скопления жидкости не считается)"
+      },
+      "pneumoperitoneum": {
+        "type": "boolean",
+        "description": "Наличие свободного газа в брюшной полости"
+      },
+      "ascites": {
+        "type": "boolean",
+        "description": "Наличие свободного газа в брюшной полости"
+      },
+      "ileus": {
+        "type": "boolean",
+        "description": "Наличие признаков тонкокишечной непроходимости"
+      }
+      
+    },
+  "allOf":[
+    {
+      "if": {"properties":{"air_bubble":{"const":true}}},
+      "then": {
+        "properties": {
+          "air_bubble_number": {
+            "type": "number",
+            "description": "Число пузырьков воздуха"
+          },
+          "air_bubble_size" : {
+            "type": "number",
+            "description": "Максимальный размер пузырьков воздуха, мм"
+          },
+          "air_bubble_distance" : {
+            "type": "number",
+            "description": "Расстояния пузырька воздуха до анастомоза, мм"
+          },
+          "air_bubble_location" : {
+            "enum": ["mesenterium", "free_margin"],
+            "description": "Расположение пузырька воздуха относительно брыжейке"
+          }
+        },
+        "required":["air_bubble_distance","air_bubble_number","air_bubble_size","air_bubble_location"]
+      } 
+    },
+    {
+      "if": {"properties":{"pneumoperitoneum":{"const":true}}},
+      "then": {
+        "properties": {
+          "pneumoperitoneum_thickness": {
+            "type": "number",
+            "description": "Толщина пневмоперитонеума, мм"
+          }
+        },
+        "required":["pneumoperitoneum_thickness"]
+      }
+    },
+    {
+      "if": {"properties":{"ascites":{"const":true}}},
+      "then": {
+        "properties": {
+          "ascites_type": {
+            "enum": ["local", "diffuse"],
+            "description": "Тип асцита"
+          },
+          "ascites_thickness": {
+            "type": "number",
+            "description": "Толщина асцита, мм"
+          }
+        },
+        "required":["ascites_type","ascites_thickness"]
+      }
+    },
+    {
+      "if": {"properties":{"ileus":{"const":true}}},
+      "then": {
+        "properties": {
+          "ileus_diametr": {
+            "type": "number",
+            "description": "Диаметр кишки при непроходимости, мм"
+          },
+          "ileus_levels": {
+            "type": "boolean",
+            "description": "Наличие уровней жидкости"
+          }
+        },
+        "required":["ileus_diametr","ileus_levels"]
+      }
+    }
+  ]
+  }
+
