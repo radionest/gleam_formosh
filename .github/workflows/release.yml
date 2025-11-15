@@ -1,0 +1,124 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Триггер на теги вида v1.0.0, v0.2.3 и т.д.
+
+permissions:
+  contents: write  # Разрешение на создание releases
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # Шаг 1: Клонировать код с тегом
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Шаг 2: Установить Gleam
+      - name: Setup Gleam
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.1.2"
+          gleam-version: "1.12.0"
+          rebar3-version: "3"
+
+      # Шаг 3: Кэш зависимостей
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/packages/
+            ~/.cache/gleam
+          key: release-${{ runner.os }}-gleam-${{ hashFiles('gleam.toml', 'manifest.toml') }}
+
+      # Шаг 4: Установить зависимости
+      - name: Install dependencies
+        run: gleam deps download
+
+      # Шаг 5: Собрать релизную версию
+      - name: Build for release
+        run: gleam build --target javascript
+
+      # Шаг 6: Запустить тесты
+      - name: Run tests
+        run: gleam test
+
+      # Шаг 7: Создать дистрибутивный пакет
+      - name: Create distribution package
+        run: |
+          VERSION="${{ github.ref_name }}"
+          DIST_NAME="formosh-${VERSION}"
+
+          # Создать директорию для дистрибутива
+          mkdir -p dist/${DIST_NAME}
+
+          # Копировать собранные файлы
+          cp -r build/dev/javascript dist/${DIST_NAME}/
+
+          # Копировать документацию
+          cp README.md dist/${DIST_NAME}/ || true
+          cp LICENSE dist/${DIST_NAME}/ || true
+          cp gleam.toml dist/${DIST_NAME}/
+
+          # Создать файл с примером использования
+          cat > dist/${DIST_NAME}/USAGE.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="UTF-8">
+              <title>Formosh Usage Example</title>
+              <script type="module">
+                  import { register } from "./javascript/formosh/formosh/component.mjs";
+                  register();
+              </script>
+          </head>
+          <body>
+              <h1>Formosh ${VERSION}</h1>
+              <formosh-form
+                  schema='{"type": "object", "properties": {"name": {"type": "string", "title": "Your Name"}}}'
+                  submit-url="https://httpbin.org/post">
+              </formosh-form>
+          </body>
+          </html>
+          EOF
+
+          # Создать архивы
+          cd dist
+          tar -czf ${DIST_NAME}.tar.gz ${DIST_NAME}
+          zip -r ${DIST_NAME}.zip ${DIST_NAME}
+
+      # Шаг 8: Создать GitHub Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/formosh-${{ github.ref_name }}.tar.gz
+            dist/formosh-${{ github.ref_name }}.zip
+          body: |
+            ## Formosh ${{ github.ref_name }}
+
+            Web Component для генерации форм из JSON Schema.
+
+            ### Использование
+
+            Распакуйте архив и подключите web component:
+
+            ```html
+            <script type="module">
+              import { register } from "./javascript/formosh/formosh/component.mjs";
+              register();
+            </script>
+
+            <formosh-form schema='...' submit-url='...'></formosh-form>
+            ```
+
+            ### Файлы
+
+            - `formosh-${{ github.ref_name }}.tar.gz` - архив для Linux/macOS
+            - `formosh-${{ github.ref_name }}.zip` - архив для Windows
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

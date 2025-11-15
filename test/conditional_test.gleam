@@ -1,9 +1,11 @@
 /// Tests for JSON Schema conditional logic (if/then/else)
 import gleam/dict
+import gleam/list
 import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
 import schema/conditional_resolver
+import schema/parser
 import schema/types.{
   BooleanValue, ConditionalRule, JsonSchema, SchemaProperty, StringValue,
   empty_property,
@@ -319,5 +321,143 @@ pub fn is_field_visible_test() {
     schema,
     form_values_not_met,
   )
+  |> should.be_false()
+}
+
+/// Test multiple conditionals via allOf array
+pub fn multiple_conditionals_allof_test() {
+  let schema_json =
+    "{
+      \"title\": \"Test Form\",
+      \"type\": \"object\",
+      \"properties\": {
+        \"air_bubble\": {\"type\": \"boolean\"},
+        \"pneumoperitoneum\": {\"type\": \"boolean\"}
+      },
+      \"allOf\": [
+        {
+          \"if\": {\"properties\": {\"air_bubble\": {\"const\": true}}},
+          \"then\": {
+            \"properties\": {
+              \"air_bubble_size\": {\"type\": \"number\", \"title\": \"Bubble Size\"}
+            }
+          }
+        },
+        {
+          \"if\": {\"properties\": {\"pneumoperitoneum\": {\"const\": true}}},
+          \"then\": {
+            \"properties\": {
+              \"pneumo_thickness\": {\"type\": \"number\", \"title\": \"Thickness\"}
+            }
+          }
+        }
+      ]
+    }"
+
+  // Parse the schema
+  let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
+
+  // Check that we have 2 conditional rules
+  parsed_schema.conditionals
+  |> list.length()
+  |> should.equal(2)
+
+  // Test when air_bubble is true
+  let form_values_air =
+    dict.from_list([#("air_bubble", BooleanValue(True))])
+
+  let resolved_air =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values_air)
+
+  // Should have air_bubble_size field
+  resolved_air.properties
+  |> dict.has_key("air_bubble_size")
+  |> should.be_true()
+
+  // Should NOT have pneumo_thickness field
+  resolved_air.properties
+  |> dict.has_key("pneumo_thickness")
+  |> should.be_false()
+
+  // Test when pneumoperitoneum is true
+  let form_values_pneumo =
+    dict.from_list([#("pneumoperitoneum", BooleanValue(True))])
+
+  let resolved_pneumo =
+    conditional_resolver.resolve_conditional_schema(
+      parsed_schema,
+      form_values_pneumo,
+    )
+
+  // Should have pneumo_thickness field
+  resolved_pneumo.properties
+  |> dict.has_key("pneumo_thickness")
+  |> should.be_true()
+
+  // Should NOT have air_bubble_size field
+  resolved_pneumo.properties
+  |> dict.has_key("air_bubble_size")
+  |> should.be_false()
+
+  // Test when both are true
+  let form_values_both =
+    dict.from_list([
+      #("air_bubble", BooleanValue(True)),
+      #("pneumoperitoneum", BooleanValue(True)),
+    ])
+
+  let resolved_both =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values_both)
+
+  // Should have both conditional fields
+  resolved_both.properties
+  |> dict.has_key("air_bubble_size")
+  |> should.be_true()
+
+  resolved_both.properties
+  |> dict.has_key("pneumo_thickness")
+  |> should.be_true()
+}
+
+/// Test that const keyword is parsed correctly
+pub fn const_keyword_parsing_test() {
+  let schema_json =
+    "{
+      \"title\": \"Test Form\",
+      \"type\": \"object\",
+      \"properties\": {
+        \"flag\": {\"type\": \"boolean\"}
+      },
+      \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+      \"then\": {
+        \"properties\": {
+          \"extra_field\": {\"type\": \"string\"}
+        }
+      }
+    }"
+
+  let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
+
+  // Test that const: true works like enum: [true]
+  let form_values_true = dict.from_list([#("flag", BooleanValue(True))])
+
+  let resolved_true =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values_true)
+
+  resolved_true.properties
+  |> dict.has_key("extra_field")
+  |> should.be_true()
+
+  // Test that const: false doesn't match true
+  let form_values_false = dict.from_list([#("flag", BooleanValue(False))])
+
+  let resolved_false =
+    conditional_resolver.resolve_conditional_schema(
+      parsed_schema,
+      form_values_false,
+    )
+
+  resolved_false.properties
+  |> dict.has_key("extra_field")
   |> should.be_false()
 }
