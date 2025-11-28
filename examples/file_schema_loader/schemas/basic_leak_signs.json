@@ -7,23 +7,28 @@
     "properties": {
       "invalid": {
         "type": "boolean",
-        "description": "Исследование непригодно"
+        "description": "Исследование непригодно",
+        "title": "Исследование непригодно"
       },
       "air_bubble": {
         "type": "boolean",
-        "description": "Наличие пузырька воздуха вблизи анастомоза (воздух внутри скопления жидкости не считается)"
+        "description": "Наличие пузырька воздуха вблизи анастомоза (воздух внутри скопления жидкости не считается)",
+        "title":"Пузырьки газа"
       },
       "pneumoperitoneum": {
         "type": "boolean",
-        "description": "Наличие свободного газа в брюшной полости"
+        "description": "Наличие большого количества свободного газа в брюшной полости",
+        "title":"Свободный газ"
       },
       "ascites": {
         "type": "boolean",
-        "description": "Наличие свободного газа в брюшной полости"
+        "description": "Наличие асцита",
+        "title":"Асцит"
       },
       "ileus": {
         "type": "boolean",
-        "description": "Наличие признаков тонкокишечной непроходимости"
+        "description": "Наличие КТ признаков тонкокишечной непроходимости",
+        "title":"Кишечная непроходимость"
       }
       
     },
@@ -33,15 +38,17 @@
       "then": {
         "properties": {
           "air_bubble_number": {
-            "type": "number",
-            "description": "Число пузырьков воздуха"
+            "type": "integer",
+            "description": "Число пузырьков воздуха",
+            "title": "Число пузырьков воздуха"
           },
           "air_bubble_size" : {
-            "type": "number",
-            "description": "Максимальный размер пузырьков воздуха, мм"
+            "type": "integer",
+            "description": "Максимальный размер пузырьков воздуха, мм",
+            "title": "Максимальный размер пузырьков воздуха, мм"
           },
           "air_bubble_distance" : {
-            "type": "number",
+            "type": "integer",
             "description": "Расстояния пузырька воздуха до анастомоза, мм"
           },
           "air_bubble_location" : {
@@ -57,7 +64,7 @@
       "then": {
         "properties": {
           "pneumoperitoneum_thickness": {
-            "type": "number",
+            "type": "integer",
             "description": "Толщина пневмоперитонеума, мм"
           }
         },

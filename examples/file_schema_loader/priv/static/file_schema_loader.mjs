@@ -21,19 +21,16 @@ var List = class {
   toArray() {
     return [...this];
   }
-  // @internal
   atLeastLength(desired) {
     let current = this;
     while (desired-- > 0 && current) current = current.tail;
     return current !== void 0;
   }
-  // @internal
   hasLength(desired) {
     let current = this;
     while (desired-- > 0 && current) current = current.tail;
     return desired === -1 && current instanceof Empty;
   }
-  // @internal
   countLength() {
     let current = this;
     let length4 = 0;
@@ -162,7 +159,6 @@ var BitArray = class {
     }
     return bitArrayByteAt(this.rawBuffer, this.bitOffset, index5);
   }
-  /** @internal */
   equals(other) {
     if (this.bitSize !== other.bitSize) {
       return false;
@@ -268,7 +264,6 @@ function bitArrayPrintDeprecationWarning(name2, message2) {
   isBitArrayDeprecationMessagePrinted[name2] = true;
 }
 var Result = class _Result extends CustomType {
-  // @internal
   static isResult(data) {
     return data instanceof _Result;
   }
@@ -278,7 +273,6 @@ var Ok = class extends Result {
     super();
     this[0] = value2;
   }
-  // @internal
   isOk() {
     return true;
   }
@@ -288,7 +282,6 @@ var Error = class extends Result {
     super();
     this[0] = detail;
   }
-  // @internal
   isOk() {
     return false;
   }
@@ -3125,8 +3118,8 @@ function min2(value2) {
 function name(element_name) {
   return attribute2("name", element_name);
 }
-function required(is_required) {
-  return boolean_attribute("required", is_required);
+function required(is_required2) {
+  return boolean_attribute("required", is_required2);
 }
 function selected(is_selected) {
   return boolean_attribute("selected", is_selected);
@@ -4018,74 +4011,74 @@ function diff_attributes(loop$controlled, loop$path, loop$mapper, loop$events, l
     let new$8 = loop$new;
     let added = loop$added;
     let removed = loop$removed;
-    if (new$8 instanceof Empty) {
-      if (old instanceof Empty) {
+    if (old instanceof Empty) {
+      if (new$8 instanceof Empty) {
         return new AttributeChange(added, removed, events);
       } else {
-        let $ = old.head;
+        let $ = new$8.head;
         if ($ instanceof Event2) {
-          let prev = $;
-          let old$1 = old.tail;
+          let next = $;
+          let new$1 = new$8.tail;
           let name2 = $.name;
-          let removed$1 = prepend(prev, removed);
-          let events$1 = remove_event(events, path, name2);
+          let handler = $.handler;
+          let added$1 = prepend(next, added);
+          let events$1 = add_event(events, mapper, path, name2, handler);
           loop$controlled = controlled;
           loop$path = path;
           loop$mapper = mapper;
           loop$events = events$1;
-          loop$old = old$1;
-          loop$new = new$8;
-          loop$added = added;
-          loop$removed = removed$1;
+          loop$old = old;
+          loop$new = new$1;
+          loop$added = added$1;
+          loop$removed = removed;
         } else {
-          let prev = $;
-          let old$1 = old.tail;
-          let removed$1 = prepend(prev, removed);
+          let next = $;
+          let new$1 = new$8.tail;
+          let added$1 = prepend(next, added);
           loop$controlled = controlled;
           loop$path = path;
           loop$mapper = mapper;
           loop$events = events;
-          loop$old = old$1;
-          loop$new = new$8;
-          loop$added = added;
-          loop$removed = removed$1;
+          loop$old = old;
+          loop$new = new$1;
+          loop$added = added$1;
+          loop$removed = removed;
         }
       }
-    } else if (old instanceof Empty) {
-      let $ = new$8.head;
+    } else if (new$8 instanceof Empty) {
+      let $ = old.head;
       if ($ instanceof Event2) {
-        let next = $;
-        let new$1 = new$8.tail;
+        let prev = $;
+        let old$1 = old.tail;
         let name2 = $.name;
-        let handler = $.handler;
-        let added$1 = prepend(next, added);
-        let events$1 = add_event(events, mapper, path, name2, handler);
+        let removed$1 = prepend(prev, removed);
+        let events$1 = remove_event(events, path, name2);
         loop$controlled = controlled;
         loop$path = path;
         loop$mapper = mapper;
         loop$events = events$1;
-        loop$old = old;
-        loop$new = new$1;
-        loop$added = added$1;
-        loop$removed = removed;
+        loop$old = old$1;
+        loop$new = new$8;
+        loop$added = added;
+        loop$removed = removed$1;
       } else {
-        let next = $;
-        let new$1 = new$8.tail;
-        let added$1 = prepend(next, added);
+        let prev = $;
+        let old$1 = old.tail;
+        let removed$1 = prepend(prev, removed);
         loop$controlled = controlled;
         loop$path = path;
         loop$mapper = mapper;
         loop$events = events;
-        loop$old = old;
-        loop$new = new$1;
-        loop$added = added$1;
-        loop$removed = removed;
+        loop$old = old$1;
+        loop$new = new$8;
+        loop$added = added;
+        loop$removed = removed$1;
       }
     } else {
-      let next = new$8.head;
-      let remaining_new = new$8.tail;
       let prev = old.head;
       let remaining_old = old.tail;
+      let next = new$8.head;
+      let remaining_new = new$8.tail;
       let $ = compare3(prev, next);
       if ($ instanceof Lt) {
         if (prev instanceof Event2) {
@@ -4112,8 +4105,8 @@ function diff_attributes(loop$controlled, loop$path, loop$mapper, loop$events, l
           loop$removed = removed$1;
         }
       } else if ($ instanceof Eq) {
-        if (next instanceof Attribute) {
-          if (prev instanceof Attribute) {
+        if (prev instanceof Attribute) {
+          if (next instanceof Attribute) {
             let _block;
             let $1 = next.name;
             if ($1 === "value") {
@@ -4141,11 +4134,18 @@ function diff_attributes(loop$controlled, loop$path, loop$mapper, loop$events, l
             loop$new = remaining_new;
             loop$added = added$1;
             loop$removed = removed;
-          } else if (prev instanceof Event2) {
-            let name2 = prev.name;
+          } else if (next instanceof Event2) {
+            let name2 = next.name;
+            let handler = next.handler;
             let added$1 = prepend(next, added);
             let removed$1 = prepend(prev, removed);
-            let events$1 = remove_event(events, path, name2);
+            let events$1 = add_event(
+              events,
+              mapper,
+              path,
+              name2,
+              handler
+            );
             loop$controlled = controlled;
             loop$path = path;
             loop$mapper = mapper;
@@ -4166,8 +4166,8 @@ function diff_attributes(loop$controlled, loop$path, loop$mapper, loop$events, l
             loop$added = added$1;
             loop$removed = removed$1;
           }
-        } else if (next instanceof Property) {
-          if (prev instanceof Property) {
+        } else if (prev instanceof Property) {
+          if (next instanceof Property) {
             let _block;
             let $1 = next.name;
             if ($1 === "scrollLeft") {
@@ -4208,11 +4208,18 @@ function diff_attributes(loop$controlled, loop$path, loop$mapper, loop$events, l
             loop$new = remaining_new;
             loop$added = added$1;
             loop$removed = removed;
-          } else if (prev instanceof Event2) {
-            let name2 = prev.name;
+          } else if (next instanceof Event2) {
+            let name2 = next.name;
+            let handler = next.handler;
             let added$1 = prepend(next, added);
             let removed$1 = prepend(prev, removed);
-            let events$1 = remove_event(events, path, name2);
+            let events$1 = add_event(
+              events,
+              mapper,
+              path,
+              name2,
+              handler
+            );
             loop$controlled = controlled;
             loop$path = path;
             loop$mapper = mapper;
@@ -4233,7 +4240,7 @@ function diff_attributes(loop$controlled, loop$path, loop$mapper, loop$events, l
             loop$added = added$1;
             loop$removed = removed$1;
           }
-        } else if (prev instanceof Event2) {
+        } else if (next instanceof Event2) {
           let name2 = next.name;
           let handler = next.handler;
           let has_changes = prev.prevent_default.kind !== next.prevent_default.kind || prev.stop_propagation.kind !== next.stop_propagation.kind || prev.immediate !== next.immediate || prev.debounce !== next.debounce || prev.throttle !== next.throttle;
@@ -4254,11 +4261,10 @@ function diff_attributes(loop$controlled, loop$path, loop$mapper, loop$events, l
           loop$added = added$1;
           loop$removed = removed;
         } else {
-          let name2 = next.name;
-          let handler = next.handler;
+          let name2 = prev.name;
           let added$1 = prepend(next, added);
           let removed$1 = prepend(prev, removed);
-          let events$1 = add_event(events, mapper, path, name2, handler);
+          let events$1 = remove_event(events, path, name2);
           loop$controlled = controlled;
           loop$path = path;
           loop$mapper = mapper;
@@ -4311,63 +4317,63 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
     let children = loop$children;
     let mapper = loop$mapper;
     let events = loop$events;
-    if (new$8 instanceof Empty) {
-      if (old instanceof Empty) {
+    if (old instanceof Empty) {
+      if (new$8 instanceof Empty) {
         return new Diff(
           new Patch(patch_index, removed, changes, children),
           events
         );
       } else {
-        let prev = old.head;
-        let old$1 = old.tail;
-        let _block;
-        let $ = prev.key === "" || !has_key2(moved, prev.key);
-        if ($) {
-          _block = removed + 1;
-        } else {
-          _block = removed;
-        }
-        let removed$1 = _block;
-        let events$1 = remove_child(events, path, node_index, prev);
-        loop$old = old$1;
-        loop$old_keyed = old_keyed;
-        loop$new = new$8;
-        loop$new_keyed = new_keyed;
-        loop$moved = moved;
-        loop$moved_offset = moved_offset;
-        loop$removed = removed$1;
-        loop$node_index = node_index;
-        loop$patch_index = patch_index;
-        loop$path = path;
-        loop$changes = changes;
-        loop$children = children;
-        loop$mapper = mapper;
-        loop$events = events$1;
+        let events$1 = add_children(
+          events,
+          mapper,
+          path,
+          node_index,
+          new$8
+        );
+        let insert4 = insert3(new$8, node_index - moved_offset);
+        let changes$1 = prepend(insert4, changes);
+        return new Diff(
+          new Patch(patch_index, removed, changes$1, children),
+          events$1
+        );
       }
-    } else if (old instanceof Empty) {
-      let events$1 = add_children(
-        events,
-        mapper,
-        path,
-        node_index,
-        new$8
-      );
-      let insert4 = insert3(new$8, node_index - moved_offset);
-      let changes$1 = prepend(insert4, changes);
-      return new Diff(
-        new Patch(patch_index, removed, changes$1, children),
-        events$1
-      );
-    } else {
-      let next = new$8.head;
+    } else if (new$8 instanceof Empty) {
       let prev = old.head;
+      let old$1 = old.tail;
+      let _block;
+      let $ = prev.key === "" || !has_key2(moved, prev.key);
+      if ($) {
+        _block = removed + 1;
+      } else {
+        _block = removed;
+      }
+      let removed$1 = _block;
+      let events$1 = remove_child(events, path, node_index, prev);
+      loop$old = old$1;
+      loop$old_keyed = old_keyed;
+      loop$new = new$8;
+      loop$new_keyed = new_keyed;
+      loop$moved = moved;
+      loop$moved_offset = moved_offset;
+      loop$removed = removed$1;
+      loop$node_index = node_index;
+      loop$patch_index = patch_index;
+      loop$path = path;
+      loop$changes = changes;
+      loop$children = children;
+      loop$mapper = mapper;
+      loop$events = events$1;
+    } else {
+      let prev = old.head;
+      let next = new$8.head;
       if (prev.key !== next.key) {
-        let new_remaining = new$8.tail;
         let old_remaining = old.tail;
+        let new_remaining = new$8.tail;
         let next_did_exist = get(old_keyed, next.key);
         let prev_does_exist = has_key2(new_keyed, prev.key);
-        if (next_did_exist instanceof Ok) {
-          if (prev_does_exist) {
+        if (prev_does_exist) {
+          if (next_did_exist instanceof Ok) {
             let match = next_did_exist[0];
             let $ = has_key2(moved, prev.key);
             if ($) {
@@ -4409,18 +4415,24 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               loop$events = events;
             }
           } else {
-            let index5 = node_index - moved_offset;
-            let changes$1 = prepend(remove2(index5), changes);
-            let events$1 = remove_child(events, path, node_index, prev);
-            let moved_offset$1 = moved_offset - 1;
-            loop$old = old_remaining;
+            let before = node_index - moved_offset;
+            let events$1 = add_child(
+              events,
+              mapper,
+              path,
+              node_index,
+              next
+            );
+            let insert4 = insert3(toList([next]), before);
+            let changes$1 = prepend(insert4, changes);
+            loop$old = old;
             loop$old_keyed = old_keyed;
-            loop$new = new$8;
+            loop$new = new_remaining;
             loop$new_keyed = new_keyed;
             loop$moved = moved;
-            loop$moved_offset = moved_offset$1;
+            loop$moved_offset = moved_offset + 1;
             loop$removed = removed;
-            loop$node_index = node_index;
+            loop$node_index = node_index + 1;
             loop$patch_index = patch_index;
             loop$path = path;
             loop$changes = changes$1;
@@ -4428,25 +4440,19 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
             loop$mapper = mapper;
             loop$events = events$1;
           }
-        } else if (prev_does_exist) {
-          let before = node_index - moved_offset;
-          let events$1 = add_child(
-            events,
-            mapper,
-            path,
-            node_index,
-            next
-          );
-          let insert4 = insert3(toList([next]), before);
-          let changes$1 = prepend(insert4, changes);
-          loop$old = old;
+        } else if (next_did_exist instanceof Ok) {
+          let index5 = node_index - moved_offset;
+          let changes$1 = prepend(remove2(index5), changes);
+          let events$1 = remove_child(events, path, node_index, prev);
+          let moved_offset$1 = moved_offset - 1;
+          loop$old = old_remaining;
           loop$old_keyed = old_keyed;
-          loop$new = new_remaining;
+          loop$new = new$8;
           loop$new_keyed = new_keyed;
           loop$moved = moved;
-          loop$moved_offset = moved_offset + 1;
+          loop$moved_offset = moved_offset$1;
           loop$removed = removed;
-          loop$node_index = node_index + 1;
+          loop$node_index = node_index;
           loop$patch_index = patch_index;
           loop$path = path;
           loop$changes = changes$1;
@@ -4480,10 +4486,10 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
         if ($ instanceof Fragment) {
           let $1 = new$8.head;
           if ($1 instanceof Fragment) {
-            let next$1 = $1;
-            let new$1 = new$8.tail;
             let prev$1 = $;
             let old$1 = old.tail;
+            let next$1 = $1;
+            let new$1 = new$8.tail;
             let composed_mapper = compose_mapper(mapper, next$1.mapper);
             let child_path = add2(path, node_index, next$1.key);
             let child = do_diff(
@@ -4504,9 +4510,9 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
             );
             let _block;
             let $2 = child.patch;
-            let $3 = $2.children;
+            let $3 = $2.changes;
             if ($3 instanceof Empty) {
-              let $4 = $2.changes;
+              let $4 = $2.children;
               if ($4 instanceof Empty) {
                 let $5 = $2.removed;
                 if ($5 === 0) {
@@ -4536,10 +4542,10 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
             loop$mapper = mapper;
             loop$events = child.events;
           } else {
-            let next$1 = $1;
-            let new_remaining = new$8.tail;
             let prev$1 = $;
             let old_remaining = old.tail;
+            let next$1 = $1;
+            let new_remaining = new$8.tail;
             let change = replace2(node_index - moved_offset, next$1);
             let _block;
             let _pipe = events;
@@ -4570,11 +4576,11 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
         } else if ($ instanceof Element) {
           let $1 = new$8.head;
           if ($1 instanceof Element) {
-            let next$1 = $1;
             let prev$1 = $;
+            let next$1 = $1;
             if (prev$1.namespace === next$1.namespace && prev$1.tag === next$1.tag) {
-              let new$1 = new$8.tail;
               let old$1 = old.tail;
+              let new$1 = new$8.tail;
               let composed_mapper = compose_mapper(
                 mapper,
                 next$1.mapper
@@ -4603,7 +4609,7 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               removed_attrs = $2.removed;
               events$1 = $2.events;
               let _block;
-              if (removed_attrs instanceof Empty && added_attrs instanceof Empty) {
+              if (added_attrs instanceof Empty && removed_attrs instanceof Empty) {
                 _block = empty_list;
               } else {
                 _block = toList([update(added_attrs, removed_attrs)]);
@@ -4627,9 +4633,9 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               );
               let _block$1;
               let $3 = child.patch;
-              let $4 = $3.children;
+              let $4 = $3.changes;
               if ($4 instanceof Empty) {
-                let $5 = $3.changes;
+                let $5 = $3.children;
                 if ($5 instanceof Empty) {
                   let $6 = $3.removed;
                   if ($6 === 0) {
@@ -4659,10 +4665,10 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               loop$mapper = mapper;
               loop$events = child.events;
             } else {
-              let next$2 = $1;
-              let new_remaining = new$8.tail;
               let prev$2 = $;
               let old_remaining = old.tail;
+              let next$2 = $1;
+              let new_remaining = new$8.tail;
               let change = replace2(node_index - moved_offset, next$2);
               let _block;
               let _pipe = events;
@@ -4696,10 +4702,10 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               loop$events = events$1;
             }
           } else {
-            let next$1 = $1;
-            let new_remaining = new$8.tail;
             let prev$1 = $;
             let old_remaining = old.tail;
+            let next$1 = $1;
+            let new_remaining = new$8.tail;
             let change = replace2(node_index - moved_offset, next$1);
             let _block;
             let _pipe = events;
@@ -4730,11 +4736,11 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
         } else if ($ instanceof Text) {
           let $1 = new$8.head;
           if ($1 instanceof Text) {
-            let next$1 = $1;
             let prev$1 = $;
+            let next$1 = $1;
             if (prev$1.content === next$1.content) {
-              let new$1 = new$8.tail;
               let old$1 = old.tail;
+              let new$1 = new$8.tail;
               loop$old = old$1;
               loop$old_keyed = old_keyed;
               loop$new = new$1;
@@ -4750,9 +4756,9 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               loop$mapper = mapper;
               loop$events = events;
             } else {
+              let old$1 = old.tail;
               let next$2 = $1;
               let new$1 = new$8.tail;
-              let old$1 = old.tail;
               let child = new$5(
                 node_index,
                 0,
@@ -4775,10 +4781,10 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               loop$events = events;
             }
           } else {
-            let next$1 = $1;
-            let new_remaining = new$8.tail;
             let prev$1 = $;
             let old_remaining = old.tail;
+            let next$1 = $1;
+            let new_remaining = new$8.tail;
             let change = replace2(node_index - moved_offset, next$1);
             let _block;
             let _pipe = events;
@@ -4809,10 +4815,10 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
         } else {
           let $1 = new$8.head;
           if ($1 instanceof UnsafeInnerHtml) {
-            let next$1 = $1;
-            let new$1 = new$8.tail;
             let prev$1 = $;
             let old$1 = old.tail;
+            let next$1 = $1;
+            let new$1 = new$8.tail;
             let composed_mapper = compose_mapper(mapper, next$1.mapper);
             let child_path = add2(path, node_index, next$1.key);
             let $2 = diff_attributes(
@@ -4832,7 +4838,7 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
             removed_attrs = $2.removed;
             events$1 = $2.events;
             let _block;
-            if (removed_attrs instanceof Empty && added_attrs instanceof Empty) {
+            if (added_attrs instanceof Empty && removed_attrs instanceof Empty) {
               _block = empty_list;
             } else {
               _block = toList([update(added_attrs, removed_attrs)]);
@@ -4874,10 +4880,10 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
             loop$mapper = mapper;
             loop$events = events$1;
           } else {
-            let next$1 = $1;
-            let new_remaining = new$8.tail;
             let prev$1 = $;
             let old_remaining = old.tail;
+            let next$1 = $1;
+            let new_remaining = new$8.tail;
             let change = replace2(node_index - moved_offset, next$1);
             let _block;
             let _pipe = events;
@@ -6462,6 +6468,44 @@ function remove_array_item_at_path(root3, path, index5) {
   );
 }
 
+// build/dev/javascript/formosh/validation/field_requirements.mjs
+function is_required(schema, field_name) {
+  return contains(schema.required, field_name);
+}
+function check_required_value(field_name, value2, is_field_required) {
+  if (is_field_required) {
+    if (value2 instanceof Some) {
+      let $ = value2[0];
+      if ($ instanceof StringValue) {
+        let $1 = $[0];
+        if ($1 === "") {
+          return new Error(
+            new ValidationError(
+              field_name,
+              "This field is required",
+              "required"
+            )
+          );
+        } else {
+          return new Ok(void 0);
+        }
+      } else if ($ instanceof NullValue) {
+        return new Error(
+          new ValidationError(field_name, "This field is required", "required")
+        );
+      } else {
+        return new Ok(void 0);
+      }
+    } else {
+      return new Error(
+        new ValidationError(field_name, "This field is required", "required")
+      );
+    }
+  } else {
+    return new Ok(void 0);
+  }
+}
+
 // build/dev/javascript/formosh/form/model.mjs
 var HttpSubmit = class extends CustomType {
   constructor(url, method, headers) {
@@ -6553,9 +6597,6 @@ function init_with_config(schema, submit_config) {
     new None(),
     submit_config
   );
-}
-function is_field_required(model, field_name) {
-  return contains(model.schema.required, field_name);
 }
 function field_has_errors(model, field_name) {
   let $ = map_get(model.errors, field_name);
@@ -7439,7 +7480,7 @@ function to_string6(uri) {
   let _block$2;
   let $2 = uri.host;
   let $3 = starts_with(uri.path, "/");
-  if (!$3 && $2 instanceof Some) {
+  if ($2 instanceof Some && !$3) {
     let host = $2[0];
     if (host !== "") {
       _block$2 = prepend("/", parts$2);
@@ -7453,7 +7494,7 @@ function to_string6(uri) {
   let _block$3;
   let $4 = uri.host;
   let $5 = uri.port;
-  if ($5 instanceof Some && $4 instanceof Some) {
+  if ($4 instanceof Some && $5 instanceof Some) {
     let port = $5[0];
     _block$3 = prepend(":", prepend(to_string(port), parts$3));
   } else {
@@ -7464,12 +7505,12 @@ function to_string6(uri) {
   let $6 = uri.scheme;
   let $7 = uri.userinfo;
   let $8 = uri.host;
-  if ($8 instanceof Some) {
+  if ($6 instanceof Some) {
     if ($7 instanceof Some) {
-      if ($6 instanceof Some) {
-        let h = $8[0];
-        let u = $7[0];
+      if ($8 instanceof Some) {
         let s = $6[0];
+        let u = $7[0];
+        let h = $8[0];
         _block$4 = prepend(
           s,
           prepend(
@@ -7478,26 +7519,20 @@ function to_string6(uri) {
           )
         );
       } else {
-        _block$4 = parts$4;
+        let s = $6[0];
+        _block$4 = prepend(s, prepend(":", parts$4));
       }
-    } else if ($6 instanceof Some) {
-      let h = $8[0];
+    } else if ($8 instanceof Some) {
       let s = $6[0];
+      let h = $8[0];
       _block$4 = prepend(s, prepend("://", prepend(h, parts$4)));
     } else {
-      let h = $8[0];
-      _block$4 = prepend("//", prepend(h, parts$4));
-    }
-  } else if ($7 instanceof Some) {
-    if ($6 instanceof Some) {
       let s = $6[0];
       _block$4 = prepend(s, prepend(":", parts$4));
-    } else {
-      _block$4 = parts$4;
     }
-  } else if ($6 instanceof Some) {
-    let s = $6[0];
-    _block$4 = prepend(s, prepend(":", parts$4));
+  } else if ($7 instanceof None && $8 instanceof Some) {
+    let h = $8[0];
+    _block$4 = prepend("//", prepend(h, parts$4));
   } else {
     _block$4 = parts$4;
   }
@@ -7958,23 +7993,23 @@ function value_to_json(value2) {
 
 // build/dev/javascript/formosh/schema/conditional_resolver.mjs
 function compare_values(val1, val2) {
-  if (val2 instanceof StringValue && val1 instanceof StringValue) {
-    let s2 = val2[0];
+  if (val1 instanceof StringValue && val2 instanceof StringValue) {
     let s1 = val1[0];
+    let s2 = val2[0];
     return s1 === s2;
-  } else if (val2 instanceof NumberValue && val1 instanceof NumberValue) {
-    let n2 = val2[0];
+  } else if (val1 instanceof NumberValue && val2 instanceof NumberValue) {
     let n1 = val1[0];
+    let n2 = val2[0];
     return n1 === n2;
-  } else if (val2 instanceof IntegerValue && val1 instanceof IntegerValue) {
-    let i2 = val2[0];
+  } else if (val1 instanceof IntegerValue && val2 instanceof IntegerValue) {
     let i1 = val1[0];
+    let i2 = val2[0];
     return i1 === i2;
-  } else if (val2 instanceof BooleanValue && val1 instanceof BooleanValue) {
-    let b2 = val2[0];
+  } else if (val1 instanceof BooleanValue && val2 instanceof BooleanValue) {
     let b1 = val1[0];
+    let b2 = val2[0];
     return b1 === b2;
-  } else if (val2 instanceof NullValue && val1 instanceof NullValue) {
+  } else if (val1 instanceof NullValue && val2 instanceof NullValue) {
     return true;
   } else {
     return false;
@@ -8347,83 +8382,49 @@ function validate_string(field_name, value2, constraints) {
     return toList([new ValidationError(field_name, "Must be a string", "type")]);
   }
 }
-function validate_field(field_name, value2, property3, is_required) {
-  let errors = toList([]);
+function validate_field(field_name, value2, property3, is_required2) {
   let _block;
-  if (is_required) {
-    if (value2 instanceof Some) {
-      let $ = value2[0];
-      if ($ instanceof StringValue) {
-        let $1 = $[0];
-        if ($1 === "") {
-          _block = append(
-            errors,
-            toList([
-              new ValidationError(
-                field_name,
-                "This field is required",
-                "required"
-              )
-            ])
-          );
-        } else {
-          _block = errors;
-        }
-      } else if ($ instanceof NullValue) {
-        _block = append(
-          errors,
-          toList([
-            new ValidationError(
-              field_name,
-              "This field is required",
-              "required"
-            )
-          ])
-        );
-      } else {
-        _block = errors;
-      }
-    } else {
-      _block = append(
-        errors,
-        toList([
-          new ValidationError(field_name, "This field is required", "required")
-        ])
-      );
-    }
+  let $ = check_required_value(
+    field_name,
+    value2,
+    is_required2
+  );
+  if ($ instanceof Ok) {
+    _block = toList([]);
   } else {
-    _block = errors;
+    let validation_error = $[0];
+    _block = toList([validation_error]);
   }
-  let errors$1 = _block;
+  let required_errors = _block;
   if (value2 instanceof Some) {
-    let $ = value2[0];
-    if ($ instanceof NullValue) {
-      return errors$1;
+    let $1 = value2[0];
+    if ($1 instanceof NullValue) {
+      return required_errors;
     } else {
-      let val = $;
+      let val = $1;
       let _block$1;
-      let $1 = property3.field_type;
-      if ($1 instanceof Some) {
-        let $22 = $1[0];
-        if ($22 instanceof StringType) {
+      let $2 = property3.field_type;
+      if ($2 instanceof Some) {
+        let $32 = $2[0];
+        if ($32 instanceof StringType) {
           _block$1 = validate_string(
             field_name,
             val,
             property3.string_constraints
           );
-        } else if ($22 instanceof NumberType) {
+        } else if ($32 instanceof NumberType) {
           _block$1 = validate_number(
             field_name,
             val,
             property3.number_constraints
           );
-        } else if ($22 instanceof IntegerType) {
+        } else if ($32 instanceof IntegerType) {
           _block$1 = validate_number(
             field_name,
             val,
             property3.number_constraints
           );
-        } else if ($22 instanceof BooleanType) {
+        } else if ($32 instanceof BooleanType) {
           _block$1 = validate_boolean(field_name, val);
         } else {
           _block$1 = toList([]);
@@ -8433,18 +8434,18 @@ function validate_field(field_name, value2, property3, is_required) {
       }
       let type_errors = _block$1;
       let _block$2;
-      let $2 = property3.enum_values;
-      if ($2 instanceof Some) {
-        let allowed_values = $2[0];
+      let $3 = property3.enum_values;
+      if ($3 instanceof Some) {
+        let allowed_values = $3[0];
         _block$2 = validate_enum(field_name, val, allowed_values);
       } else {
         _block$2 = toList([]);
       }
       let enum_errors = _block$2;
-      return flatten(toList([errors$1, type_errors, enum_errors]));
+      return flatten(toList([required_errors, type_errors, enum_errors]));
     }
   } else {
-    return errors$1;
+    return required_errors;
   }
 }
 
@@ -8475,7 +8476,7 @@ function validate_field2(model, field_name) {
       field_name,
       value2,
       property3,
-      is_field_required(model, field_name)
+      is_required(model.schema, field_name)
     );
     if (errors instanceof Empty) {
       return clear_field_errors(model, field_name);
@@ -8898,7 +8899,7 @@ function on_submit(msg) {
 }
 
 // build/dev/javascript/formosh/fields/field_common.mjs
-function render_label(field_name, property3, is_required) {
+function render_label(field_name, property3, is_required2) {
   let _block;
   let $ = property3.title;
   if ($ instanceof Some) {
@@ -8915,7 +8916,7 @@ function render_label(field_name, property3, is_required) {
     toList([
       text3(label_text),
       (() => {
-        if (is_required) {
+        if (is_required2) {
           return span(
             toList([class$("formosh-required")]),
             toList([text3(" *")])
@@ -8927,9 +8928,9 @@ function render_label(field_name, property3, is_required) {
     ])
   );
 }
-function create_field_label(field_path, property3, is_required) {
+function create_field_label(field_path, property3, is_required2) {
   let field_name = get_field_name(field_path);
-  return render_label(field_name, property3, is_required);
+  return render_label(field_name, property3, is_required2);
 }
 function render_help_text(property3) {
   let $ = property3.description;
@@ -8943,17 +8944,17 @@ function render_help_text(property3) {
     return text3("");
   }
 }
-function field_wrapper_with_path(field_path, property3, is_required, field_element) {
+function field_wrapper_with_path(field_path, property3, is_required2, field_element) {
   return div(
     toList([class$("formosh-field-wrapper")]),
     toList([
-      create_field_label(field_path, property3, is_required),
+      create_field_label(field_path, property3, is_required2),
       field_element,
       render_help_text(property3)
     ])
   );
 }
-function input_attributes(field_path, value2, is_required, is_disabled, extra_attrs) {
+function input_attributes(field_path, value2, is_required2, is_disabled, extra_attrs) {
   let field_name = get_field_name(field_path);
   return prepend(
     id(to_string5(field_path)),
@@ -8962,7 +8963,7 @@ function input_attributes(field_path, value2, is_required, is_disabled, extra_at
       prepend(
         value(value2),
         prepend(
-          required(is_required),
+          required(is_required2),
           prepend(
             disabled(is_disabled),
             prepend(
@@ -9039,14 +9040,14 @@ function extract_boolean_value(value2) {
 }
 
 // build/dev/javascript/formosh/fields/boolean_field.mjs
-function render_as_radio(field_path, property3, current_value, is_required, is_disabled) {
+function render_as_radio(field_path, property3, current_value, is_required2, is_disabled) {
   let field_name = get_field_name(field_path);
   let yes_id = field_name + "_yes";
   let no_id = field_name + "_no";
   return div(
     toList([class$("formosh-field-wrapper")]),
     toList([
-      render_label(field_name, property3, is_required),
+      render_label(field_name, property3, is_required2),
       div(
         toList([class$("formosh-radio-group formosh-boolean")]),
         toList([
@@ -9060,7 +9061,7 @@ function render_as_radio(field_path, property3, current_value, is_required, is_d
                   name(field_name),
                   value("true"),
                   checked(current_value),
-                  required(is_required),
+                  required(is_required2),
                   disabled(is_disabled),
                   on_click(
                     new UpdateFieldPath(
@@ -9086,7 +9087,7 @@ function render_as_radio(field_path, property3, current_value, is_required, is_d
                   name(field_name),
                   value("false"),
                   checked(!current_value),
-                  required(is_required),
+                  required(is_required2),
                   disabled(is_disabled),
                   on_click(
                     new UpdateFieldPath(
@@ -9108,13 +9109,13 @@ function render_as_radio(field_path, property3, current_value, is_required, is_d
     ])
   );
 }
-function render(field_path, property3, value2, is_required, is_disabled) {
+function render(field_path, property3, value2, is_required2, is_disabled) {
   let current_value = extract_boolean_value(value2);
   return render_as_radio(
     field_path,
     property3,
     current_value,
-    is_required,
+    is_required2,
     is_disabled
   );
 }
@@ -9225,7 +9226,7 @@ function get_number_constraints_attributes(property3) {
     return toList([]);
   }
 }
-function render2(field_path, property3, value2, is_required, is_disabled) {
+function render2(field_path, property3, value2, is_required2, is_disabled) {
   let _block;
   let $ = property3.field_type;
   if ($ instanceof Some) {
@@ -9244,7 +9245,7 @@ function render2(field_path, property3, value2, is_required, is_disabled) {
   return div(
     toList([class$("formosh-field-wrapper")]),
     toList([
-      render_label(field_name, property3, is_required),
+      render_label(field_name, property3, is_required2),
       input(
         prepend(
           id(to_string5(field_path)),
@@ -9257,7 +9258,7 @@ function render2(field_path, property3, value2, is_required, is_disabled) {
                 prepend(
                   class$("formosh-input formosh-number"),
                   prepend(
-                    required(is_required),
+                    required(is_required2),
                     prepend(
                       disabled(is_disabled),
                       prepend(
@@ -9368,7 +9369,7 @@ function get_string_constraints_attributes(property3) {
     return toList([]);
   }
 }
-function render_input(field_path, property3, value2, is_required, is_disabled) {
+function render_input(field_path, property3, value2, is_required2, is_disabled) {
   let current_value = extract_string_value(value2);
   let input_type = get_input_type(property3);
   let extra_attrs = prepend(
@@ -9382,7 +9383,7 @@ function render_input(field_path, property3, value2, is_required, is_disabled) {
     input_attributes(
       field_path,
       current_value,
-      is_required,
+      is_required2,
       is_disabled,
       extra_attrs
     )
@@ -9390,11 +9391,11 @@ function render_input(field_path, property3, value2, is_required, is_disabled) {
   return field_wrapper_with_path(
     field_path,
     property3,
-    is_required,
+    is_required2,
     input_elem
   );
 }
-function render_textarea(field_path, property3, value2, is_required, is_disabled) {
+function render_textarea(field_path, property3, value2, is_required2, is_disabled) {
   let current_value = extract_string_value(value2);
   let extra_attrs = prepend(
     class$("formosh-textarea"),
@@ -9404,7 +9405,7 @@ function render_textarea(field_path, property3, value2, is_required, is_disabled
     input_attributes(
       field_path,
       current_value,
-      is_required,
+      is_required2,
       is_disabled,
       extra_attrs
     ),
@@ -9413,7 +9414,7 @@ function render_textarea(field_path, property3, value2, is_required, is_disabled
   return field_wrapper_with_path(
     field_path,
     property3,
-    is_required,
+    is_required2,
     textarea_elem
   );
 }
@@ -9440,7 +9441,7 @@ function value_to_string(val) {
     return "";
   }
 }
-function render_radio_group(field_path, property3, enum_vals, current_value, is_required, is_disabled) {
+function render_radio_group(field_path, property3, enum_vals, current_value, is_required2, is_disabled) {
   let field_name = get_field_name(field_path);
   let radio_group = div(
     toList([class$("formosh-radio-group")]),
@@ -9459,7 +9460,7 @@ function render_radio_group(field_path, property3, enum_vals, current_value, is_
                 name(field_name),
                 value(str_val),
                 checked(str_val === current_value),
-                required(is_required),
+                required(is_required2),
                 disabled(is_disabled),
                 on_click(
                   new UpdateFieldPath(
@@ -9481,18 +9482,18 @@ function render_radio_group(field_path, property3, enum_vals, current_value, is_
   return field_wrapper_with_path(
     field_path,
     property3,
-    is_required,
+    is_required2,
     radio_group
   );
 }
-function render_select(field_path, property3, enum_vals, current_value, is_required, is_disabled) {
+function render_select(field_path, property3, enum_vals, current_value, is_required2, is_disabled) {
   let field_name = get_field_name(field_path);
   let select_elem = select(
     toList([
       id(field_name),
       name(field_name),
       class$("formosh-select"),
-      required(is_required),
+      required(is_required2),
       disabled(is_disabled),
       on_change(
         (val) => {
@@ -9520,11 +9521,11 @@ function render_select(field_path, property3, enum_vals, current_value, is_requi
   return field_wrapper_with_path(
     field_path,
     property3,
-    is_required,
+    is_required2,
     select_elem
   );
 }
-function render_enum(field_path, property3, value2, is_required, is_disabled) {
+function render_enum(field_path, property3, value2, is_required2, is_disabled) {
   let $ = property3.enum_values;
   if ($ instanceof Some) {
     let enum_vals = $[0];
@@ -9536,7 +9537,7 @@ function render_enum(field_path, property3, value2, is_required, is_disabled) {
         property3,
         enum_vals,
         current_value,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else {
@@ -9545,7 +9546,7 @@ function render_enum(field_path, property3, value2, is_required, is_disabled) {
         property3,
         enum_vals,
         current_value,
-        is_required,
+        is_required2,
         is_disabled
       );
     }
@@ -9553,10 +9554,10 @@ function render_enum(field_path, property3, value2, is_required, is_disabled) {
     return text3("");
   }
 }
-function render3(field_path, property3, value2, is_required, is_disabled) {
+function render3(field_path, property3, value2, is_required2, is_disabled) {
   let $ = property3.enum_values;
   if ($ instanceof Some) {
-    return render_enum(field_path, property3, value2, is_required, is_disabled);
+    return render_enum(field_path, property3, value2, is_required2, is_disabled);
   } else {
     let $1 = property3.string_constraints;
     if ($1 instanceof Some) {
@@ -9569,7 +9570,7 @@ function render3(field_path, property3, value2, is_required, is_disabled) {
             field_path,
             property3,
             value2,
-            is_required,
+            is_required2,
             is_disabled
           );
         } else {
@@ -9577,7 +9578,7 @@ function render3(field_path, property3, value2, is_required, is_disabled) {
             field_path,
             property3,
             value2,
-            is_required,
+            is_required2,
             is_disabled
           );
         }
@@ -9586,12 +9587,12 @@ function render3(field_path, property3, value2, is_required, is_disabled) {
           field_path,
           property3,
           value2,
-          is_required,
+          is_required2,
           is_disabled
         );
       }
     } else {
-      return render_input(field_path, property3, value2, is_required, is_disabled);
+      return render_input(field_path, property3, value2, is_required2, is_disabled);
     }
   }
 }
@@ -9796,7 +9797,7 @@ function view(name2, property3, values3, errors, required2) {
 }
 
 // build/dev/javascript/formosh/fields/object_field.mjs
-function render_nested_field(field_path, property3, value2, is_required, is_disabled) {
+function render_nested_field(field_path, property3, value2, is_required2, is_disabled) {
   let _block;
   let $ = property3.field_type;
   if ($ instanceof Some) {
@@ -9806,7 +9807,7 @@ function render_nested_field(field_path, property3, value2, is_required, is_disa
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else if ($1 instanceof NumberType) {
@@ -9814,7 +9815,7 @@ function render_nested_field(field_path, property3, value2, is_required, is_disa
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else if ($1 instanceof IntegerType) {
@@ -9822,7 +9823,7 @@ function render_nested_field(field_path, property3, value2, is_required, is_disa
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else if ($1 instanceof BooleanType) {
@@ -9830,7 +9831,7 @@ function render_nested_field(field_path, property3, value2, is_required, is_disa
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else if ($1 instanceof ArrayType) {
@@ -9839,7 +9840,7 @@ function render_nested_field(field_path, property3, value2, is_required, is_disa
         toList([text3("Nested array fields not yet supported")])
       );
     } else if ($1 instanceof ObjectType) {
-      _block = render4(field_path, property3, value2, is_required, is_disabled);
+      _block = render4(field_path, property3, value2, is_required2, is_disabled);
     } else {
       let $2 = property3.enum_values;
       if ($2 instanceof Some) {
@@ -9847,7 +9848,7 @@ function render_nested_field(field_path, property3, value2, is_required, is_disa
           field_path,
           property3,
           value2,
-          is_required,
+          is_required2,
           is_disabled
         );
       } else {
@@ -9864,7 +9865,7 @@ function render_nested_field(field_path, property3, value2, is_required, is_disa
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else {
@@ -9880,7 +9881,7 @@ function render_nested_field(field_path, property3, value2, is_required, is_disa
     toList([field_element])
   );
 }
-function render4(field_path, property3, value2, is_required, is_disabled) {
+function render4(field_path, property3, value2, is_required2, is_disabled) {
   let field_name = to_string5(field_path);
   let title = unwrap(property3.title, field_name);
   let description = property3.description;
@@ -9905,7 +9906,7 @@ function render4(field_path, property3, value2, is_required, is_disabled) {
         toList([
           text3(title),
           (() => {
-            if (is_required) {
+            if (is_required2) {
               return span(
                 toList([class$("required")]),
                 toList([text3(" *")])
@@ -9950,7 +9951,7 @@ function render_nested_fields(parent_path, property3, values3, is_disabled) {
         let _pipe$1 = map_get(values3, nested_field_name);
         _block = from_result(_pipe$1);
         let nested_value = _block;
-        let is_required = contains(property3.required, nested_field_name);
+        let is_required2 = contains(property3.required, nested_field_name);
         let nested_path = append(
           parent_path,
           toList([new PropertySegment(nested_field_name)])
@@ -9959,7 +9960,7 @@ function render_nested_fields(parent_path, property3, values3, is_disabled) {
           nested_path,
           nested_property,
           nested_value,
-          is_required,
+          is_required2,
           is_disabled
         );
       }
@@ -10008,7 +10009,7 @@ function render_field_errors(errors) {
   );
 }
 function render_field2(model, field_name, property3) {
-  let is_required = is_field_required(model, field_name);
+  let is_required2 = is_required(model.schema, field_name);
   let is_disabled = is_field_disabled(model, field_name);
   let is_touched = is_field_touched(model, field_name);
   let has_errors = field_has_errors(model, field_name);
@@ -10024,7 +10025,7 @@ function render_field2(model, field_name, property3) {
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else if ($1 instanceof NumberType) {
@@ -10032,7 +10033,7 @@ function render_field2(model, field_name, property3) {
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else if ($1 instanceof IntegerType) {
@@ -10040,7 +10041,7 @@ function render_field2(model, field_name, property3) {
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else if ($1 instanceof BooleanType) {
@@ -10048,7 +10049,7 @@ function render_field2(model, field_name, property3) {
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else if ($1 instanceof ArrayType) {
@@ -10082,14 +10083,14 @@ function render_field2(model, field_name, property3) {
         map(errors, (e) => {
           return e.message;
         }),
-        is_required
+        is_required2
       );
     } else if ($1 instanceof ObjectType) {
       _block = render4(
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else {
@@ -10099,7 +10100,7 @@ function render_field2(model, field_name, property3) {
           field_path,
           property3,
           value2,
-          is_required,
+          is_required2,
           is_disabled
         );
       } else {
@@ -10113,7 +10114,7 @@ function render_field2(model, field_name, property3) {
         field_path,
         property3,
         value2,
-        is_required,
+        is_required2,
         is_disabled
       );
     } else {
@@ -10524,7 +10525,7 @@ function extract_number_constraints(data) {
   );
   _block$4 = from_result(_pipe$4);
   let multiple_of = _block$4;
-  if (multiple_of instanceof None && exclusive_maximum instanceof None && exclusive_minimum instanceof None && maximum instanceof None && minimum instanceof None) {
+  if (minimum instanceof None && maximum instanceof None && exclusive_minimum instanceof None && exclusive_maximum instanceof None && multiple_of instanceof None) {
     return minimum;
   } else {
     return new Some(
@@ -10583,7 +10584,7 @@ function extract_string_constraints(data) {
   );
   _block$3 = from_result(_pipe$3);
   let format = _block$3;
-  if (format instanceof None && pattern instanceof None && max_length instanceof None && min_length instanceof None) {
+  if (min_length instanceof None && max_length instanceof None && pattern instanceof None && format instanceof None) {
     return min_length;
   } else {
     return new Some(
@@ -10671,6 +10672,16 @@ function value_decoder() {
     }
   );
 }
+function extract_const_value(data) {
+  let _pipe = run(data, at(toList(["const"]), value_decoder()));
+  let _pipe$1 = map3(
+    _pipe,
+    (const_value) => {
+      return toList([const_value]);
+    }
+  );
+  return from_result(_pipe$1);
+}
 function full_property_decoder() {
   return then$(
     dynamic,
@@ -10726,13 +10737,22 @@ function full_property_decoder() {
                                           let number_constraints = extract_number_constraints(
                                             dynamic_data
                                           );
+                                          let _block;
+                                          if (enum_values instanceof Some) {
+                                            _block = enum_values;
+                                          } else {
+                                            _block = extract_const_value(
+                                              dynamic_data
+                                            );
+                                          }
+                                          let enum_values_with_const = _block;
                                           return success(
                                             new SchemaProperty(
                                               field_type,
                                               title,
                                               description,
                                               default$,
-                                              enum_values,
+                                              enum_values_with_const,
                                               ref,
                                               string_constraints,
                                               number_constraints,
@@ -10814,7 +10834,7 @@ function properties_decoder() {
 function definitions_decoder() {
   return dict2(string2, property_decoder());
 }
-function extract_conditionals(data) {
+function extract_single_conditional(data) {
   let if_result = run(data, at(toList(["if"]), dynamic));
   if (if_result instanceof Ok) {
     let if_data = if_result[0];
@@ -10852,6 +10872,40 @@ function extract_conditionals(data) {
     }
   } else {
     return toList([]);
+  }
+}
+function extract_single_conditional_result(data) {
+  let $ = extract_single_conditional(data);
+  if ($ instanceof Empty) {
+    return new Error(void 0);
+  } else {
+    let $1 = $.tail;
+    if ($1 instanceof Empty) {
+      let rule = $.head;
+      return new Ok(rule);
+    } else {
+      return new Error(void 0);
+    }
+  }
+}
+function extract_allof_conditionals(items) {
+  return filter_map(
+    items,
+    (item) => {
+      return extract_single_conditional_result(item);
+    }
+  );
+}
+function extract_conditionals(data) {
+  let $ = run(
+    data,
+    at(toList(["allOf"]), list2(dynamic))
+  );
+  if ($ instanceof Ok) {
+    let allof_items = $[0];
+    return extract_allof_conditionals(allof_items);
+  } else {
+    return extract_single_conditional(data);
   }
 }
 function schema_decoder() {
@@ -11186,9 +11240,9 @@ function update3(model, msg) {
     let _block;
     let $ = new_model.form_model;
     if ($ instanceof Some) {
-      let form_model = $[0];
       let $1 = new_model.submit_url;
       if ($1 instanceof Some) {
+        let form_model = $[0];
         _block = reinitialize_form_with_schema(new_model, form_model.schema);
       } else {
         _block = new_model;
@@ -11346,7 +11400,8 @@ function init2(_) {
   let schemas = toList([
     "contact_form.json",
     "survey_form.json",
-    "user_registration.json"
+    "user_registration.json",
+    "basic_leak_signs.json"
   ]);
   return [
     new Model2(

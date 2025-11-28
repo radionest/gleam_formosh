@@ -257,12 +257,18 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   let string_constraints = extract_string_constraints(dynamic_data)
   let number_constraints = extract_number_constraints(dynamic_data)
 
+  // Handle 'const' keyword - convert to enum with single value
+  let enum_values_with_const = case enum_values {
+    Some(_) -> enum_values
+    None -> extract_const_value(dynamic_data)
+  }
+
   decode.success(SchemaProperty(
     field_type: field_type,
     title: title,
     description: description,
     default: default,
-    enum_values: enum_values,
+    enum_values: enum_values_with_const,
     ref: ref,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
@@ -272,14 +278,31 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   ))
 }
 
+/// Extract const value from dynamic JSON data.
+///
+/// This function looks for the 'const' keyword in JSON Schema and converts it
+/// to an enum with a single value, which is semantically equivalent.
+///
+/// ## Parameters
+/// - `data`: Dynamic JSON data that might contain a const value
+///
+/// ## Returns
+/// - `Some(List(Value))` with single value if const is present
+/// - `None` if no const keyword is found
+fn extract_const_value(data: Dynamic) -> Option(List(Value)) {
+  decode.run(data, decode.at(["const"], value_decoder()))
+  |> result.map(fn(const_value) { [const_value] })
+  |> option.from_result()
+}
+
 /// Extract string validation constraints from dynamic JSON data.
-/// 
+///
 /// This function looks for string constraint fields (minLength, maxLength,
 /// pattern, format) in the JSON data and builds a StringConstraints object.
-/// 
+///
 /// ## Parameters
 /// - `data`: Dynamic JSON data that might contain string constraints
-/// 
+///
 /// ## Returns
 /// - `Some(StringConstraints)` if any constraints were found
 /// - `None` if no string constraints are present
@@ -360,9 +383,44 @@ fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
 
 /// Extract conditional rules from a JSON Schema.
 ///
-/// Parses if/then/else keywords to create conditional rules that can
-/// dynamically modify the schema based on runtime values.
+/// Parses if/then/else keywords or allOf array with conditionals to create
+/// conditional rules that can dynamically modify the schema based on runtime values.
+///
+/// Supports both:
+/// - Direct if/then/else at the top level
+/// - allOf array containing multiple if/then/else conditions
 fn extract_conditionals(data: Dynamic) -> List(ConditionalRule) {
+  // First, check if there's an allOf array
+  case decode.run(data, decode.at(["allOf"], decode.list(decode.dynamic))) {
+    Ok(allof_items) -> extract_allof_conditionals(allof_items)
+    Error(_) -> extract_single_conditional(data)
+  }
+}
+
+/// Extract multiple conditional rules from an allOf array.
+///
+/// Iterates through each item in the allOf array and attempts to extract
+/// if/then/else conditional rules.
+fn extract_allof_conditionals(items: List(Dynamic)) -> List(ConditionalRule) {
+  list.filter_map(items, fn(item) { extract_single_conditional_result(item) })
+}
+
+/// Extract a single conditional rule from dynamic data, returning a Result.
+///
+/// This is used by extract_allof_conditionals for filter_map.
+fn extract_single_conditional_result(
+  data: Dynamic,
+) -> Result(ConditionalRule, Nil) {
+  case extract_single_conditional(data) {
+    [rule] -> Ok(rule)
+    _ -> Error(Nil)
+  }
+}
+
+/// Extract a single if/then/else conditional from dynamic data.
+///
+/// Returns a list with 0 or 1 conditional rules.
+fn extract_single_conditional(data: Dynamic) -> List(ConditionalRule) {
   // Check if there's an "if" field at the top level
   let if_result = decode.run(data, decode.at(["if"], decode.dynamic))
 

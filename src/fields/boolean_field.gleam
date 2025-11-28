@@ -6,7 +6,7 @@
 import fields/field_common
 import form/model.{type FormMsg, UpdateFieldPath}
 import form/path
-import gleam/option.{type Option}
+import gleam/option.{type Option, None}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -39,10 +39,9 @@ pub fn render(
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
-  let current_value = field_common.extract_boolean_value(value)
 
   // Render as radio buttons (Yes/No) for better UX
-  render_as_radio(field_path, property, current_value, is_required, is_disabled)
+  render_as_radio(field_path, property, is_required, is_disabled)
 }
 
 /// Render boolean field as Yes/No radio button group.
@@ -62,7 +61,6 @@ pub fn render(
 fn render_as_radio(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  current_value: Bool,
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
@@ -79,7 +77,6 @@ fn render_as_radio(
           attribute.id(yes_id),
           attribute.name(field_name),
           attribute.value("true"),
-          attribute.checked(current_value),
           attribute.required(is_required),
           attribute.disabled(is_disabled),
           event.on_click(UpdateFieldPath(field_path, types.BooleanValue(True))),
@@ -94,7 +91,6 @@ fn render_as_radio(
           attribute.id(no_id),
           attribute.name(field_name),
           attribute.value("false"),
-          attribute.checked(!current_value),
           attribute.required(is_required),
           attribute.disabled(is_disabled),
           event.on_click(UpdateFieldPath(field_path, types.BooleanValue(False))),
