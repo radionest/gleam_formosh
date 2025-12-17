@@ -363,11 +363,13 @@ pub fn multiple_conditionals_allof_test() {
   |> should.equal(2)
 
   // Test when air_bubble is true
-  let form_values_air =
-    dict.from_list([#("air_bubble", BooleanValue(True))])
+  let form_values_air = dict.from_list([#("air_bubble", BooleanValue(True))])
 
   let resolved_air =
-    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values_air)
+    conditional_resolver.resolve_conditional_schema(
+      parsed_schema,
+      form_values_air,
+    )
 
   // Should have air_bubble_size field
   resolved_air.properties
@@ -407,7 +409,10 @@ pub fn multiple_conditionals_allof_test() {
     ])
 
   let resolved_both =
-    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values_both)
+    conditional_resolver.resolve_conditional_schema(
+      parsed_schema,
+      form_values_both,
+    )
 
   // Should have both conditional fields
   resolved_both.properties
@@ -442,7 +447,10 @@ pub fn const_keyword_parsing_test() {
   let form_values_true = dict.from_list([#("flag", BooleanValue(True))])
 
   let resolved_true =
-    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values_true)
+    conditional_resolver.resolve_conditional_schema(
+      parsed_schema,
+      form_values_true,
+    )
 
   resolved_true.properties
   |> dict.has_key("extra_field")

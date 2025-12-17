@@ -100,6 +100,8 @@ pub type SchemaProperty {
     // For object types
     properties: Option(Dict(String, SchemaProperty)),
     required: List(String),
+    // JSON Schema readOnly annotation
+    read_only: Bool,
   )
 }
 
@@ -226,5 +228,6 @@ pub fn empty_property() -> SchemaProperty {
     items: None,
     properties: None,
     required: [],
+    read_only: False,
   )
 }

@@ -15,9 +15,7 @@ pub fn main() {
 /// Test that basic_leak_signs.json parses correctly
 pub fn parse_basic_leak_signs_schema_test() {
   let assert Ok(schema_json) =
-    simplifile.read(
-      "examples/file_schema_loader/schemas/basic_leak_signs.json",
-    )
+    simplifile.read("examples/file_schema_loader/schemas/basic_leak_signs.json")
 
   let parse_result = parser.parse_schema(schema_json)
 
@@ -45,9 +43,7 @@ pub fn parse_basic_leak_signs_schema_test() {
 /// Test that conditional fields appear when checkboxes are checked
 pub fn conditional_fields_appear_test() {
   let assert Ok(schema_json) =
-    simplifile.read(
-      "examples/file_schema_loader/schemas/basic_leak_signs.json",
-    )
+    simplifile.read("examples/file_schema_loader/schemas/basic_leak_signs.json")
 
   let assert Ok(schema) = parser.parse_schema(schema_json)
 
@@ -83,9 +79,7 @@ pub fn conditional_fields_appear_test() {
 /// Test that multiple conditionals work independently
 pub fn multiple_conditionals_independent_test() {
   let assert Ok(schema_json) =
-    simplifile.read(
-      "examples/file_schema_loader/schemas/basic_leak_signs.json",
-    )
+    simplifile.read("examples/file_schema_loader/schemas/basic_leak_signs.json")
 
   let assert Ok(schema) = parser.parse_schema(schema_json)
 

@@ -17,20 +17,21 @@ import lustre/element/html
 import schema/types.{type SchemaProperty, type Value}
 
 /// Render an object field with all its nested properties.
-/// 
+///
 /// Creates a complete object field interface including:
 /// - Field label and description
 /// - Container for nested fields
 /// - Each nested property rendered according to its type
 /// - Support for required nested fields
-/// 
+///
 /// ## Parameters
 /// - `field_path`: The path to this object field
 /// - `property`: Schema property defining the object structure
 /// - `value`: Current object value as Option(Value)
 /// - `is_required`: Whether the object field itself is required
 /// - `is_disabled`: Whether the field is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A complete object field interface with all nested properties
 pub fn render(
@@ -39,6 +40,7 @@ pub fn render(
   value: Option(Value),
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let field_name = path.to_string(field_path)
   let title = option.unwrap(property.title, field_name)
@@ -67,23 +69,30 @@ pub fn render(
     // Render nested fields container
     html.div(
       [class("object-fields")],
-      render_nested_fields(field_path, property, nested_values, is_disabled),
+      render_nested_fields(
+        field_path,
+        property,
+        nested_values,
+        is_disabled,
+        is_readonly,
+      ),
     ),
   ])
 }
 
 /// Render all nested fields within an object.
-/// 
+///
 /// Takes the object's properties schema and renders each field according to
 /// its type and constraints. Each field is connected through the path-based
 /// field system for proper state management.
-/// 
+///
 /// ## Parameters
 /// - `parent_path`: The path to the parent object field
 /// - `property`: The object's schema property containing nested properties
 /// - `values`: Current values for nested fields
 /// - `is_disabled`: Whether fields should be disabled
-/// 
+/// - `is_readonly`: Whether fields should be read-only
+///
 /// ## Returns
 /// List of rendered field elements for the object's properties
 fn render_nested_fields(
@@ -91,6 +100,7 @@ fn render_nested_fields(
   property: SchemaProperty,
   values: dict.Dict(String, Value),
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> List(Element(FormMsg)) {
   case property.properties {
     Some(props) ->
@@ -105,12 +115,16 @@ fn render_nested_fields(
         let nested_path =
           list.append(parent_path, [PropertySegment(nested_field_name)])
 
+        // Nested field is readonly if parent is readonly OR if the nested property itself is readonly
+        let nested_is_readonly = is_readonly || nested_property.read_only
+
         render_nested_field(
           nested_path,
           nested_property,
           nested_value,
           is_required,
           is_disabled,
+          nested_is_readonly,
         )
       })
     None -> []
@@ -118,17 +132,18 @@ fn render_nested_fields(
 }
 
 /// Render a single nested field within an object.
-/// 
+///
 /// Delegates to the appropriate field renderer based on the field type,
 /// maintaining consistency with the rest of the form system.
-/// 
+///
 /// ## Parameters
 /// - `field_path`: The full path to this nested field
 /// - `property`: Schema property for this field
 /// - `value`: Current value of the field
 /// - `is_required`: Whether this field is required within the object
 /// - `is_disabled`: Whether the field is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A rendered field element using the appropriate field renderer
 fn render_nested_field(
@@ -137,12 +152,27 @@ fn render_nested_field(
   value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let field_element = case property.field_type {
     Some(types.StringType) ->
-      string_field.render(field_path, property, value, is_required, is_disabled)
+      string_field.render(
+        field_path,
+        property,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
     Some(types.NumberType) | Some(types.IntegerType) ->
-      number_field.render(field_path, property, value, is_required, is_disabled)
+      number_field.render(
+        field_path,
+        property,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
     Some(types.BooleanType) ->
       boolean_field.render(
         field_path,
@@ -150,10 +180,11 @@ fn render_nested_field(
         value,
         is_required,
         is_disabled,
+        is_readonly,
       )
     Some(types.ObjectType) ->
       // Support nested objects recursively
-      render(field_path, property, value, is_required, is_disabled)
+      render(field_path, property, value, is_required, is_disabled, is_readonly)
     Some(types.ArrayType) ->
       // For array fields within objects, we need to handle them specially
       // This would require importing array_field, but to avoid circular dependencies,
@@ -171,6 +202,7 @@ fn render_nested_field(
             value,
             is_required,
             is_disabled,
+            is_readonly,
           )
         None ->
           html.div([class("unsupported-field")], [

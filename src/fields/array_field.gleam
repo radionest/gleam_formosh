@@ -216,13 +216,37 @@ fn render_field(
   // Create a path for this nested field
   let field_path = path.to_array_item_field(array_name, index, field_name)
 
+  // Array item fields inherit read_only from their property
+  let is_readonly = property.read_only
+
   let field_element = case property.field_type {
     Some(types.StringType) ->
-      string_field.render(field_path, property, Some(value), required, False)
+      string_field.render(
+        field_path,
+        property,
+        Some(value),
+        required,
+        False,
+        is_readonly,
+      )
     Some(types.NumberType) | Some(types.IntegerType) ->
-      number_field.render(field_path, property, Some(value), required, False)
+      number_field.render(
+        field_path,
+        property,
+        Some(value),
+        required,
+        False,
+        is_readonly,
+      )
     Some(types.BooleanType) ->
-      boolean_field.render(field_path, property, Some(value), required, False)
+      boolean_field.render(
+        field_path,
+        property,
+        Some(value),
+        required,
+        False,
+        is_readonly,
+      )
     _ ->
       html.div([class("unsupported-field")], [
         html.text("Unsupported field type"),

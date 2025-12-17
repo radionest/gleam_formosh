@@ -6,15 +6,15 @@ import form/model.{
 }
 import form/update
 import form/view
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/option
 import lustre
 import lustre/effect
 import schema/parser
-import schema/types.{type JsonSchema}
+import schema/types.{type JsonSchema, type Value}
 
 /// Configuration options for creating a form.
-/// 
+///
 /// This type contains all the configuration needed to create a form,
 /// including the schema and submission handling.
 pub type FormConfig {
@@ -25,6 +25,10 @@ pub type FormConfig {
     css_prefix: String,
     /// Whether to show validation errors immediately or only after blur
     show_errors_on_change: Bool,
+    /// Whether to display readOnly fields (default: False - hidden)
+    show_readonly_fields: Bool,
+    /// Initial values to populate the form with
+    initial_values: Dict(String, Value),
   )
 }
 
@@ -50,6 +54,8 @@ pub fn config(schema: JsonSchema) -> FormConfig {
     submit_config: NoSubmit,
     css_prefix: "formosh",
     show_errors_on_change: False,
+    show_readonly_fields: False,
+    initial_values: dict.new(),
   )
 }
 
@@ -120,15 +126,57 @@ pub fn with_css_prefix(config: FormConfig, prefix: String) -> FormConfig {
 }
 
 /// Configure whether to show validation errors immediately on change.
-/// 
+///
 /// ## Parameters
 /// - `config`: The form configuration to update
 /// - `show`: Whether to show errors on change (true) or only on blur (false)
-/// 
+///
 /// ## Returns
 /// Updated FormConfig with error display setting
 pub fn with_show_errors_on_change(config: FormConfig, show: Bool) -> FormConfig {
   FormConfig(..config, show_errors_on_change: show)
+}
+
+/// Configure whether to show readOnly fields in the form.
+///
+/// By default, readOnly fields are hidden from the user. When enabled,
+/// they are displayed as readonly inputs that cannot be edited.
+///
+/// ## Parameters
+/// - `config`: The form configuration to update
+/// - `show`: Whether to show readOnly fields (true) or hide them (false)
+///
+/// ## Returns
+/// Updated FormConfig with readOnly display setting
+pub fn with_show_readonly_fields(config: FormConfig, show: Bool) -> FormConfig {
+  FormConfig(..config, show_readonly_fields: show)
+}
+
+/// Set initial values for form fields.
+///
+/// These values will be used to pre-populate form fields, including
+/// readOnly fields that are filled programmatically.
+///
+/// ## Parameters
+/// - `config`: The form configuration to update
+/// - `values`: Dictionary of field names to their initial values
+///
+/// ## Returns
+/// Updated FormConfig with initial values
+///
+/// ## Example
+/// ```gleam
+/// let config = formosh.config(schema)
+///   |> formosh.with_initial_values(dict.from_list([
+///     #("patient_id", StringValue("12345")),
+///     #("study_date", StringValue("2024-01-15")),
+///   ]))
+/// ```
+pub fn with_initial_values(
+  config: FormConfig,
+  values: Dict(String, Value),
+) -> FormConfig {
+  FormConfig(..config, initial_values: values)
 }
 
 /// Create a form application from a JSON Schema definition.
@@ -171,7 +219,7 @@ pub fn from_config(config: FormConfig) -> lustre.App(Nil, FormModel, FormMsg) {
 }
 
 /// Internal function to create a Lustre application from a configuration.
-/// 
+///
 /// This function sets up the MVU architecture by providing the init, update,
 /// and view functions needed for a Lustre application.
 fn create_form_with_config(
@@ -180,7 +228,12 @@ fn create_form_with_config(
   lustre.application(
     fn(_) {
       #(
-        model.init_with_config(config.schema, option.Some(config.submit_config)),
+        model.init_with_full_config(
+          config.schema,
+          option.Some(config.submit_config),
+          config.show_readonly_fields,
+          config.initial_values,
+        ),
         effect.none(),
       )
     },
@@ -242,6 +295,8 @@ pub fn from_json_string_with_config(
           submit_config: submit_config,
           css_prefix: "formosh",
           show_errors_on_change: False,
+          show_readonly_fields: False,
+          initial_values: dict.new(),
         )
       Ok(from_config(form_config))
     }

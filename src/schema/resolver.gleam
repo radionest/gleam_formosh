@@ -214,5 +214,7 @@ fn merge_properties(
       True -> referencing.required
       False -> referenced.required
     },
+    // readOnly is true if either property has it set
+    read_only: referencing.read_only || referenced.read_only,
   )
 }

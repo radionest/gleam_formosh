@@ -95,19 +95,22 @@ fn render_form_body(model: FormModel) -> Element(FormMsg) {
 }
 
 /// Render a single form field based on its schema property.
-/// 
+///
 /// This function determines the appropriate field renderer based on the
 /// field type and renders the field with proper styling, error states,
 /// and validation attributes.
-/// 
+///
+/// ReadOnly fields are hidden by default. If show_readonly_fields is enabled,
+/// they are displayed as readonly inputs that cannot be edited.
+///
 /// ## Parameters
 /// - `model`: The form model containing current values and state
 /// - `field_name`: The name/key of the field being rendered
 /// - `property`: The schema property definition for this field
-/// 
+///
 /// ## Returns
 /// A Lustre Element representing the complete field (label, input, errors)
-/// 
+///
 /// ## Field Types Supported
 /// - String fields (input, textarea, select, radio)
 /// - Number/Integer fields
@@ -118,6 +121,22 @@ fn render_field(
   model: FormModel,
   field_name: String,
   property: types.SchemaProperty,
+) -> Element(FormMsg) {
+  // Check if field is readOnly and whether to display it
+  let is_readonly = property.read_only
+  case is_readonly && !model.show_readonly_fields {
+    // Skip rendering if field is readOnly and show_readonly_fields is False
+    True -> html.text("")
+    False -> render_visible_field(model, field_name, property, is_readonly)
+  }
+}
+
+/// Render a visible field (either not readOnly, or show_readonly_fields is enabled).
+fn render_visible_field(
+  model: FormModel,
+  field_name: String,
+  property: types.SchemaProperty,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let is_required = field_requirements.is_required(model.schema, field_name)
   let is_disabled = model.is_field_disabled(model, field_name)
@@ -131,9 +150,23 @@ fn render_field(
 
   let field_element = case property.field_type {
     Some(types.StringType) ->
-      string_field.render(field_path, property, value, is_required, is_disabled)
+      string_field.render(
+        field_path,
+        property,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
     Some(types.NumberType) | Some(types.IntegerType) ->
-      number_field.render(field_path, property, value, is_required, is_disabled)
+      number_field.render(
+        field_path,
+        property,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
     Some(types.BooleanType) ->
       boolean_field.render(
         field_path,
@@ -141,6 +174,7 @@ fn render_field(
         value,
         is_required,
         is_disabled,
+        is_readonly,
       )
     Some(types.ArrayType) -> {
       // Convert field value to array items
@@ -164,7 +198,14 @@ fn render_field(
       )
     }
     Some(types.ObjectType) ->
-      object_field.render(field_path, property, value, is_required, is_disabled)
+      object_field.render(
+        field_path,
+        property,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
     _ ->
       // Handle enum or unknown types
       case property.enum_values {
@@ -175,6 +216,7 @@ fn render_field(
             value,
             is_required,
             is_disabled,
+            is_readonly,
           )
         None -> html.div([], [])
       }
@@ -187,6 +229,10 @@ fn render_field(
         "formosh-field"
         <> case has_errors && is_touched {
           True -> " formosh-field-error"
+          False -> ""
+        }
+        <> case is_readonly {
+          True -> " formosh-field-readonly"
           False -> ""
         },
       ),

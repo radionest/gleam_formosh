@@ -17,21 +17,22 @@ import lustre/event
 import schema/types
 
 /// Render a number or integer input field.
-/// 
+///
 /// Creates an HTML number input with appropriate constraints and validation.
 /// Automatically determines whether to use integer or decimal input based
 /// on the field type in the schema property.
-/// 
+///
 /// ## Parameters
 /// - `field_name`: The field name for identification
 /// - `property`: Schema property containing type and numeric constraints
 /// - `value`: Current field value (NumberValue or IntegerValue)
 /// - `is_required`: Whether the field is required
 /// - `is_disabled`: Whether the field is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A complete number input field with label, input, and help text
-/// 
+///
 /// ## Features
 /// - Integer vs decimal input (step="1" vs step="any")
 /// - Min/max value constraints from schema
@@ -44,6 +45,7 @@ pub fn render(
   value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let is_integer = case property.field_type {
     Some(types.IntegerType) -> True
@@ -53,25 +55,39 @@ pub fn render(
   let current_value = field_common.extract_number_value(value)
   let field_name = path.get_field_name(field_path)
 
+  // Build constraint attributes
+  let constraint_attrs = get_number_constraints_attributes(property)
+
+  // Add readonly attribute if needed
+  let readonly_attrs = case is_readonly {
+    True -> [attribute.attribute("readonly", "readonly")]
+    False -> []
+  }
+
   html.div([attribute.class("formosh-field-wrapper")], [
     field_common.render_label(field_name, property, is_required),
-    html.input([
-      attribute.id(path.to_string(field_path)),
-      attribute.name(field_name),
-      attribute.type_("number"),
-      attribute.value(current_value),
-      attribute.class("formosh-input formosh-number"),
-      attribute.required(is_required),
-      attribute.disabled(is_disabled),
-      case is_integer {
-        True -> attribute.step("1")
-        False -> attribute.step("any")
-      },
-      event.on_change(fn(val) {
-        handle_number_input(field_path, val, is_integer)
-      }),
-      ..get_number_constraints_attributes(property)
-    ]),
+    html.input(
+      list.flatten([
+        [
+          attribute.id(path.to_string(field_path)),
+          attribute.name(field_name),
+          attribute.type_("number"),
+          attribute.value(current_value),
+          attribute.class("formosh-input formosh-number"),
+          attribute.required(is_required),
+          attribute.disabled(is_disabled),
+          case is_integer {
+            True -> attribute.step("1")
+            False -> attribute.step("any")
+          },
+          event.on_change(fn(val) {
+            handle_number_input(field_path, val, is_integer)
+          }),
+        ],
+        constraint_attrs,
+        readonly_attrs,
+      ]),
+    ),
     field_common.render_help_text(property),
   ])
 }

@@ -61,7 +61,8 @@ fn add_required_array(
 ) -> List(#(String, json.Json)) {
   case required {
     [] -> fields
-    _ -> add_fields(fields, [#("required", json.array(required, of: json.string))])
+    _ ->
+      add_fields(fields, [#("required", json.array(required, of: json.string))])
   }
 }
 
@@ -187,11 +188,9 @@ fn add_optional_properties(
 fn property_to_json(prop: SchemaProperty) -> json.Json {
   []
   |> add_optional_json_field("$ref", prop.ref, json.string)
-  |> add_optional_json_field(
-    "type",
-    prop.field_type,
-    fn(ft) { json.string(field_type_to_string(ft)) },
-  )
+  |> add_optional_json_field("type", prop.field_type, fn(ft) {
+    json.string(field_type_to_string(ft))
+  })
   |> add_optional_json_field("title", prop.title, json.string)
   |> add_optional_json_field("description", prop.description, json.string)
   |> add_optional_json_field("default", prop.default, value_to_json)
@@ -209,7 +208,19 @@ fn property_to_json(prop: SchemaProperty) -> json.Json {
   |> add_optional_items(prop.items)
   |> add_optional_properties(prop.properties)
   |> add_required_array(prop.required)
+  |> add_read_only(prop.read_only)
   |> json.object()
+}
+
+/// Add readOnly field if true.
+fn add_read_only(
+  fields: List(#(String, json.Json)),
+  read_only: Bool,
+) -> List(#(String, json.Json)) {
+  case read_only {
+    True -> add_fields(fields, [#("readOnly", json.bool(True))])
+    False -> fields
+  }
 }
 
 /// Convert a FieldType to its JSON Schema string representation.
@@ -254,11 +265,9 @@ fn add_string_constraint_fields(
   |> add_optional_json_field("minLength", constraints.min_length, json.int)
   |> add_optional_json_field("maxLength", constraints.max_length, json.int)
   |> add_optional_json_field("pattern", constraints.pattern, json.string)
-  |> add_optional_json_field(
-    "format",
-    constraints.format,
-    fn(fmt) { json.string(string_format_to_string(fmt)) },
-  )
+  |> add_optional_json_field("format", constraints.format, fn(fmt) {
+    json.string(string_format_to_string(fmt))
+  })
 }
 
 /// Add number constraint fields to a field list.
@@ -301,16 +310,8 @@ fn string_format_to_string(format: StringFormat) -> String {
 fn conditional_to_json(conditional: ConditionalRule) -> json.Json {
   []
   |> add_fields([#("if", property_to_json(conditional.if_schema))])
-  |> add_optional_json_field(
-    "then",
-    conditional.then_schema,
-    property_to_json,
-  )
-  |> add_optional_json_field(
-    "else",
-    conditional.else_schema,
-    property_to_json,
-  )
+  |> add_optional_json_field("then", conditional.then_schema, property_to_json)
+  |> add_optional_json_field("else", conditional.else_schema, property_to_json)
   |> json.object()
 }
 
@@ -321,14 +322,6 @@ fn add_conditional_fields(
 ) -> List(#(String, json.Json)) {
   fields
   |> add_fields([#("if", property_to_json(conditional.if_schema))])
-  |> add_optional_json_field(
-    "then",
-    conditional.then_schema,
-    property_to_json,
-  )
-  |> add_optional_json_field(
-    "else",
-    conditional.else_schema,
-    property_to_json,
-  )
+  |> add_optional_json_field("then", conditional.then_schema, property_to_json)
+  |> add_optional_json_field("else", conditional.else_schema, property_to_json)
 }

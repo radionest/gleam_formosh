@@ -14,21 +14,22 @@ import lustre/event
 import schema/types
 
 /// Render a string field with appropriate input type and constraints.
-/// 
+///
 /// This is the main entry point for rendering string fields. It automatically
 /// chooses the appropriate input type (text input, textarea, select, radio)
 /// based on the field's constraints and enum values.
-/// 
+///
 /// ## Parameters
 /// - `field_name`: The field name for identification and events
 /// - `property`: The schema property with type and constraint information
 /// - `value`: The current field value, if any
 /// - `is_required`: Whether the field is required
 /// - `is_disabled`: Whether the field is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A complete field element with label, input, and help text
-/// 
+///
 /// ## Field Type Selection
 /// - Enum values → select dropdown or radio buttons
 /// - Long text (maxLength > 100) → textarea
@@ -39,10 +40,18 @@ pub fn render(
   value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   case property.enum_values {
     Some(_enum_vals) ->
-      render_enum(field_path, property, value, is_required, is_disabled)
+      render_enum(
+        field_path,
+        property,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
     None -> {
       // Check if it's a textarea based on max length
       case property.string_constraints {
@@ -55,6 +64,7 @@ pub fn render(
                 value,
                 is_required,
                 is_disabled,
+                is_readonly,
               )
             _ ->
               render_input(
@@ -63,28 +73,37 @@ pub fn render(
                 value,
                 is_required,
                 is_disabled,
+                is_readonly,
               )
           }
         None ->
-          render_input(field_path, property, value, is_required, is_disabled)
+          render_input(
+            field_path,
+            property,
+            value,
+            is_required,
+            is_disabled,
+            is_readonly,
+          )
       }
     }
   }
 }
 
 /// Render a standard HTML input element for string values.
-/// 
+///
 /// Creates a single-line text input with the appropriate HTML input type
 /// based on the string format (email, url, date, etc.) and applies any
 /// string constraints as HTML attributes.
-/// 
+///
 /// ## Parameters
 /// - `field_name`: The field name for identification
 /// - `property`: The schema property with constraints and format info
 /// - `value`: The current field value
 /// - `is_required`: Whether the field is required
 /// - `is_disabled`: Whether the field is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A complete field element wrapped with label and help text
 fn render_input(
@@ -93,6 +112,7 @@ fn render_input(
   value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let current_value = field_common.extract_string_value(value)
 
@@ -102,6 +122,12 @@ fn render_input(
     attribute.class("formosh-input"),
     ..get_string_constraints_attributes(property)
   ]
+
+  // Add readonly attribute if needed
+  let extra_attrs = case is_readonly {
+    True -> [attribute.attribute("readonly", "readonly"), ..extra_attrs]
+    False -> extra_attrs
+  }
 
   let input_elem =
     html.input(field_common.input_attributes(
@@ -121,17 +147,18 @@ fn render_input(
 }
 
 /// Render a textarea element for multi-line string input.
-/// 
+///
 /// Used for string fields with large maxLength constraints (> 100 characters)
 /// to provide a better user experience for longer text input.
-/// 
+///
 /// ## Parameters
 /// - `field_name`: The field name for identification
 /// - `property`: The schema property with constraints
 /// - `value`: The current field value
 /// - `is_required`: Whether the field is required
 /// - `is_disabled`: Whether the field is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A complete textarea field wrapped with label and help text
 fn render_textarea(
@@ -140,6 +167,7 @@ fn render_textarea(
   value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let current_value = field_common.extract_string_value(value)
 
@@ -147,6 +175,12 @@ fn render_textarea(
     attribute.class("formosh-textarea"),
     ..get_string_constraints_attributes(property)
   ]
+
+  // Add readonly attribute if needed
+  let extra_attrs = case is_readonly {
+    True -> [attribute.attribute("readonly", "readonly"), ..extra_attrs]
+    False -> extra_attrs
+  }
 
   let textarea_elem =
     html.textarea(
@@ -169,21 +203,22 @@ fn render_textarea(
 }
 
 /// Render an enum field as either radio buttons or a select dropdown.
-/// 
+///
 /// For enum fields (fields with a limited set of allowed values), this function
 /// chooses between radio buttons (for small lists ≤ 5 options) and select
 /// dropdowns (for larger lists) to provide the best user experience.
-/// 
+///
 /// ## Parameters
 /// - `field_name`: The field name for identification
 /// - `property`: The schema property containing enum values
 /// - `value`: The current field value
 /// - `is_required`: Whether the field is required
 /// - `is_disabled`: Whether the field is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A complete field element with appropriate enum input control
-/// 
+///
 /// ## Selection Logic
 /// - ≤ 5 options: Radio button group for easy scanning
 /// - > 5 options: Select dropdown to save space
@@ -193,6 +228,7 @@ pub fn render_enum(
   value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   case property.enum_values {
     None -> html.text("")
@@ -209,6 +245,7 @@ pub fn render_enum(
             current_value,
             is_required,
             is_disabled,
+            is_readonly,
           )
         False ->
           render_select(
@@ -218,6 +255,7 @@ pub fn render_enum(
             current_value,
             is_required,
             is_disabled,
+            is_readonly,
           )
       }
     }
@@ -225,10 +263,10 @@ pub fn render_enum(
 }
 
 /// Render a radio button group for enum values.
-/// 
+///
 /// Creates a group of radio buttons for selecting from a small set of enum values.
 /// Each radio button is properly labeled and grouped under the same field name.
-/// 
+///
 /// ## Parameters
 /// - `field_name`: The field name for grouping radio buttons
 /// - `property`: The schema property for labeling and help text
@@ -236,7 +274,8 @@ pub fn render_enum(
 /// - `current_value`: The currently selected value
 /// - `is_required`: Whether a selection is required
 /// - `is_disabled`: Whether the entire group is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A complete radio button group with wrapper, label, and help text
 fn render_radio_group(
@@ -246,8 +285,11 @@ fn render_radio_group(
   current_value: String,
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let field_name = path.get_field_name(field_path)
+  // For readonly, disable the radio buttons to prevent changes
+  let effective_disabled = is_disabled || is_readonly
 
   let radio_group =
     html.div(
@@ -264,7 +306,7 @@ fn render_radio_group(
             attribute.value(str_val),
             attribute.checked(str_val == current_value),
             attribute.required(is_required),
-            attribute.disabled(is_disabled),
+            attribute.disabled(effective_disabled),
             event.on_click(UpdateFieldPath(
               field_path,
               types.StringValue(str_val),
@@ -286,11 +328,11 @@ fn render_radio_group(
 }
 
 /// Render a select dropdown for enum values.
-/// 
+///
 /// Creates a select dropdown with options for each enum value, including
 /// a placeholder option. Used for enum fields with many options where
 /// radio buttons would take too much space.
-/// 
+///
 /// ## Parameters
 /// - `field_name`: The field name for identification
 /// - `property`: The schema property for labeling and help text
@@ -298,7 +340,8 @@ fn render_radio_group(
 /// - `current_value`: The currently selected value
 /// - `is_required`: Whether a selection is required
 /// - `is_disabled`: Whether the dropdown is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A complete select dropdown with wrapper, label, and help text
 fn render_select(
@@ -308,8 +351,11 @@ fn render_select(
   current_value: String,
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let field_name = path.get_field_name(field_path)
+  // For readonly, disable the select to prevent changes
+  let effective_disabled = is_disabled || is_readonly
 
   let select_elem =
     html.select(
@@ -318,7 +364,7 @@ fn render_select(
         attribute.name(field_name),
         attribute.class("formosh-select"),
         attribute.required(is_required),
-        attribute.disabled(is_disabled),
+        attribute.disabled(effective_disabled),
         event.on_change(fn(val) {
           UpdateFieldPath(field_path, types.StringValue(val))
         }),

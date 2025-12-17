@@ -14,34 +14,38 @@ import lustre/event
 import schema/types
 
 /// Render a boolean field as radio buttons (Yes/No).
-/// 
+///
 /// This is the default boolean field renderer that uses radio buttons
 /// for better user experience and accessibility. Radio buttons make the
 /// boolean choice explicit and clear to users.
-/// 
+///
 /// ## Parameters
 /// - `field_name`: The field name for identification
 /// - `property`: Schema property for labeling and help text
 /// - `value`: Current boolean value (defaults to False if unset)
 /// - `is_required`: Whether a selection is required
 /// - `is_disabled`: Whether the field is disabled
-/// 
+/// - `is_readonly`: Whether the field is read-only
+///
 /// ## Returns
 /// A complete boolean field using radio buttons for Yes/No selection
-/// 
+///
 /// ## Alternative Renderers
 /// - `render_as_checkbox`: Single checkbox for true/false
 /// - `render_as_toggle`: Toggle switch interface
 pub fn render(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  value: Option(types.Value),
+  _value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
+  // For readonly, disable the radio buttons to prevent changes
+  let effective_disabled = is_disabled || is_readonly
 
   // Render as radio buttons (Yes/No) for better UX
-  render_as_radio(field_path, property, is_required, is_disabled)
+  render_as_radio(field_path, property, is_required, effective_disabled)
 }
 
 /// Render boolean field as Yes/No radio button group.

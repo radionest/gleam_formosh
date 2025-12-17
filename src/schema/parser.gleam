@@ -200,6 +200,7 @@ fn property_decoder() -> Decoder(SchemaProperty) {
         items: None,
         properties: None,
         required: [],
+        read_only: False,
       )
     }),
   ])
@@ -257,6 +258,9 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   let string_constraints = extract_string_constraints(dynamic_data)
   let number_constraints = extract_number_constraints(dynamic_data)
 
+  // Extract readOnly annotation
+  let read_only = extract_read_only(dynamic_data)
+
   // Handle 'const' keyword - convert to enum with single value
   let enum_values_with_const = case enum_values {
     Some(_) -> enum_values
@@ -269,12 +273,14 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     description: description,
     default: default,
     enum_values: enum_values_with_const,
+    enum_values: enum_values_with_const,
     ref: ref,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
     items: items,
     properties: properties,
     required: required,
+    read_only: read_only,
   ))
 }
 
@@ -297,11 +303,14 @@ fn extract_const_value(data: Dynamic) -> Option(List(Value)) {
 
 /// Extract string validation constraints from dynamic JSON data.
 ///
+///
 /// This function looks for string constraint fields (minLength, maxLength,
 /// pattern, format) in the JSON data and builds a StringConstraints object.
 ///
+///
 /// ## Parameters
 /// - `data`: Dynamic JSON data that might contain string constraints
+///
 ///
 /// ## Returns
 /// - `Some(StringConstraints)` if any constraints were found
@@ -389,7 +398,44 @@ fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
 /// Supports both:
 /// - Direct if/then/else at the top level
 /// - allOf array containing multiple if/then/else conditions
+/// Parses if/then/else keywords or allOf array with conditionals to create
+/// conditional rules that can dynamically modify the schema based on runtime values.
+///
+/// Supports both:
+/// - Direct if/then/else at the top level
+/// - allOf array containing multiple if/then/else conditions
 fn extract_conditionals(data: Dynamic) -> List(ConditionalRule) {
+  // First, check if there's an allOf array
+  case decode.run(data, decode.at(["allOf"], decode.list(decode.dynamic))) {
+    Ok(allof_items) -> extract_allof_conditionals(allof_items)
+    Error(_) -> extract_single_conditional(data)
+  }
+}
+
+/// Extract multiple conditional rules from an allOf array.
+///
+/// Iterates through each item in the allOf array and attempts to extract
+/// if/then/else conditional rules.
+fn extract_allof_conditionals(items: List(Dynamic)) -> List(ConditionalRule) {
+  list.filter_map(items, fn(item) { extract_single_conditional_result(item) })
+}
+
+/// Extract a single conditional rule from dynamic data, returning a Result.
+///
+/// This is used by extract_allof_conditionals for filter_map.
+fn extract_single_conditional_result(
+  data: Dynamic,
+) -> Result(ConditionalRule, Nil) {
+  case extract_single_conditional(data) {
+    [rule] -> Ok(rule)
+    _ -> Error(Nil)
+  }
+}
+
+/// Extract a single if/then/else conditional from dynamic data.
+///
+/// Returns a list with 0 or 1 conditional rules.
+fn extract_single_conditional(data: Dynamic) -> List(ConditionalRule) {
   // First, check if there's an allOf array
   case decode.run(data, decode.at(["allOf"], decode.list(decode.dynamic))) {
     Ok(allof_items) -> extract_allof_conditionals(allof_items)
@@ -461,8 +507,24 @@ fn extract_single_conditional(data: Dynamic) -> List(ConditionalRule) {
   }
 }
 
+/// Extract readOnly annotation from dynamic JSON data.
+///
+/// This function looks for the 'readOnly' keyword in JSON Schema which indicates
+/// that the field should not be modified by the user.
+///
+/// ## Parameters
+/// - `data`: Dynamic JSON data that might contain readOnly annotation
+///
+/// ## Returns
+/// - `True` if readOnly is present and true
+/// - `False` otherwise
+fn extract_read_only(data: Dynamic) -> Bool {
+  decode.run(data, decode.at(["readOnly"], decode.bool))
+  |> result.unwrap(False)
+}
+
 /// Decode a string format specifier into a StringFormat.
-/// 
+///
 /// Converts JSON Schema format strings into StringFormat enum values,
 /// with support for standard formats and custom format strings.
 fn format_decoder() -> Decoder(types.StringFormat) {

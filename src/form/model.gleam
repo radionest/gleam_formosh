@@ -21,7 +21,7 @@ pub type SubmitConfig {
 }
 
 /// The main form state model for the MVU architecture.
-/// 
+///
 /// This type contains all the state needed to render and manage a form,
 /// including the schema definition, current values, validation errors,
 /// and form metadata like submission status.
@@ -47,6 +47,8 @@ pub type FormModel {
     submission_result: Option(SubmissionResult),
     // Submission configuration
     submit_config: Option(SubmitConfig),
+    // Whether to display readOnly fields
+    show_readonly_fields: Bool,
   )
 }
 
@@ -102,25 +104,46 @@ pub fn init(schema: JsonSchema) -> FormModel {
 }
 
 /// Initialize a new form model with submission configuration.
-/// 
+///
 /// Creates a form with optional submission handling configuration.
-/// 
+///
 /// ## Parameters
 /// - `schema`: The JSON Schema definition for this form
 /// - `submit_config`: Optional submission configuration
-/// 
+///
 /// ## Returns
 /// A new FormModel with the provided configuration
 pub fn init_with_config(
   schema: JsonSchema,
   submit_config: Option(SubmitConfig),
 ) -> FormModel {
+  init_with_full_config(schema, submit_config, False, dict.new())
+}
+
+/// Initialize a new form model with full configuration including readOnly and initial values.
+///
+/// Creates a form with all configuration options.
+///
+/// ## Parameters
+/// - `schema`: The JSON Schema definition for this form
+/// - `submit_config`: Optional submission configuration
+/// - `show_readonly_fields`: Whether to display readOnly fields
+/// - `initial_values`: Initial values to populate the form with
+///
+/// ## Returns
+/// A new FormModel with the provided configuration
+pub fn init_with_full_config(
+  schema: JsonSchema,
+  submit_config: Option(SubmitConfig),
+  show_readonly_fields: Bool,
+  initial_values: Dict(String, Value),
+) -> FormModel {
   // Initially, resolved_schema is the same as the base schema
   // It will be updated when form values change
   FormModel(
     schema: schema,
     resolved_schema: schema,
-    values: dict.new(),
+    values: initial_values,
     errors: dict.new(),
     is_submitting: False,
     is_dirty: False,
@@ -129,6 +152,7 @@ pub fn init_with_config(
     disabled_fields: [],
     submission_result: option.None,
     submit_config: submit_config,
+    show_readonly_fields: show_readonly_fields,
   )
 }
 
@@ -339,13 +363,13 @@ pub fn mark_field_touched(model: FormModel, field_name: String) -> FormModel {
 }
 
 /// Reset the form to its initial state.
-/// 
+///
 /// Clears all field values, errors, and resets all form state flags while
 /// preserving the original schema. This is like creating a fresh form.
-/// 
+///
 /// ## Parameters
 /// - `model`: The current form model (schema is preserved)
-/// 
+///
 /// ## Returns
 /// A new FormModel in initial state with the same schema
 pub fn reset(model: FormModel) -> FormModel {
@@ -362,6 +386,7 @@ pub fn reset(model: FormModel) -> FormModel {
     disabled_fields: [],
     submission_result: option.None,
     submit_config: model.submit_config,
+    show_readonly_fields: model.show_readonly_fields,
   )
 }
 
