@@ -10,7 +10,9 @@ import gleam/io
 pub fn main() {
   case component.register() {
     Ok(_) -> {
-      io.println("Formosh: Web Component <formosh-form> registered successfully")
+      io.println(
+        "Formosh: Web Component <formosh-form> registered successfully",
+      )
     }
     Error(_) -> {
       io.println("Formosh: Failed to register Web Component")
