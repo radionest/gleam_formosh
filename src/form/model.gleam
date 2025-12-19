@@ -184,7 +184,7 @@ pub fn is_field_required(model: FormModel, field_name: String) -> Bool {
 /// True if the field has one or more validation errors, False otherwise
 pub fn field_has_errors(model: FormModel, field_name: String) -> Bool {
   case dict.get(model.errors, field_name) {
-    Ok(errors) -> list.length(errors) > 0
+    Ok(errors) -> errors != []
     Error(_) -> False
   }
 }
@@ -532,7 +532,7 @@ pub fn is_required_at_path(model: FormModel, field_path: FieldPath) -> Bool {
 pub fn has_errors_at_path(model: FormModel, field_path: FieldPath) -> Bool {
   let path_key = path.to_string(field_path)
   case dict.get(model.errors, path_key) {
-    Ok(errors) -> list.length(errors) > 0
+    Ok(errors) -> errors != []
     Error(_) -> False
   }
 }

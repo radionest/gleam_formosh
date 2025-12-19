@@ -210,9 +210,9 @@ fn merge_properties(
     ),
     items: option.or(referencing.items, referenced.items),
     properties: option.or(referencing.properties, referenced.properties),
-    required: case list.length(referencing.required) > 0 {
-      True -> referencing.required
-      False -> referenced.required
+    required: case referencing.required {
+      [] -> referenced.required
+      [_,..] -> referencing.required
     },
     // readOnly is true if either property has it set
     read_only: referencing.read_only || referenced.read_only,
