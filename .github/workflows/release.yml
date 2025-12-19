@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: false
+        default: 'dev'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.1.2"
+          gleam-version: "1.12.0"
+          rebar3-version: "3"
+
+      - name: Install dependencies
+        run: gleam deps download
+
+      - name: Run tests
+        run: gleam test
+
+      - name: Build minified JS bundle
+        run: |
+          gleam run -m lustre/dev build app --entry=cdn --minify=true --outdir=dist
+
+      - name: Build non-minified JS bundle (for debugging)
+        run: |
+          gleam run -m lustre/dev build app --entry=cdn --minify=false --outdir=dist
+
+      - name: Create version info
+        run: |
+          VERSION="${{ github.event.release.tag_name || github.event.inputs.version || 'dev' }}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "// Formosh v$VERSION - $(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist/version.txt
+          echo "Built from: ${{ github.sha }}" >> dist/version.txt
+
+      - name: List built files
+        run: ls -la dist/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: formosh-${{ env.VERSION }}
+          path: dist/
+
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.mjs
+            dist/version.txt
+
+  # Publish to npm for unpkg/jsdelivr CDN
+  publish-npm:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.1.2"
+          gleam-version: "1.12.0"
+          rebar3-version: "3"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Gleam dependencies
+        run: gleam deps download
+
+      - name: Build for npm
+        run: |
+          gleam run -m lustre/dev build app --entry=cdn --minify=true --outdir=dist
+          gleam run -m lustre/dev build app --entry=cdn --minify=false --outdir=dist
+
+      - name: Update package.json version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          # Remove 'v' prefix if present
+          VERSION="${VERSION#v}"
+          npm version $VERSION --no-git-tag-version --allow-same-version
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

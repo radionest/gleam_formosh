@@ -1,5 +1,7 @@
 *.beam
 *.ez
+*.mjs
+
 /build
 erl_crash.dump
 
@@ -7,3 +9,4 @@ erl_crash.dump
 priv/static/*.mjs
 priv/static/example/
 erl_crash.dump
+

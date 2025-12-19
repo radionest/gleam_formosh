@@ -1,0 +1,45 @@
+{
+  "name": "formosh",
+  "version": "0.1.0",
+  "description": "Type-safe JSON Schema form generator for Gleam/Lustre",
+  "main": "dist/cdn.min.mjs",
+  "module": "dist/cdn.min.mjs",
+  "unpkg": "dist/cdn.min.mjs",
+  "jsdelivr": "dist/cdn.min.mjs",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/cdn.min.mjs",
+      "default": "./dist/cdn.min.mjs"
+    },
+    "./debug": {
+      "import": "./dist/cdn.mjs",
+      "default": "./dist/cdn.mjs"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "gleam run -m lustre/dev build app --entry=cdn --minify=true --outdir=dist",
+    "build:dev": "gleam run -m lustre/dev build app --entry=cdn --minify=false --outdir=dist",
+    "build:all": "npm run build && npm run build:dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/radionest/gleam_formosh.git"
+  },
+  "keywords": [
+    "gleam",
+    "lustre",
+    "json-schema",
+    "form-generator",
+    "webcomponent"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/radionest/gleam_formosh/issues"
+  },
+  "homepage": "https://github.com/radionest/gleam_formosh#readme"
+}
