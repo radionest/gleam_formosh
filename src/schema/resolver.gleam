@@ -212,7 +212,7 @@ fn merge_properties(
     properties: option.or(referencing.properties, referenced.properties),
     required: case referencing.required {
       [] -> referenced.required
-      [_,..] -> referencing.required
+      [_, ..] -> referencing.required
     },
     // readOnly is true if either property has it set
     read_only: referencing.read_only || referenced.read_only,
