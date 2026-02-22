@@ -5,7 +5,7 @@
 import formosh/form/json_utils
 import formosh/form/model.{
   type FormModel, type FormMsg, FormSubmit, FormSubmitted, HttpSubmit,
-  init_with_config,
+  init_with_full_config,
 }
 import formosh/form/update.{validate_all_fields}
 import formosh/form/view
@@ -64,6 +64,16 @@ pub fn register() -> Result(Nil, lustre.Error) {
       component.on_attribute_change("css-prefix", fn(value) {
         Ok(CssPrefixChanged(value))
       }),
+      // Listen for initial values changes (JSON string)
+      component.on_attribute_change("initial-values", fn(value) {
+        case json_utils.json_string_to_values(value) {
+          Ok(values) -> Ok(InitialValuesChanged(values))
+          Error(_) -> {
+            io.println_error("formosh: initial-values parse error")
+            Error(Nil)
+          }
+        }
+      }),
     ])
 
   lustre.register(component, "formosh-form")
@@ -120,6 +130,11 @@ pub fn css_prefix(prefix: String) -> Attribute(msg) {
   attribute.attribute("css-prefix", prefix)
 }
 
+/// Set initial values for the form as a JSON string.
+pub fn initial_values_string(json: String) -> Attribute(msg) {
+  attribute.attribute("initial-values", json)
+}
+
 /// Listen for form submission events.
 /// 
 /// The handler receives the form data as a JSON object in the event detail.
@@ -163,6 +178,8 @@ type Model {
     submit_url: Option(String),
     submit_method: String,
     css_prefix: String,
+    // Initial values to populate the form with
+    initial_values: dict.Dict(String, Value),
   )
 }
 
@@ -173,6 +190,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       submit_url: None,
       submit_method: "POST",
       css_prefix: "formosh",
+      initial_values: dict.new(),
     ),
     effect.none(),
   )
@@ -187,6 +205,7 @@ type Msg {
   SubmitUrlChanged(String)
   SubmitMethodChanged(String)
   CssPrefixChanged(String)
+  InitialValuesChanged(dict.Dict(String, Value))
 
   // Form messages (wrapped)
   FormMessage(FormMsg)
@@ -208,8 +227,9 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
     None -> None
   }
 
-  // Initialize form with the schema and submit config
-  let form_model = init_with_config(schema, submit_config)
+  // Initialize form with the schema, submit config, and initial values
+  let form_model =
+    init_with_full_config(schema, submit_config, False, model.initial_values)
   // Validate the form initially to check required fields
   let validated_form = validate_all_fields(form_model)
   Model(..model, form_model: Some(validated_form))
@@ -261,6 +281,17 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
     CssPrefixChanged(prefix) -> {
       #(Model(..model, css_prefix: prefix), effect.none())
+    }
+
+    InitialValuesChanged(values) -> {
+      let new_model = Model(..model, initial_values: values)
+      // If schema already loaded, reinitialize with new initial values
+      let final_model = case new_model.form_model {
+        Some(form_model) ->
+          reinitialize_form_with_schema(new_model, form_model.schema)
+        None -> new_model
+      }
+      #(final_model, effect.none())
     }
 
     FormMessage(form_msg) -> {

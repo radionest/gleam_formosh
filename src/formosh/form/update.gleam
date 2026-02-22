@@ -289,6 +289,27 @@ fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
               })
           }
         }
+        "PATCH" -> {
+          case request.to(url) {
+            Ok(req) -> {
+              let patch_request =
+                req
+                |> request.set_method(http.Patch)
+                |> request.set_header("content-type", "application/json")
+                |> request.set_body(json_string)
+
+              rsvp.send(
+                patch_request,
+                rsvp.expect_any_response(handle_http_response),
+              )
+            }
+            Error(_) ->
+              effect.from(fn(dispatch) {
+                dispatch(FormSubmitted(Error("Invalid URL: " <> url)))
+                Nil
+              })
+          }
+        }
         "GET" ->
           // For GET, we would need to add query params - not implemented yet
           effect.from(fn(dispatch) {

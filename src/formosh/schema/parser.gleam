@@ -516,7 +516,7 @@ fn format_decoder() -> Decoder(types.StringFormat) {
 /// This decoder can handle any valid JSON value (string, number, boolean,
 /// array, object, null) and converts it to the appropriate Value variant.
 /// It's used for parsing enum options and default values in schemas.
-fn value_decoder() -> Decoder(Value) {
+pub fn value_decoder() -> Decoder(Value) {
   use dynamic_value <- decode.then(decode.dynamic)
 
   // Try different decoders in order of preference
