@@ -55,9 +55,11 @@ pub fn view(model: FormModel) -> Element(FormMsg) {
 /// A Lustre Element containing the form header
 fn render_form_header(model: FormModel) -> Element(FormMsg) {
   html.div([attribute.class("formosh-header")], [
-    html.h2([attribute.class("formosh-title")], [
-      html.text(model.schema.title),
-    ]),
+    case model.schema.title {
+      Some(title) ->
+        html.h2([attribute.class("formosh-title")], [html.text(title)])
+      None -> html.text("")
+    },
     case model.schema.description {
       Some(desc) ->
         html.p([attribute.class("formosh-description")], [html.text(desc)])

@@ -13,7 +13,7 @@ import gleeunit/should
 pub fn serialize_basic_string_schema_test() {
   let schema =
     JsonSchema(
-      title: "Basic String",
+      title: Some("Basic String"),
       description: Some("A simple string field"),
       field_type: ObjectType,
       properties: dict.from_list([
@@ -72,7 +72,7 @@ pub fn serialize_basic_string_schema_test() {
 pub fn serialize_string_with_constraints_test() {
   let schema =
     JsonSchema(
-      title: "Constrained String",
+      title: Some("Constrained String"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -129,7 +129,7 @@ pub fn serialize_string_with_constraints_test() {
 pub fn serialize_number_with_constraints_test() {
   let schema =
     JsonSchema(
-      title: "Number Field",
+      title: Some("Number Field"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -191,7 +191,7 @@ pub fn serialize_number_with_constraints_test() {
 pub fn serialize_enum_field_test() {
   let schema =
     JsonSchema(
-      title: "Enum Field",
+      title: Some("Enum Field"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -239,7 +239,7 @@ pub fn serialize_enum_field_test() {
 pub fn serialize_array_field_test() {
   let schema =
     JsonSchema(
-      title: "Array Field",
+      title: Some("Array Field"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -309,7 +309,7 @@ pub fn serialize_array_field_test() {
 pub fn serialize_nested_object_test() {
   let schema =
     JsonSchema(
-      title: "Nested Object",
+      title: Some("Nested Object"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -399,7 +399,7 @@ pub fn serialize_nested_object_test() {
 pub fn serialize_ref_field_test() {
   let schema =
     JsonSchema(
-      title: "Schema with $ref",
+      title: Some("Schema with $ref"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -487,7 +487,7 @@ pub fn serialize_ref_field_test() {
 pub fn serialize_conditional_schema_test() {
   let schema =
     JsonSchema(
-      title: "Conditional Schema",
+      title: Some("Conditional Schema"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -607,7 +607,7 @@ pub fn serialize_conditional_schema_test() {
 pub fn serialize_boolean_field_test() {
   let schema =
     JsonSchema(
-      title: "Boolean Field",
+      title: Some("Boolean Field"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -655,7 +655,7 @@ pub fn serialize_boolean_field_test() {
 pub fn serialize_date_format_test() {
   let schema =
     JsonSchema(
-      title: "Date Field",
+      title: Some("Date Field"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -704,7 +704,7 @@ pub fn serialize_date_format_test() {
 pub fn serialize_exclusive_constraints_test() {
   let schema =
     JsonSchema(
-      title: "Exclusive Constraints",
+      title: Some("Exclusive Constraints"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([
@@ -754,7 +754,7 @@ pub fn serialize_exclusive_constraints_test() {
 pub fn serialize_multiple_conditionals_test() {
   let schema =
     JsonSchema(
-      title: "Multiple Conditionals",
+      title: Some("Multiple Conditionals"),
       description: None,
       field_type: ObjectType,
       properties: dict.from_list([

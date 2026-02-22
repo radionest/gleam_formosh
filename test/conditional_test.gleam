@@ -66,7 +66,7 @@ pub fn conditional_field_appears_when_condition_met_test() {
 
   let schema =
     JsonSchema(
-      title: "Test Form",
+      title: Some("Test Form"),
       description: None,
       field_type: types.ObjectType,
       properties: base_properties,
@@ -181,7 +181,7 @@ pub fn conditional_else_branch_test() {
 
   let schema =
     JsonSchema(
-      title: "Test Form",
+      title: Some("Test Form"),
       description: None,
       field_type: types.ObjectType,
       properties: base_properties,
@@ -280,7 +280,7 @@ pub fn is_field_visible_test() {
 
   let schema =
     JsonSchema(
-      title: "Test Form",
+      title: Some("Test Form"),
       description: None,
       field_type: types.ObjectType,
       properties: base_properties,

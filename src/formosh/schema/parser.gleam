@@ -85,7 +85,11 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
 /// description, type, properties, required fields, and any root-level
 /// validation constraints.
 fn schema_decoder() -> Decoder(JsonSchema) {
-  use title <- decode.field("title", decode.string)
+  use title <- decode.optional_field(
+    "title",
+    None,
+    decode.optional(decode.string),
+  )
   use description <- decode.optional_field(
     "description",
     None,

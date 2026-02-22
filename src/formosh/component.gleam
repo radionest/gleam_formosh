@@ -14,9 +14,11 @@ import formosh/schema/serializer
 import formosh/schema/types.{type JsonSchema, type Value}
 import gleam/dict
 import gleam/dynamic/decode
+import gleam/io
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import lustre
 import lustre/attribute.{type Attribute}
 import lustre/component
@@ -42,7 +44,12 @@ pub fn register() -> Result(Nil, lustre.Error) {
       component.on_attribute_change("schema", fn(value) {
         case parser.parse_schema(value) {
           Ok(schema) -> Ok(SchemaChanged(schema))
-          Error(_) -> Error(Nil)
+          Error(error) -> {
+            io.println_error(
+              "formosh: schema parse error: " <> string.inspect(error),
+            )
+            Error(Nil)
+          }
         }
       }),
       // Listen for submit URL changes

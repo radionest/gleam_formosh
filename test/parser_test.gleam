@@ -17,7 +17,7 @@ pub fn simple_string_schema_test() {
 
   case result {
     Ok(schema) -> {
-      should.equal(schema.title, "Simple String Field")
+      should.equal(schema.title, Some("Simple String Field"))
       should.equal(schema.field_type, types.StringType)
 
       case schema.string_constraints {
@@ -55,7 +55,7 @@ pub fn object_with_properties_test() {
 
   case result {
     Ok(schema) -> {
-      should.equal(schema.title, "User Registration")
+      should.equal(schema.title, Some("User Registration"))
       should.equal(schema.field_type, types.ObjectType)
       should.equal(schema.required, ["name"])
 
@@ -83,10 +83,36 @@ pub fn array_with_items_test() {
 
   case result {
     Ok(schema) -> {
-      should.equal(schema.title, "Number List")
+      should.equal(schema.title, Some("Number List"))
       should.equal(schema.field_type, types.ArrayType)
     }
     Error(_) -> panic as "Parser should succeed"
+  }
+}
+
+pub fn schema_without_title_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"name\": {
+        \"type\": \"string\"
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  case result {
+    Ok(schema) -> {
+      should.equal(schema.title, None)
+      should.equal(schema.field_type, types.ObjectType)
+
+      let property_count = dict.size(schema.properties)
+      should.equal(property_count, 1)
+    }
+    Error(_) -> panic as "Parser should succeed for schema without title"
   }
 }
 

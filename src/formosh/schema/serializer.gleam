@@ -115,9 +115,9 @@ pub fn schema_to_json(schema: JsonSchema) -> json.Json {
   []
   |> add_fields([
     #("$schema", json.string("https://json-schema.org/draft/2020-12/schema")),
-    #("title", json.string(schema.title)),
     #("type", json.string(field_type_to_string(schema.field_type))),
   ])
+  |> add_optional_json_field("title", schema.title, json.string)
   |> add_optional_json_field("description", schema.description, json.string)
   |> add_properties_object(schema.properties)
   |> add_required_array(schema.required)

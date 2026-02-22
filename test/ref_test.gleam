@@ -50,7 +50,7 @@ pub fn simple_ref_test() {
 
   case result {
     Ok(schema) -> {
-      should.equal(schema.title, "Person Form")
+      should.equal(schema.title, Some("Person Form"))
 
       // Check that both address properties have been resolved
       case dict.get(schema.properties, "billing_address") {

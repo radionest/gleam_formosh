@@ -135,7 +135,7 @@ pub type ConditionalRule {
 /// behavior based on runtime form values.
 pub type JsonSchema {
   JsonSchema(
-    title: String,
+    title: Option(String),
     description: Option(String),
     field_type: FieldType,
     properties: Dict(String, SchemaProperty),

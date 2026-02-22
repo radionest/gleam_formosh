@@ -51,7 +51,7 @@ pub fn complex_lesion_schema_test() {
   case result {
     Ok(schema) -> {
       // Check main schema properties
-      should.equal(schema.title, "Измерение образований")
+      should.equal(schema.title, Some("Измерение образований"))
       should.equal(schema.field_type, types.ObjectType)
       should.equal(schema.required, ["lesions"])
 
@@ -113,7 +113,7 @@ pub fn enum_values_test() {
 
   case result {
     Ok(schema) -> {
-      should.equal(schema.title, "Color Choice")
+      should.equal(schema.title, Some("Color Choice"))
       should.equal(schema.field_type, types.StringType)
     }
     Error(_) -> panic as "Parser should succeed"

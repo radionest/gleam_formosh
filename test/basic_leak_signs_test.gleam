@@ -4,6 +4,7 @@ import formosh/schema/parser
 import formosh/schema/types.{BooleanValue}
 import gleam/dict
 import gleam/list
+import gleam/option.{Some}
 import gleeunit
 import gleeunit/should
 import simplifile
@@ -27,7 +28,7 @@ pub fn parse_basic_leak_signs_schema_test() {
 
   // Should have a title
   schema.title
-  |> should.equal("Оценка базовых признаков несостоятельности")
+  |> should.equal(Some("Оценка базовых признаков несостоятельности"))
 
   // Should have base properties
   schema.properties
