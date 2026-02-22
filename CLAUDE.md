@@ -49,19 +49,21 @@ Critical for nested data handling:
 // Example: [PropertySegment("lesions"), ArraySegment(0), PropertySegment("side")] → lesions[0].side
 
 // Path operations in src/form/path.gleam:
-path_to_string(path: Path) -> String  // Convert to dot notation
-get_parent_path(path: Path) -> Path   // Navigate up hierarchy
-get_field_name(path: Path) -> String  // Extract final segment
+to_string(path: FieldPath) -> String    // Convert to dot notation
+get_field_name(path: FieldPath) -> String  // Extract final segment
 ```
 
 ### Core Modules
 - `src/formosh.gleam`: Public API entry point
-- `src/formosh/component.gleam`: Web Component integration
+- `src/component.gleam`: Web Component integration
+- `src/cdn.gleam`: CDN entry point for Web Component auto-registration
 - `src/schema/`: JSON Schema parsing and validation
   - `types.gleam`: Core schema type definitions
   - `parser.gleam`: JSON to schema conversion
   - `validator.gleam`: Validation rule execution
-  - `resolver.gleam`: $ref and conditional resolution
+  - `resolver.gleam`: $ref resolution
+  - `conditional_resolver.gleam`: if/then/else conditional schema resolution
+  - `serializer.gleam`: Schema-to-JSON serialization
 - `src/form/`: MVU components and state management
   - `model.gleam`: Form state with field map
   - `update.gleam`: All state transitions and effects
@@ -69,8 +71,8 @@ get_field_name(path: Path) -> String  // Extract final segment
   - `path.gleam`: Path manipulation utilities
   - `json_utils.gleam`: JSON value utilities
 - `src/fields/`: Field-specific rendering logic
-  - Each field type has dedicated renderer
-  - Handles both display and input generation
+  - `string_field.gleam`, `number_field.gleam`, `boolean_field.gleam`, `array_field.gleam`, `object_field.gleam`: Per-type renderers
+  - `field_common.gleam`: Shared rendering utilities (help text, labels, etc.)
 - `src/validation/`: Validation utilities
   - `field_requirements.gleam`: Field requirement validation
 
@@ -137,6 +139,7 @@ Main functions in `src/formosh.gleam`:
 // Core form creation
 from_schema(schema: JsonSchema) -> lustre.App(Nil, FormModel, FormMsg)
 from_json_string(json: String) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError)
+from_json_string_with_config(json_string: String, submit_config: SubmitConfig) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError)
 
 // Configuration builder pattern
 config(schema: JsonSchema) -> FormConfig
@@ -146,6 +149,8 @@ with_submit_url(config, url) -> FormConfig
 with_custom_submit(config, handler) -> FormConfig
 with_css_prefix(config, prefix) -> FormConfig
 with_show_errors_on_change(config, show) -> FormConfig
+with_show_readonly_fields(config, show) -> FormConfig
+with_initial_values(config, values) -> FormConfig
 
 // Utility functions
 get_values(model: FormModel) -> Dict(String, Value)
@@ -154,6 +159,7 @@ get_values(model: FormModel) -> Dict(String, Value)
 ## Important Files
 
 - `index.html`: Development UI with embedded CSS
+- `index_example.html`: Comprehensive example with multiple schemas
 - `gleam.toml`: Dependencies and configuration
 - `SHOULD_KNOW.md`: Detailed Gleam API quirks documentation
 - `manifest.toml`: Package metadata
@@ -167,17 +173,17 @@ get_values(model: FormModel) -> Dict(String, Value)
 The schema resolver handles complex JSON Schema features:
 
 1. **$ref Resolution** (`src/schema/resolver.gleam`):
-   - Resolves internal references (#/definitions/...)
+   - Resolves internal references (`#/$defs/...` and `#/definitions/...`)
    - Maintains visited set to prevent circular references
    - Merges resolved schemas with parent properties
 
-2. **Conditional Schemas** (if/then/else):
-   - Evaluates conditions based on current form values
+2. **Conditional Schemas** (`src/schema/conditional_resolver.gleam`):
+   - Evaluates if/then/else conditions based on current form values
    - Dynamically switches schema based on field values
    - Properly merges conditional properties
 
 3. **Composition Keywords**:
-   - `allOf`: Merges all schemas (currently implemented)
+   - `allOf`: Used for extracting conditional schemas (if/then/else within allOf items)
    - `oneOf/anyOf`: Not yet implemented
 
 ### Value Storage System
@@ -202,11 +208,10 @@ HTTP submissions use the rsvp library:
 - Manages loading states
 
 ### Web Component Integration
-The `formosh/component.gleam` module:
-- Exports as custom HTML element
-- Handles attribute changes
-- Emits custom events for parent communication
-- Manages shadow DOM isolation
+The `component.gleam` module:
+- Registers as `<formosh-form>` custom HTML element
+- Handles attribute changes (`schema`, `submit-url`, `submit-method`, `css-prefix`)
+- Emits custom events (`formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`)
 
 ## Common Pitfalls & Solutions
 
@@ -216,7 +221,7 @@ The `formosh/component.gleam` module:
 
 ### Validation Timing
 - **Problem**: Validation errors shown too early
-- **Solution**: Check `touched` state before displaying errors
+- **Solution**: Check `touched_fields` state before displaying errors
 
 ### Array Field Indexing
 - **Problem**: Index out of bounds after deletion
@@ -232,12 +237,12 @@ The `formosh/component.gleam` module:
    ```gleam
    io.debug(model.values)  // Check current values
    io.debug(model.errors)  // Check validation errors
-   io.debug(model.touched) // Check touched fields
+   io.debug(model.touched_fields) // Check touched fields
    ```
 
 2. **Path Debugging**:
    ```gleam
-   io.debug(path_to_string(field.path))  // Verify path construction
+   io.debug(path.to_string(field.path))  // Verify path construction
    ```
 
 3. **Schema Resolution**:
@@ -258,10 +263,11 @@ The `formosh/component.gleam` module:
 
 ## Dependencies
 
-- `lustre`: Web framework (5.3.4+)
-- `gleam_json`: JSON parsing (3.0.0+)
-- `gleam_stdlib`: Standard library
-- `gleam_dynamic`: Dynamic type decoding
-- `rsvp`: HTTP client for submissions
+- `lustre`: Web framework (>= 5.3.4)
+- `gleam_json`: JSON parsing (>= 3.0.0)
+- `gleam_stdlib`: Standard library (>= 0.44.0)
+- `gleam_http`: HTTP types (>= 4.1.1)
+- `rsvp`: HTTP client for submissions (>= 1.1.3)
+- `simplifile`: File system operations (>= 2.3.1)
 - `gleeunit`: Testing framework (dev)
 - `lustre_dev_tools`: Development server (dev)
