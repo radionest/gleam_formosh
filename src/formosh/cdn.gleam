@@ -2,7 +2,7 @@
 // This module is used as the entry point for CDN builds.
 // It auto-registers the Web Component and exposes the API.
 
-import component
+import formosh/component
 import gleam/io
 
 /// Main function called when the bundle is loaded.

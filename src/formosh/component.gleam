@@ -2,13 +2,16 @@
 // This module provides a Lustre component that can be embedded in applications
 // with configurable submission endpoint and other properties.
 
-import form/json_utils
-import form/model.{
+import formosh/form/json_utils
+import formosh/form/model.{
   type FormModel, type FormMsg, FormSubmit, FormSubmitted, HttpSubmit,
   init_with_config,
 }
-import form/update.{validate_all_fields}
-import form/view
+import formosh/form/update.{validate_all_fields}
+import formosh/form/view
+import formosh/schema/parser
+import formosh/schema/serializer
+import formosh/schema/types.{type JsonSchema, type Value}
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
@@ -20,9 +23,6 @@ import lustre/component
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/event
-import schema/parser
-import schema/serializer
-import schema/types.{type JsonSchema, type Value}
 
 // COMPONENT CONFIGURATION -----------------------------------------------------
 

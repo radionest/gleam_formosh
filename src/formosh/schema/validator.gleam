@@ -1,15 +1,15 @@
 // Validation functions for form fields
 
+import formosh/schema/types.{
+  type SchemaProperty, type ValidationError, type Value, BooleanValue,
+  IntegerValue, NullValue, NumberValue, StringValue, ValidationError,
+}
+import formosh/validation/field_requirements
 import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
-import schema/types.{
-  type SchemaProperty, type ValidationError, type Value, BooleanValue,
-  IntegerValue, NullValue, NumberValue, StringValue, ValidationError,
-}
-import validation/field_requirements
 
 /// Validate a field value against its schema property definition.
 /// 

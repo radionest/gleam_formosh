@@ -6,11 +6,12 @@
 /// 
 /// The array field supports nested object schemas with various field types
 /// including strings, numbers, booleans, and enums within each array item.
-import fields/boolean_field
-import fields/number_field
-import fields/string_field
-import form/model.{type FormMsg, AddArrayItemPath, RemoveArrayItemPath}
-import form/path
+import formosh/fields/boolean_field
+import formosh/fields/number_field
+import formosh/fields/string_field
+import formosh/form/model.{type FormMsg, AddArrayItemPath, RemoveArrayItemPath}
+import formosh/form/path
+import formosh/schema/types.{type SchemaProperty, type Value}
 import gleam/dict
 import gleam/int
 import gleam/list
@@ -20,7 +21,6 @@ import lustre/attribute.{class, type_}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import schema/types.{type SchemaProperty, type Value}
 
 /// Render an array field with dynamic add/remove functionality.
 /// 

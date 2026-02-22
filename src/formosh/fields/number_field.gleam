@@ -3,9 +3,10 @@
 /// This module handles rendering of numeric input fields for both integer
 /// and floating-point number types, with support for various numeric
 /// constraints like min/max values and step increments.
-import fields/field_common
-import form/model.{type FormMsg, UpdateFieldPath}
-import form/path
+import formosh/fields/field_common
+import formosh/form/model.{type FormMsg, UpdateFieldPath}
+import formosh/form/path
+import formosh/schema/types
 import gleam/float
 import gleam/int
 import gleam/list
@@ -14,7 +15,6 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import schema/types
 
 /// Render a number or integer input field.
 ///

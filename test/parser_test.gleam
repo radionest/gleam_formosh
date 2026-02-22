@@ -1,8 +1,8 @@
+import formosh/schema/parser
+import formosh/schema/types
 import gleam/dict
 import gleam/option.{None, Some}
 import gleeunit/should
-import schema/parser
-import schema/types
 
 pub fn simple_string_schema_test() {
   let json =

@@ -1,11 +1,11 @@
 // Form model for MVU architecture
 
-import form/path.{type FieldPath}
+import formosh/form/path.{type FieldPath}
+import formosh/schema/types.{type JsonSchema, type ValidationError, type Value}
+import formosh/validation/field_requirements
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option}
-import schema/types.{type JsonSchema, type ValidationError, type Value}
-import validation/field_requirements
 
 /// Configuration for form submission behavior.
 /// 

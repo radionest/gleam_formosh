@@ -1,11 +1,11 @@
 // JSON utility functions for form value conversion
 
-import gleam/json
-import gleam/list
-import schema/types.{
+import formosh/schema/types.{
   type Value, ArrayValue, BooleanValue, IntegerValue, NullValue, NumberValue,
   ObjectValue, StringValue,
 }
+import gleam/json
+import gleam/list
 
 /// Convert a Value to JSON for serialization.
 pub fn value_to_json(value: Value) -> json.Json {

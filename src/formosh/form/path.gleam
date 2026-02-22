@@ -1,8 +1,8 @@
+import formosh/schema/types
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
-import schema/types
 
 /// Represents a path to a field in a nested data structure.
 /// This allows addressing fields at any depth, including nested objects and arrays.

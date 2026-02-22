@@ -2,12 +2,12 @@
 // This module provides a single source of truth for checking if fields are required
 // and validating required field values, eliminating code duplication across the codebase.
 
-import gleam/list
-import gleam/option.{type Option, None, Some}
-import schema/types.{
+import formosh/schema/types.{
   type JsonSchema, type ValidationError, type Value, NullValue, StringValue,
   ValidationError,
 }
+import gleam/list
+import gleam/option.{type Option, None, Some}
 
 /// Check if a field is required according to the schema.
 ///

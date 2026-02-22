@@ -1,14 +1,14 @@
+import formosh/schema/serializer
+import formosh/schema/types.{
+  ArrayType, BooleanType, DateFormat, EmailFormat, IntegerType, IntegerValue,
+  JsonSchema, NumberConstraints, NumberType, ObjectType, SchemaProperty,
+  StringConstraints, StringType, StringValue,
+}
 import gleam/dict
 import gleam/json
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
-import schema/serializer
-import schema/types.{
-  ArrayType, BooleanType, DateFormat, EmailFormat, IntegerType, IntegerValue,
-  JsonSchema, NumberConstraints, NumberType, ObjectType, SchemaProperty,
-  StringConstraints, StringType, StringValue,
-}
 
 pub fn serialize_basic_string_schema_test() {
   let schema =

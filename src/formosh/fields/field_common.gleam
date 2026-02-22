@@ -1,7 +1,8 @@
 // Common field rendering utilities
 
-import form/model.{type FormMsg, UpdateFieldPath}
-import form/path
+import formosh/form/model.{type FormMsg, UpdateFieldPath}
+import formosh/form/path
+import formosh/schema/types
 import gleam/float
 import gleam/int
 import gleam/option.{type Option, None, Some}
@@ -10,7 +11,6 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import schema/types
 
 /// Create a field label from path and property.
 /// 

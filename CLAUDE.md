@@ -38,9 +38,9 @@ gleam run
 
 ### MVU Architecture Pattern
 The codebase strictly follows Model-View-Update separation:
-- **Model** (`form/model.gleam`): Immutable state with path-based field addressing
-- **Update** (`form/update.gleam`): Pure functions for all state transitions
-- **View** (`form/view.gleam`): Declarative HTML generation
+- **Model** (`formosh/form/model.gleam`): Immutable state with path-based field addressing
+- **Update** (`formosh/form/update.gleam`): Pure functions for all state transitions
+- **View** (`formosh/form/view.gleam`): Declarative HTML generation
 
 ### Path-Based Field System
 Critical for nested data handling:
@@ -48,32 +48,32 @@ Critical for nested data handling:
 // Path segments: PropertySegment(name) or ArraySegment(index)
 // Example: [PropertySegment("lesions"), ArraySegment(0), PropertySegment("side")] → lesions[0].side
 
-// Path operations in src/form/path.gleam:
+// Path operations in src/formosh/form/path.gleam:
 to_string(path: FieldPath) -> String    // Convert to dot notation
 get_field_name(path: FieldPath) -> String  // Extract final segment
 ```
 
 ### Core Modules
 - `src/formosh.gleam`: Public API entry point
-- `src/component.gleam`: Web Component integration
-- `src/cdn.gleam`: CDN entry point for Web Component auto-registration
-- `src/schema/`: JSON Schema parsing and validation
+- `src/formosh/component.gleam`: Web Component integration
+- `src/formosh/cdn.gleam`: CDN entry point for Web Component auto-registration
+- `src/formosh/schema/`: JSON Schema parsing and validation
   - `types.gleam`: Core schema type definitions
   - `parser.gleam`: JSON to schema conversion
   - `validator.gleam`: Validation rule execution
   - `resolver.gleam`: $ref resolution
   - `conditional_resolver.gleam`: if/then/else conditional schema resolution
   - `serializer.gleam`: Schema-to-JSON serialization
-- `src/form/`: MVU components and state management
+- `src/formosh/form/`: MVU components and state management
   - `model.gleam`: Form state with field map
   - `update.gleam`: All state transitions and effects
   - `view.gleam`: HTML generation pipeline
   - `path.gleam`: Path manipulation utilities
   - `json_utils.gleam`: JSON value utilities
-- `src/fields/`: Field-specific rendering logic
+- `src/formosh/fields/`: Field-specific rendering logic
   - `string_field.gleam`, `number_field.gleam`, `boolean_field.gleam`, `array_field.gleam`, `object_field.gleam`: Per-type renderers
   - `field_common.gleam`: Shared rendering utilities (help text, labels, etc.)
-- `src/validation/`: Validation utilities
+- `src/formosh/validation/`: Validation utilities
   - `field_requirements.gleam`: Field requirement validation
 
 ## Critical Gleam/Dynamic Decoding Knowledge
@@ -172,12 +172,12 @@ get_values(model: FormModel) -> Dict(String, Value)
 ### Schema Resolution Pipeline
 The schema resolver handles complex JSON Schema features:
 
-1. **$ref Resolution** (`src/schema/resolver.gleam`):
+1. **$ref Resolution** (`src/formosh/schema/resolver.gleam`):
    - Resolves internal references (`#/$defs/...` and `#/definitions/...`)
    - Maintains visited set to prevent circular references
    - Merges resolved schemas with parent properties
 
-2. **Conditional Schemas** (`src/schema/conditional_resolver.gleam`):
+2. **Conditional Schemas** (`src/formosh/schema/conditional_resolver.gleam`):
    - Evaluates if/then/else conditions based on current form values
    - Dynamically switches schema based on field values
    - Properly merges conditional properties
@@ -208,7 +208,7 @@ HTTP submissions use the rsvp library:
 - Manages loading states
 
 ### Web Component Integration
-The `component.gleam` module:
+The `formosh/component.gleam` module:
 - Registers as `<formosh-form>` custom HTML element
 - Handles attribute changes (`schema`, `submit-url`, `submit-method`, `css-prefix`)
 - Emits custom events (`formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`)

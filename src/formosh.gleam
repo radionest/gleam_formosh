@@ -1,17 +1,17 @@
 // Main module for Formosh - JSON Schema based form generator
 
-import form/model.{
+import formosh/form/model.{
   type FormModel, type FormMsg, type SubmitConfig, CustomSubmit, HttpSubmit,
   NoSubmit,
 }
-import form/update
-import form/view
+import formosh/form/update
+import formosh/form/view
+import formosh/schema/parser
+import formosh/schema/types.{type JsonSchema, type Value}
 import gleam/dict.{type Dict}
 import gleam/option
 import lustre
 import lustre/effect
-import schema/parser
-import schema/types.{type JsonSchema, type Value}
 
 /// Configuration options for creating a form.
 ///

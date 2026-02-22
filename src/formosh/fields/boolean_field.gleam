@@ -3,15 +3,15 @@
 /// This module provides different ways to render boolean fields including
 /// radio buttons (Yes/No), checkboxes, and toggle switches. The default
 /// render function uses radio buttons for better accessibility and clarity.
-import fields/field_common
-import form/model.{type FormMsg, UpdateFieldPath}
-import form/path
+import formosh/fields/field_common
+import formosh/form/model.{type FormMsg, UpdateFieldPath}
+import formosh/form/path
+import formosh/schema/types
 import gleam/option.{type Option, None}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import schema/types
 
 /// Render a boolean field as radio buttons (Yes/No).
 ///

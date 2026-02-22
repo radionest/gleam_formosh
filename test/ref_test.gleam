@@ -1,12 +1,12 @@
 // Tests for JSON Schema $ref and $defs support
 
+import formosh/schema/parser
+import formosh/schema/types
 import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
-import schema/parser
-import schema/types
 
 /// Test simple $ref to a definition in $defs
 pub fn simple_ref_test() {

@@ -1,15 +1,15 @@
 /// Tests for JSON Schema conditional logic (if/then/else)
+import formosh/schema/conditional_resolver
+import formosh/schema/parser
+import formosh/schema/types.{
+  BooleanValue, ConditionalRule, JsonSchema, SchemaProperty, StringValue,
+  empty_property,
+}
 import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
-import schema/conditional_resolver
-import schema/parser
-import schema/types.{
-  BooleanValue, ConditionalRule, JsonSchema, SchemaProperty, StringValue,
-  empty_property,
-}
 
 pub fn main() {
   gleeunit.main()

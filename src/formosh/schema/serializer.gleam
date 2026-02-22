@@ -1,10 +1,6 @@
 // JSON Schema serialization functions
 
-import gleam/dict
-import gleam/json
-import gleam/list
-import gleam/option
-import schema/types.{
+import formosh/schema/types.{
   type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
   type SchemaProperty, type StringConstraints, type StringFormat, type Value,
   ArrayType, ArrayValue, BooleanType, BooleanValue, CustomFormat, DateFormat,
@@ -12,6 +8,10 @@ import schema/types.{
   NumberType, NumberValue, ObjectType, ObjectValue, RegexFormat, StringType,
   StringValue, TimeFormat, UriFormat, UrlFormat, UuidFormat,
 }
+import gleam/dict
+import gleam/json
+import gleam/list
+import gleam/option
 
 // Helper function to add a field if a value exists
 fn add_optional_json_field(

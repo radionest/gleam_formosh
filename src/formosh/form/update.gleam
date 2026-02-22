@@ -1,12 +1,16 @@
 // Update functions for form MVU
 
-import form/json_utils
-import form/model.{
+import formosh/form/json_utils
+import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit, FormSubmit,
   FormSubmitted, HttpSubmit, NoSubmit, RemoveArrayItemPath, ResetForm,
   SubmissionError, SubmissionSuccess, UpdateFieldPath, ValidateForm,
 }
-import form/path
+import formosh/form/path
+import formosh/schema/conditional_resolver
+import formosh/schema/types.{type Value}
+import formosh/schema/validator
+import formosh/validation/field_requirements
 import gleam/dict
 import gleam/http
 import gleam/http/request
@@ -16,10 +20,6 @@ import gleam/list
 import gleam/option.{None, Some}
 import lustre/effect.{type Effect}
 import rsvp
-import schema/conditional_resolver
-import schema/types.{type Value}
-import schema/validator
-import validation/field_requirements
 
 /// Main update function for the form MVU architecture.
 /// 

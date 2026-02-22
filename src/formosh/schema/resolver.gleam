@@ -3,12 +3,12 @@
 // This module handles the resolution of $ref pointers to their corresponding
 // schema definitions, supporting the JSON Pointer syntax used in JSON Schema.
 
+import formosh/schema/types.{type JsonSchema, type SchemaProperty}
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
-import schema/types.{type JsonSchema, type SchemaProperty}
 
 /// Errors that can occur during reference resolution
 pub type ResolveError {

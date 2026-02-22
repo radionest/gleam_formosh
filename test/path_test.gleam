@@ -1,7 +1,7 @@
-import form/path
+import formosh/form/path
+import formosh/schema/types
 import gleeunit
 import gleeunit/should
-import schema/types
 
 pub fn main() {
   gleeunit.main()

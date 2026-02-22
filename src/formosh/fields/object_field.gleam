@@ -3,18 +3,18 @@
 /// This module handles rendering of object fields that contain nested
 /// properties with their own field types. It recursively renders sub-fields
 /// based on the object's property schema.
-import fields/boolean_field
-import fields/number_field
-import fields/string_field
-import form/model.{type FormMsg}
-import form/path.{PropertySegment}
+import formosh/fields/boolean_field
+import formosh/fields/number_field
+import formosh/fields/string_field
+import formosh/form/model.{type FormMsg}
+import formosh/form/path.{PropertySegment}
+import formosh/schema/types.{type SchemaProperty, type Value}
 import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import lustre/attribute.{class}
 import lustre/element.{type Element}
 import lustre/element/html
-import schema/types.{type SchemaProperty, type Value}
 
 /// Render an object field with all its nested properties.
 ///

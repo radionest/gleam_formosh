@@ -1,12 +1,14 @@
 // View functions for form rendering
 
-import fields/array_field
-import fields/boolean_field
-import fields/number_field
-import fields/object_field
-import fields/string_field
-import form/model.{type FormModel, type FormMsg}
-import form/path
+import formosh/fields/array_field
+import formosh/fields/boolean_field
+import formosh/fields/number_field
+import formosh/fields/object_field
+import formosh/fields/string_field
+import formosh/form/model.{type FormModel, type FormMsg}
+import formosh/form/path
+import formosh/schema/types
+import formosh/validation/field_requirements
 import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
@@ -14,8 +16,6 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import schema/types
-import validation/field_requirements
 
 /// Render the entire form as a Lustre element.
 /// 

@@ -3,13 +3,13 @@
 /// This module implements the logic for resolving JSON Schema conditional
 /// rules (if/then/else) based on runtime form values, enabling dynamic
 /// field visibility and validation.
-import gleam/dict.{type Dict}
-import gleam/list
-import gleam/option.{None, Some}
-import schema/types.{
+import formosh/schema/types.{
   type ConditionalRule, type JsonSchema, type SchemaProperty, type Value,
   BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue, StringValue,
 }
+import gleam/dict.{type Dict}
+import gleam/list
+import gleam/option.{None, Some}
 
 /// Resolve a schema with conditional rules applied based on current form values.
 ///

@@ -1,12 +1,5 @@
-import gleam/dict.{type Dict}
-import gleam/dynamic.{type Dynamic}
-import gleam/dynamic/decode.{type Decoder}
-import gleam/json
-import gleam/list
-import gleam/option.{type Option, None, Some}
-import gleam/result
-import schema/resolver
-import schema/types.{
+import formosh/schema/resolver
+import formosh/schema/types.{
   type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
   type SchemaProperty, type StringConstraints, type Value, ArrayType,
   BooleanType, BooleanValue, ConditionalRule, CustomFormat, EmailFormat,
@@ -14,6 +7,13 @@ import schema/types.{
   NumberType, NumberValue, ObjectType, SchemaProperty, StringConstraints,
   StringType, StringValue, UrlFormat, UuidFormat,
 }
+import gleam/dict.{type Dict}
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode.{type Decoder}
+import gleam/json
+import gleam/list
+import gleam/option.{type Option, None, Some}
+import gleam/result
 
 /// Errors that can occur during JSON Schema parsing.
 /// 

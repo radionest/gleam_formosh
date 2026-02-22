@@ -1,11 +1,11 @@
 /// Test for parsing basic_leak_signs.json schema
+import formosh/schema/conditional_resolver
+import formosh/schema/parser
+import formosh/schema/types.{BooleanValue}
 import gleam/dict
 import gleam/list
 import gleeunit
 import gleeunit/should
-import schema/conditional_resolver
-import schema/parser
-import schema/types.{BooleanValue}
 import simplifile
 
 pub fn main() {
