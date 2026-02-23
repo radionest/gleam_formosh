@@ -12,8 +12,6 @@ import formosh/schema/types.{type Value}
 import formosh/schema/validator
 import formosh/validation/field_requirements
 import gleam/dict
-import gleam/http
-import gleam/http/request
 import gleam/http/response
 import gleam/json
 import gleam/list
@@ -257,8 +255,6 @@ fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
     Some(HttpSubmit(url, method, _headers)) -> {
       // Convert form values to JSON
       let json_data = values_to_json(model.values)
-      let json_string = json.to_string(json_data)
-
       // Make HTTP request based on method
       case method {
         "POST" ->
@@ -267,49 +263,18 @@ fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
             json_data,
             rsvp.expect_any_response(handle_http_response),
           )
-        "PUT" -> {
-          // Use rsvp.send for PUT requests
-          case request.to(url) {
-            Ok(req) -> {
-              let put_request =
-                req
-                |> request.set_method(http.Put)
-                |> request.set_header("content-type", "application/json")
-                |> request.set_body(json_string)
-
-              rsvp.send(
-                put_request,
-                rsvp.expect_any_response(handle_http_response),
-              )
-            }
-            Error(_) ->
-              effect.from(fn(dispatch) {
-                dispatch(FormSubmitted(Error("Invalid URL: " <> url)))
-                Nil
-              })
-          }
-        }
-        "PATCH" -> {
-          case request.to(url) {
-            Ok(req) -> {
-              let patch_request =
-                req
-                |> request.set_method(http.Patch)
-                |> request.set_header("content-type", "application/json")
-                |> request.set_body(json_string)
-
-              rsvp.send(
-                patch_request,
-                rsvp.expect_any_response(handle_http_response),
-              )
-            }
-            Error(_) ->
-              effect.from(fn(dispatch) {
-                dispatch(FormSubmitted(Error("Invalid URL: " <> url)))
-                Nil
-              })
-          }
-        }
+        "PUT" ->
+          rsvp.put(
+            url,
+            json_data,
+            rsvp.expect_any_response(handle_http_response),
+          )
+        "PATCH" ->
+          rsvp.patch(
+            url,
+            json_data,
+            rsvp.expect_any_response(handle_http_response),
+          )
         "GET" ->
           // For GET, we would need to add query params - not implemented yet
           effect.from(fn(dispatch) {
