@@ -90,6 +90,8 @@ pub type SchemaProperty {
     description: Option(String),
     default: Option(Value),
     enum_values: Option(List(Value)),
+    // oneOf composition keyword - list of sub-schemas
+    one_of: Option(List(SchemaProperty)),
     // Reference to another schema definition
     ref: Option(String),
     // Type-specific constraints
@@ -222,6 +224,7 @@ pub fn empty_property() -> SchemaProperty {
     description: None,
     default: None,
     enum_values: None,
+    one_of: None,
     ref: None,
     string_constraints: None,
     number_constraints: None,

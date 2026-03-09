@@ -104,39 +104,48 @@ fn resolve_property_ref(
   }
 }
 
+/// Apply a fallible function to an optional value, preserving None
+fn resolve_optional(
+  value: option.Option(a),
+  resolver: fn(a) -> Result(b, ResolveError),
+) -> Result(option.Option(b), ResolveError) {
+  case value {
+    Some(v) -> result.map(resolver(v), Some)
+    None -> Ok(None)
+  }
+}
+
 /// Resolve references in nested properties and items
 fn resolve_nested_refs(
   property: SchemaProperty,
   context: Dict(String, SchemaProperty),
   visited: List(String),
 ) -> Result(SchemaProperty, ResolveError) {
-  // Resolve references in nested object properties
-  use resolved_properties <- result.try(case property.properties {
-    Some(props) -> {
-      use resolved <- result.map(resolve_properties_refs(
-        props,
-        context,
-        visited,
-      ))
-      Some(resolved)
-    }
-    None -> Ok(None)
-  })
+  use resolved_properties <- result.try(
+    resolve_optional(property.properties, resolve_properties_refs(
+      _,
+      context,
+      visited,
+    )),
+  )
 
-  // Resolve references in array items
-  use resolved_items <- result.try(case property.items {
-    Some(items) -> {
-      use resolved <- result.map(resolve_property_ref(items, context, visited))
-      Some(resolved)
-    }
-    None -> Ok(None)
-  })
+  use resolved_items <- result.try(
+    resolve_optional(property.items, resolve_property_ref(_, context, visited)),
+  )
+
+  use resolved_one_of <- result.try(
+    resolve_optional(property.one_of, list.try_map(
+      _,
+      resolve_property_ref(_, context, visited),
+    )),
+  )
 
   Ok(
     types.SchemaProperty(
       ..property,
       properties: resolved_properties,
       items: resolved_items,
+      one_of: resolved_one_of,
     ),
   )
 }
@@ -198,6 +207,7 @@ fn merge_properties(
     description: option.or(referencing.description, referenced.description),
     default: option.or(referencing.default, referenced.default),
     enum_values: option.or(referencing.enum_values, referenced.enum_values),
+    one_of: option.or(referencing.one_of, referenced.one_of),
     ref: None,
     // Clear the ref since it's been resolved
     string_constraints: option.or(

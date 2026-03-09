@@ -8,6 +8,7 @@ import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -35,6 +36,44 @@ import lustre/event
 /// - Long text (maxLength > 100) → textarea
 /// - Regular strings → text input with appropriate HTML type
 pub fn render(
+  field_path: path.FieldPath,
+  property: types.SchemaProperty,
+  value: Option(types.Value),
+  is_required: Bool,
+  is_disabled: Bool,
+  is_readonly: Bool,
+) -> Element(FormMsg) {
+  // Check oneOf first (has const+title options), then enum_values
+  let one_of_options = case property.one_of {
+    Some(schemas) -> extract_one_of_options(schemas)
+    None -> []
+  }
+
+  case one_of_options {
+    [_, ..] ->
+      render_one_of_enum(
+        field_path,
+        property,
+        one_of_options,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
+    [] ->
+      render_string_or_enum(
+        field_path,
+        property,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
+  }
+}
+
+/// Render a string field as either enum or text input.
+fn render_string_or_enum(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
   value: Option(types.Value),
@@ -223,6 +262,44 @@ fn render_textarea(
 /// - ≤ 5 options: Radio button group for easy scanning
 /// - > 5 options: Select dropdown to save space
 pub fn render_enum(
+  field_path: path.FieldPath,
+  property: types.SchemaProperty,
+  value: Option(types.Value),
+  is_required: Bool,
+  is_disabled: Bool,
+  is_readonly: Bool,
+) -> Element(FormMsg) {
+  // Check oneOf first for const+title options
+  let one_of_options = case property.one_of {
+    Some(schemas) -> extract_one_of_options(schemas)
+    None -> []
+  }
+
+  case one_of_options {
+    [_, ..] ->
+      render_one_of_enum(
+        field_path,
+        property,
+        one_of_options,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
+    [] ->
+      render_regular_enum(
+        field_path,
+        property,
+        value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
+  }
+}
+
+/// Render a regular enum field (without oneOf).
+fn render_regular_enum(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
   value: Option(types.Value),
@@ -466,6 +543,155 @@ fn get_string_constraints_attributes(
     }
     None -> []
   }
+}
+
+/// Extract const+title option pairs from oneOf sub-schemas.
+///
+/// Each sub-schema with a single const value (stored as enum_values with one item)
+/// produces a (value, label) pair. The label comes from the sub-schema's title,
+/// falling back to the string representation of the const value.
+fn extract_one_of_options(
+  one_of: List(types.SchemaProperty),
+) -> List(#(String, String)) {
+  use schema <- list.filter_map(one_of)
+  use vals <- result.try(option.to_result(schema.enum_values, Nil))
+  use const_val <- result.try(case vals {
+    [val] -> Ok(val)
+    _ -> Error(Nil)
+  })
+  let value = value_to_string(const_val)
+  let label = option.unwrap(schema.title, value)
+  Ok(#(value, label))
+}
+
+/// Render a oneOf field with const+title options as radio buttons or select.
+fn render_one_of_enum(
+  field_path: path.FieldPath,
+  property: types.SchemaProperty,
+  options: List(#(String, String)),
+  value: Option(types.Value),
+  is_required: Bool,
+  is_disabled: Bool,
+  is_readonly: Bool,
+) -> Element(FormMsg) {
+  let current_value = field_common.extract_string_value(value)
+
+  case list.length(options) <= 5 {
+    True ->
+      render_one_of_radio_group(
+        field_path,
+        property,
+        options,
+        current_value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
+    False ->
+      render_one_of_select(
+        field_path,
+        property,
+        options,
+        current_value,
+        is_required,
+        is_disabled,
+        is_readonly,
+      )
+  }
+}
+
+/// Render radio buttons for oneOf const+title options.
+fn render_one_of_radio_group(
+  field_path: path.FieldPath,
+  property: types.SchemaProperty,
+  options: List(#(String, String)),
+  current_value: String,
+  is_required: Bool,
+  is_disabled: Bool,
+  is_readonly: Bool,
+) -> Element(FormMsg) {
+  let field_name = path.get_field_name(field_path)
+  let effective_disabled = is_disabled || is_readonly
+
+  let radio_group =
+    html.div(
+      [attribute.class("formosh-radio-group")],
+      list.map(options, fn(option) {
+        let #(value, label) = option
+        let radio_id = field_name <> "_" <> value
+
+        html.div([attribute.class("formosh-radio-item")], [
+          html.input([
+            attribute.type_("radio"),
+            attribute.id(radio_id),
+            attribute.name(field_name),
+            attribute.value(value),
+            attribute.checked(value == current_value),
+            attribute.required(is_required),
+            attribute.disabled(effective_disabled),
+            event.on_click(UpdateFieldPath(field_path, types.StringValue(value))),
+          ]),
+          html.label([attribute.for(radio_id)], [
+            html.text(label),
+          ]),
+        ])
+      }),
+    )
+
+  field_common.field_wrapper_with_path(
+    field_path,
+    property,
+    is_required,
+    radio_group,
+  )
+}
+
+/// Render a select dropdown for oneOf const+title options.
+fn render_one_of_select(
+  field_path: path.FieldPath,
+  property: types.SchemaProperty,
+  options: List(#(String, String)),
+  current_value: String,
+  is_required: Bool,
+  is_disabled: Bool,
+  is_readonly: Bool,
+) -> Element(FormMsg) {
+  let field_name = path.get_field_name(field_path)
+  let effective_disabled = is_disabled || is_readonly
+
+  let select_elem =
+    html.select(
+      [
+        attribute.id(field_name),
+        attribute.name(field_name),
+        attribute.class("formosh-select"),
+        attribute.required(is_required),
+        attribute.disabled(effective_disabled),
+        event.on_change(fn(val) {
+          UpdateFieldPath(field_path, types.StringValue(val))
+        }),
+      ],
+      [
+        html.option([attribute.value("")], "Select an option..."),
+        ..list.map(options, fn(option) {
+          let #(value, label) = option
+          html.option(
+            [
+              attribute.value(value),
+              attribute.selected(value == current_value),
+            ],
+            label,
+          )
+        })
+      ],
+    )
+
+  field_common.field_wrapper_with_path(
+    field_path,
+    property,
+    is_required,
+    select_elem,
+  )
 }
 
 /// Convert a Value to its string representation.

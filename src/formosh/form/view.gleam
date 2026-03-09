@@ -209,9 +209,9 @@ fn render_visible_field(
         is_readonly,
       )
     _ ->
-      // Handle enum or unknown types
-      case property.enum_values {
-        Some(_enum_vals) ->
+      // Handle enum, oneOf, or unknown types
+      case property.enum_values, property.one_of {
+        Some(_), _ | _, Some(_) ->
           string_field.render_enum(
             field_path,
             property,
@@ -220,7 +220,7 @@ fn render_visible_field(
             is_disabled,
             is_readonly,
           )
-        None -> html.div([], [])
+        None, None -> html.div([], [])
       }
   }
 

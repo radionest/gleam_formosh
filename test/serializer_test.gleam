@@ -25,6 +25,7 @@ pub fn serialize_basic_string_schema_test() {
             description: Some("Your name"),
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -84,6 +85,7 @@ pub fn serialize_string_with_constraints_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: Some(StringConstraints(
               min_length: Some(5),
@@ -141,6 +143,7 @@ pub fn serialize_number_with_constraints_test() {
             description: None,
             default: Some(IntegerValue(18)),
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: Some(NumberConstraints(
@@ -207,6 +210,7 @@ pub fn serialize_enum_field_test() {
               StringValue("green"),
               StringValue("blue"),
             ]),
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -251,6 +255,7 @@ pub fn serialize_array_field_test() {
             description: Some("List of tags"),
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -260,6 +265,7 @@ pub fn serialize_array_field_test() {
               description: None,
               default: None,
               enum_values: None,
+              one_of: None,
               ref: None,
               string_constraints: Some(StringConstraints(
                 min_length: Some(1),
@@ -321,6 +327,7 @@ pub fn serialize_nested_object_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -335,6 +342,7 @@ pub fn serialize_nested_object_test() {
                     description: None,
                     default: None,
                     enum_values: None,
+                    one_of: None,
                     ref: None,
                     string_constraints: None,
                     number_constraints: None,
@@ -352,6 +360,7 @@ pub fn serialize_nested_object_test() {
                     description: None,
                     default: None,
                     enum_values: None,
+                    one_of: None,
                     ref: None,
                     string_constraints: None,
                     number_constraints: None,
@@ -411,6 +420,7 @@ pub fn serialize_ref_field_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: Some("#/$defs/address"),
             string_constraints: None,
             number_constraints: None,
@@ -432,6 +442,7 @@ pub fn serialize_ref_field_test() {
               description: None,
               default: None,
               enum_values: None,
+              one_of: None,
               ref: None,
               string_constraints: None,
               number_constraints: None,
@@ -446,6 +457,7 @@ pub fn serialize_ref_field_test() {
                       description: None,
                       default: None,
                       enum_values: None,
+                      one_of: None,
                       ref: None,
                       string_constraints: None,
                       number_constraints: None,
@@ -499,6 +511,7 @@ pub fn serialize_conditional_schema_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -519,6 +532,7 @@ pub fn serialize_conditional_schema_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -533,6 +547,7 @@ pub fn serialize_conditional_schema_test() {
                     description: None,
                     default: None,
                     enum_values: Some([types.BooleanValue(True)]),
+                    one_of: None,
                     ref: None,
                     string_constraints: None,
                     number_constraints: None,
@@ -553,6 +568,7 @@ pub fn serialize_conditional_schema_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -567,6 +583,7 @@ pub fn serialize_conditional_schema_test() {
                     description: None,
                     default: None,
                     enum_values: None,
+                    one_of: None,
                     ref: None,
                     string_constraints: None,
                     number_constraints: None,
@@ -619,6 +636,7 @@ pub fn serialize_boolean_field_test() {
             description: Some("Whether the user is active"),
             default: Some(types.BooleanValue(True)),
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -667,6 +685,7 @@ pub fn serialize_date_format_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: Some(StringConstraints(
               min_length: None,
@@ -716,6 +735,7 @@ pub fn serialize_exclusive_constraints_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: Some(NumberConstraints(
@@ -769,6 +789,7 @@ pub fn serialize_multiple_conditionals_test() {
               StringValue("personal"),
               StringValue("business"),
             ]),
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -789,6 +810,7 @@ pub fn serialize_multiple_conditionals_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -803,6 +825,7 @@ pub fn serialize_multiple_conditionals_test() {
                     description: None,
                     default: None,
                     enum_values: Some([StringValue("personal")]),
+                    one_of: None,
                     ref: None,
                     string_constraints: None,
                     number_constraints: None,
@@ -823,6 +846,7 @@ pub fn serialize_multiple_conditionals_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -837,6 +861,7 @@ pub fn serialize_multiple_conditionals_test() {
                     description: None,
                     default: None,
                     enum_values: None,
+                    one_of: None,
                     ref: None,
                     string_constraints: None,
                     number_constraints: None,
@@ -860,6 +885,7 @@ pub fn serialize_multiple_conditionals_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -874,6 +900,7 @@ pub fn serialize_multiple_conditionals_test() {
                     description: None,
                     default: None,
                     enum_values: Some([StringValue("business")]),
+                    one_of: None,
                     ref: None,
                     string_constraints: None,
                     number_constraints: None,
@@ -894,6 +921,7 @@ pub fn serialize_multiple_conditionals_test() {
             description: None,
             default: None,
             enum_values: None,
+            one_of: None,
             ref: None,
             string_constraints: None,
             number_constraints: None,
@@ -908,6 +936,7 @@ pub fn serialize_multiple_conditionals_test() {
                     description: None,
                     default: None,
                     enum_values: None,
+                    one_of: None,
                     ref: None,
                     string_constraints: None,
                     number_constraints: None,
@@ -935,5 +964,96 @@ pub fn serialize_multiple_conditionals_test() {
   // Multiple conditionals should be wrapped in allOf
   json_string
   |> string.contains("\"allOf\":[")
+  |> should.be_true()
+}
+
+pub fn serialize_one_of_test() {
+  let schema =
+    JsonSchema(
+      title: Some("OneOf Field"),
+      description: None,
+      field_type: ObjectType,
+      properties: dict.from_list([
+        #(
+          "best_series",
+          SchemaProperty(
+            field_type: Some(StringType),
+            title: Some("Best Series"),
+            description: None,
+            default: None,
+            enum_values: None,
+            one_of: Some([
+              SchemaProperty(
+                field_type: None,
+                title: Some("S1: T1 Axial (120 images)"),
+                description: None,
+                default: None,
+                enum_values: Some([StringValue("1.2.3.4.5")]),
+                one_of: None,
+                ref: None,
+                string_constraints: None,
+                number_constraints: None,
+                items: None,
+                properties: None,
+                required: [],
+                read_only: False,
+              ),
+              SchemaProperty(
+                field_type: None,
+                title: Some("S2: T2 Coronal (80 images)"),
+                description: None,
+                default: None,
+                enum_values: Some([StringValue("1.2.3.4.6")]),
+                one_of: None,
+                ref: None,
+                string_constraints: None,
+                number_constraints: None,
+                items: None,
+                properties: None,
+                required: [],
+                read_only: False,
+              ),
+            ]),
+            ref: None,
+            string_constraints: None,
+            number_constraints: None,
+            items: None,
+            properties: None,
+            required: [],
+            read_only: False,
+          ),
+        ),
+      ]),
+      required: [],
+      defs: None,
+      conditionals: [],
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  let result = serializer.schema_to_json(schema)
+  let json_string = json.to_string(result)
+
+  // Should contain oneOf array
+  json_string
+  |> string.contains("\"oneOf\":[")
+  |> should.be_true()
+
+  // Should contain the const values
+  json_string
+  |> string.contains("\"enum\":[\"1.2.3.4.5\"]")
+  |> should.be_true()
+
+  json_string
+  |> string.contains("\"enum\":[\"1.2.3.4.6\"]")
+  |> should.be_true()
+
+  // Should contain the titles
+  json_string
+  |> string.contains("\"title\":\"S1: T1 Axial (120 images)\"")
+  |> should.be_true()
+
+  json_string
+  |> string.contains("\"title\":\"S2: T2 Coronal (80 images)\"")
   |> should.be_true()
 }

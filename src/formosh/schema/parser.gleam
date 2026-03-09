@@ -198,6 +198,7 @@ fn property_decoder() -> Decoder(SchemaProperty) {
         description: None,
         default: None,
         enum_values: None,
+        one_of: None,
         ref: None,
         string_constraints: None,
         number_constraints: None,
@@ -271,12 +272,16 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     None -> extract_const_value(dynamic_data)
   }
 
+  // Extract oneOf composition keyword
+  let one_of = extract_one_of(dynamic_data)
+
   decode.success(SchemaProperty(
     field_type: field_type,
     title: title,
     description: description,
     default: default,
     enum_values: enum_values_with_const,
+    one_of: one_of,
     ref: ref,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
@@ -301,6 +306,22 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
 fn extract_const_value(data: Dynamic) -> Option(List(Value)) {
   decode.run(data, decode.at(["const"], value_decoder()))
   |> result.map(fn(const_value) { [const_value] })
+  |> option.from_result()
+}
+
+/// Extract oneOf composition keyword from dynamic JSON data.
+///
+/// This function looks for the 'oneOf' keyword in JSON Schema and parses
+/// each sub-schema using the standard property decoder.
+///
+/// ## Parameters
+/// - `data`: Dynamic JSON data that might contain a oneOf array
+///
+/// ## Returns
+/// - `Some(List(SchemaProperty))` if oneOf is present
+/// - `None` if no oneOf keyword is found
+fn extract_one_of(data: Dynamic) -> Option(List(SchemaProperty)) {
+  decode.run(data, decode.at(["oneOf"], decode.list(property_decoder())))
   |> option.from_result()
 }
 

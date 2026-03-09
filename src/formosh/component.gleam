@@ -233,10 +233,7 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
     init_with_full_config(schema, submit_config, False, model.initial_values)
   // Resolve conditional schema (if/then/else) based on initial values
   let resolved_schema =
-    conditional_resolver.resolve_conditional_schema(
-      schema,
-      form_model.values,
-    )
+    conditional_resolver.resolve_conditional_schema(schema, form_model.values)
   let form_model_resolved =
     FormModel(..form_model, resolved_schema: resolved_schema)
   // Validate the form initially to check required fields

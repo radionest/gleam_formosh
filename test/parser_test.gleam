@@ -1,6 +1,7 @@
 import formosh/schema/parser
 import formosh/schema/types
 import gleam/dict
+import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
 
@@ -113,6 +114,86 @@ pub fn schema_without_title_test() {
       should.equal(property_count, 1)
     }
     Error(_) -> panic as "Parser should succeed for schema without title"
+  }
+}
+
+pub fn one_of_with_const_title_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"best_series\": {
+        \"type\": \"string\",
+        \"oneOf\": [
+          {\"const\": \"1.2.3.4.5\", \"title\": \"S1: T1 Axial (120 images)\"},
+          {\"const\": \"1.2.3.4.6\", \"title\": \"S2: T2 Coronal (80 images)\"}
+        ]
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = dict.get(schema.properties, "best_series")
+
+  // field_type should be string
+  should.equal(prop.field_type, Some(types.StringType))
+
+  // one_of should contain 2 sub-schemas
+  case prop.one_of {
+    Some(schemas) -> {
+      should.equal(list.length(schemas), 2)
+
+      // First sub-schema
+      let assert [first, second] = schemas
+      should.equal(first.enum_values, Some([types.StringValue("1.2.3.4.5")]))
+      should.equal(first.title, Some("S1: T1 Axial (120 images)"))
+
+      // Second sub-schema
+      should.equal(second.enum_values, Some([types.StringValue("1.2.3.4.6")]))
+      should.equal(second.title, Some("S2: T2 Coronal (80 images)"))
+    }
+    None -> panic as "Expected one_of to be Some"
+  }
+}
+
+pub fn one_of_without_title_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"value\": {
+        \"type\": \"string\",
+        \"oneOf\": [
+          {\"const\": \"a\"},
+          {\"const\": \"b\", \"title\": \"Option B\"}
+        ]
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = dict.get(schema.properties, "value")
+
+  case prop.one_of {
+    Some(schemas) -> {
+      should.equal(list.length(schemas), 2)
+
+      let assert [first, second] = schemas
+      // First has no title
+      should.equal(first.title, None)
+      should.equal(first.enum_values, Some([types.StringValue("a")]))
+
+      // Second has a title
+      should.equal(second.title, Some("Option B"))
+      should.equal(second.enum_values, Some([types.StringValue("b")]))
+    }
+    None -> panic as "Expected one_of to be Some"
   }
 }
 

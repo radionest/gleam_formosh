@@ -184,6 +184,20 @@ fn add_optional_properties(
   |> option.unwrap(fields)
 }
 
+// Helper to add oneOf array if present
+fn add_optional_one_of(
+  fields: List(#(String, json.Json)),
+  one_of: option.Option(List(SchemaProperty)),
+) -> List(#(String, json.Json)) {
+  one_of
+  |> option.map(fn(schemas) {
+    add_fields(fields, [
+      #("oneOf", json.array(schemas, of: property_to_json)),
+    ])
+  })
+  |> option.unwrap(fields)
+}
+
 /// Convert a SchemaProperty to JSON.
 fn property_to_json(prop: SchemaProperty) -> json.Json {
   []
@@ -195,6 +209,7 @@ fn property_to_json(prop: SchemaProperty) -> json.Json {
   |> add_optional_json_field("description", prop.description, json.string)
   |> add_optional_json_field("default", prop.default, value_to_json)
   |> add_optional_enum(prop.enum_values)
+  |> add_optional_one_of(prop.one_of)
   |> fn(fields) {
     prop.string_constraints
     |> option.map(add_string_constraint_fields(fields, _))
