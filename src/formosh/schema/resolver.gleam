@@ -134,10 +134,10 @@ fn resolve_nested_refs(
   )
 
   use resolved_one_of <- result.try(
-    resolve_optional(property.one_of, list.try_map(
-      _,
-      resolve_property_ref(_, context, visited),
-    )),
+    resolve_optional(
+      property.one_of,
+      list.try_map(_, resolve_property_ref(_, context, visited)),
+    ),
   )
 
   Ok(
