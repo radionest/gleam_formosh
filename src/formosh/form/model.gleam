@@ -391,17 +391,30 @@ pub fn reset(model: FormModel) -> FormModel {
 }
 
 /// Get all current form values as a dictionary.
-/// 
-/// Returns the complete set of form field values. This is useful for
-/// form submission or serialization.
-/// 
+///
+/// Returns the complete set of form field values, including values from
+/// inactive conditional branches. For filtered values that exclude hidden
+/// fields, use `get_resolved_values` instead.
+///
 /// ## Parameters
 /// - `model`: The form model containing field values
-/// 
+///
 /// ## Returns
 /// A dictionary mapping field names to their current values
 pub fn get_form_values(model: FormModel) -> Dict(String, Value) {
   model.values
+}
+
+/// Get form values filtered by the current resolved schema.
+///
+/// Returns only values for fields present in `resolved_schema.properties`.
+/// Fields from inactive conditional branches (if/then/else) are excluded.
+/// Internal `model.values` is not modified — hidden field values are
+/// preserved and will reappear if the condition toggles back.
+pub fn get_resolved_values(model: FormModel) -> Dict(String, Value) {
+  dict.filter(model.values, fn(key, _value) {
+    dict.has_key(model.resolved_schema.properties, key)
+  })
 }
 
 /// Get the value at a specific path in the form.

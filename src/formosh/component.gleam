@@ -413,7 +413,7 @@ fn emit_change_event(form_model: FormModel) -> Effect(Msg) {
   event.emit(
     "formosh-change",
     json.object([
-      #("values", values_to_json(form_model.values)),
+      #("values", values_to_json(model.get_resolved_values(form_model))),
       #("isValid", json.bool(form_model.is_valid)),
       #("isDirty", json.bool(form_model.is_dirty)),
     ]),

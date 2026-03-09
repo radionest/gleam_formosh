@@ -1,4 +1,6 @@
 /// Tests for JSON Schema conditional logic (if/then/else)
+import formosh/form/model
+import formosh/form/update
 import formosh/schema/conditional_resolver
 import formosh/schema/parser
 import formosh/schema/types.{
@@ -467,5 +469,209 @@ pub fn const_keyword_parsing_test() {
 
   resolved_false.properties
   |> dict.has_key("extra_field")
+  |> should.be_false()
+}
+
+/// Test that get_resolved_values filters out hidden conditional fields
+pub fn get_resolved_values_filters_hidden_fields_test() {
+  let schema_json =
+    "{
+      \"title\": \"Test Form\",
+      \"type\": \"object\",
+      \"properties\": {
+        \"flag\": {\"type\": \"boolean\"},
+        \"always_field\": {\"type\": \"string\"}
+      },
+      \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+      \"then\": {
+        \"properties\": {
+          \"extra_field\": {\"type\": \"string\"}
+        }
+      }
+    }"
+
+  let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
+
+  // Build model with flag=true, fill all fields
+  let values_true =
+    dict.from_list([
+      #("flag", BooleanValue(True)),
+      #("always_field", StringValue("ok")),
+      #("extra_field", StringValue("data")),
+    ])
+
+  let resolved_true =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values_true)
+
+  let form_model_true =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values_true,
+      resolved_schema: resolved_true,
+    )
+
+  // When flag=true, resolved values should include extra_field
+  let resolved_values_true = model.get_resolved_values(form_model_true)
+  dict.has_key(resolved_values_true, "flag") |> should.be_true()
+  dict.has_key(resolved_values_true, "always_field") |> should.be_true()
+  dict.has_key(resolved_values_true, "extra_field") |> should.be_true()
+
+  // Switch flag=false — extra_field should be filtered out
+  let values_false =
+    dict.from_list([
+      #("flag", BooleanValue(False)),
+      #("always_field", StringValue("ok")),
+      #("extra_field", StringValue("data")),
+    ])
+
+  let resolved_false =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values_false)
+
+  let form_model_false =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values_false,
+      resolved_schema: resolved_false,
+    )
+
+  let resolved_values_false = model.get_resolved_values(form_model_false)
+  dict.has_key(resolved_values_false, "flag") |> should.be_true()
+  dict.has_key(resolved_values_false, "always_field") |> should.be_true()
+  dict.has_key(resolved_values_false, "extra_field") |> should.be_false()
+
+  // model.values still contains extra_field (not deleted)
+  dict.has_key(form_model_false.values, "extra_field") |> should.be_true()
+}
+
+/// Test that hidden field values are preserved and reappear on toggle
+pub fn resolved_values_preserved_on_toggle_test() {
+  let schema_json =
+    "{
+      \"title\": \"Test Form\",
+      \"type\": \"object\",
+      \"properties\": {
+        \"flag\": {\"type\": \"boolean\"}
+      },
+      \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+      \"then\": {
+        \"properties\": {
+          \"extra_field\": {\"type\": \"string\"}
+        }
+      }
+    }"
+
+  let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
+
+  // Step 1: flag=true, fill extra_field
+  let values =
+    dict.from_list([
+      #("flag", BooleanValue(True)),
+      #("extra_field", StringValue("my data")),
+    ])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values)
+
+  let form_model =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values,
+      resolved_schema: resolved,
+    )
+
+  model.get_resolved_values(form_model)
+  |> dict.get("extra_field")
+  |> should.equal(Ok(StringValue("my data")))
+
+  // Step 2: flag=false — extra_field hidden but data preserved in values
+  let form_model_off =
+    model.FormModel(
+      ..form_model,
+      values: dict.insert(values, "flag", BooleanValue(False)),
+      resolved_schema: conditional_resolver.resolve_conditional_schema(
+        parsed_schema,
+        dict.insert(values, "flag", BooleanValue(False)),
+      ),
+    )
+
+  model.get_resolved_values(form_model_off)
+  |> dict.has_key("extra_field")
+  |> should.be_false()
+
+  // Step 3: flag=true again — extra_field reappears with original data
+  let form_model_on =
+    model.FormModel(
+      ..form_model_off,
+      values: dict.insert(form_model_off.values, "flag", BooleanValue(True)),
+      resolved_schema: conditional_resolver.resolve_conditional_schema(
+        parsed_schema,
+        dict.insert(form_model_off.values, "flag", BooleanValue(True)),
+      ),
+    )
+
+  model.get_resolved_values(form_model_on)
+  |> dict.get("extra_field")
+  |> should.equal(Ok(StringValue("my data")))
+}
+
+/// Test that validate_all_fields validates conditional required fields
+pub fn validate_all_fields_conditional_required_test() {
+  let schema_json =
+    "{
+      \"title\": \"Test Form\",
+      \"type\": \"object\",
+      \"properties\": {
+        \"flag\": {\"type\": \"boolean\"}
+      },
+      \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+      \"then\": {
+        \"properties\": {
+          \"extra_field\": {\"type\": \"string\"}
+        },
+        \"required\": [\"extra_field\"]
+      }
+    }"
+
+  let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
+
+  // flag=true, extra_field not filled → should have validation error
+  let values_true =
+    dict.from_list([
+      #("flag", BooleanValue(True)),
+    ])
+
+  let resolved_true =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values_true)
+
+  let form_model_true =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values_true,
+      resolved_schema: resolved_true,
+    )
+
+  let validated_true = update.validate_all_fields(form_model_true)
+  // extra_field should have a required error
+  model.field_has_errors(validated_true, "extra_field")
+  |> should.be_true()
+
+  // flag=false → no error on extra_field (field not in resolved schema)
+  let values_false =
+    dict.from_list([
+      #("flag", BooleanValue(False)),
+    ])
+
+  let resolved_false =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values_false)
+
+  let form_model_false =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values_false,
+      resolved_schema: resolved_false,
+    )
+
+  let validated_false = update.validate_all_fields(form_model_false)
+  model.field_has_errors(validated_false, "extra_field")
   |> should.be_false()
 }

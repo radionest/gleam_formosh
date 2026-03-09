@@ -139,7 +139,14 @@ fn merge_schema_properties(
   case conditional_props.properties {
     Some(new_props) -> {
       let merged_properties = dict.merge(base_schema.properties, new_props)
-      JsonSchema(..base_schema, properties: merged_properties)
+      let merged_required =
+        list.append(base_schema.required, conditional_props.required)
+        |> list.unique()
+      JsonSchema(
+        ..base_schema,
+        properties: merged_properties,
+        required: merged_required,
+      )
     }
     None -> base_schema
   }

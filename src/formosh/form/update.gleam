@@ -190,7 +190,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 /// ## Returns
 /// A new FormModel with updated validation errors for the field
 fn validate_field(model: FormModel, field_name: String) -> FormModel {
-  case dict.get(model.schema.properties, field_name) {
+  case dict.get(model.resolved_schema.properties, field_name) {
     Ok(property) -> {
       let value = model.get_field_value(model, field_name)
       let errors =
@@ -198,7 +198,7 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
           field_name,
           value,
           property,
-          field_requirements.is_required(model.schema, field_name),
+          field_requirements.is_required(model.resolved_schema, field_name),
         )
 
       case errors {
@@ -227,7 +227,7 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
 /// ## Returns
 /// A new FormModel with validation errors for all invalid fields
 pub fn validate_all_fields(model: FormModel) -> FormModel {
-  dict.keys(model.schema.properties)
+  dict.keys(model.resolved_schema.properties)
   |> list.fold(model.clear_all_errors(model), validate_field)
 }
 
@@ -254,7 +254,7 @@ fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
   case model.submit_config {
     Some(HttpSubmit(url, method, _headers)) -> {
       // Convert form values to JSON
-      let json_data = values_to_json(model.values)
+      let json_data = values_to_json(model.get_resolved_values(model))
       // Make HTTP request based on method
       case method {
         "POST" ->
