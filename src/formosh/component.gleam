@@ -4,11 +4,12 @@
 
 import formosh/form/json_utils
 import formosh/form/model.{
-  type FormModel, type FormMsg, FormSubmit, FormSubmitted, HttpSubmit,
+  type FormModel, type FormMsg, FormModel, FormSubmit, FormSubmitted, HttpSubmit,
   init_with_full_config,
 }
 import formosh/form/update.{validate_all_fields}
 import formosh/form/view
+import formosh/schema/conditional_resolver
 import formosh/schema/parser
 import formosh/schema/serializer
 import formosh/schema/types.{type JsonSchema, type Value}
@@ -230,8 +231,16 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
   // Initialize form with the schema, submit config, and initial values
   let form_model =
     init_with_full_config(schema, submit_config, False, model.initial_values)
+  // Resolve conditional schema (if/then/else) based on initial values
+  let resolved_schema =
+    conditional_resolver.resolve_conditional_schema(
+      schema,
+      form_model.values,
+    )
+  let form_model_resolved =
+    FormModel(..form_model, resolved_schema: resolved_schema)
   // Validate the form initially to check required fields
-  let validated_form = validate_all_fields(form_model)
+  let validated_form = validate_all_fields(form_model_resolved)
   Model(..model, form_model: Some(validated_form))
 }
 

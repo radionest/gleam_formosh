@@ -7,7 +7,7 @@ import formosh/fields/field_common
 import formosh/form/model.{type FormMsg, UpdateFieldPath}
 import formosh/form/path
 import formosh/schema/types
-import gleam/option.{type Option, None}
+import gleam/option.{type Option}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -36,7 +36,7 @@ import lustre/event
 pub fn render(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
-  _value: Option(types.Value),
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
   is_readonly: Bool,
@@ -45,7 +45,7 @@ pub fn render(
   let effective_disabled = is_disabled || is_readonly
 
   // Render as radio buttons (Yes/No) for better UX
-  render_as_radio(field_path, property, is_required, effective_disabled)
+  render_as_radio(field_path, property, value, is_required, effective_disabled)
 }
 
 /// Render boolean field as Yes/No radio button group.
@@ -65,12 +65,15 @@ pub fn render(
 fn render_as_radio(
   field_path: path.FieldPath,
   property: types.SchemaProperty,
+  value: Option(types.Value),
   is_required: Bool,
   is_disabled: Bool,
 ) -> Element(FormMsg) {
   let field_name = path.get_field_name(field_path)
   let yes_id = field_name <> "_yes"
   let no_id = field_name <> "_no"
+  let is_true = field_common.extract_boolean_value(value)
+  let has_value = option.is_some(value)
 
   html.div([attribute.class("formosh-field-wrapper")], [
     field_common.render_label(field_name, property, is_required),
@@ -81,6 +84,7 @@ fn render_as_radio(
           attribute.id(yes_id),
           attribute.name(field_name),
           attribute.value("true"),
+          attribute.checked(has_value && is_true),
           attribute.required(is_required),
           attribute.disabled(is_disabled),
           event.on_click(UpdateFieldPath(field_path, types.BooleanValue(True))),
@@ -95,6 +99,7 @@ fn render_as_radio(
           attribute.id(no_id),
           attribute.name(field_name),
           attribute.value("false"),
+          attribute.checked(has_value && !is_true),
           attribute.required(is_required),
           attribute.disabled(is_disabled),
           event.on_click(UpdateFieldPath(field_path, types.BooleanValue(False))),
