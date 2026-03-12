@@ -10,3 +10,6 @@ priv/static/*.mjs
 priv/static/example/
 erl_crash.dump
 
+# Dev notes (centralized storage via symlink)
+dev-notes
+
