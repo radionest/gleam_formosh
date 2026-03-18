@@ -2,7 +2,7 @@
 
 JSON Schema form generator for Gleam. Parses JSON Schema (draft 2020-12) and renders dynamic forms using [Lustre](https://hexdocs.pm/lustre/) MVU architecture.
 
-> **Alpha / учебный проект.** API нестабильно, будет меняться и ломаться. Используйте на свой страх и риск.
+> **Alpha / learning project.** API is unstable and will change. Use at your own risk.
 
 ## Installation
 
