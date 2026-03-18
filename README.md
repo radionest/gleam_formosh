@@ -1,30 +1,17 @@
-# Formosh - JSON Schema Form Generator for Gleam
+# Formosh
 
-A powerful, type-safe form generator library for Gleam that creates dynamic forms from JSON Schema definitions. Built with the Lustre framework using the Model-View-Update (MVU) architecture.
+JSON Schema form generator for Gleam. Parses JSON Schema (draft 2020-12) and renders dynamic forms using [Lustre](https://hexdocs.pm/lustre/) MVU architecture.
 
-## ✨ Features
+> **Alpha / учебный проект.** API нестабильно, будет меняться и ломаться. Используйте на свой страх и риск.
 
-- 📋 **JSON Schema Support** - Full support for JSON Schema draft 2020-12
-- 🎯 **Type Safety** - Leverages Gleam's powerful type system
-- 🏗️ **MVU Architecture** - Clean separation of concerns with Model-View-Update pattern
-- 🎨 **Smart Field Rendering** - Automatic field type selection based on schema
-- ✅ **Built-in Validation** - Comprehensive validation based on JSON Schema constraints
-- 🔄 **Dynamic Forms** - Support for conditional schemas (if/then/else)
-- 📦 **Web Components** - Use as custom HTML elements
-- 🚀 **Zero Dependencies** - Minimal runtime overhead
-
-## 📦 Installation
-
-Add formosh to your `gleam.toml`:
+## Installation
 
 ```toml
 [dependencies]
-formosh = "~> 0.1"
+formosh = ">= 0.2.0"
 ```
 
-## 🚀 Quick Start
-
-### Basic Form
+## Quick Start
 
 ```gleam
 import formosh
@@ -34,15 +21,10 @@ pub fn main() {
   let schema = "
   {
     \"type\": \"object\",
+    \"title\": \"Contact\",
     \"properties\": {
-      \"name\": {
-        \"type\": \"string\",
-        \"title\": \"Full Name\"
-      },
-      \"email\": {
-        \"type\": \"string\",
-        \"format\": \"email\"
-      }
+      \"name\": { \"type\": \"string\", \"title\": \"Name\" },
+      \"email\": { \"type\": \"string\", \"format\": \"email\" }
     },
     \"required\": [\"name\", \"email\"]
   }"
@@ -52,234 +34,186 @@ pub fn main() {
 }
 ```
 
-### Using Web Components
+## Configuration
 
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <script type="module">
-    import { register_formosh } from "./build/dev/javascript/formosh/formosh/component.mjs";
-    register_formosh();
-  </script>
-</head>
-<body>
-  <formosh-form
-    schema='{"type": "object", "properties": {"name": {"type": "string"}}}'
-    submit-url="https://api.example.com/submit">
-  </formosh-form>
-
-  <script>
-    // Listen for form events
-    document.querySelector('formosh-form').addEventListener('formosh-submit', (e) => {
-      console.log('Form submitted:', e.detail);
-    });
-  </script>
-</body>
-</html>
-```
-
-## 📚 Comprehensive Examples
-
-### User Registration Form with Nested Objects
+Builder pattern for customizing form behavior:
 
 ```gleam
 import formosh
-import lustre
+import formosh/schema/parser
 
-pub fn main() {
-  let schema = "
-  {
-    \"title\": \"User Registration\",
-    \"type\": \"object\",
-    \"properties\": {
-      \"personal\": {
-        \"type\": \"object\",
-        \"title\": \"Personal Information\",
-        \"properties\": {
-          \"firstName\": {
-            \"type\": \"string\",
-            \"minLength\": 2
-          },
-          \"lastName\": {
-            \"type\": \"string\",
-            \"minLength\": 2
-          },
-          \"birthDate\": {
-            \"type\": \"string\",
-            \"format\": \"date\"
-          }
-        },
-        \"required\": [\"firstName\", \"lastName\"]
+let assert Ok(schema) = parser.parse_schema(json_string)
+
+let app = formosh.config(schema)
+  |> formosh.with_submit_url("https://api.example.com/submit")
+  |> formosh.with_css_prefix("my-form")
+  |> formosh.with_show_errors_on_change(True)
+  |> formosh.with_show_readonly_fields(True)
+  |> formosh.with_initial_values(dict.from_list([
+    #("patient_id", StringValue("12345")),
+  ]))
+  |> formosh.from_config()
+
+let assert Ok(_) = lustre.start(app, "#app", Nil)
+```
+
+### Submission options
+
+**HTTP POST/PUT:**
+
+```gleam
+formosh.config(schema)
+  |> formosh.with_http_submit(
+    "https://api.example.com/forms",
+    "POST",
+    [#("Authorization", "Bearer token123"), #("Content-Type", "application/json")]
+  )
+```
+
+**Custom handler:**
+
+```gleam
+formosh.config(schema)
+  |> formosh.with_custom_submit(fn(model) {
+    let values = formosh.get_values(model)
+    // your logic
+    Ok("Done")
+  })
+```
+
+**No submission** (default) — read values manually via `formosh.get_values(model)`.
+
+## Web Component
+
+Use as a custom HTML element without writing Gleam:
+
+```html
+<script type="module">
+  import { register } from "./build/dev/javascript/formosh/formosh/component.mjs";
+  register();
+</script>
+
+<formosh-form
+  schema='{"type": "object", "properties": {"name": {"type": "string"}}}'
+  submit-url="https://api.example.com/submit"
+  submit-method="POST"
+  css-prefix="my-form"
+  initial-values='{"name": "John"}'>
+</formosh-form>
+
+<script>
+  const form = document.querySelector('formosh-form');
+  form.addEventListener('formosh-change', (e) => {
+    console.log('Values:', e.detail.values);
+    console.log('Valid:', e.detail.isValid);
+  });
+  form.addEventListener('formosh-submit', (e) => {
+    console.log('Submitted:', e.detail);
+  });
+</script>
+```
+
+Events: `formosh-ready`, `formosh-change`, `formosh-submitting`, `formosh-submit`.
+
+Or use inside a Lustre app programmatically:
+
+```gleam
+import formosh/component
+
+// After component.register()
+component.element([
+  component.schema(my_schema),
+  component.submit_url("https://api.example.com/submit"),
+  component.on_change(HandleFormChange),
+])
+```
+
+## Schema Examples
+
+### Nested objects
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "address": {
+      "type": "object",
+      "title": "Address",
+      "properties": {
+        "street": { "type": "string" },
+        "city": { "type": "string" }
       },
-      \"account\": {
-        \"type\": \"object\",
-        \"title\": \"Account Details\",
-        \"properties\": {
-          \"username\": {
-            \"type\": \"string\",
-            \"pattern\": \"^[a-zA-Z0-9_]{3,20}$\"
-          },
-          \"password\": {
-            \"type\": \"string\",
-            \"minLength\": 8
-          },
-          \"email\": {
-            \"type\": \"string\",
-            \"format\": \"email\"
-          }
-        },
-        \"required\": [\"username\", \"password\", \"email\"]
-      }
+      "required": ["street", "city"]
     }
-  }"
-
-  let assert Ok(app) = formosh.from_json_string(schema)
-  let assert Ok(_) = lustre.start(app, "#app", Nil)
+  }
 }
 ```
 
-### Dynamic Array Fields
+### Arrays with add/remove
 
-```gleam
-let schema = "
+```json
 {
-  \"type\": \"object\",
-  \"properties\": {
-    \"skills\": {
-      \"type\": \"array\",
-      \"title\": \"Technical Skills\",
-      \"items\": {
-        \"type\": \"object\",
-        \"properties\": {
-          \"name\": {
-            \"type\": \"string\",
-            \"title\": \"Skill Name\"
-          },
-          \"level\": {
-            \"type\": \"string\",
-            \"enum\": [\"Beginner\", \"Intermediate\", \"Advanced\", \"Expert\"]
+  "type": "object",
+  "properties": {
+    "skills": {
+      "type": "array",
+      "title": "Skills",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "title": "Skill" },
+          "level": {
+            "type": "string",
+            "enum": ["Beginner", "Intermediate", "Advanced", "Expert"]
           }
         }
       }
     }
   }
-}"
+}
 ```
 
-### Conditional Forms (if/then/else)
+### Conditional fields (if/then/else)
 
-```gleam
-let schema = "
+Fields appear/disappear based on other field values:
+
+```json
 {
-  \"type\": \"object\",
-  \"properties\": {
-    \"hasLicense\": {
-      \"type\": \"boolean\",
-      \"title\": \"Do you have a driver's license?\"
-    }
+  "type": "object",
+  "properties": {
+    "hasLicense": { "type": "boolean", "title": "Do you have a license?" }
   },
-  \"if\": {
-    \"properties\": {
-      \"hasLicense\": {\"const\": true}
-    }
+  "if": {
+    "properties": { "hasLicense": { "const": true } }
   },
-  \"then\": {
-    \"properties\": {
-      \"licenseNumber\": {
-        \"type\": \"string\",
-        \"title\": \"License Number\"
-      },
-      \"expiryDate\": {
-        \"type\": \"string\",
-        \"format\": \"date\",
-        \"title\": \"Expiry Date\"
-      }
+  "then": {
+    "properties": {
+      "licenseNumber": { "type": "string", "title": "License Number" },
+      "expiryDate": { "type": "string", "format": "date", "title": "Expiry Date" }
     },
-    \"required\": [\"licenseNumber\", \"expiryDate\"]
+    "required": ["licenseNumber"]
   }
-}"
-```
-
-### HTTP Form Submission
-
-```gleam
-import formosh
-import lustre
-
-pub fn main() {
-  let schema_string = "{ ... }"  // Your JSON Schema
-  let assert Ok(app) = formosh.from_json_string(schema_string)
-
-  // Or with configuration:
-  let assert Ok(schema) = schema/parser.parse_schema(schema_string)
-
-  let form_config = formosh.config(schema)
-    |> formosh.with_http_submit(
-      url: "https://api.example.com/forms",
-      method: "POST",
-      headers: [
-        #("Authorization", "Bearer token123"),
-        #("Content-Type", "application/json")
-      ]
-    )
-    |> formosh.with_css_prefix("my-form")
-
-  let app = formosh.from_config(form_config)
-  let assert Ok(_) = lustre.start(app, "#app", Nil)
 }
 ```
 
-### Custom Submission Handler
+Also supports multiple conditionals via `allOf`:
 
-```gleam
-import formosh
-import gleam/io
-import gleam/json
-import schema/parser
-
-pub fn handle_submission(model) {
-  // Extract form values
-  let values = formosh.get_values(model)
-
-  // Custom processing
-  io.println("Form values received")
-  // Your custom logic here
-  Ok("Successfully processed!")
-}
-
-pub fn main() {
-  let assert Ok(schema) = parser.parse_schema("{ ... }")
-
-  let config = formosh.config(schema)
-    |> formosh.with_custom_submit(handle_submission)
-
-  let app = formosh.from_config(config)
-  let assert Ok(_) = lustre.start(app, "#app", Nil)
+```json
+{
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "company" } } },
+      "then": { "properties": { "companyName": { "type": "string" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "individual" } } },
+      "then": { "properties": { "fullName": { "type": "string" } } }
+    }
+  ]
 }
 ```
 
-## 🎨 Field Rendering Rules
-
-The library automatically selects the appropriate input type based on your schema:
-
-| Schema Configuration | Rendered As |
-|---------------------|-------------|
-| `type: "string"` with `maxLength > 100` | Textarea |
-| `type: "string"` with `enum` ≤ 5 options | Radio buttons |
-| `type: "string"` with `enum` > 5 options | Select dropdown |
-| `type: "string"` with `format: "email"` | Email input |
-| `type: "string"` with `format: "date"` | Date picker |
-| `type: "string"` with `format: "url"` | URL input |
-| `type: "boolean"` | Yes/No radio buttons |
-| `type: "number"` | Number input |
-| `type: "integer"` | Integer input |
-| `type: "array"` | Dynamic list with add/remove |
-| `type: "object"` | Nested fieldset |
-
-## 🔧 Advanced Features
-
-### Schema References ($ref)
+### $ref and $defs
 
 ```json
 {
@@ -287,189 +221,162 @@ The library automatically selects the appropriate input type based on your schem
     "address": {
       "type": "object",
       "properties": {
-        "street": {"type": "string"},
-        "city": {"type": "string"},
-        "country": {"type": "string"}
+        "street": { "type": "string" },
+        "city": { "type": "string" }
       }
     }
   },
   "type": "object",
   "properties": {
-    "billing": {"$ref": "#/$defs/address"},
-    "shipping": {"$ref": "#/$defs/address"}
+    "billing": { "$ref": "#/$defs/address", "title": "Billing Address" },
+    "shipping": { "$ref": "#/$defs/address", "title": "Shipping Address" }
   }
 }
 ```
 
-### Validation Rules
+Supports `#/$defs/...` and `#/definitions/...` JSON Pointers. Circular references are detected and rejected.
 
-All JSON Schema validation keywords are supported:
+### oneOf (select from schema variants)
 
-- **Strings**: `minLength`, `maxLength`, `pattern`, `format`
-- **Numbers**: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
-- **Arrays**: `minItems`, `maxItems`, `uniqueItems`
-- **Objects**: `minProperties`, `maxProperties`, `required`
-- **General**: `enum`, `const`, `type`
+```json
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "oneOf": [
+        { "const": "active", "title": "Active" },
+        { "const": "inactive", "title": "Inactive" },
+        { "const": "pending", "title": "Pending Review" }
+      ]
+    }
+  }
+}
+```
 
-### CSS Customization
+## Field Rendering Rules
+
+The widget is chosen automatically based on schema:
+
+| Schema | Widget |
+|--------|--------|
+| `string` | text input |
+| `string` + `maxLength > 100` | textarea |
+| `string` + `enum` (≤5 options) | radio buttons |
+| `string` + `enum` (>5 options) | select dropdown |
+| `string` + `oneOf` with const/title | radio buttons |
+| `string` + `format: "email"` | email input |
+| `string` + `format: "url"` or `"uri"` | url input |
+| `string` + `format: "date"` | date picker |
+| `string` + `format: "time"` | time input |
+| `string` + `format: "datetime"` | datetime-local input |
+| `number` / `integer` | number input (with `step` from `multipleOf`) |
+| `boolean` | Yes/No radio buttons |
+| `array` | dynamic list with add/remove controls |
+| `object` | nested fieldset |
+| `readOnly: true` | hidden by default; shown as readonly input with `with_show_readonly_fields(True)` |
+
+## What's Implemented
+
+### JSON Schema keywords
+
+- **Types:** `string`, `number`, `integer`, `boolean`, `array`, `object`, `null`
+- **Structure:** `properties`, `items`, `required`, `$defs`/`definitions`, `$ref`
+- **Metadata:** `title`, `description`, `default`, `readOnly`
+- **Enum:** `enum`, `const` (converted to single-value enum)
+- **Composition:** `oneOf` (with const+title options), `allOf` (for conditional extraction)
+- **Conditional:** `if`/`then`/`else` — fully dynamic, re-evaluated on every field change
+- **String constraints:** `minLength`, `maxLength`, `format` (date, email, url/uri, time, datetime, uuid)
+- **Number constraints:** `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
+
+### Validation
+
+- Required field checks
+- String length bounds (minLength, maxLength)
+- Number bounds (min, max, exclusive, multipleOf)
+- Basic format validation: email (checks `@` and `.`), url (checks `http(s)://` prefix)
+
+### Other
+
+- HTTP form submission (POST, PUT) via [rsvp](https://hexdocs.pm/rsvp/)
+- Custom submission handlers
+- Web Component (`<formosh-form>`) with attribute listeners and custom events
+- Configurable CSS class prefix
+- Initial values pre-population
+- Touch tracking — errors shown only after field interaction
+- Conditional field visibility — fields appear/disappear based on form state
+- Schema serialization back to JSON
+
+## What's NOT Implemented
+
+- `anyOf` — parsed but not processed
+- `not`
+- `pattern` — stored but regex validation not wired up (no regex library)
+- `minItems`, `maxItems` — array length constraints
+- `additionalProperties`, `patternProperties`
+- `dependencies`, `dependentRequired`, `dependentSchemas`
+- `prefixItems` (tuple validation)
+- `minProperties`, `maxProperties`
+- `discriminator`
+- Nested arrays within objects (shows error message)
+- GET submission method
+- Enum value validation (function stub exists, always passes)
+- RFC-compliant email/URL format validation
+
+## CSS Classes
+
+All classes use a configurable prefix (default: `formosh`):
+
+```
+{prefix}-container, {prefix}-form, {prefix}-field-wrapper,
+{prefix}-label, {prefix}-required, {prefix}-input, {prefix}-textarea,
+{prefix}-radio-group, {prefix}-radio-item, {prefix}-select,
+{prefix}-checkbox-*, {prefix}-toggle-*, {prefix}-help,
+{prefix}-field-error, {prefix}-header, {prefix}-title, {prefix}-description
+```
+
+No default styles are included — bring your own CSS.
+
+## Development
+
+```bash
+gleam deps download    # install dependencies
+gleam build            # build
+gleam test             # run tests
+gleam format           # format code
+gleam run -m lustre/dev start   # dev server with hot reload (port 1234)
+gleam run -m lustre/dev build app   # production build
+```
+
+## API Reference
 
 ```gleam
-let config = config.new(schema)
-  |> config.with_css_prefix("my-app")
+// Create from JSON string
+formosh.from_json_string(json: String) -> Result(App, ParseError)
+
+// Create from parsed schema
+formosh.from_schema(schema: JsonSchema) -> App
+
+// Configuration builder
+formosh.config(schema: JsonSchema) -> FormConfig
+formosh.from_config(config: FormConfig) -> App
+formosh.with_submit_url(config, url) -> FormConfig
+formosh.with_http_submit(config, url, method, headers) -> FormConfig
+formosh.with_custom_submit(config, handler) -> FormConfig
+formosh.with_css_prefix(config, prefix) -> FormConfig
+formosh.with_show_errors_on_change(config, show) -> FormConfig
+formosh.with_show_readonly_fields(config, show) -> FormConfig
+formosh.with_initial_values(config, values) -> FormConfig
+
+// Read form state
+formosh.get_values(model: FormModel) -> Dict(String, Value)
+
+// Web Component
+component.register() -> Result(Nil, Error)
+component.element(attributes) -> Element(msg)
 ```
 
-This generates classes like:
-- `my-app-form`
-- `my-app-field`
-- `my-app-input`
-- `my-app-error`
-- `my-app-label`
-
-## 📖 API Reference
-
-### Core Functions
-
-#### `formosh.from_schema(schema: JsonSchema) -> lustre.App(Nil, FormModel, FormMsg)`
-Create a form application from a parsed JSON Schema.
-
-#### `formosh.from_json_string(json: String) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError)`
-Parse a JSON Schema string and create a form application.
-
-### Configuration Builder
-
-#### `formosh.config(schema: JsonSchema) -> FormConfig`
-Create a new form configuration.
-
-#### `formosh.from_config(config: FormConfig) -> lustre.App(Nil, FormModel, FormMsg)`
-Create a form application from a configuration.
-
-#### `formosh.with_http_submit(config, url, method, headers) -> FormConfig`
-Configure HTTP submission.
-
-#### `formosh.with_submit_url(config, url) -> FormConfig`
-Configure HTTP submission with POST method.
-
-#### `formosh.with_custom_submit(config, handler) -> FormConfig`
-Set a custom submission handler.
-
-#### `formosh.with_css_prefix(config, prefix) -> FormConfig`
-Set CSS class prefix for styling.
-
-#### `formosh.with_show_errors_on_change(config, show) -> FormConfig`
-Configure when validation errors are shown.
-
-### Utility Functions
-
-#### `formosh.get_values(model: FormModel) -> Dict(String, Value)`
-Extract current form values.
-
-#### Schema Parsing (from schema/parser module)
-
-#### `parser.parse_schema(json: String) -> Result(JsonSchema, ParseError)`
-Parse a JSON Schema string into a schema type.
-
-## 🏗️ Project Structure
-
-```
-formosh/
-├── src/
-│   ├── formosh.gleam              # Public API
-│   ├── formosh/
-│   │   └── component.gleam        # Web Component
-│   ├── schema/
-│   │   ├── types.gleam           # Schema types
-│   │   ├── parser.gleam          # JSON parser
-│   │   ├── validator.gleam       # Validation logic
-│   │   └── resolver.gleam        # $ref resolution
-│   ├── form/
-│   │   ├── model.gleam           # Form state
-│   │   ├── update.gleam          # State updates
-│   │   ├── view.gleam            # HTML rendering
-│   │   ├── path.gleam            # Path utilities
-│   │   └── value.gleam           # Value transforms
-│   └── fields/
-│       └── [field_type].gleam    # Field renderers
-├── test/                          # Test files
-└── build/                         # Generated JavaScript
-```
-
-## 🛠️ Development
-
-### Setup
-
-```bash
-# Install dependencies
-gleam deps download
-
-# Build the project
-gleam build
-
-# Run tests
-gleam test
-
-# Format code
-gleam format
-```
-
-### Development Server
-
-```bash
-# Start dev server with hot reload (port 1234)
-gleam run -m lustre/dev start
-
-# Build for production
-gleam run -m lustre/dev build app
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Q: Form doesn't render**
-- Ensure the target element exists in DOM
-- Check browser console for errors
-- Verify JSON Schema is valid
-
-**Q: Validation not working**
-- Check schema has correct validation keywords
-- Ensure field names match schema properties
-- Verify required fields are properly defined
-
-**Q: Web Component not loading**
-- Import and register the component before use
-- Check module path is correct
-- Ensure gleam build was run
-
-## 🚧 Roadmap
-
-- [x] Basic form generation
-- [x] All primitive types
-- [x] Nested objects
-- [x] Dynamic arrays
-- [x] $ref support
-- [x] Conditional schemas (if/then/else)
-- [x] Web Component export
-- [x] HTTP submission
-- [ ] oneOf/anyOf support
-- [ ] File upload fields
-- [ ] Custom field renderers
-- [ ] Internationalization
-- [ ] Form wizards/steps
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
+## License
 
 MIT
-
-## 🙏 Acknowledgments
-
-Built with [Lustre](https://hexdocs.pm/lustre/) - A web framework for Gleam.
-
-Based on [JSON Schema](https://json-schema.org/) specification.
-
-## 💬 Support
-
-For issues and questions, please use the [GitHub issue tracker](https://github.com/your-username/formosh/issues).
