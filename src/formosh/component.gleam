@@ -75,6 +75,10 @@ pub fn register() -> Result(Nil, lustre.Error) {
           }
         }
       }),
+      // Listen for show-readonly-fields changes
+      component.on_attribute_change("show-readonly-fields", fn(value) {
+        Ok(ShowReadonlyFieldsChanged(value == "true"))
+      }),
     ])
 
   lustre.register(component, "formosh-form")
@@ -136,6 +140,17 @@ pub fn initial_values_string(json: String) -> Attribute(msg) {
   attribute.attribute("initial-values", json)
 }
 
+/// Control visibility of readOnly fields (default: True).
+///
+/// When True, fields with `readOnly: true` in the schema are rendered
+/// as disabled inputs. When False, they are hidden entirely.
+pub fn show_readonly_fields(show: Bool) -> Attribute(msg) {
+  attribute.attribute("show-readonly-fields", case show {
+    True -> "true"
+    False -> "false"
+  })
+}
+
 /// Listen for form submission events.
 /// 
 /// The handler receives the form data as a JSON object in the event detail.
@@ -181,6 +196,8 @@ type Model {
     css_prefix: String,
     // Initial values to populate the form with
     initial_values: dict.Dict(String, Value),
+    // Whether to show readOnly fields (True) or hide them (False)
+    show_readonly_fields: Bool,
   )
 }
 
@@ -192,6 +209,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       submit_method: "POST",
       css_prefix: "formosh",
       initial_values: dict.new(),
+      show_readonly_fields: True,
     ),
     effect.none(),
   )
@@ -207,6 +225,7 @@ type Msg {
   SubmitMethodChanged(String)
   CssPrefixChanged(String)
   InitialValuesChanged(dict.Dict(String, Value))
+  ShowReadonlyFieldsChanged(Bool)
 
   // Form messages (wrapped)
   FormMessage(FormMsg)
@@ -230,7 +249,12 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
 
   // Initialize form with the schema, submit config, and initial values
   let form_model =
-    init_with_full_config(schema, submit_config, False, model.initial_values)
+    init_with_full_config(
+      schema,
+      submit_config,
+      model.show_readonly_fields,
+      model.initial_values,
+    )
   // Resolve conditional schema (if/then/else) based on initial values
   let resolved_schema =
     conditional_resolver.resolve_conditional_schema(schema, form_model.values)
@@ -292,6 +316,16 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     InitialValuesChanged(values) -> {
       let new_model = Model(..model, initial_values: values)
       // If schema already loaded, reinitialize with new initial values
+      let final_model = case new_model.form_model {
+        Some(form_model) ->
+          reinitialize_form_with_schema(new_model, form_model.schema)
+        None -> new_model
+      }
+      #(final_model, effect.none())
+    }
+
+    ShowReadonlyFieldsChanged(show) -> {
+      let new_model = Model(..model, show_readonly_fields: show)
       let final_model = case new_model.form_model {
         Some(form_model) ->
           reinitialize_form_with_schema(new_model, form_model.schema)
