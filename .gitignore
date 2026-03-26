@@ -13,3 +13,7 @@ erl_crash.dump
 # Dev notes (centralized storage via symlink)
 dev-notes
 
+# Claude Code local settings
+.claude/settings.local.json
+.claude/worktrees/
+
