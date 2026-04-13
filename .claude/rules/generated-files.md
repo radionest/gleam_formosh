@@ -1,5 +1,5 @@
 ---
-globs: "build/**"
+globs: ["build/**", "**/*.mjs"]
 ---
 
 # Generated files

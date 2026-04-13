@@ -2,8 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-@SHOULD_KNOW.md
-
 ## Project Overview
 
 Formosh is a JSON Schema-based form generator library for Gleam/Lustre that creates dynamic, type-safe forms using the Model-View-Update (MVU) architecture. It parses JSON Schema (draft 2020-12) and generates fully functional forms with validation.
@@ -53,13 +51,6 @@ get_field_name(path: FieldPath) -> String  // Extract final segment
 ```
 
 Form values are stored as `Dict(String, Value)` with dot-notation keys (e.g. `"user.name"` → `StringValue("John")`).
-
-## Gleam Decoding Gotchas
-
-See `@SHOULD_KNOW.md` for full reference. Key points:
-- `decode.optional_field(key, default, decoder)` — NOT `(key, decoder, default)`
-- `option.from_result()` exists, `result.to_option()` does NOT
-- Use `decode.run()` with `decode.dynamic` for conditional logic
 
 ## Common Pitfalls
 
