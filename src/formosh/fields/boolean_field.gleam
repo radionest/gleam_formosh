@@ -142,13 +142,14 @@ pub fn render_as_checkbox(
   let current_value = field_common.extract_boolean_value(value)
 
   let field_name = path.get_field_name(field_path)
+  let field_id = path.to_string(field_path)
 
   html.div([attribute.class("formosh-field-wrapper formosh-checkbox-wrapper")], [
     html.div([attribute.class("formosh-checkbox-group")], [
       html.input([
         attribute.type_("checkbox"),
-        attribute.id(field_name),
-        attribute.name(field_name),
+        attribute.id(field_id),
+        attribute.name(field_id),
         attribute.checked(current_value),
         attribute.required(is_required),
         attribute.disabled(is_disabled),

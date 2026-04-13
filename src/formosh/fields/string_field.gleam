@@ -430,15 +430,15 @@ fn render_select(
   is_disabled: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path)
+  let field_id = path.to_string(field_path)
   // For readonly, disable the select to prevent changes
   let effective_disabled = is_disabled || is_readonly
 
   let select_elem =
     html.select(
       [
-        attribute.id(field_name),
-        attribute.name(field_name),
+        attribute.id(field_id),
+        attribute.name(field_id),
         attribute.class("formosh-select"),
         attribute.required(is_required),
         attribute.disabled(effective_disabled),
@@ -656,14 +656,14 @@ fn render_one_of_select(
   is_disabled: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path)
+  let field_id = path.to_string(field_path)
   let effective_disabled = is_disabled || is_readonly
 
   let select_elem =
     html.select(
       [
-        attribute.id(field_name),
-        attribute.name(field_name),
+        attribute.id(field_id),
+        attribute.name(field_id),
         attribute.class("formosh-select"),
         attribute.required(is_required),
         attribute.disabled(effective_disabled),
