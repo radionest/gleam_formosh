@@ -70,8 +70,9 @@ fn render_as_radio(
   is_disabled: Bool,
 ) -> Element(FormMsg) {
   let field_name = path.get_field_name(field_path)
-  let yes_id = field_name <> "_yes"
-  let no_id = field_name <> "_no"
+  let field_id = path.to_string(field_path)
+  let yes_id = field_id <> "_yes"
+  let no_id = field_id <> "_no"
   let is_true = field_common.extract_boolean_value(value)
   let has_value = option.is_some(value)
 
@@ -82,7 +83,7 @@ fn render_as_radio(
         html.input([
           attribute.type_("radio"),
           attribute.id(yes_id),
-          attribute.name(field_name),
+          attribute.name(field_id),
           attribute.value("true"),
           attribute.checked(has_value && is_true),
           attribute.required(is_required),
@@ -97,7 +98,7 @@ fn render_as_radio(
         html.input([
           attribute.type_("radio"),
           attribute.id(no_id),
-          attribute.name(field_name),
+          attribute.name(field_id),
           attribute.value("false"),
           attribute.checked(has_value && !is_true),
           attribute.required(is_required),
@@ -141,13 +142,14 @@ pub fn render_as_checkbox(
   let current_value = field_common.extract_boolean_value(value)
 
   let field_name = path.get_field_name(field_path)
+  let field_id = path.to_string(field_path)
 
   html.div([attribute.class("formosh-field-wrapper formosh-checkbox-wrapper")], [
     html.div([attribute.class("formosh-checkbox-group")], [
       html.input([
         attribute.type_("checkbox"),
-        attribute.id(field_name),
-        attribute.name(field_name),
+        attribute.id(field_id),
+        attribute.name(field_id),
         attribute.checked(current_value),
         attribute.required(is_required),
         attribute.disabled(is_disabled),

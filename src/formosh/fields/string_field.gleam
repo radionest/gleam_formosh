@@ -364,7 +364,7 @@ fn render_radio_group(
   is_disabled: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path)
+  let field_id = path.to_string(field_path)
   // For readonly, disable the radio buttons to prevent changes
   let effective_disabled = is_disabled || is_readonly
 
@@ -373,13 +373,13 @@ fn render_radio_group(
       [attribute.class("formosh-radio-group")],
       list.map(enum_vals, fn(val) {
         let str_val = value_to_string(val)
-        let radio_id = field_name <> "_" <> str_val
+        let radio_id = field_id <> "_" <> str_val
 
         html.div([attribute.class("formosh-radio-item")], [
           html.input([
             attribute.type_("radio"),
             attribute.id(radio_id),
-            attribute.name(field_name),
+            attribute.name(field_id),
             attribute.value(str_val),
             attribute.checked(str_val == current_value),
             attribute.required(is_required),
@@ -430,15 +430,15 @@ fn render_select(
   is_disabled: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path)
+  let field_id = path.to_string(field_path)
   // For readonly, disable the select to prevent changes
   let effective_disabled = is_disabled || is_readonly
 
   let select_elem =
     html.select(
       [
-        attribute.id(field_name),
-        attribute.name(field_name),
+        attribute.id(field_id),
+        attribute.name(field_id),
         attribute.class("formosh-select"),
         attribute.required(is_required),
         attribute.disabled(effective_disabled),
@@ -610,7 +610,7 @@ fn render_one_of_radio_group(
   is_disabled: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path)
+  let field_id = path.to_string(field_path)
   let effective_disabled = is_disabled || is_readonly
 
   let radio_group =
@@ -618,13 +618,13 @@ fn render_one_of_radio_group(
       [attribute.class("formosh-radio-group")],
       list.map(options, fn(option) {
         let #(value, label) = option
-        let radio_id = field_name <> "_" <> value
+        let radio_id = field_id <> "_" <> value
 
         html.div([attribute.class("formosh-radio-item")], [
           html.input([
             attribute.type_("radio"),
             attribute.id(radio_id),
-            attribute.name(field_name),
+            attribute.name(field_id),
             attribute.value(value),
             attribute.checked(value == current_value),
             attribute.required(is_required),
@@ -656,14 +656,14 @@ fn render_one_of_select(
   is_disabled: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path)
+  let field_id = path.to_string(field_path)
   let effective_disabled = is_disabled || is_readonly
 
   let select_elem =
     html.select(
       [
-        attribute.id(field_name),
-        attribute.name(field_name),
+        attribute.id(field_id),
+        attribute.name(field_id),
         attribute.class("formosh-select"),
         attribute.required(is_required),
         attribute.disabled(effective_disabled),
