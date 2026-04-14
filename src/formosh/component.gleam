@@ -362,8 +362,17 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
             _ -> emit_change_event(updated_form)
           }
 
+          // When used as a web component, submission results are communicated
+          // to the parent via emitted events — clear submission_result to avoid
+          // rendering the raw server response inside the component's own view.
+          let final_form = case form_msg {
+            FormSubmitted(_) ->
+              FormModel(..updated_form, submission_result: None)
+            _ -> updated_form
+          }
+
           #(
-            Model(..model, form_model: Some(updated_form)),
+            Model(..model, form_model: Some(final_form)),
             effect.batch([
               form_effect |> effect.map(FormMessage),
               event_effect,
