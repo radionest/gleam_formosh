@@ -67,4 +67,5 @@ Registers as `<formosh-form>` custom element. Attributes: `schema`, `submit-url`
 
 - All `.mjs` files are auto-generated — do not read or edit them (except `src/formosh/ffi/*_ffi.mjs` which are hand-written FFI)
 - `oneOf`/`anyOf` composition keywords are not yet implemented
+- `x-widget: "image-upload"` works only on top-level properties; nested image-upload fields (inside objects/arrays) are not yet supported
 - HTTP submissions use the `rsvp` library for effect management
