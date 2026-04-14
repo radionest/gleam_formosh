@@ -206,6 +206,8 @@ fn property_decoder() -> Decoder(SchemaProperty) {
         properties: None,
         required: [],
         read_only: False,
+        widget: None,
+        upload_config: None,
       )
     }),
   ])
@@ -275,6 +277,10 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // Extract oneOf composition keyword
   let one_of = extract_one_of(dynamic_data)
 
+  // Extract x-widget and upload config
+  let widget = extract_widget(dynamic_data)
+  let upload_config = extract_upload_config(dynamic_data)
+
   decode.success(SchemaProperty(
     field_type: field_type,
     title: title,
@@ -289,6 +295,8 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     properties: properties,
     required: required,
     read_only: read_only,
+    widget: widget,
+    upload_config: upload_config,
   ))
 }
 
@@ -514,6 +522,32 @@ fn extract_single_conditional(data: Dynamic) -> List(ConditionalRule) {
 fn extract_read_only(data: Dynamic) -> Bool {
   decode.run(data, decode.at(["readOnly"], decode.bool))
   |> result.unwrap(False)
+}
+
+/// Extract x-widget custom widget override from dynamic JSON data.
+fn extract_widget(data: Dynamic) -> Option(String) {
+  decode.run(data, decode.at(["x-widget"], decode.string))
+  |> option.from_result()
+}
+
+/// Extract upload configuration from x- extension fields.
+/// Only emits config when x-widget is "image-upload".
+fn extract_upload_config(data: Dynamic) -> Option(types.UploadConfig) {
+  case extract_widget(data) {
+    Some("image-upload") -> {
+      let accept =
+        decode.run(data, decode.at(["x-accept"], decode.string))
+        |> option.from_result()
+      let max_file_size =
+        decode.run(data, decode.at(["x-max-file-size"], decode.int))
+        |> option.from_result()
+      Some(types.UploadConfig(
+        accept: option.unwrap(accept, "image/*"),
+        max_file_size: max_file_size,
+      ))
+    }
+    _ -> None
+  }
 }
 
 /// Decode a string format specifier into a StringFormat.

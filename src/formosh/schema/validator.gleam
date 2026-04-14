@@ -1,8 +1,9 @@
 // Validation functions for form fields
 
 import formosh/schema/types.{
-  type SchemaProperty, type ValidationError, type Value, BooleanValue,
-  IntegerValue, NullValue, NumberValue, StringValue, ValidationError,
+  type SchemaProperty, type ValidationError, type Value, ArrayValue,
+  BooleanValue, IntegerValue, NullValue, NumberValue, StringValue,
+  ValidationError,
 }
 import formosh/validation/field_requirements
 import gleam/float
@@ -37,6 +38,62 @@ import gleam/string
 /// // Returns list of ValidationError if validation fails
 /// ```
 pub fn validate_field(
+  field_name: String,
+  value: Option(Value),
+  property: SchemaProperty,
+  is_required: Bool,
+) -> List(ValidationError) {
+  // Image upload fields have custom validation
+  case property.widget {
+    Some("image-upload") ->
+      validate_image_upload(field_name, value, is_required)
+    _ -> validate_standard_field(field_name, value, property, is_required)
+  }
+}
+
+/// Validate an image-upload field.
+fn validate_image_upload(
+  field_name: String,
+  value: Option(Value),
+  is_required: Bool,
+) -> List(ValidationError) {
+  case value {
+    None | Some(NullValue) | Some(ArrayValue([])) ->
+      case is_required {
+        True -> [
+          ValidationError(
+            field: field_name,
+            message: "At least one image is required",
+            rule: "required",
+          ),
+        ]
+        False -> []
+      }
+    Some(ArrayValue(items)) -> {
+      let invalid =
+        list.any(items, fn(item) {
+          case item {
+            StringValue(_) -> False
+            _ -> True
+          }
+        })
+      case invalid {
+        True -> [
+          ValidationError(
+            field: field_name,
+            message: "Invalid image upload value",
+            rule: "type",
+          ),
+        ]
+        False -> []
+      }
+    }
+    _ -> []
+  }
+}
+
+/// Standard field validation (non-widget fields).
+fn validate_standard_field(
   field_name: String,
   value: Option(Value),
   property: SchemaProperty,

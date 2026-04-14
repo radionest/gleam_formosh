@@ -1,8 +1,9 @@
+import formosh/schema/parser
 import formosh/schema/serializer
 import formosh/schema/types.{
   ArrayType, BooleanType, DateFormat, EmailFormat, IntegerType, IntegerValue,
   JsonSchema, NumberConstraints, NumberType, ObjectType, SchemaProperty,
-  StringConstraints, StringType, StringValue,
+  StringConstraints, StringType, StringValue, UploadConfig,
 }
 import gleam/dict
 import gleam/json
@@ -33,6 +34,8 @@ pub fn serialize_basic_string_schema_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -98,6 +101,8 @@ pub fn serialize_string_with_constraints_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -157,6 +162,8 @@ pub fn serialize_number_with_constraints_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -218,6 +225,8 @@ pub fn serialize_enum_field_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -278,10 +287,14 @@ pub fn serialize_array_field_test() {
               properties: None,
               required: [],
               read_only: False,
+              widget: None,
+              upload_config: None,
             )),
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -350,6 +363,8 @@ pub fn serialize_nested_object_test() {
                     properties: None,
                     required: [],
                     read_only: False,
+                    widget: None,
+                    upload_config: None,
                   ),
                 ),
                 #(
@@ -368,12 +383,16 @@ pub fn serialize_nested_object_test() {
                     properties: None,
                     required: [],
                     read_only: False,
+                    widget: None,
+                    upload_config: None,
                   ),
                 ),
               ]),
             ),
             required: ["street", "city"],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -428,6 +447,8 @@ pub fn serialize_ref_field_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -465,12 +486,16 @@ pub fn serialize_ref_field_test() {
                       properties: None,
                       required: [],
                       read_only: False,
+                      widget: None,
+                      upload_config: None,
                     ),
                   ),
                 ]),
               ),
               required: [],
               read_only: False,
+              widget: None,
+              upload_config: None,
             ),
           ),
         ]),
@@ -519,6 +544,8 @@ pub fn serialize_conditional_schema_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -555,12 +582,16 @@ pub fn serialize_conditional_schema_test() {
                     properties: None,
                     required: [],
                     read_only: False,
+                    widget: None,
+                    upload_config: None,
                   ),
                 ),
               ]),
             ),
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
           then_schema: Some(SchemaProperty(
             field_type: None,
@@ -591,12 +622,16 @@ pub fn serialize_conditional_schema_test() {
                     properties: None,
                     required: [],
                     read_only: False,
+                    widget: None,
+                    upload_config: None,
                   ),
                 ),
               ]),
             ),
             required: ["accountId"],
             read_only: False,
+            widget: None,
+            upload_config: None,
           )),
           else_schema: None,
         ),
@@ -644,6 +679,8 @@ pub fn serialize_boolean_field_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -698,6 +735,8 @@ pub fn serialize_date_format_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -749,6 +788,8 @@ pub fn serialize_exclusive_constraints_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -797,6 +838,8 @@ pub fn serialize_multiple_conditionals_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -833,12 +876,16 @@ pub fn serialize_multiple_conditionals_test() {
                     properties: None,
                     required: [],
                     read_only: False,
+                    widget: None,
+                    upload_config: None,
                   ),
                 ),
               ]),
             ),
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
           then_schema: Some(SchemaProperty(
             field_type: None,
@@ -869,12 +916,16 @@ pub fn serialize_multiple_conditionals_test() {
                     properties: None,
                     required: [],
                     read_only: False,
+                    widget: None,
+                    upload_config: None,
                   ),
                 ),
               ]),
             ),
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           )),
           else_schema: None,
         ),
@@ -908,12 +959,16 @@ pub fn serialize_multiple_conditionals_test() {
                     properties: None,
                     required: [],
                     read_only: False,
+                    widget: None,
+                    upload_config: None,
                   ),
                 ),
               ]),
             ),
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
           then_schema: Some(SchemaProperty(
             field_type: None,
@@ -944,12 +999,16 @@ pub fn serialize_multiple_conditionals_test() {
                     properties: None,
                     required: [],
                     read_only: False,
+                    widget: None,
+                    upload_config: None,
                   ),
                 ),
               ]),
             ),
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           )),
           else_schema: None,
         ),
@@ -997,6 +1056,8 @@ pub fn serialize_one_of_test() {
                 properties: None,
                 required: [],
                 read_only: False,
+                widget: None,
+                upload_config: None,
               ),
               SchemaProperty(
                 field_type: None,
@@ -1012,6 +1073,8 @@ pub fn serialize_one_of_test() {
                 properties: None,
                 required: [],
                 read_only: False,
+                widget: None,
+                upload_config: None,
               ),
             ]),
             ref: None,
@@ -1021,6 +1084,8 @@ pub fn serialize_one_of_test() {
             properties: None,
             required: [],
             read_only: False,
+            widget: None,
+            upload_config: None,
           ),
         ),
       ]),
@@ -1056,4 +1121,158 @@ pub fn serialize_one_of_test() {
   json_string
   |> string.contains("\"title\":\"S2: T2 Coronal (80 images)\"")
   |> should.be_true()
+}
+
+pub fn image_upload_serialization_test() {
+  let schema =
+    JsonSchema(
+      title: Some("Image Form"),
+      description: None,
+      field_type: ObjectType,
+      properties: dict.from_list([
+        #(
+          "photos",
+          SchemaProperty(
+            field_type: Some(ArrayType),
+            title: Some("Photos"),
+            description: None,
+            default: None,
+            enum_values: None,
+            one_of: None,
+            ref: None,
+            string_constraints: None,
+            number_constraints: None,
+            items: Some(
+              SchemaProperty(
+                ..types.empty_property(),
+                field_type: Some(StringType),
+              ),
+            ),
+            properties: None,
+            required: [],
+            read_only: False,
+            widget: Some("image-upload"),
+            upload_config: Some(UploadConfig(
+              accept: "image/*",
+              max_file_size: Some(10_485_760),
+            )),
+          ),
+        ),
+      ]),
+      required: [],
+      defs: None,
+      conditionals: [],
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  let result = serializer.schema_to_json(schema)
+  let json_string = json.to_string(result)
+
+  json_string
+  |> string.contains("\"x-widget\":\"image-upload\"")
+  |> should.be_true()
+
+  json_string
+  |> string.contains("\"x-accept\":\"image/*\"")
+  |> should.be_true()
+
+  json_string
+  |> string.contains("\"x-max-file-size\":10485760")
+  |> should.be_true()
+}
+
+pub fn image_upload_roundtrip_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"photos\": {
+        \"type\": \"array\",
+        \"title\": \"Photos\",
+        \"items\": {\"type\": \"string\"},
+        \"x-widget\": \"image-upload\",
+        \"x-accept\": \"image/jpeg\",
+        \"x-max-file-size\": 5242880
+      }
+    }
+  }"
+
+  // Parse
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(prop) = dict.get(schema.properties, "photos")
+
+  should.equal(prop.widget, Some("image-upload"))
+  case prop.upload_config {
+    Some(config) -> {
+      should.equal(config.accept, "image/jpeg")
+      should.equal(config.max_file_size, Some(5_242_880))
+    }
+    None -> panic as "Expected upload_config"
+  }
+
+  // Serialize back
+  let serialized = serializer.schema_to_json(schema)
+  let serialized_string = json.to_string(serialized)
+
+  serialized_string
+  |> string.contains("\"x-widget\":\"image-upload\"")
+  |> should.be_true()
+
+  serialized_string
+  |> string.contains("\"x-accept\":\"image/jpeg\"")
+  |> should.be_true()
+
+  serialized_string
+  |> string.contains("\"x-max-file-size\":5242880")
+  |> should.be_true()
+
+  // Re-parse serialized output
+  let assert Ok(reparsed) = parser.parse_schema(serialized_string)
+  let assert Ok(reparsed_prop) = dict.get(reparsed.properties, "photos")
+
+  should.equal(reparsed_prop.widget, Some("image-upload"))
+  case reparsed_prop.upload_config {
+    Some(config) -> {
+      should.equal(config.accept, "image/jpeg")
+      should.equal(config.max_file_size, Some(5_242_880))
+    }
+    None -> panic as "Expected upload_config after roundtrip"
+  }
+}
+
+pub fn no_widget_no_x_fields_serialized_test() {
+  let schema =
+    JsonSchema(
+      title: None,
+      description: None,
+      field_type: ObjectType,
+      properties: dict.from_list([
+        #(
+          "name",
+          SchemaProperty(..types.empty_property(), field_type: Some(StringType)),
+        ),
+      ]),
+      required: [],
+      defs: None,
+      conditionals: [],
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  let result = serializer.schema_to_json(schema)
+  let json_string = json.to_string(result)
+
+  // Should not contain any x- fields
+  json_string
+  |> string.contains("x-widget")
+  |> should.be_false()
+
+  json_string
+  |> string.contains("x-accept")
+  |> should.be_false()
+
+  json_string
+  |> string.contains("x-max-file-size")
+  |> should.be_false()
 }

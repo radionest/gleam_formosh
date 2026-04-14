@@ -203,3 +203,125 @@ pub fn invalid_json_test() {
   let result = parser.parse_schema(json)
   should.be_error(result)
 }
+
+pub fn image_upload_widget_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"photos\": {
+        \"type\": \"array\",
+        \"title\": \"Photos\",
+        \"items\": {\"type\": \"string\", \"format\": \"uri\"},
+        \"x-widget\": \"image-upload\",
+        \"x-accept\": \"image/*\",
+        \"x-max-file-size\": 10485760
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = dict.get(schema.properties, "photos")
+
+  should.equal(prop.field_type, Some(types.ArrayType))
+  should.equal(prop.widget, Some("image-upload"))
+  should.equal(prop.title, Some("Photos"))
+
+  case prop.upload_config {
+    Some(config) -> {
+      should.equal(config.accept, "image/*")
+      should.equal(config.max_file_size, Some(10_485_760))
+    }
+    None -> panic as "Expected upload_config to be Some"
+  }
+
+  // Items should be string with uri format
+  case prop.items {
+    Some(items_prop) -> {
+      should.equal(items_prop.field_type, Some(types.StringType))
+    }
+    None -> panic as "Expected items to be Some"
+  }
+}
+
+pub fn image_upload_defaults_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"photos\": {
+        \"type\": \"array\",
+        \"x-widget\": \"image-upload\"
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = dict.get(schema.properties, "photos")
+
+  should.equal(prop.widget, Some("image-upload"))
+
+  // upload_config should have default accept and no max_file_size
+  case prop.upload_config {
+    Some(config) -> {
+      should.equal(config.accept, "image/*")
+      should.equal(config.max_file_size, None)
+    }
+    None -> panic as "Expected upload_config to be Some"
+  }
+}
+
+pub fn no_widget_property_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"name\": {\"type\": \"string\"}
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = dict.get(schema.properties, "name")
+
+  should.equal(prop.widget, None)
+  should.equal(prop.upload_config, None)
+}
+
+pub fn image_upload_custom_accept_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"documents\": {
+        \"type\": \"array\",
+        \"x-widget\": \"image-upload\",
+        \"x-accept\": \"application/pdf\",
+        \"x-max-file-size\": 5242880
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = dict.get(schema.properties, "documents")
+
+  should.equal(prop.widget, Some("image-upload"))
+  case prop.upload_config {
+    Some(config) -> {
+      should.equal(config.accept, "application/pdf")
+      should.equal(config.max_file_size, Some(5_242_880))
+    }
+    None -> panic as "Expected upload_config to be Some"
+  }
+}

@@ -1,10 +1,13 @@
 // Update functions for form MVU
 
+import formosh/ffi/image_upload as image_upload_ffi
 import formosh/form/json_utils
 import formosh/form/model.{
-  type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit, FormSubmit,
-  FormSubmitted, HttpSubmit, NoSubmit, RemoveArrayItemPath, ResetForm,
-  SubmissionError, SubmissionSuccess, UpdateFieldPath, ValidateForm,
+  type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit, FileUploadError,
+  FileUploading, FormSubmit, FormSubmitted, HttpSubmit, ImageRemoved,
+  ImageUploadCompleted, ImageUploadFailed, ImageUploadRequested,
+  ImageUploadStarted, NoSubmit, RemoveArrayItemPath, ResetForm, SubmissionError,
+  SubmissionSuccess, UpdateFieldPath, ValidateForm,
 }
 import formosh/form/path
 import formosh/schema/conditional_resolver
@@ -16,6 +19,7 @@ import gleam/http/response
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import lustre/effect.{type Effect}
 import rsvp
 
@@ -174,6 +178,129 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     ResetForm -> {
       let new_model = model.reset(model)
       #(new_model, effect.none())
+    }
+
+    ImageUploadRequested(field_path) -> {
+      let upload_effect = create_upload_effect(model, field_path)
+      #(model, upload_effect)
+    }
+
+    ImageUploadStarted(field_path, temp_id, preview_url) -> {
+      let path_key = path.to_string(field_path)
+      let current =
+        dict.get(model.upload_states, path_key)
+        |> option.from_result()
+        |> option.unwrap([])
+      let new_states =
+        dict.insert(
+          model.upload_states,
+          path_key,
+          list.append(current, [FileUploading(temp_id, preview_url)]),
+        )
+      #(model.FormModel(..model, upload_states: new_states), effect.none())
+    }
+
+    ImageUploadCompleted(field_path, temp_id, server_url) -> {
+      // Remove from upload_states
+      let path_key = path.to_string(field_path)
+      let new_states =
+        remove_upload_state(model.upload_states, path_key, temp_id)
+
+      // Revoke the blob preview URL
+      let preview_url = get_preview_url(model.upload_states, path_key, temp_id)
+      let _ = case preview_url {
+        Some(url) -> image_upload_ffi.revoke_object_url(url)
+        None -> Nil
+      }
+
+      // Add server_url to the array value
+      let root_value = model_to_root_value(model)
+      let current_array = case path.get_at_path(root_value, field_path) {
+        Some(types.ArrayValue(items)) -> items
+        _ -> []
+      }
+      let updated_array =
+        list.append(current_array, [types.StringValue(server_url)])
+      let updated_root =
+        path.set_at_path(
+          root_value,
+          field_path,
+          types.ArrayValue(updated_array),
+        )
+      let new_values = root_value_to_model_values(updated_root)
+
+      let new_model =
+        model.FormModel(
+          ..model,
+          values: new_values,
+          upload_states: new_states,
+          is_dirty: True,
+        )
+      let validated_model = validate_all_fields(new_model)
+      #(validated_model, effect.none())
+    }
+
+    ImageUploadFailed(field_path, temp_id, error) -> {
+      let path_key = path.to_string(field_path)
+
+      // Revoke the blob preview URL if it exists
+      let preview_url = get_preview_url(model.upload_states, path_key, temp_id)
+      let _ = case preview_url {
+        Some(url) -> image_upload_ffi.revoke_object_url(url)
+        None -> Nil
+      }
+
+      // Replace FileUploading with FileUploadError
+      let current =
+        dict.get(model.upload_states, path_key)
+        |> option.from_result()
+        |> option.unwrap([])
+      let updated =
+        list.map(current, fn(state) {
+          case state {
+            FileUploading(id, _) if id == temp_id ->
+              FileUploadError(temp_id, error)
+            other -> other
+          }
+        })
+      let new_states = dict.insert(model.upload_states, path_key, updated)
+      #(model.FormModel(..model, upload_states: new_states), effect.none())
+    }
+
+    ImageRemoved(field_path, server_url) -> {
+      // Remove URL from array value
+      let root_value = model_to_root_value(model)
+      let current_array = case path.get_at_path(root_value, field_path) {
+        Some(types.ArrayValue(items)) -> items
+        _ -> []
+      }
+      let updated_array =
+        list.filter(current_array, fn(item) {
+          item != types.StringValue(server_url)
+        })
+      let updated_root =
+        path.set_at_path(
+          root_value,
+          field_path,
+          types.ArrayValue(updated_array),
+        )
+      let new_values = root_value_to_model_values(updated_root)
+
+      // Send DELETE request via FFI
+      let delete_effect = case model.upload_base_url {
+        Some(base_url) -> {
+          let filename = extract_filename(server_url)
+          effect.from(fn(_dispatch) {
+            image_upload_ffi.delete_file(base_url, filename)
+          })
+        }
+        None -> effect.none()
+      }
+
+      let new_model =
+        model.FormModel(..model, values: new_values, is_dirty: True)
+      let validated_model = validate_all_fields(new_model)
+      #(validated_model, delete_effect)
     }
   }
 }
@@ -336,6 +463,106 @@ fn handle_http_response(
       FormSubmitted(Error(error_message))
     }
   }
+}
+
+/// Create an effect that opens the file picker and dispatches upload lifecycle messages.
+fn create_upload_effect(
+  model: FormModel,
+  field_path: path.FieldPath,
+) -> Effect(FormMsg) {
+  case model.upload_base_url {
+    None -> effect.none()
+    Some(upload_url) -> {
+      // Look up the property to get upload config
+      let first_segment = case field_path {
+        [path.PropertySegment(name), ..] -> Some(name)
+        _ -> None
+      }
+      let config = case first_segment {
+        Some(name) ->
+          case dict.get(model.resolved_schema.properties, name) {
+            Ok(prop) -> prop.upload_config
+            Error(_) -> None
+          }
+        None -> None
+      }
+      let accept = case config {
+        Some(c) -> c.accept
+        None -> "image/*"
+      }
+      let max_file_size = case config {
+        Some(types.UploadConfig(_, Some(size))) -> size
+        _ -> 0
+      }
+      effect.from(fn(dispatch) {
+        image_upload_ffi.open_file_picker(
+          accept,
+          max_file_size,
+          upload_url,
+          fn(temp_id, preview_url) {
+            dispatch(ImageUploadStarted(field_path, temp_id, preview_url))
+            Nil
+          },
+          fn(temp_id, server_url) {
+            dispatch(ImageUploadCompleted(field_path, temp_id, server_url))
+            Nil
+          },
+          fn(temp_id, error) {
+            dispatch(ImageUploadFailed(field_path, temp_id, error))
+            Nil
+          },
+        )
+      })
+    }
+  }
+}
+
+/// Remove an upload state entry by temp_id.
+fn remove_upload_state(
+  states: dict.Dict(String, List(model.FileUploadState)),
+  path_key: String,
+  temp_id: String,
+) -> dict.Dict(String, List(model.FileUploadState)) {
+  case dict.get(states, path_key) {
+    Ok(current) -> {
+      let filtered =
+        list.filter(current, fn(state) {
+          case state {
+            FileUploading(id, _) | FileUploadError(id, _) -> id != temp_id
+          }
+        })
+      dict.insert(states, path_key, filtered)
+    }
+    Error(_) -> states
+  }
+}
+
+/// Get the preview URL for a given temp_id from upload states.
+fn get_preview_url(
+  states: dict.Dict(String, List(model.FileUploadState)),
+  path_key: String,
+  temp_id: String,
+) -> option.Option(String) {
+  case dict.get(states, path_key) {
+    Ok(current) ->
+      list.find_map(current, fn(state) {
+        case state {
+          FileUploading(id, url) if id == temp_id -> Ok(url)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result()
+    Error(_) -> None
+  }
+}
+
+/// Extract filename from a URL path (last segment after "/").
+fn extract_filename(url: String) -> String {
+  url
+  |> string.split("/")
+  |> list.last()
+  |> option.from_result()
+  |> option.unwrap(url)
 }
 
 /// Convert form values dictionary to JSON.

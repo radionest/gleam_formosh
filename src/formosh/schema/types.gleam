@@ -75,12 +75,17 @@ pub type NumberConstraints {
   )
 }
 
+/// Upload configuration from x- extension fields.
+pub type UploadConfig {
+  UploadConfig(accept: String, max_file_size: Option(Int))
+}
+
 /// A single property definition within a JSON Schema.
-/// 
+///
 /// This type represents a complete field definition including its type,
 /// validation constraints, metadata, and nested structure for complex types.
 /// It serves as the blueprint for generating form fields.
-/// 
+///
 /// The `ref` field supports JSON Schema $ref references, allowing properties
 /// to reference definitions stored in $defs or other locations.
 pub type SchemaProperty {
@@ -104,6 +109,10 @@ pub type SchemaProperty {
     required: List(String),
     // JSON Schema readOnly annotation
     read_only: Bool,
+    // x-widget: custom widget override (e.g. "image-upload")
+    widget: Option(String),
+    // Upload configuration from x- extensions
+    upload_config: Option(UploadConfig),
   )
 }
 
@@ -232,5 +241,7 @@ pub fn empty_property() -> SchemaProperty {
     properties: None,
     required: [],
     read_only: False,
+    widget: None,
+    upload_config: None,
   )
 }

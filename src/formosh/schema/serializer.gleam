@@ -2,11 +2,12 @@
 
 import formosh/schema/types.{
   type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
-  type SchemaProperty, type StringConstraints, type StringFormat, type Value,
-  ArrayType, ArrayValue, BooleanType, BooleanValue, CustomFormat, DateFormat,
-  DateTimeFormat, EmailFormat, IntegerType, IntegerValue, NullType, NullValue,
-  NumberType, NumberValue, ObjectType, ObjectValue, RegexFormat, StringType,
-  StringValue, TimeFormat, UriFormat, UrlFormat, UuidFormat,
+  type SchemaProperty, type StringConstraints, type StringFormat,
+  type UploadConfig, type Value, ArrayType, ArrayValue, BooleanType,
+  BooleanValue, CustomFormat, DateFormat, DateTimeFormat, EmailFormat,
+  IntegerType, IntegerValue, NullType, NullValue, NumberType, NumberValue,
+  ObjectType, ObjectValue, RegexFormat, StringType, StringValue, TimeFormat,
+  UploadConfig, UriFormat, UrlFormat, UuidFormat,
 }
 import gleam/dict
 import gleam/json
@@ -224,6 +225,8 @@ fn property_to_json(prop: SchemaProperty) -> json.Json {
   |> add_optional_properties(prop.properties)
   |> add_required_array(prop.required)
   |> add_read_only(prop.read_only)
+  |> add_optional_json_field("x-widget", prop.widget, json.string)
+  |> add_optional_upload_config(prop.upload_config)
   |> json.object()
 }
 
@@ -235,6 +238,20 @@ fn add_read_only(
   case read_only {
     True -> add_fields(fields, [#("readOnly", json.bool(True))])
     False -> fields
+  }
+}
+
+/// Add upload config x- fields if present.
+fn add_optional_upload_config(
+  fields: List(#(String, json.Json)),
+  config: option.Option(UploadConfig),
+) -> List(#(String, json.Json)) {
+  case config {
+    option.None -> fields
+    option.Some(UploadConfig(accept, max_file_size)) ->
+      fields
+      |> add_fields([#("x-accept", json.string(accept))])
+      |> add_optional_json_field("x-max-file-size", max_file_size, json.int)
   }
 }
 
