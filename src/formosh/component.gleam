@@ -79,6 +79,10 @@ pub fn register() -> Result(Nil, lustre.Error) {
       component.on_attribute_change("show-readonly-fields", fn(value) {
         Ok(ShowReadonlyFieldsChanged(value == "true"))
       }),
+      // Listen for upload-base-url changes
+      component.on_attribute_change("upload-base-url", fn(value) {
+        Ok(UploadBaseUrlChanged(value))
+      }),
     ])
 
   lustre.register(component, "formosh-form")
@@ -151,8 +155,16 @@ pub fn show_readonly_fields(show: Bool) -> Attribute(msg) {
   })
 }
 
+/// Set the base URL for file uploads.
+///
+/// Files are uploaded via POST to this URL with multipart/form-data.
+/// Delete requests use DELETE {url}/{filename}.
+pub fn upload_base_url(url: String) -> Attribute(msg) {
+  attribute.attribute("upload-base-url", url)
+}
+
 /// Listen for form submission events.
-/// 
+///
 /// The handler receives the form data as a JSON object in the event detail.
 pub fn on_submit(handler: fn(dict.Dict(String, Value)) -> msg) -> Attribute(msg) {
   event.on("formosh-submit", {
@@ -198,6 +210,8 @@ type Model {
     initial_values: dict.Dict(String, Value),
     // Whether to show readOnly fields (True) or hide them (False)
     show_readonly_fields: Bool,
+    // Base URL for file uploads
+    upload_base_url: Option(String),
   )
 }
 
@@ -210,6 +224,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       css_prefix: "formosh",
       initial_values: dict.new(),
       show_readonly_fields: True,
+      upload_base_url: None,
     ),
     effect.none(),
   )
@@ -226,6 +241,7 @@ type Msg {
   CssPrefixChanged(String)
   InitialValuesChanged(dict.Dict(String, Value))
   ShowReadonlyFieldsChanged(Bool)
+  UploadBaseUrlChanged(String)
 
   // Form messages (wrapped)
   FormMessage(FormMsg)
@@ -259,7 +275,11 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
   let resolved_schema =
     conditional_resolver.resolve_conditional_schema(schema, form_model.values)
   let form_model_resolved =
-    FormModel(..form_model, resolved_schema: resolved_schema)
+    FormModel(
+      ..form_model,
+      resolved_schema: resolved_schema,
+      upload_base_url: model.upload_base_url,
+    )
   // Validate the form initially to check required fields
   let validated_form = validate_all_fields(form_model_resolved)
   Model(..model, form_model: Some(validated_form))
@@ -329,6 +349,22 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       let final_model = case new_model.form_model {
         Some(form_model) ->
           reinitialize_form_with_schema(new_model, form_model.schema)
+        None -> new_model
+      }
+      #(final_model, effect.none())
+    }
+
+    UploadBaseUrlChanged(url) -> {
+      let new_model = Model(..model, upload_base_url: Some(url))
+      // Update existing form model if present
+      let final_model = case new_model.form_model {
+        Some(form_model) ->
+          Model(
+            ..new_model,
+            form_model: Some(
+              FormModel(..form_model, upload_base_url: Some(url)),
+            ),
+          )
         None -> new_model
       }
       #(final_model, effect.none())

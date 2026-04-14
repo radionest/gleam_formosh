@@ -61,10 +61,10 @@ Form values are stored as `Dict(String, Value)` with dot-notation keys (e.g. `"u
 
 ## Web Component
 
-Registers as `<formosh-form>` custom element. Attributes: `schema`, `submit-url`, `submit-method`, `css-prefix`, `show-readonly-fields`. Emits events: `formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`.
+Registers as `<formosh-form>` custom element. Attributes: `schema`, `submit-url`, `submit-method`, `css-prefix`, `show-readonly-fields`, `upload-base-url`. Emits events: `formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`.
 
 ## Notes
 
-- All `.mjs` files are auto-generated — do not read or edit them
+- All `.mjs` files are auto-generated — do not read or edit them (except `src/formosh/ffi/*_ffi.mjs` which are hand-written FFI)
 - `oneOf`/`anyOf` composition keywords are not yet implemented
 - HTTP submissions use the `rsvp` library for effect management

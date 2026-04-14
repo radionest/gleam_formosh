@@ -49,7 +49,17 @@ pub type FormModel {
     submit_config: Option(SubmitConfig),
     // Whether to display readOnly fields
     show_readonly_fields: Bool,
+    // Base URL for file uploads (from web component attribute)
+    upload_base_url: Option(String),
+    // In-flight upload states: field_path_string -> list of uploads
+    upload_states: Dict(String, List(FileUploadState)),
   )
+}
+
+/// State of a file upload in progress.
+pub type FileUploadState {
+  FileUploading(temp_id: String, preview_url: String)
+  FileUploadError(temp_id: String, error: String)
 }
 
 /// Result of a form submission attempt.
@@ -81,6 +91,13 @@ pub type FormMsg {
 
   // Reset form
   ResetForm
+
+  // Image upload lifecycle
+  ImageUploadRequested(path: FieldPath)
+  ImageUploadStarted(path: FieldPath, temp_id: String, preview_url: String)
+  ImageUploadCompleted(path: FieldPath, temp_id: String, server_url: String)
+  ImageUploadFailed(path: FieldPath, temp_id: String, error: String)
+  ImageRemoved(path: FieldPath, server_url: String)
 }
 
 /// Initialize a new form model from a JSON Schema.
@@ -153,6 +170,8 @@ pub fn init_with_full_config(
     submission_result: option.None,
     submit_config: submit_config,
     show_readonly_fields: show_readonly_fields,
+    upload_base_url: option.None,
+    upload_states: dict.new(),
   )
 }
 
@@ -387,6 +406,8 @@ pub fn reset(model: FormModel) -> FormModel {
     submission_result: option.None,
     submit_config: model.submit_config,
     show_readonly_fields: model.show_readonly_fields,
+    upload_base_url: model.upload_base_url,
+    upload_states: dict.new(),
   )
 }
 

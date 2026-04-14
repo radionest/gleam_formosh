@@ -226,5 +226,10 @@ fn merge_properties(
     },
     // readOnly is true if either property has it set
     read_only: referencing.read_only || referenced.read_only,
+    widget: option.or(referencing.widget, referenced.widget),
+    upload_config: option.or(
+      referencing.upload_config,
+      referenced.upload_config,
+    ),
   )
 }

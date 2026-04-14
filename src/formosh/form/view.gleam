@@ -2,6 +2,7 @@
 
 import formosh/fields/array_field
 import formosh/fields/boolean_field
+import formosh/fields/image_field
 import formosh/fields/number_field
 import formosh/fields/object_field
 import formosh/fields/string_field
@@ -150,69 +151,28 @@ fn render_visible_field(
   // Create a path for root-level fields
   let field_path = path.from_field_name(field_name)
 
-  let field_element = case property.field_type {
-    Some(types.StringType) ->
-      string_field.render(
-        field_path,
-        property,
-        value,
-        is_required,
-        is_disabled,
-        is_readonly,
-      )
-    Some(types.NumberType) | Some(types.IntegerType) ->
-      number_field.render(
-        field_path,
-        property,
-        value,
-        is_required,
-        is_disabled,
-        is_readonly,
-      )
-    Some(types.BooleanType) ->
-      boolean_field.render(
-        field_path,
-        property,
-        value,
-        is_required,
-        is_disabled,
-        is_readonly,
-      )
-    Some(types.ArrayType) -> {
-      // Convert field value to array items
-      let array_items = case value {
-        Some(types.ArrayValue(items)) ->
-          list.map(items, fn(item) {
-            case item {
-              types.ObjectValue(fields) -> dict.from_list(fields)
-              _ -> dict.new()
-            }
-          })
-        _ -> []
+  let field_element = case property.widget {
+    Some("image-upload") -> {
+      let path_key = path.to_string(field_path)
+      let upload_states = case dict.get(model.upload_states, path_key) {
+        Ok(states) -> states
+        Error(_) -> []
       }
-
-      array_field.view(
-        field_name,
+      image_field.render(
+        field_path,
         property,
-        array_items,
-        list.map(errors, fn(e) { e.message }),
+        value,
         is_required,
+        is_disabled,
+        is_readonly,
+        upload_states,
+        model.upload_base_url,
       )
     }
-    Some(types.ObjectType) ->
-      object_field.render(
-        field_path,
-        property,
-        value,
-        is_required,
-        is_disabled,
-        is_readonly,
-      )
     _ ->
-      // Handle enum, oneOf, or unknown types
-      case property.enum_values, property.one_of {
-        Some(_), _ | _, Some(_) ->
-          string_field.render_enum(
+      case property.field_type {
+        Some(types.StringType) ->
+          string_field.render(
             field_path,
             property,
             value,
@@ -220,7 +180,68 @@ fn render_visible_field(
             is_disabled,
             is_readonly,
           )
-        None, None -> html.div([], [])
+        Some(types.NumberType) | Some(types.IntegerType) ->
+          number_field.render(
+            field_path,
+            property,
+            value,
+            is_required,
+            is_disabled,
+            is_readonly,
+          )
+        Some(types.BooleanType) ->
+          boolean_field.render(
+            field_path,
+            property,
+            value,
+            is_required,
+            is_disabled,
+            is_readonly,
+          )
+        Some(types.ArrayType) -> {
+          // Convert field value to array items
+          let array_items = case value {
+            Some(types.ArrayValue(items)) ->
+              list.map(items, fn(item) {
+                case item {
+                  types.ObjectValue(fields) -> dict.from_list(fields)
+                  _ -> dict.new()
+                }
+              })
+            _ -> []
+          }
+
+          array_field.view(
+            field_name,
+            property,
+            array_items,
+            list.map(errors, fn(e) { e.message }),
+            is_required,
+          )
+        }
+        Some(types.ObjectType) ->
+          object_field.render(
+            field_path,
+            property,
+            value,
+            is_required,
+            is_disabled,
+            is_readonly,
+          )
+        _ ->
+          // Handle enum, oneOf, or unknown types
+          case property.enum_values, property.one_of {
+            Some(_), _ | _, Some(_) ->
+              string_field.render_enum(
+                field_path,
+                property,
+                value,
+                is_required,
+                is_disabled,
+                is_readonly,
+              )
+            None, None -> html.div([], [])
+          }
       }
   }
 

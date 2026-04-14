@@ -1,6 +1,8 @@
 *.beam
 *.ez
 *.mjs
+# Hand-written FFI files — not auto-generated
+!src/formosh/ffi/*_ffi.mjs
 
 /build
 erl_crash.dump
