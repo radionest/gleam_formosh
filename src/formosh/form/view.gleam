@@ -217,6 +217,7 @@ fn render_visible_field(
             array_items,
             list.map(errors, fn(e) { e.message }),
             is_required,
+            is_readonly,
           )
         }
         Some(types.ObjectType) ->

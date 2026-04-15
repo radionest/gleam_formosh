@@ -52,6 +52,7 @@ pub fn view(
   values: List(dict.Dict(String, Value)),
   errors: List(String),
   required: Bool,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let title = option.unwrap(property.title, name)
   let description = property.description
@@ -71,18 +72,21 @@ pub fn view(
     html.div(
       [class("array-items")],
       list.index_map(values, fn(item_values, index) {
-        render_array_item(name, property, item_values, index)
+        render_array_item(name, property, item_values, index, is_readonly)
       }),
     ),
-    html.button(
-      [
-        type_("button"),
-        class("add-array-item"),
-        // Use new path-based message
-        event.on_click(AddArrayItemPath(path.from_field_name(name))),
-      ],
-      [html.text("Добавить элемент")],
-    ),
+    case is_readonly {
+      True -> element.none()
+      False ->
+        html.button(
+          [
+            type_("button"),
+            class("add-array-item"),
+            event.on_click(AddArrayItemPath(path.from_field_name(name))),
+          ],
+          [html.text("Добавить элемент")],
+        )
+    },
     case errors {
       [] -> element.none()
       errs ->
@@ -115,6 +119,7 @@ fn render_array_item(
   property: SchemaProperty,
   item_values: dict.Dict(String, Value),
   index: Int,
+  is_readonly: Bool,
 ) -> Element(FormMsg) {
   case property.items {
     Some(item_schema) ->
@@ -123,18 +128,21 @@ fn render_array_item(
           html.span([class("array-item-index")], [
             html.text("№ " <> int.to_string(index + 1)),
           ]),
-          html.button(
-            [
-              type_("button"),
-              class("remove-array-item"),
-              // Use new path-based message
-              event.on_click(RemoveArrayItemPath(
-                path.from_field_name(array_name),
-                index,
-              )),
-            ],
-            [html.text("Удалить")],
-          ),
+          case is_readonly {
+            True -> element.none()
+            False ->
+              html.button(
+                [
+                  type_("button"),
+                  class("remove-array-item"),
+                  event.on_click(RemoveArrayItemPath(
+                    path.from_field_name(array_name),
+                    index,
+                  )),
+                ],
+                [html.text("Удалить")],
+              )
+          },
         ]),
         html.div(
           [class("array-item-fields")],
