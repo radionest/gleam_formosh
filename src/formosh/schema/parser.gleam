@@ -5,7 +5,7 @@ import formosh/schema/types.{
   BooleanType, BooleanValue, ConditionalRule, CustomFormat, EmailFormat,
   IntegerType, IntegerValue, JsonSchema, NullType, NullValue, NumberConstraints,
   NumberType, NumberValue, ObjectType, SchemaProperty, StringConstraints,
-  StringType, StringValue, UrlFormat, UuidFormat,
+  StringType, StringValue, UrlFormat, UuidFormat, empty_property,
 }
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
@@ -183,32 +183,16 @@ fn property_decoder() -> Decoder(SchemaProperty) {
     // Fallback to simple type string
     decode.string
     |> decode.map(fn(type_str) {
-      SchemaProperty(
-        field_type: case type_str {
-          "string" -> Some(StringType)
-          "number" -> Some(NumberType)
-          "integer" -> Some(IntegerType)
-          "boolean" -> Some(BooleanType)
-          "null" -> Some(NullType)
-          "array" -> Some(ArrayType)
-          "object" -> Some(ObjectType)
-          _ -> None
-        },
-        title: None,
-        description: None,
-        default: None,
-        enum_values: None,
-        one_of: None,
-        ref: None,
-        string_constraints: None,
-        number_constraints: None,
-        items: None,
-        properties: None,
-        required: [],
-        read_only: False,
-        widget: None,
-        upload_config: None,
-      )
+      SchemaProperty(..empty_property(), field_type: case type_str {
+        "string" -> Some(StringType)
+        "number" -> Some(NumberType)
+        "integer" -> Some(IntegerType)
+        "boolean" -> Some(BooleanType)
+        "null" -> Some(NullType)
+        "array" -> Some(ArrayType)
+        "object" -> Some(ObjectType)
+        _ -> None
+      })
     }),
   ])
 }

@@ -7,6 +7,7 @@ links = [
   { title = "Documentation", href = "https://hexdocs.pm/formosh" },
   { title = "GitHub", href = "https://github.com/youruser/formosh" }
 ]
+target = "javascript"
 
 # For a full reference of all the available options, you can have a look at
 # https://gleam.run/writing-gleam/gleam-toml/.
