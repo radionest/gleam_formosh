@@ -17,3 +17,6 @@ dev-notes
 .claude/settings.local.json
 .claude/worktrees/
 
+.claude/hooks/
+.claude/agents/
+.claude/settings.json
