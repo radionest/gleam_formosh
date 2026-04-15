@@ -69,3 +69,4 @@ Registers as `<formosh-form>` custom element. Attributes: `schema`, `submit-url`
 - `oneOf`/`anyOf` composition keywords are not yet implemented
 - `x-widget: "image-upload"` works only on top-level properties; nested image-upload fields (inside objects/arrays) are not yet supported
 - HTTP submissions use the `rsvp` library for effect management
+- Post-merge worktree cleanup: `ExitWorktree(remove)` first, then `git pull`. Do not use `gh pr merge --delete-branch` while worktree exists — local branch deletion will fail
