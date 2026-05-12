@@ -243,3 +243,61 @@ pub fn submit_includes_defaults_test() {
   dict.get(resolved, "is_resected")
   |> should.equal(Ok(BooleanValue(False)))
 }
+
+pub fn extra_object_keys_preserved_test() {
+  let schema =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"patient\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"name\": {\"type\": \"string\"},
+            \"age\": {\"type\": \"integer\", \"default\": 0}
+          }
+        }
+      }
+    }"
+
+  let m =
+    init_with(
+      schema,
+      dict.from_list([
+        #(
+          "patient",
+          ObjectValue([
+            #("name", StringValue("X")),
+            #("legacy_id", StringValue("42")),
+          ]),
+        ),
+      ]),
+    )
+
+  dict.get(m.values, "patient")
+  |> should.equal(
+    Ok(
+      ObjectValue([
+        #("name", StringValue("X")),
+        #("age", IntegerValue(0)),
+        #("legacy_id", StringValue("42")),
+      ]),
+    ),
+  )
+}
+
+pub fn reset_reapplies_defaults_test() {
+  let schema =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"is_resected\": {\"type\": \"boolean\", \"default\": false}
+      },
+      \"required\": [\"is_resected\"]
+    }"
+
+  let m =
+    init_with(schema, dict.from_list([#("is_resected", BooleanValue(True))]))
+  let after_reset = model.reset(m)
+  dict.get(after_reset.values, "is_resected")
+  |> should.equal(Ok(BooleanValue(False)))
+}

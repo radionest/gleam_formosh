@@ -188,6 +188,11 @@ fn apply_schema_defaults(
 ) -> Dict(String, Value) {
   list.fold(properties, values, fn(acc, pair) {
     let #(field_name, property) = pair
+    // Top-level NullValue is treated as "absent" so a schema `default`
+    // can fill it. This is intentional and applies only during init/reset
+    // — runtime field updates flow through `set_field_value` and do not
+    // re-enter this code, so explicit user clears (NullValue dispatched
+    // from empty inputs) are not silently turned back into defaults.
     let current = case dict.get(acc, field_name) {
       Ok(NullValue) -> option.None
       Ok(v) -> option.Some(v)
@@ -247,7 +252,10 @@ fn defaults_for_missing(property: SchemaProperty) -> Option(Value) {
 }
 
 // Recurse into an existing ObjectValue, filling missing sub-fields from
-// their defaults while preserving the property order declared in the schema.
+// their defaults. Schema-declared properties come first (preserving schema
+// order), then any caller-supplied keys not declared in the schema are
+// appended in their original order — this keeps additionalProperties /
+// legacy fields from being silently dropped.
 fn merge_object_defaults(
   property: SchemaProperty,
   fields: List(#(String, Value)),
@@ -255,15 +263,18 @@ fn merge_object_defaults(
   case property.properties {
     option.Some(sub_props) -> {
       let merged = apply_schema_defaults(sub_props, dict.from_list(fields))
-      ObjectValue(
+      let declared =
         list.filter_map(sub_props, fn(pair) {
           let #(name, _) = pair
           case dict.get(merged, name) {
             Ok(v) -> Ok(#(name, v))
             Error(_) -> Error(Nil)
           }
-        }),
-      )
+        })
+      let declared_names = list.map(sub_props, fn(pair) { pair.0 })
+      let extra =
+        list.filter(fields, fn(pair) { !list.contains(declared_names, pair.0) })
+      ObjectValue(list.append(declared, extra))
     }
     option.None -> ObjectValue(fields)
   }
@@ -271,7 +282,8 @@ fn merge_object_defaults(
 
 // Recurse into each existing array item using the items-schema. We do not
 // create new items — defaults only apply inside elements the caller
-// already hydrated.
+// already hydrated. `apply_defaults_to_value` is total for any
+// `Some(_)` input, so we can `let assert` the result.
 fn map_array_item_defaults(
   property: SchemaProperty,
   items: List(Value),
@@ -280,10 +292,9 @@ fn map_array_item_defaults(
     option.Some(item_schema) ->
       ArrayValue(
         list.map(items, fn(item) {
-          case apply_defaults_to_value(item_schema, option.Some(item)) {
-            option.Some(v) -> v
-            option.None -> item
-          }
+          let assert option.Some(v) =
+            apply_defaults_to_value(item_schema, option.Some(item))
+          v
         }),
       )
     option.None -> ArrayValue(items)
@@ -510,8 +521,9 @@ pub fn reset(model: FormModel) -> FormModel {
   FormModel(
     schema: model.schema,
     resolved_schema: model.schema,
-    // Reset to base schema with no conditionals applied
-    values: dict.new(),
+    // Reset to base schema with no conditionals applied;
+    // re-apply schema defaults to stay consistent with init.
+    values: apply_schema_defaults(model.schema.properties, dict.new()),
     errors: dict.new(),
     is_submitting: False,
     is_dirty: False,
