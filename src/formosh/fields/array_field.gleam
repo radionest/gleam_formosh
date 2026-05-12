@@ -11,6 +11,7 @@ import formosh/fields/number_field
 import formosh/fields/string_field
 import formosh/form/model.{type FormMsg, AddArrayItemPath, RemoveArrayItemPath}
 import formosh/form/path
+import formosh/schema/conditional_resolver
 import formosh/schema/types.{type SchemaProperty, type Value}
 import gleam/dict
 import gleam/int
@@ -173,7 +174,12 @@ fn render_item_fields(
   item_values: dict.Dict(String, Value),
   index: Int,
 ) -> List(Element(FormMsg)) {
-  case item_schema.properties {
+  // Apply item-level conditionals (if/then/else, allOf) using the row's own
+  // values as context. Each row resolves independently.
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, item_values)
+
+  case resolved.properties {
     Some(props) ->
       dict.to_list(props)
       |> list.map(fn(entry) {
@@ -186,7 +192,7 @@ fn render_item_fields(
           field_name,
           field_prop,
           value,
-          list.contains(item_schema.required, field_name),
+          list.contains(resolved.required, field_name),
         )
       })
     None -> []

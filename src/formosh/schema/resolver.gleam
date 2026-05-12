@@ -231,5 +231,6 @@ fn merge_properties(
       referencing.upload_config,
       referenced.upload_config,
     ),
+    conditionals: list.append(referencing.conditionals, referenced.conditionals),
   )
 }

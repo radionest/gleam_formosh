@@ -4,8 +4,8 @@ import formosh/form/update
 import formosh/schema/conditional_resolver
 import formosh/schema/parser
 import formosh/schema/types.{
-  BooleanValue, ConditionalRule, JsonSchema, SchemaProperty, StringValue,
-  empty_property,
+  type SchemaProperty, BooleanValue, ConditionalRule, IntegerValue, JsonSchema,
+  SchemaProperty, StringValue, empty_property,
 }
 import gleam/dict
 import gleam/list
@@ -673,5 +673,220 @@ pub fn validate_all_fields_conditional_required_test() {
 
   let validated_false = update.validate_all_fields(form_model_false)
   model.field_has_errors(validated_false, "extra_field")
+  |> should.be_false()
+}
+
+// ----------------------------------------------------------------------------
+// Item-level conditionals inside array `items` (if/then/else, allOf)
+// ----------------------------------------------------------------------------
+
+/// Minimised real-world schema from the downstream histology-simple form.
+fn lesions_schema_json() -> String {
+  "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"lesions\": {
+        \"type\": \"array\",
+        \"items\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"lesion_num\":  {\"type\": \"integer\"},
+            \"is_resected\": {\"type\": \"boolean\"}
+          },
+          \"required\": [\"lesion_num\", \"is_resected\"],
+          \"allOf\": [
+            {
+              \"if\":   {\"properties\": {\"is_resected\": {\"const\": true}}},
+              \"then\": {
+                \"properties\": {
+                  \"visible\":     {\"type\": \"string\", \"enum\": [\"yes\", \"no\", \"no_data\"]},
+                  \"tumor_cells\": {\"type\": \"string\", \"enum\": [\"yes\", \"no\", \"no_data\"]}
+                },
+                \"required\": [\"visible\"]
+              }
+            },
+            {
+              \"if\":   {\"properties\": {\"visible\": {\"const\": \"yes\"}}},
+              \"then\": {
+                \"properties\": {
+                  \"conclusion\": {\"type\": \"string\", \"enum\": [\"metastasis\", \"fibrosis\", \"hemangioma\", \"cyst\", \"steatosis\"]}
+                },
+                \"required\": [\"conclusion\"]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }"
+}
+
+/// Parse the lesions schema and pull out the `items` SchemaProperty.
+fn lesions_item_schema() -> SchemaProperty {
+  let assert Ok(schema) = parser.parse_schema(lesions_schema_json())
+  let assert Ok(lesions) = dict.get(schema.properties, "lesions")
+  let assert Some(item_schema) = lesions.items
+  item_schema
+}
+
+/// is_resected=false hides visible/tumor_cells/conclusion in the resolved row.
+pub fn array_item_hides_conditional_fields_when_condition_false_test() {
+  let item_schema = lesions_item_schema()
+
+  let values =
+    dict.from_list([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(False)),
+    ])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, values)
+
+  let assert Some(props) = resolved.properties
+  dict.has_key(props, "lesion_num") |> should.be_true()
+  dict.has_key(props, "is_resected") |> should.be_true()
+  dict.has_key(props, "visible") |> should.be_false()
+  dict.has_key(props, "tumor_cells") |> should.be_false()
+  dict.has_key(props, "conclusion") |> should.be_false()
+}
+
+/// is_resected=true reveals visible/tumor_cells and makes visible required.
+pub fn array_item_shows_and_requires_visible_when_resected_test() {
+  let item_schema = lesions_item_schema()
+
+  let values =
+    dict.from_list([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(True)),
+    ])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, values)
+
+  let assert Some(props) = resolved.properties
+  dict.has_key(props, "visible") |> should.be_true()
+  dict.has_key(props, "tumor_cells") |> should.be_true()
+  list.contains(resolved.required, "visible") |> should.be_true()
+}
+
+/// Cascade: is_resected=true + visible="yes" adds conclusion as required.
+pub fn array_item_cascade_conclusion_required_test() {
+  let item_schema = lesions_item_schema()
+
+  let values =
+    dict.from_list([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(True)),
+      #("visible", StringValue("yes")),
+    ])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, values)
+
+  let assert Some(props) = resolved.properties
+  dict.has_key(props, "conclusion") |> should.be_true()
+  list.contains(resolved.required, "conclusion") |> should.be_true()
+}
+
+/// Each row resolves independently — two rows with different is_resected
+/// values produce different resolved item schemas.
+pub fn array_items_resolve_independently_per_row_test() {
+  let item_schema = lesions_item_schema()
+
+  let row_collapsed = dict.from_list([#("is_resected", BooleanValue(False))])
+  let row_expanded = dict.from_list([#("is_resected", BooleanValue(True))])
+
+  let resolved_collapsed =
+    conditional_resolver.resolve_conditional_property(
+      item_schema,
+      row_collapsed,
+    )
+  let resolved_expanded =
+    conditional_resolver.resolve_conditional_property(item_schema, row_expanded)
+
+  let assert Some(collapsed_props) = resolved_collapsed.properties
+  let assert Some(expanded_props) = resolved_expanded.properties
+
+  dict.has_key(collapsed_props, "visible") |> should.be_false()
+  dict.has_key(expanded_props, "visible") |> should.be_true()
+
+  list.contains(resolved_collapsed.required, "visible") |> should.be_false()
+  list.contains(resolved_expanded.required, "visible") |> should.be_true()
+}
+
+/// Parser populates `SchemaProperty.conditionals` on items with allOf.
+pub fn array_item_conditionals_extracted_by_parser_test() {
+  let item_schema = lesions_item_schema()
+  item_schema.conditionals
+  |> list.length()
+  |> should.equal(2)
+}
+
+/// Full validate_all_fields flow catches item-level conditional required errors.
+pub fn validate_all_fields_array_item_required_test() {
+  let assert Ok(parsed_schema) = parser.parse_schema(lesions_schema_json())
+
+  // One row with is_resected=true and missing `visible` (required by then-branch).
+  let row =
+    types.ObjectValue([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(True)),
+    ])
+  let values = dict.from_list([#("lesions", types.ArrayValue([row]))])
+
+  let resolved_schema =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values)
+
+  let form_model =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values,
+      resolved_schema: resolved_schema,
+    )
+
+  let validated = update.validate_all_fields(form_model)
+
+  // Path-keyed error for the missing required field appears on the model.
+  model.field_has_errors(validated, "lesions.0.visible")
+  |> should.be_true()
+
+  // Filling visible="yes" cascades into conclusion being required.
+  let row_visible =
+    types.ObjectValue([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(True)),
+      #("visible", StringValue("yes")),
+    ])
+  let values2 = dict.from_list([#("lesions", types.ArrayValue([row_visible]))])
+
+  let resolved2 =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values2)
+
+  let form_model2 =
+    model.FormModel(..form_model, values: values2, resolved_schema: resolved2)
+
+  let validated2 = update.validate_all_fields(form_model2)
+  model.field_has_errors(validated2, "lesions.0.conclusion")
+  |> should.be_true()
+
+  // Switching is_resected back to false clears all conditional errors.
+  let row_collapsed =
+    types.ObjectValue([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(False)),
+    ])
+  let values3 =
+    dict.from_list([#("lesions", types.ArrayValue([row_collapsed]))])
+
+  let resolved3 =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values3)
+
+  let form_model3 =
+    model.FormModel(..form_model, values: values3, resolved_schema: resolved3)
+
+  let validated3 = update.validate_all_fields(form_model3)
+  model.field_has_errors(validated3, "lesions.0.visible")
+  |> should.be_false()
+  model.field_has_errors(validated3, "lesions.0.conclusion")
   |> should.be_false()
 }

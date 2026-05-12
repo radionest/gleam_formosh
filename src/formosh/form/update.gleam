@@ -344,18 +344,48 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
 }
 
 /// Validate all fields in the form against their schema definitions.
-/// 
-/// This function runs validation on every field defined in the schema,
-/// typically used before form submission to ensure all data is valid.
-/// 
+///
+/// Runs validation in two passes:
+///   1. Top-level fields against `resolved_schema.properties`.
+///   2. Each row of every array field against its `items` schema, with
+///      item-level conditionals (`if/then/else`, `allOf`) re-evaluated
+///      per row.
+///
+/// Errors for array-item fields are keyed under a path-style name
+/// (`<array>.<index>.<field>`) so they don't collide with top-level keys.
+///
 /// ## Parameters
 /// - `model`: The current form model
-/// 
+///
 /// ## Returns
 /// A new FormModel with validation errors for all invalid fields
 pub fn validate_all_fields(model: FormModel) -> FormModel {
-  dict.keys(model.resolved_schema.properties)
-  |> list.fold(model.clear_all_errors(model), validate_field)
+  let after_top =
+    dict.keys(model.resolved_schema.properties)
+    |> list.fold(model.clear_all_errors(model), validate_field)
+
+  dict.to_list(after_top.resolved_schema.properties)
+  |> list.fold(after_top, fn(acc, entry) {
+    let #(array_name, property) = entry
+    case property.field_type, property.items {
+      Some(types.ArrayType), Some(item_schema) ->
+        case dict.get(acc.values, array_name) {
+          Ok(array_value) -> {
+            let errors =
+              validator.validate_array_items(
+                array_name,
+                item_schema,
+                array_value,
+              )
+            list.fold(errors, acc, fn(m, err) {
+              model.add_field_error(m, err.field, err)
+            })
+          }
+          Error(_) -> acc
+        }
+      _, _ -> acc
+    }
+  })
 }
 
 /// Create an effect for form submission.
