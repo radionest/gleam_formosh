@@ -1,5 +1,6 @@
 ---
-globs: "src/formosh/schema/**/*.gleam"
+paths:
+  - "src/formosh/schema/**/*.gleam"
 ---
 
 # Decoder patterns specific to formosh JSON Schema parser

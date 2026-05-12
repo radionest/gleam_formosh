@@ -1,5 +1,6 @@
 ---
-globs: ["src/formosh/ffi/**"]
+paths:
+  - "src/formosh/ffi/**"
 ---
 
 # FFI patterns

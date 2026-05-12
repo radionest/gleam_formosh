@@ -1,5 +1,6 @@
 ---
-globs: ["build/**"]
+paths:
+  - "build/**"
 ---
 
 # Generated files
