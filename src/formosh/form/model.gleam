@@ -2,7 +2,8 @@
 
 import formosh/form/path.{type FieldPath}
 import formosh/schema/types.{
-  type JsonSchema, type ValidationError, type Value, has_property_key,
+  type JsonSchema, type SchemaProperty, type ValidationError, type Value,
+  ArrayValue, NullValue, ObjectType, ObjectValue, has_property_key,
 }
 import formosh/validation/field_requirements
 import gleam/dict.{type Dict}
@@ -157,12 +158,12 @@ pub fn init_with_full_config(
   show_readonly_fields: Bool,
   initial_values: Dict(String, Value),
 ) -> FormModel {
-  // Initially, resolved_schema is the same as the base schema
-  // It will be updated when form values change
+  let values_with_defaults =
+    apply_schema_defaults(schema.properties, initial_values)
   FormModel(
     schema: schema,
     resolved_schema: schema,
-    values: initial_values,
+    values: values_with_defaults,
     errors: dict.new(),
     is_submitting: False,
     is_dirty: False,
@@ -175,6 +176,118 @@ pub fn init_with_full_config(
     upload_base_url: option.None,
     upload_states: dict.new(),
   )
+}
+
+// Merge JSON Schema defaults into top-level form values. Existing non-null
+// entries are preserved; missing or NullValue entries are filled from
+// `property.default`. Recurses into ObjectValue / ArrayValue so partially
+// hydrated nested structures get their missing leaves filled as well.
+fn apply_schema_defaults(
+  properties: List(#(String, SchemaProperty)),
+  values: Dict(String, Value),
+) -> Dict(String, Value) {
+  list.fold(properties, values, fn(acc, pair) {
+    let #(field_name, property) = pair
+    let current = case dict.get(acc, field_name) {
+      Ok(NullValue) -> option.None
+      Ok(v) -> option.Some(v)
+      Error(_) -> option.None
+    }
+    case apply_defaults_to_value(property, current) {
+      option.Some(v) -> dict.insert(acc, field_name, v)
+      option.None -> acc
+    }
+  })
+}
+
+// Compute the post-default value for a single field. Returns None when the
+// field has no current value and no schema default would produce one
+// (so the caller leaves the key absent rather than inserting an empty hole).
+fn apply_defaults_to_value(
+  property: SchemaProperty,
+  current: Option(Value),
+) -> Option(Value) {
+  case current {
+    option.None -> defaults_for_missing(property)
+    option.Some(ObjectValue(fields)) ->
+      option.Some(merge_object_defaults(property, fields))
+    option.Some(ArrayValue(items)) ->
+      option.Some(map_array_item_defaults(property, items))
+    option.Some(other) -> option.Some(other)
+  }
+}
+
+// Build a value for a field that currently has nothing set:
+// prefer `property.default`, otherwise synthesise an ObjectValue from
+// sub-property defaults (so a missing nested object can still surface its
+// inner defaults). Arrays are NOT auto-populated — without a hydrated
+// array we cannot guess how many items to create.
+fn defaults_for_missing(property: SchemaProperty) -> Option(Value) {
+  case property.default {
+    option.Some(d) -> option.Some(d)
+    option.None ->
+      case property.field_type, property.properties {
+        option.Some(ObjectType), option.Some(sub_props) -> {
+          let built =
+            list.filter_map(sub_props, fn(pair) {
+              let #(name, sub_prop) = pair
+              case apply_defaults_to_value(sub_prop, option.None) {
+                option.Some(v) -> Ok(#(name, v))
+                option.None -> Error(Nil)
+              }
+            })
+          case built {
+            [] -> option.None
+            _ -> option.Some(ObjectValue(built))
+          }
+        }
+        _, _ -> option.None
+      }
+  }
+}
+
+// Recurse into an existing ObjectValue, filling missing sub-fields from
+// their defaults while preserving the property order declared in the schema.
+fn merge_object_defaults(
+  property: SchemaProperty,
+  fields: List(#(String, Value)),
+) -> Value {
+  case property.properties {
+    option.Some(sub_props) -> {
+      let merged = apply_schema_defaults(sub_props, dict.from_list(fields))
+      ObjectValue(
+        list.filter_map(sub_props, fn(pair) {
+          let #(name, _) = pair
+          case dict.get(merged, name) {
+            Ok(v) -> Ok(#(name, v))
+            Error(_) -> Error(Nil)
+          }
+        }),
+      )
+    }
+    option.None -> ObjectValue(fields)
+  }
+}
+
+// Recurse into each existing array item using the items-schema. We do not
+// create new items — defaults only apply inside elements the caller
+// already hydrated.
+fn map_array_item_defaults(
+  property: SchemaProperty,
+  items: List(Value),
+) -> Value {
+  case property.items {
+    option.Some(item_schema) ->
+      ArrayValue(
+        list.map(items, fn(item) {
+          case apply_defaults_to_value(item_schema, option.Some(item)) {
+            option.Some(v) -> v
+            option.None -> item
+          }
+        }),
+      )
+    option.None -> ArrayValue(items)
+  }
 }
 
 /// Check if a field is required according to the schema.
