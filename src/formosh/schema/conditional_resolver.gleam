@@ -197,46 +197,15 @@ fn dedup_by_key(entries: List(#(String, a))) -> List(#(String, a)) {
 
 /// Check if a field should be visible based on conditional rules.
 ///
-/// This is a helper function to determine field visibility without
-/// fully resolving the schema.
+/// Delegates to `resolve_conditional_schema` and checks whether the field
+/// ends up in the merged property list. This is equivalent to (and replaces)
+/// the previous hand-rolled walk over each conditional's then/else branches,
+/// which duplicated the merge logic and re-evaluated every rule per call.
 pub fn is_field_visible(
   field_name: String,
   base_schema: JsonSchema,
   form_values: Dict(String, Value),
 ) -> Bool {
-  // First check if field is in base properties
-  let in_base = has_property_key(base_schema.properties, field_name)
-
-  // Then check if any conditional rule adds this field
-  let added_by_conditional =
-    list.any(base_schema.conditionals, fn(rule) {
-      let condition_met = evaluate_condition(rule.if_schema, form_values)
-
-      case condition_met {
-        True -> {
-          case rule.then_schema {
-            Some(then_props) -> {
-              case then_props.properties {
-                Some(props) -> has_property_key(props, field_name)
-                None -> False
-              }
-            }
-            None -> False
-          }
-        }
-        False -> {
-          case rule.else_schema {
-            Some(else_props) -> {
-              case else_props.properties {
-                Some(props) -> has_property_key(props, field_name)
-                None -> False
-              }
-            }
-            None -> False
-          }
-        }
-      }
-    })
-
-  in_base || added_by_conditional
+  let resolved = resolve_conditional_schema(base_schema, form_values)
+  has_property_key(resolved.properties, field_name)
 }
