@@ -494,8 +494,7 @@ pub fn validate_array_item(
 
   case resolved.properties {
     Some(props) ->
-      dict.to_list(props)
-      |> list.flat_map(fn(entry) {
+      list.flat_map(props, fn(entry) {
         let #(field_name, field_prop) = entry
         let field_value =
           dict.get(item_values, field_name) |> option.from_result

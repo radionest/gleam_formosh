@@ -1,6 +1,6 @@
 import formosh/schema/parser
 import formosh/schema/types
-import gleam/dict
+import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
 
@@ -56,11 +56,11 @@ pub fn complex_lesion_schema_test() {
       should.equal(schema.required, ["lesions"])
 
       // Check that we have the expected properties
-      let property_count = dict.size(schema.properties)
+      let property_count = list.length(schema.properties)
       should.equal(property_count, 2)
 
       // Check diagnosis property constraints
-      case dict.get(schema.properties, "diagnosis") {
+      case list.key_find(schema.properties, "diagnosis") {
         Ok(diagnosis_prop) -> {
           should.equal(diagnosis_prop.field_type, Some(types.StringType))
           should.equal(diagnosis_prop.description, Some("Диагноз"))
@@ -76,7 +76,7 @@ pub fn complex_lesion_schema_test() {
       }
 
       // Check lesions property
-      case dict.get(schema.properties, "lesions") {
+      case list.key_find(schema.properties, "lesions") {
         Ok(lesions_prop) -> {
           should.equal(lesions_prop.field_type, Some(types.ArrayType))
           should.equal(

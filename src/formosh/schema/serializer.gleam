@@ -38,13 +38,12 @@ fn add_fields(
 // Helper to add properties object if not empty
 fn add_properties_object(
   fields: List(#(String, json.Json)),
-  properties: dict.Dict(String, SchemaProperty),
+  properties: List(#(String, SchemaProperty)),
 ) -> List(#(String, json.Json)) {
-  case dict.is_empty(properties) {
-    True -> fields
-    False -> {
+  case properties {
+    [] -> fields
+    _ -> {
       properties
-      |> dict.to_list()
       |> list.map(fn(pair) {
         let #(key, prop) = pair
         #(key, property_to_json(prop))
@@ -164,25 +163,12 @@ fn add_optional_items(
 // Helper to add properties dict if present
 fn add_optional_properties(
   fields: List(#(String, json.Json)),
-  properties: option.Option(dict.Dict(String, SchemaProperty)),
+  properties: option.Option(List(#(String, SchemaProperty))),
 ) -> List(#(String, json.Json)) {
-  properties
-  |> option.map(fn(props) {
-    case dict.is_empty(props) {
-      True -> fields
-      False -> {
-        props
-        |> dict.to_list()
-        |> list.map(fn(pair) {
-          let #(key, p) = pair
-          #(key, property_to_json(p))
-        })
-        |> json.object()
-        |> fn(props_json) { add_fields(fields, [#("properties", props_json)]) }
-      }
-    }
-  })
-  |> option.unwrap(fields)
+  case properties {
+    option.None -> fields
+    option.Some(props) -> add_properties_object(fields, props)
+  }
 }
 
 // Helper to add oneOf array if present
