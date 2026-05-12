@@ -246,6 +246,19 @@ pub fn invalid_json_test() {
   should.be_error(result)
 }
 
+/// `properties` must be a JSON object — strings, arrays, null, etc. should
+/// surface a decoding error instead of silently producing an empty form.
+pub fn properties_must_be_object_test() {
+  parser.parse_schema("{\"type\": \"object\", \"properties\": \"oops\"}")
+  |> should.be_error()
+
+  parser.parse_schema("{\"type\": \"object\", \"properties\": null}")
+  |> should.be_error()
+
+  parser.parse_schema("{\"type\": \"object\", \"properties\": [1, 2, 3]}")
+  |> should.be_error()
+}
+
 pub fn image_upload_widget_test() {
   let json =
     "{

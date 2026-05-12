@@ -171,17 +171,21 @@ fn field_type_decoder() -> Decoder(FieldType) {
 /// silently dropping malformed entries.
 fn properties_decoder() -> Decoder(List(#(String, SchemaProperty))) {
   use dynamic_data <- decode.then(decode.dynamic)
-  let entries = dynamic_object.entries(dynamic_data)
-  let try_decode_entry = fn(entry: #(String, Dynamic)) {
-    let #(key, value) = entry
-    decode.run(value, property_decoder())
-    |> result.map(fn(prop) { #(key, prop) })
-    |> result.map_error(fn(_) { key })
-  }
-  case list.try_map(entries, try_decode_entry) {
-    Ok(pairs) -> decode.success(pairs)
-    Error(key) ->
-      decode.failure([], "Invalid schema property at key '" <> key <> "'")
+  case dynamic_object.entries(dynamic_data) {
+    Error(_) -> decode.failure([], "Expected 'properties' to be a JSON object")
+    Ok(entries) -> {
+      let try_decode_entry = fn(entry: #(String, Dynamic)) {
+        let #(key, value) = entry
+        decode.run(value, property_decoder())
+        |> result.map(fn(prop) { #(key, prop) })
+        |> result.map_error(fn(_) { key })
+      }
+      case list.try_map(entries, try_decode_entry) {
+        Ok(pairs) -> decode.success(pairs)
+        Error(key) ->
+          decode.failure([], "Invalid schema property at key '" <> key <> "'")
+      }
+    }
   }
 }
 

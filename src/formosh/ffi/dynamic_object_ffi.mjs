@@ -1,8 +1,8 @@
-import { toList } from "../../../prelude.mjs";
+import { Ok, Error, toList } from "../../../prelude.mjs";
 
 export function entries(value) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return toList([]);
+    return new Error(undefined);
   }
-  return toList(Object.entries(value));
+  return new Ok(toList(Object.entries(value)));
 }

@@ -682,6 +682,37 @@ pub fn conditional_appends_after_base_properties_test() {
   |> should.equal(["alpha", "beta", "zeta", "gamma"])
 }
 
+/// Symmetric to `conditional_appends_after_base_properties_test` — the
+/// else-branch goes through the same `merge_property_lists` path and must
+/// append its properties after the base ones in declared order.
+pub fn conditional_else_appends_after_base_properties_test() {
+  let schema_json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"alpha\": {\"type\": \"string\"},
+        \"beta\": {\"type\": \"string\"}
+      },
+      \"if\": {\"properties\": {\"alpha\": {\"const\": \"x\"}}},
+      \"else\": {
+        \"properties\": {
+          \"zeta\": {\"type\": \"string\"},
+          \"gamma\": {\"type\": \"string\"}
+        }
+      }
+    }"
+
+  let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
+  // alpha != "x" → condition fails → else branch activates
+  let form_values = dict.from_list([#("alpha", StringValue("other"))])
+  let resolved =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values)
+
+  resolved.properties
+  |> list.map(fn(entry) { entry.0 })
+  |> should.equal(["alpha", "beta", "zeta", "gamma"])
+}
+
 /// Conditional override of an existing key keeps the field at its original
 /// position rather than moving it to the end of the list.
 pub fn conditional_override_keeps_position_test() {
