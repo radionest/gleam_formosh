@@ -32,7 +32,7 @@ pub fn render_container(
   field_path: FieldPath,
   property: SchemaProperty,
   model: FormModel,
-  _is_required: Bool,
+  is_required: Bool,
   is_disabled: Bool,
   is_readonly: Bool,
   render_child: fn(FieldPath, SchemaProperty, FormModel, Bool, Bool, Bool) ->
@@ -48,7 +48,13 @@ pub fn render_container(
   }
 
   html.div([class("array-field")], [
-    html.label([class("array-label")], [html.text(title)]),
+    html.label([class("array-label")], [
+      html.text(title),
+      case is_required {
+        True -> html.span([class("required")], [html.text(" *")])
+        False -> element.none()
+      },
+    ]),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
       None -> element.none()
