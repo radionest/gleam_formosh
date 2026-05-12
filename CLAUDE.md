@@ -70,3 +70,15 @@ Registers as `<formosh-form>` custom element. Attributes: `schema`, `submit-url`
 - `x-widget: "image-upload"` works only on top-level properties; nested image-upload fields (inside objects/arrays) are not yet supported
 - HTTP submissions use the `rsvp` library for effect management
 - Post-merge worktree cleanup: `ExitWorktree(remove)` first, then `git pull`. Do not use `gh pr merge --delete-branch` while worktree exists — local branch deletion will fail
+
+## Worktree Workflow
+
+- Feature development: always enter a worktree via `EnterWorktree` before making changes
+- Quick fixes, typos, config changes — work directly in main, no worktree needed
+- Worktrees contain only git-tracked files. `hooks/`, `settings.json`, `settings.local.json` live in `$CLAUDE_PROJECT_DIR/.claude/` and are shared
+- `ExitWorktree(remove)` requires `discard_changes=true` if there are commits not in main
+- For PRs in review prefer `ExitWorktree(keep)` until merge
+- The Stop hook blocks session end in a worktree — ask the user to choose:
+  1. **Push + PR**: commit all → `git push -u origin <branch>` → `gh pr create` → `ExitWorktree(keep)`
+  2. **Keep**: `ExitWorktree(keep)` — worktree stays for later
+  3. **Discard**: `ExitWorktree(remove, discard_changes=true)`
