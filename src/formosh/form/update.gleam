@@ -85,9 +85,9 @@ fn root_value_to_model_values(
 pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   case msg {
     // Path-based handlers (simplified approach)
-    UpdateFieldPath(path, value) -> {
+    UpdateFieldPath(field_path, value) -> {
       let root_value = model_to_root_value(model)
-      let updated_root = path.set_at_path(root_value, path, value)
+      let updated_root = path.set_at_path(root_value, field_path, value)
       let new_values = root_value_to_model_values(updated_root)
 
       // Recalculate resolved schema based on new values
@@ -97,9 +97,11 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           new_values,
         )
 
+      let touched_model =
+        model.mark_field_touched(model, path.to_string(field_path))
       let new_model =
         model.FormModel(
-          ..model,
+          ..touched_model,
           values: new_values,
           resolved_schema: resolved_schema,
           is_dirty: True,
@@ -317,7 +319,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 /// ## Returns
 /// A new FormModel with updated validation errors for the field
 fn validate_field(model: FormModel, field_name: String) -> FormModel {
-  case dict.get(model.resolved_schema.properties, field_name) {
+  case list.key_find(model.resolved_schema.properties, field_name) {
     Ok(property) -> {
       let value = model.get_field_value(model, field_name)
       let errors =
@@ -347,12 +349,14 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
 ///
 /// Runs validation in two passes:
 ///   1. Top-level fields against `resolved_schema.properties`.
-///   2. Each row of every array field against its `items` schema, with
-///      item-level conditionals (`if/then/else`, `allOf`) re-evaluated
-///      per row.
+///   2. For every top-level field, recursively validate nested object/array
+///      structures via `validator.validate_nested`. Item-level conditionals
+///      (`if/then/else`, `allOf`) are re-evaluated per row/per object.
 ///
-/// Errors for array-item fields are keyed under a path-style name
-/// (`<array>.<index>.<field>`) so they don't collide with top-level keys.
+/// Errors for nested fields are keyed under a path-style name matching
+/// `path.to_string` (`<parent>.[<index>].<field>` for array items,
+/// `<parent>.<field>` for object properties) so they don't collide with
+/// top-level keys.
 ///
 /// ## Parameters
 /// - `model`: The current form model
@@ -361,30 +365,18 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
 /// A new FormModel with validation errors for all invalid fields
 pub fn validate_all_fields(model: FormModel) -> FormModel {
   let after_top =
-    dict.keys(model.resolved_schema.properties)
+    model.resolved_schema.properties
+    |> list.map(fn(entry) { entry.0 })
     |> list.fold(model.clear_all_errors(model), validate_field)
 
-  dict.to_list(after_top.resolved_schema.properties)
-  |> list.fold(after_top, fn(acc, entry) {
-    let #(array_name, property) = entry
-    case property.field_type, property.items {
-      Some(types.ArrayType), Some(item_schema) ->
-        case dict.get(acc.values, array_name) {
-          Ok(array_value) -> {
-            let errors =
-              validator.validate_array_items(
-                array_name,
-                item_schema,
-                array_value,
-              )
-            list.fold(errors, acc, fn(m, err) {
-              model.add_field_error(m, err.field, err)
-            })
-          }
-          Error(_) -> acc
-        }
-      _, _ -> acc
-    }
+  list.fold(after_top.resolved_schema.properties, after_top, fn(acc, entry) {
+    let #(field_name, property) = entry
+    let field_value = dict.get(acc.values, field_name) |> option.from_result
+    let nested_errors =
+      validator.validate_nested(field_name, property, field_value)
+    list.fold(nested_errors, acc, fn(m, err) {
+      model.add_field_error(m, err.field, err)
+    })
   })
 }
 
@@ -510,7 +502,7 @@ fn create_upload_effect(
       }
       let config = case first_segment {
         Some(name) ->
-          case dict.get(model.resolved_schema.properties, name) {
+          case list.key_find(model.resolved_schema.properties, name) {
             Ok(prop) -> prop.upload_config
             Error(_) -> None
           }

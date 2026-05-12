@@ -104,7 +104,7 @@ fn render_nested_fields(
 ) -> List(Element(FormMsg)) {
   case property.properties {
     Some(props) ->
-      dict.to_list(props)
+      props
       |> list.map(fn(entry) {
         let #(nested_field_name, nested_property) = entry
         let nested_value =

@@ -1,5 +1,5 @@
+import formosh/path_format
 import formosh/schema/types
-import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -35,13 +35,16 @@ pub fn to_array_item_field(
   ]
 }
 
-/// Convert a path to a human-readable string for debugging.
+/// Convert a path to its canonical string form (e.g. `"lesions.[0].visible"`).
+///
+/// Delegates segment formatting to `formosh/path_format`, which is the single
+/// source of truth shared with `formosh/schema/validator`.
 pub fn to_string(path: FieldPath) -> String {
   path
   |> list.map(fn(segment) {
     case segment {
       PropertySegment(name) -> name
-      ArraySegment(index) -> "[" <> int.to_string(index) <> "]"
+      ArraySegment(index) -> path_format.array_index_segment(index)
     }
   })
   |> string.join(".")

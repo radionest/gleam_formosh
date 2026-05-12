@@ -2,6 +2,7 @@
 
 import formosh/fields/array_field
 import formosh/fields/boolean_field
+import formosh/fields/field_common
 import formosh/fields/image_field
 import formosh/fields/number_field
 import formosh/fields/object_field
@@ -59,12 +60,12 @@ fn render_form_header(model: FormModel) -> Element(FormMsg) {
     case model.schema.title {
       Some(title) ->
         html.h2([attribute.class("formosh-title")], [html.text(title)])
-      None -> html.text("")
+      None -> element.none()
     },
     case model.schema.description {
       Some(desc) ->
         html.p([attribute.class("formosh-description")], [html.text(desc)])
-      None -> html.text("")
+      None -> element.none()
     },
   ])
 }
@@ -82,7 +83,7 @@ fn render_form_header(model: FormModel) -> Element(FormMsg) {
 /// A Lustre Element containing the form body with all fields
 fn render_form_body(model: FormModel) -> Element(FormMsg) {
   let fields =
-    dict.to_list(model.resolved_schema.properties)
+    model.resolved_schema.properties
     |> list.map(fn(pair) {
       let #(field_name, property) = pair
       render_field(model, field_name, property)
@@ -129,7 +130,7 @@ fn render_field(
   let is_readonly = property.read_only
   case is_readonly && !model.show_readonly_fields {
     // Skip rendering if field is readOnly and show_readonly_fields is False
-    True -> html.text("")
+    True -> element.none()
     False -> render_visible_field(model, field_name, property, is_readonly)
   }
 }
@@ -218,6 +219,7 @@ fn render_visible_field(
             list.map(errors, fn(e) { e.message }),
             is_required,
             is_readonly,
+            model,
           )
         }
         Some(types.ObjectType) ->
@@ -264,31 +266,10 @@ fn render_visible_field(
     [
       field_element,
       case has_errors && is_touched {
-        True -> render_field_errors(errors)
-        False -> html.text("")
+        True -> field_common.render_field_errors(errors)
+        False -> element.none()
       },
     ],
-  )
-}
-
-/// Render validation errors for a field.
-/// 
-/// Creates a styled error container displaying all validation error messages
-/// for a field. Only called when the field has errors and has been touched.
-/// 
-/// ## Parameters
-/// - `errors`: List of validation errors to display
-/// 
-/// ## Returns
-/// A Lustre Element containing the formatted error messages
-fn render_field_errors(errors: List(types.ValidationError)) -> Element(FormMsg) {
-  html.div(
-    [attribute.class("formosh-errors")],
-    list.map(errors, fn(error) {
-      html.div([attribute.class("formosh-error")], [
-        html.text(error.message),
-      ])
-    }),
   )
 }
 
@@ -349,6 +330,6 @@ fn render_submission_result(model: FormModel) -> Element(FormMsg) {
       html.div([attribute.class("formosh-error-message")], [
         html.text(message),
       ])
-    None -> html.text("")
+    None -> element.none()
   }
 }

@@ -5,6 +5,7 @@ import formosh/form/path
 import formosh/schema/types
 import gleam/float
 import gleam/int
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import lustre/attribute
@@ -67,7 +68,7 @@ pub fn render_label(
       case is_required {
         True ->
           html.span([attribute.class("formosh-required")], [html.text(" *")])
-        False -> html.text("")
+        False -> element.none()
       },
     ],
   )
@@ -90,7 +91,7 @@ pub fn render_help_text(property: types.SchemaProperty) -> Element(FormMsg) {
       html.div([attribute.class("formosh-help")], [
         html.text(desc),
       ])
-    None -> html.text("")
+    None -> element.none()
   }
 }
 
@@ -238,4 +239,22 @@ pub fn extract_boolean_value(value: Option(types.Value)) -> Bool {
     Some(types.BooleanValue(b)) -> b
     _ -> False
   }
+}
+
+/// Render a list of validation errors for a single field.
+///
+/// Wraps the messages in a `formosh-errors` container so the styling matches
+/// the rest of the form. Used by `view.gleam` for top-level fields and by
+/// `array_field.gleam` for item-level fields inside arrays.
+pub fn render_field_errors(
+  errors: List(types.ValidationError),
+) -> Element(FormMsg) {
+  html.div(
+    [attribute.class("formosh-errors")],
+    list.map(errors, fn(error) {
+      html.div([attribute.class("formosh-error")], [
+        html.text(error.message),
+      ])
+    }),
+  )
 }

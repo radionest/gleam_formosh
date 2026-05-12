@@ -7,6 +7,7 @@ import formosh/schema/types.{
 }
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
@@ -17,7 +18,7 @@ pub fn serialize_basic_string_schema_test() {
       title: Some("Basic String"),
       description: Some("A simple string field"),
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "name",
           SchemaProperty(
@@ -27,7 +28,7 @@ pub fn serialize_basic_string_schema_test() {
             description: Some("Your name"),
           ),
         ),
-      ]),
+      ],
       required: ["name"],
       defs: None,
       conditionals: [],
@@ -68,7 +69,7 @@ pub fn serialize_string_with_constraints_test() {
       title: Some("Constrained String"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "email",
           SchemaProperty(
@@ -83,7 +84,7 @@ pub fn serialize_string_with_constraints_test() {
             )),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],
@@ -117,7 +118,7 @@ pub fn serialize_number_with_constraints_test() {
       title: Some("Number Field"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "age",
           SchemaProperty(
@@ -134,7 +135,7 @@ pub fn serialize_number_with_constraints_test() {
             )),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],
@@ -172,7 +173,7 @@ pub fn serialize_enum_field_test() {
       title: Some("Enum Field"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "color",
           SchemaProperty(
@@ -187,7 +188,7 @@ pub fn serialize_enum_field_test() {
             ]),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],
@@ -213,7 +214,7 @@ pub fn serialize_array_field_test() {
       title: Some("Array Field"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "tags",
           SchemaProperty(
@@ -235,7 +236,7 @@ pub fn serialize_array_field_test() {
             ),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],
@@ -269,37 +270,35 @@ pub fn serialize_nested_object_test() {
       title: Some("Nested Object"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "address",
           SchemaProperty(
             ..empty_property(),
             field_type: Some(ObjectType),
             title: Some("Address"),
-            properties: Some(
-              dict.from_list([
-                #(
-                  "street",
-                  SchemaProperty(
-                    ..empty_property(),
-                    field_type: Some(StringType),
-                    title: Some("Street"),
-                  ),
+            properties: Some([
+              #(
+                "street",
+                SchemaProperty(
+                  ..empty_property(),
+                  field_type: Some(StringType),
+                  title: Some("Street"),
                 ),
-                #(
-                  "city",
-                  SchemaProperty(
-                    ..empty_property(),
-                    field_type: Some(StringType),
-                    title: Some("City"),
-                  ),
+              ),
+              #(
+                "city",
+                SchemaProperty(
+                  ..empty_property(),
+                  field_type: Some(StringType),
+                  title: Some("City"),
                 ),
-              ]),
-            ),
+              ),
+            ]),
             required: ["street", "city"],
           ),
         ),
-      ]),
+      ],
       required: ["address"],
       defs: None,
       conditionals: [],
@@ -334,7 +333,7 @@ pub fn serialize_ref_field_test() {
       title: Some("Schema with $ref"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "shipping",
           SchemaProperty(
@@ -343,7 +342,7 @@ pub fn serialize_ref_field_test() {
             ref: Some("#/$defs/address"),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: Some(
         dict.from_list([
@@ -353,17 +352,15 @@ pub fn serialize_ref_field_test() {
               ..empty_property(),
               field_type: Some(ObjectType),
               title: Some("Address"),
-              properties: Some(
-                dict.from_list([
-                  #(
-                    "street",
-                    SchemaProperty(
-                      ..empty_property(),
-                      field_type: Some(StringType),
-                    ),
+              properties: Some([
+                #(
+                  "street",
+                  SchemaProperty(
+                    ..empty_property(),
+                    field_type: Some(StringType),
                   ),
-                ]),
-              ),
+                ),
+              ]),
             ),
           ),
         ]),
@@ -395,7 +392,7 @@ pub fn serialize_conditional_schema_test() {
       title: Some("Conditional Schema"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "hasAccount",
           SchemaProperty(
@@ -404,40 +401,36 @@ pub fn serialize_conditional_schema_test() {
             title: Some("Has Account"),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [
         types.ConditionalRule(
           if_schema: SchemaProperty(
             ..empty_property(),
-            properties: Some(
-              dict.from_list([
-                #(
-                  "hasAccount",
-                  SchemaProperty(
-                    ..empty_property(),
-                    enum_values: Some([types.BooleanValue(True)]),
-                  ),
+            properties: Some([
+              #(
+                "hasAccount",
+                SchemaProperty(
+                  ..empty_property(),
+                  enum_values: Some([types.BooleanValue(True)]),
                 ),
-              ]),
-            ),
+              ),
+            ]),
           ),
           then_schema: Some(
             SchemaProperty(
               ..empty_property(),
-              properties: Some(
-                dict.from_list([
-                  #(
-                    "accountId",
-                    SchemaProperty(
-                      ..empty_property(),
-                      field_type: Some(StringType),
-                      title: Some("Account ID"),
-                    ),
+              properties: Some([
+                #(
+                  "accountId",
+                  SchemaProperty(
+                    ..empty_property(),
+                    field_type: Some(StringType),
+                    title: Some("Account ID"),
                   ),
-                ]),
-              ),
+                ),
+              ]),
               required: ["accountId"],
             ),
           ),
@@ -470,7 +463,7 @@ pub fn serialize_boolean_field_test() {
       title: Some("Boolean Field"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "active",
           SchemaProperty(
@@ -481,7 +474,7 @@ pub fn serialize_boolean_field_test() {
             default: Some(types.BooleanValue(True)),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],
@@ -511,7 +504,7 @@ pub fn serialize_date_format_test() {
       title: Some("Date Field"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "birthdate",
           SchemaProperty(
@@ -526,7 +519,7 @@ pub fn serialize_date_format_test() {
             )),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],
@@ -552,7 +545,7 @@ pub fn serialize_exclusive_constraints_test() {
       title: Some("Exclusive Constraints"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "percentage",
           SchemaProperty(
@@ -568,7 +561,7 @@ pub fn serialize_exclusive_constraints_test() {
             )),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],
@@ -594,7 +587,7 @@ pub fn serialize_multiple_conditionals_test() {
       title: Some("Multiple Conditionals"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "type",
           SchemaProperty(
@@ -607,40 +600,36 @@ pub fn serialize_multiple_conditionals_test() {
             ]),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [
         types.ConditionalRule(
           if_schema: SchemaProperty(
             ..empty_property(),
-            properties: Some(
-              dict.from_list([
-                #(
-                  "type",
-                  SchemaProperty(
-                    ..empty_property(),
-                    enum_values: Some([StringValue("personal")]),
-                  ),
+            properties: Some([
+              #(
+                "type",
+                SchemaProperty(
+                  ..empty_property(),
+                  enum_values: Some([StringValue("personal")]),
                 ),
-              ]),
-            ),
+              ),
+            ]),
           ),
           then_schema: Some(
             SchemaProperty(
               ..empty_property(),
-              properties: Some(
-                dict.from_list([
-                  #(
-                    "firstName",
-                    SchemaProperty(
-                      ..empty_property(),
-                      field_type: Some(StringType),
-                      title: Some("First Name"),
-                    ),
+              properties: Some([
+                #(
+                  "firstName",
+                  SchemaProperty(
+                    ..empty_property(),
+                    field_type: Some(StringType),
+                    title: Some("First Name"),
                   ),
-                ]),
-              ),
+                ),
+              ]),
             ),
           ),
           else_schema: None,
@@ -648,33 +637,29 @@ pub fn serialize_multiple_conditionals_test() {
         types.ConditionalRule(
           if_schema: SchemaProperty(
             ..empty_property(),
-            properties: Some(
-              dict.from_list([
-                #(
-                  "type",
-                  SchemaProperty(
-                    ..empty_property(),
-                    enum_values: Some([StringValue("business")]),
-                  ),
+            properties: Some([
+              #(
+                "type",
+                SchemaProperty(
+                  ..empty_property(),
+                  enum_values: Some([StringValue("business")]),
                 ),
-              ]),
-            ),
+              ),
+            ]),
           ),
           then_schema: Some(
             SchemaProperty(
               ..empty_property(),
-              properties: Some(
-                dict.from_list([
-                  #(
-                    "companyName",
-                    SchemaProperty(
-                      ..empty_property(),
-                      field_type: Some(StringType),
-                      title: Some("Company Name"),
-                    ),
+              properties: Some([
+                #(
+                  "companyName",
+                  SchemaProperty(
+                    ..empty_property(),
+                    field_type: Some(StringType),
+                    title: Some("Company Name"),
                   ),
-                ]),
-              ),
+                ),
+              ]),
             ),
           ),
           else_schema: None,
@@ -699,7 +684,7 @@ pub fn serialize_one_of_test() {
       title: Some("OneOf Field"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "best_series",
           SchemaProperty(
@@ -720,7 +705,7 @@ pub fn serialize_one_of_test() {
             ]),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],
@@ -761,7 +746,7 @@ pub fn image_upload_serialization_test() {
       title: Some("Image Form"),
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "photos",
           SchemaProperty(
@@ -778,7 +763,7 @@ pub fn image_upload_serialization_test() {
             )),
           ),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],
@@ -820,7 +805,7 @@ pub fn image_upload_roundtrip_test() {
 
   // Parse
   let assert Ok(schema) = parser.parse_schema(json)
-  let assert Ok(prop) = dict.get(schema.properties, "photos")
+  let assert Ok(prop) = list.key_find(schema.properties, "photos")
 
   should.equal(prop.widget, Some("image-upload"))
   case prop.upload_config {
@@ -849,7 +834,7 @@ pub fn image_upload_roundtrip_test() {
 
   // Re-parse serialized output
   let assert Ok(reparsed) = parser.parse_schema(serialized_string)
-  let assert Ok(reparsed_prop) = dict.get(reparsed.properties, "photos")
+  let assert Ok(reparsed_prop) = list.key_find(reparsed.properties, "photos")
 
   should.equal(reparsed_prop.widget, Some("image-upload"))
   case reparsed_prop.upload_config {
@@ -867,12 +852,12 @@ pub fn no_widget_no_x_fields_serialized_test() {
       title: None,
       description: None,
       field_type: ObjectType,
-      properties: dict.from_list([
+      properties: [
         #(
           "name",
           SchemaProperty(..empty_property(), field_type: Some(StringType)),
         ),
-      ]),
+      ],
       required: [],
       defs: None,
       conditionals: [],

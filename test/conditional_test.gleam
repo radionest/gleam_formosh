@@ -1,11 +1,12 @@
 /// Tests for JSON Schema conditional logic (if/then/else)
 import formosh/form/model
+import formosh/form/path
 import formosh/form/update
 import formosh/schema/conditional_resolver
 import formosh/schema/parser
 import formosh/schema/types.{
   type SchemaProperty, BooleanValue, ConditionalRule, IntegerValue, JsonSchema,
-  SchemaProperty, StringValue, empty_property,
+  SchemaProperty, StringValue, empty_property, has_property_key,
 }
 import gleam/dict
 import gleam/list
@@ -20,43 +21,36 @@ pub fn main() {
 /// Test that conditional fields are added when condition is met
 pub fn conditional_field_appears_when_condition_met_test() {
   // Create a schema with conditional logic similar to contact form
-  let base_properties =
-    dict.from_list([
-      #("subject", empty_property()),
-    ])
+  let base_properties = [#("subject", empty_property())]
 
   // Create conditional rule: if subject == "Общий вопрос", then add is_confidential field
   let if_condition =
     SchemaProperty(
       ..empty_property(),
-      properties: Some(
-        dict.from_list([
-          #(
-            "subject",
-            SchemaProperty(
-              ..empty_property(),
-              enum_values: Some([StringValue("Общий вопрос")]),
-            ),
+      properties: Some([
+        #(
+          "subject",
+          SchemaProperty(
+            ..empty_property(),
+            enum_values: Some([StringValue("Общий вопрос")]),
           ),
-        ]),
-      ),
+        ),
+      ]),
     )
 
   let then_schema =
     SchemaProperty(
       ..empty_property(),
-      properties: Some(
-        dict.from_list([
-          #(
-            "is_confidential",
-            SchemaProperty(
-              ..empty_property(),
-              field_type: Some(types.BooleanType),
-              title: Some("Конфиденциально"),
-            ),
+      properties: Some([
+        #(
+          "is_confidential",
+          SchemaProperty(
+            ..empty_property(),
+            field_type: Some(types.BooleanType),
+            title: Some("Конфиденциально"),
           ),
-        ]),
-      ),
+        ),
+      ]),
     )
 
   let conditional_rule =
@@ -90,7 +84,7 @@ pub fn conditional_field_appears_when_condition_met_test() {
 
   // Check that is_confidential field was added
   resolved_schema.properties
-  |> dict.has_key("is_confidential")
+  |> has_property_key("is_confidential")
   |> should.be_true()
 
   // Test when condition is not met
@@ -104,74 +98,65 @@ pub fn conditional_field_appears_when_condition_met_test() {
 
   // Check that is_confidential field was NOT added
   resolved_schema_no_match.properties
-  |> dict.has_key("is_confidential")
+  |> has_property_key("is_confidential")
   |> should.be_false()
 }
 
 /// Test that else branch is applied when condition is not met
 pub fn conditional_else_branch_test() {
-  let base_properties =
-    dict.from_list([
-      #("hasAccount", empty_property()),
-    ])
+  let base_properties = [#("hasAccount", empty_property())]
 
   // If hasAccount == true, show login field, else show registration fields
   let if_condition =
     SchemaProperty(
       ..empty_property(),
-      properties: Some(
-        dict.from_list([
-          #(
-            "hasAccount",
-            SchemaProperty(
-              ..empty_property(),
-              enum_values: Some([types.BooleanValue(True)]),
-            ),
+      properties: Some([
+        #(
+          "hasAccount",
+          SchemaProperty(
+            ..empty_property(),
+            enum_values: Some([types.BooleanValue(True)]),
           ),
-        ]),
-      ),
+        ),
+      ]),
     )
 
   let then_schema =
     SchemaProperty(
       ..empty_property(),
-      properties: Some(
-        dict.from_list([
-          #(
-            "username",
-            SchemaProperty(
-              ..empty_property(),
-              field_type: Some(types.StringType),
-              title: Some("Username"),
-            ),
+      properties: Some([
+        #(
+          "username",
+          SchemaProperty(
+            ..empty_property(),
+            field_type: Some(types.StringType),
+            title: Some("Username"),
           ),
-        ]),
-      ),
+        ),
+      ]),
     )
 
   let else_schema =
     SchemaProperty(
       ..empty_property(),
-      properties: Some(
-        dict.from_list([
-          #(
-            "email",
-            SchemaProperty(
-              ..empty_property(),
-              field_type: Some(types.StringType),
-              title: Some("Email"),
-            ),
+      properties: Some([
+        #(
+          "email",
+          SchemaProperty(
+            ..empty_property(),
+            field_type: Some(types.StringType),
+            title: Some("Email"),
           ),
-          #(
-            "password",
-            SchemaProperty(
-              ..empty_property(),
-              field_type: Some(types.StringType),
-              title: Some("Password"),
-            ),
+        ),
+        #(
+          "password",
+          SchemaProperty(
+            ..empty_property(),
+            field_type: Some(types.StringType),
+            title: Some("Password"),
           ),
-        ]),
-      ),
+        ),
+      ]),
     )
 
   let conditional_rule =
@@ -205,12 +190,12 @@ pub fn conditional_else_branch_test() {
 
   // Should have username field
   resolved_then.properties
-  |> dict.has_key("username")
+  |> has_property_key("username")
   |> should.be_true()
 
   // Should NOT have email/password fields
   resolved_then.properties
-  |> dict.has_key("email")
+  |> has_property_key("email")
   |> should.be_false()
 
   // Test when hasAccount is false (else branch)
@@ -224,53 +209,46 @@ pub fn conditional_else_branch_test() {
 
   // Should NOT have username field
   resolved_else.properties
-  |> dict.has_key("username")
+  |> has_property_key("username")
   |> should.be_false()
 
   // Should have email/password fields
   resolved_else.properties
-  |> dict.has_key("email")
+  |> has_property_key("email")
   |> should.be_true()
 
   resolved_else.properties
-  |> dict.has_key("password")
+  |> has_property_key("password")
   |> should.be_true()
 }
 
 /// Test field visibility helper function
 pub fn is_field_visible_test() {
   // Set up schema with conditional field
-  let base_properties =
-    dict.from_list([
-      #("subject", empty_property()),
-      #("message", empty_property()),
-      // This field is always visible
-    ])
+  let base_properties = [
+    #("subject", empty_property()),
+    #("message", empty_property()),
+    // This field is always visible
+  ]
 
   let if_condition =
     SchemaProperty(
       ..empty_property(),
-      properties: Some(
-        dict.from_list([
-          #(
-            "subject",
-            SchemaProperty(
-              ..empty_property(),
-              enum_values: Some([StringValue("Special")]),
-            ),
+      properties: Some([
+        #(
+          "subject",
+          SchemaProperty(
+            ..empty_property(),
+            enum_values: Some([StringValue("Special")]),
           ),
-        ]),
-      ),
+        ),
+      ]),
     )
 
   let then_schema =
     SchemaProperty(
       ..empty_property(),
-      properties: Some(
-        dict.from_list([
-          #("special_field", empty_property()),
-        ]),
-      ),
+      properties: Some([#("special_field", empty_property())]),
     )
 
   let conditional_rule =
@@ -375,12 +353,12 @@ pub fn multiple_conditionals_allof_test() {
 
   // Should have air_bubble_size field
   resolved_air.properties
-  |> dict.has_key("air_bubble_size")
+  |> has_property_key("air_bubble_size")
   |> should.be_true()
 
   // Should NOT have pneumo_thickness field
   resolved_air.properties
-  |> dict.has_key("pneumo_thickness")
+  |> has_property_key("pneumo_thickness")
   |> should.be_false()
 
   // Test when pneumoperitoneum is true
@@ -395,12 +373,12 @@ pub fn multiple_conditionals_allof_test() {
 
   // Should have pneumo_thickness field
   resolved_pneumo.properties
-  |> dict.has_key("pneumo_thickness")
+  |> has_property_key("pneumo_thickness")
   |> should.be_true()
 
   // Should NOT have air_bubble_size field
   resolved_pneumo.properties
-  |> dict.has_key("air_bubble_size")
+  |> has_property_key("air_bubble_size")
   |> should.be_false()
 
   // Test when both are true
@@ -418,11 +396,11 @@ pub fn multiple_conditionals_allof_test() {
 
   // Should have both conditional fields
   resolved_both.properties
-  |> dict.has_key("air_bubble_size")
+  |> has_property_key("air_bubble_size")
   |> should.be_true()
 
   resolved_both.properties
-  |> dict.has_key("pneumo_thickness")
+  |> has_property_key("pneumo_thickness")
   |> should.be_true()
 }
 
@@ -455,7 +433,7 @@ pub fn const_keyword_parsing_test() {
     )
 
   resolved_true.properties
-  |> dict.has_key("extra_field")
+  |> has_property_key("extra_field")
   |> should.be_true()
 
   // Test that const: false doesn't match true
@@ -468,7 +446,7 @@ pub fn const_keyword_parsing_test() {
     )
 
   resolved_false.properties
-  |> dict.has_key("extra_field")
+  |> has_property_key("extra_field")
   |> should.be_false()
 }
 
@@ -676,6 +654,100 @@ pub fn validate_all_fields_conditional_required_test() {
   |> should.be_false()
 }
 
+/// Conditional then-properties are appended after the base properties,
+/// preserving the schema's declared order.
+pub fn conditional_appends_after_base_properties_test() {
+  let schema_json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"alpha\": {\"type\": \"string\"},
+        \"beta\": {\"type\": \"string\"}
+      },
+      \"if\": {\"properties\": {\"alpha\": {\"const\": \"x\"}}},
+      \"then\": {
+        \"properties\": {
+          \"zeta\": {\"type\": \"string\"},
+          \"gamma\": {\"type\": \"string\"}
+        }
+      }
+    }"
+
+  let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
+  let form_values = dict.from_list([#("alpha", StringValue("x"))])
+  let resolved =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values)
+
+  resolved.properties
+  |> list.map(fn(entry) { entry.0 })
+  |> should.equal(["alpha", "beta", "zeta", "gamma"])
+}
+
+/// Symmetric to `conditional_appends_after_base_properties_test` — the
+/// else-branch goes through the same `merge_property_lists` path and must
+/// append its properties after the base ones in declared order.
+pub fn conditional_else_appends_after_base_properties_test() {
+  let schema_json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"alpha\": {\"type\": \"string\"},
+        \"beta\": {\"type\": \"string\"}
+      },
+      \"if\": {\"properties\": {\"alpha\": {\"const\": \"x\"}}},
+      \"else\": {
+        \"properties\": {
+          \"zeta\": {\"type\": \"string\"},
+          \"gamma\": {\"type\": \"string\"}
+        }
+      }
+    }"
+
+  let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
+  // alpha != "x" → condition fails → else branch activates
+  let form_values = dict.from_list([#("alpha", StringValue("other"))])
+  let resolved =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values)
+
+  resolved.properties
+  |> list.map(fn(entry) { entry.0 })
+  |> should.equal(["alpha", "beta", "zeta", "gamma"])
+}
+
+/// Conditional override of an existing key keeps the field at its original
+/// position rather than moving it to the end of the list.
+pub fn conditional_override_keeps_position_test() {
+  let schema_json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"alpha\": {\"type\": \"string\"},
+        \"beta\": {\"type\": \"string\"},
+        \"gamma\": {\"type\": \"string\"}
+      },
+      \"if\": {\"properties\": {\"alpha\": {\"const\": \"x\"}}},
+      \"then\": {
+        \"properties\": {
+          \"beta\": {\"type\": \"integer\"},
+          \"delta\": {\"type\": \"string\"}
+        }
+      }
+    }"
+
+  let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
+  let form_values = dict.from_list([#("alpha", StringValue("x"))])
+  let resolved =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, form_values)
+
+  resolved.properties
+  |> list.map(fn(entry) { entry.0 })
+  |> should.equal(["alpha", "beta", "gamma", "delta"])
+
+  // The override changed beta's type from string to integer.
+  let assert Ok(beta) = list.key_find(resolved.properties, "beta")
+  beta.field_type |> should.equal(Some(types.IntegerType))
+}
+
 // ----------------------------------------------------------------------------
 // Item-level conditionals inside array `items` (if/then/else, allOf)
 // ----------------------------------------------------------------------------
@@ -724,7 +796,7 @@ fn lesions_schema_json() -> String {
 /// Parse the lesions schema and pull out the `items` SchemaProperty.
 fn lesions_item_schema() -> SchemaProperty {
   let assert Ok(schema) = parser.parse_schema(lesions_schema_json())
-  let assert Ok(lesions) = dict.get(schema.properties, "lesions")
+  let assert Ok(lesions) = list.key_find(schema.properties, "lesions")
   let assert Some(item_schema) = lesions.items
   item_schema
 }
@@ -743,11 +815,11 @@ pub fn array_item_hides_conditional_fields_when_condition_false_test() {
     conditional_resolver.resolve_conditional_property(item_schema, values)
 
   let assert Some(props) = resolved.properties
-  dict.has_key(props, "lesion_num") |> should.be_true()
-  dict.has_key(props, "is_resected") |> should.be_true()
-  dict.has_key(props, "visible") |> should.be_false()
-  dict.has_key(props, "tumor_cells") |> should.be_false()
-  dict.has_key(props, "conclusion") |> should.be_false()
+  has_property_key(props, "lesion_num") |> should.be_true()
+  has_property_key(props, "is_resected") |> should.be_true()
+  has_property_key(props, "visible") |> should.be_false()
+  has_property_key(props, "tumor_cells") |> should.be_false()
+  has_property_key(props, "conclusion") |> should.be_false()
 }
 
 /// is_resected=true reveals visible/tumor_cells and makes visible required.
@@ -764,8 +836,8 @@ pub fn array_item_shows_and_requires_visible_when_resected_test() {
     conditional_resolver.resolve_conditional_property(item_schema, values)
 
   let assert Some(props) = resolved.properties
-  dict.has_key(props, "visible") |> should.be_true()
-  dict.has_key(props, "tumor_cells") |> should.be_true()
+  has_property_key(props, "visible") |> should.be_true()
+  has_property_key(props, "tumor_cells") |> should.be_true()
   list.contains(resolved.required, "visible") |> should.be_true()
 }
 
@@ -784,7 +856,7 @@ pub fn array_item_cascade_conclusion_required_test() {
     conditional_resolver.resolve_conditional_property(item_schema, values)
 
   let assert Some(props) = resolved.properties
-  dict.has_key(props, "conclusion") |> should.be_true()
+  has_property_key(props, "conclusion") |> should.be_true()
   list.contains(resolved.required, "conclusion") |> should.be_true()
 }
 
@@ -807,8 +879,8 @@ pub fn array_items_resolve_independently_per_row_test() {
   let assert Some(collapsed_props) = resolved_collapsed.properties
   let assert Some(expanded_props) = resolved_expanded.properties
 
-  dict.has_key(collapsed_props, "visible") |> should.be_false()
-  dict.has_key(expanded_props, "visible") |> should.be_true()
+  has_property_key(collapsed_props, "visible") |> should.be_false()
+  has_property_key(expanded_props, "visible") |> should.be_true()
 
   list.contains(resolved_collapsed.required, "visible") |> should.be_false()
   list.contains(resolved_expanded.required, "visible") |> should.be_true()
@@ -847,7 +919,8 @@ pub fn validate_all_fields_array_item_required_test() {
   let validated = update.validate_all_fields(form_model)
 
   // Path-keyed error for the missing required field appears on the model.
-  model.field_has_errors(validated, "lesions.0.visible")
+  // Format matches `path.to_string` — `<array>.[<index>].<field>`.
+  model.field_has_errors(validated, "lesions.[0].visible")
   |> should.be_true()
 
   // Filling visible="yes" cascades into conclusion being required.
@@ -866,7 +939,7 @@ pub fn validate_all_fields_array_item_required_test() {
     model.FormModel(..form_model, values: values2, resolved_schema: resolved2)
 
   let validated2 = update.validate_all_fields(form_model2)
-  model.field_has_errors(validated2, "lesions.0.conclusion")
+  model.field_has_errors(validated2, "lesions.[0].conclusion")
   |> should.be_true()
 
   // Switching is_resected back to false clears all conditional errors.
@@ -885,8 +958,228 @@ pub fn validate_all_fields_array_item_required_test() {
     model.FormModel(..form_model, values: values3, resolved_schema: resolved3)
 
   let validated3 = update.validate_all_fields(form_model3)
-  model.field_has_errors(validated3, "lesions.0.visible")
+  model.field_has_errors(validated3, "lesions.[0].visible")
   |> should.be_false()
-  model.field_has_errors(validated3, "lesions.0.conclusion")
+  model.field_has_errors(validated3, "lesions.[0].conclusion")
+  |> should.be_false()
+}
+
+// ----------------------------------------------------------------------------
+// Extra coverage: else-branch, multi-row, missing-if-field, key format,
+// path-key alignment with `path.to_string`.
+// ----------------------------------------------------------------------------
+
+/// Schema where the if-branch toggles between two distinct property sets
+/// (then vs else). Used to verify the `else` branch is honoured.
+fn category_items_schema_json() -> String {
+  "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"items\": {
+        \"type\": \"array\",
+        \"items\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"kind\": {\"type\": \"string\", \"enum\": [\"book\", \"movie\"]}
+          },
+          \"required\": [\"kind\"],
+          \"if\":   {\"properties\": {\"kind\": {\"const\": \"book\"}}},
+          \"then\": {
+            \"properties\": {\"pages\": {\"type\": \"integer\"}},
+            \"required\": [\"pages\"]
+          },
+          \"else\": {
+            \"properties\": {\"runtime\": {\"type\": \"integer\"}},
+            \"required\": [\"runtime\"]
+          }
+        }
+      }
+    }
+  }"
+}
+
+fn category_item_schema() -> SchemaProperty {
+  let parse_result = parser.parse_schema(category_items_schema_json())
+  parse_result |> should.be_ok()
+  let assert Ok(schema) = parse_result
+  let items_result = list.key_find(schema.properties, "items")
+  items_result |> should.be_ok()
+  let assert Ok(items) = items_result
+  let assert Some(item_schema) = items.items
+  item_schema
+}
+
+/// When the if-condition is False, the else-branch's properties/required
+/// are merged into the resolved item.
+pub fn array_item_else_branch_applies_when_condition_false_test() {
+  let item_schema = category_item_schema()
+
+  let movie_row = dict.from_list([#("kind", StringValue("movie"))])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, movie_row)
+
+  let assert Some(props) = resolved.properties
+  types.has_property_key(props, "runtime") |> should.be_true()
+  types.has_property_key(props, "pages") |> should.be_false()
+  list.contains(resolved.required, "runtime") |> should.be_true()
+  list.contains(resolved.required, "pages") |> should.be_false()
+}
+
+/// When the if-condition is True, the then-branch fields show, else does not.
+pub fn array_item_then_branch_applies_when_condition_true_test() {
+  let item_schema = category_item_schema()
+
+  let book_row = dict.from_list([#("kind", StringValue("book"))])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, book_row)
+
+  let assert Some(props) = resolved.properties
+  types.has_property_key(props, "pages") |> should.be_true()
+  types.has_property_key(props, "runtime") |> should.be_false()
+  list.contains(resolved.required, "pages") |> should.be_true()
+}
+
+/// Two rows in the same array — only the row missing its conditional-required
+/// field produces an error; the other row stays clean.
+pub fn array_items_multi_row_independent_validation_test() {
+  let parse_result = parser.parse_schema(lesions_schema_json())
+  parse_result |> should.be_ok()
+  let assert Ok(parsed_schema) = parse_result
+
+  // Row 0: is_resected=true, missing `visible` → should produce an error.
+  // Row 1: is_resected=false → no conditional-required at all, should be clean.
+  let row0 =
+    types.ObjectValue([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(True)),
+    ])
+  let row1 =
+    types.ObjectValue([
+      #("lesion_num", IntegerValue(2)),
+      #("is_resected", BooleanValue(False)),
+    ])
+  let values = dict.from_list([#("lesions", types.ArrayValue([row0, row1]))])
+
+  let resolved_schema =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values)
+
+  let form_model =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values,
+      resolved_schema: resolved_schema,
+    )
+
+  let validated = update.validate_all_fields(form_model)
+
+  // Row 0 has the conditional-required `visible` missing.
+  model.field_has_errors(validated, "lesions.[0].visible")
+  |> should.be_true()
+  // Row 1 should NOT have a `visible` error — visible isn't even in its
+  // resolved schema (is_resected=False).
+  model.field_has_errors(validated, "lesions.[1].visible")
+  |> should.be_false()
+}
+
+/// `evaluate_condition` returns False when the value referenced by `if` is
+/// missing from the row, so the then-branch must not apply.
+pub fn array_item_missing_if_field_falls_through_test() {
+  let item_schema = lesions_item_schema()
+
+  // Empty row — no is_resected at all.
+  let empty_row = dict.from_list([])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, empty_row)
+
+  let assert Some(props) = resolved.properties
+  // Without is_resected, the then-branch fields stay hidden.
+  types.has_property_key(props, "visible") |> should.be_false()
+  types.has_property_key(props, "tumor_cells") |> should.be_false()
+}
+
+/// Error keys in the model match `path.to_string` exactly, so any UI code
+/// looking up errors via `get_errors_at_path` will find them.
+pub fn array_item_error_key_matches_path_to_string_test() {
+  let parse_result = parser.parse_schema(lesions_schema_json())
+  parse_result |> should.be_ok()
+  let assert Ok(parsed_schema) = parse_result
+
+  let row =
+    types.ObjectValue([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(True)),
+    ])
+  let values = dict.from_list([#("lesions", types.ArrayValue([row]))])
+
+  let resolved_schema =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values)
+
+  let form_model =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values,
+      resolved_schema: resolved_schema,
+    )
+
+  let validated = update.validate_all_fields(form_model)
+
+  let field_path = path.to_array_item_field("lesions", 0, "visible")
+
+  // Path-based API (used by UI) finds the error under the canonical key.
+  model.has_errors_at_path(validated, field_path)
+  |> should.be_true()
+
+  // And the canonical key has the expected literal format with brackets.
+  path.to_string(field_path)
+  |> should.equal("lesions.[0].visible")
+}
+
+/// Top-level object with a required nested property routes through
+/// `validate_nested` → `validate_object_fields` and keys the error under
+/// `<parent>.<child>` (no array index involved).
+pub fn validate_top_level_object_nested_required_test() {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"address\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"street\": {\"type\": \"string\"},
+            \"city\":   {\"type\": \"string\"}
+          },
+          \"required\": [\"street\"]
+        }
+      }
+    }"
+  let parse_result = parser.parse_schema(json)
+  parse_result |> should.be_ok()
+  let assert Ok(parsed_schema) = parse_result
+
+  // `address` exists but is missing the required `street`.
+  let values =
+    dict.from_list([
+      #("address", types.ObjectValue([#("city", StringValue("NYC"))])),
+    ])
+  let resolved_schema =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values)
+
+  let form_model =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values,
+      resolved_schema: resolved_schema,
+    )
+
+  let validated = update.validate_all_fields(form_model)
+
+  // Error is keyed under the canonical "<parent>.<child>" format.
+  model.field_has_errors(validated, "address.street")
+  |> should.be_true()
+  // Sibling that was provided has no errors.
+  model.field_has_errors(validated, "address.city")
   |> should.be_false()
 }
