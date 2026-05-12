@@ -1,17 +1,10 @@
 // View functions for form rendering
 
-import formosh/fields/array_field
-import formosh/fields/boolean_field
-import formosh/fields/field_common
-import formosh/fields/image_field
-import formosh/fields/number_field
-import formosh/fields/object_field
-import formosh/fields/string_field
+import formosh/fields/field_dispatcher
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
 import formosh/schema/types
 import formosh/validation/field_requirements
-import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import lustre/attribute
@@ -20,23 +13,6 @@ import lustre/element/html
 import lustre/event
 
 /// Render the entire form as a Lustre element.
-/// 
-/// This is the main view function for the form, rendering a complete form
-/// interface including header, body with all fields, footer with actions,
-/// and any submission result messages.
-/// 
-/// ## Parameters
-/// - `model`: The current form model containing all state and schema information
-/// 
-/// ## Returns
-/// A Lustre Element representing the complete form interface
-/// 
-/// ## Structure
-/// The rendered form includes:
-/// - Form header with title and description
-/// - Form body with all schema-defined fields
-/// - Form footer with submit/reset buttons
-/// - Submission result messages (success/error)
 pub fn view(model: FormModel) -> Element(FormMsg) {
   html.div([attribute.class("formosh-container")], [
     render_form_header(model),
@@ -45,16 +21,6 @@ pub fn view(model: FormModel) -> Element(FormMsg) {
   ])
 }
 
-/// Render the form header with title and description.
-/// 
-/// Creates the top section of the form containing the schema title and
-/// optional description text.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing schema information
-/// 
-/// ## Returns
-/// A Lustre Element containing the form header
 fn render_form_header(model: FormModel) -> Element(FormMsg) {
   html.div([attribute.class("formosh-header")], [
     case model.schema.title {
@@ -70,21 +36,9 @@ fn render_form_header(model: FormModel) -> Element(FormMsg) {
   ])
 }
 
-/// Render the form body containing all form fields.
-/// 
-/// Creates the main form element with all schema-defined fields rendered
-/// according to their types and constraints. Each field is wrapped in
-/// appropriate containers and includes error display.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing schema and current state
-/// 
-/// ## Returns
-/// A Lustre Element containing the form body with all fields
 fn render_form_body(model: FormModel) -> Element(FormMsg) {
   let fields =
-    model.resolved_schema.properties
-    |> list.map(fn(pair) {
+    list.map(model.resolved_schema.properties, fn(pair) {
       let #(field_name, property) = pair
       render_field(model, field_name, property)
     })
@@ -98,191 +52,28 @@ fn render_form_body(model: FormModel) -> Element(FormMsg) {
   )
 }
 
-/// Render a single form field based on its schema property.
-///
-/// This function determines the appropriate field renderer based on the
-/// field type and renders the field with proper styling, error states,
-/// and validation attributes.
-///
-/// ReadOnly fields are hidden by default. If show_readonly_fields is enabled,
-/// they are displayed as readonly inputs that cannot be edited.
-///
-/// ## Parameters
-/// - `model`: The form model containing current values and state
-/// - `field_name`: The name/key of the field being rendered
-/// - `property`: The schema property definition for this field
-///
-/// ## Returns
-/// A Lustre Element representing the complete field (label, input, errors)
-///
-/// ## Field Types Supported
-/// - String fields (input, textarea, select, radio)
-/// - Number/Integer fields
-/// - Boolean fields (checkbox)
-/// - Array fields (dynamic lists)
-/// - Enum fields (select dropdown or radio buttons)
+/// Render a single top-level field by dispatching through the unified
+/// dispatcher. The same dispatcher is used for nested children inside
+/// arrays and objects, so widget selection stays consistent at any depth.
 fn render_field(
   model: FormModel,
   field_name: String,
   property: types.SchemaProperty,
 ) -> Element(FormMsg) {
-  // Check if field is readOnly and whether to display it
-  let is_readonly = property.read_only
-  case is_readonly && !model.show_readonly_fields {
-    // Skip rendering if field is readOnly and show_readonly_fields is False
-    True -> element.none()
-    False -> render_visible_field(model, field_name, property, is_readonly)
-  }
-}
-
-/// Render a visible field (either not readOnly, or show_readonly_fields is enabled).
-fn render_visible_field(
-  model: FormModel,
-  field_name: String,
-  property: types.SchemaProperty,
-  is_readonly: Bool,
-) -> Element(FormMsg) {
+  let field_path = path.from_field_name(field_name)
   let is_required = field_requirements.is_required(model.schema, field_name)
   let is_disabled = model.is_field_disabled(model, field_name)
-  let is_touched = model.is_field_touched(model, field_name)
-  let has_errors = model.field_has_errors(model, field_name)
-  let errors = model.get_field_errors(model, field_name)
-  let value = model.get_field_value(model, field_name)
-
-  // Create a path for root-level fields
-  let field_path = path.from_field_name(field_name)
-
-  let field_element = case property.widget {
-    Some("image-upload") -> {
-      let path_key = path.to_string(field_path)
-      let upload_states = case dict.get(model.upload_states, path_key) {
-        Ok(states) -> states
-        Error(_) -> []
-      }
-      image_field.render(
-        field_path,
-        property,
-        value,
-        is_required,
-        is_disabled,
-        is_readonly,
-        upload_states,
-        model.upload_base_url,
-      )
-    }
-    _ ->
-      case property.field_type {
-        Some(types.StringType) ->
-          string_field.render(
-            field_path,
-            property,
-            value,
-            is_required,
-            is_disabled,
-            is_readonly,
-          )
-        Some(types.NumberType) | Some(types.IntegerType) ->
-          number_field.render(
-            field_path,
-            property,
-            value,
-            is_required,
-            is_disabled,
-            is_readonly,
-          )
-        Some(types.BooleanType) ->
-          boolean_field.render(
-            field_path,
-            property,
-            value,
-            is_required,
-            is_disabled,
-            is_readonly,
-          )
-        Some(types.ArrayType) -> {
-          // Convert field value to array items
-          let array_items = case value {
-            Some(types.ArrayValue(items)) ->
-              list.map(items, fn(item) {
-                case item {
-                  types.ObjectValue(fields) -> dict.from_list(fields)
-                  _ -> dict.new()
-                }
-              })
-            _ -> []
-          }
-
-          array_field.view(
-            field_name,
-            property,
-            array_items,
-            list.map(errors, fn(e) { e.message }),
-            is_required,
-            is_readonly,
-            model,
-          )
-        }
-        Some(types.ObjectType) ->
-          object_field.render(
-            field_path,
-            property,
-            value,
-            is_required,
-            is_disabled,
-            is_readonly,
-          )
-        _ ->
-          // Handle enum, oneOf, or unknown types
-          case property.enum_values, property.one_of {
-            Some(_), _ | _, Some(_) ->
-              string_field.render_enum(
-                field_path,
-                property,
-                value,
-                is_required,
-                is_disabled,
-                is_readonly,
-              )
-            None, None -> html.div([], [])
-          }
-      }
-  }
-
-  // Wrap field with container and error display
-  html.div(
-    [
-      attribute.class(
-        "formosh-field"
-        <> case has_errors && is_touched {
-          True -> " formosh-field-error"
-          False -> ""
-        }
-        <> case is_readonly {
-          True -> " formosh-field-readonly"
-          False -> ""
-        },
-      ),
-    ],
-    [
-      field_element,
-      case has_errors && is_touched {
-        True -> field_common.render_field_errors(errors)
-        False -> element.none()
-      },
-    ],
+  let is_readonly = property.read_only
+  field_dispatcher.render_field_at_path(
+    field_path,
+    property,
+    model,
+    is_required,
+    is_disabled,
+    is_readonly,
   )
 }
 
-/// Render the form footer with action buttons.
-/// 
-/// Creates the bottom section of the form containing submit and reset buttons
-/// with appropriate enabled/disabled states based on form validity and submission status.
-/// 
-/// ## Parameters
-/// - `model`: The form model to determine button states
-/// 
-/// ## Returns
-/// A Lustre Element containing the form action buttons
 fn render_form_footer_content(model: FormModel) -> Element(FormMsg) {
   html.div([attribute.class("formosh-footer")], [
     html.button(
@@ -310,16 +101,6 @@ fn render_form_footer_content(model: FormModel) -> Element(FormMsg) {
   ])
 }
 
-/// Render the submission result message.
-/// 
-/// Displays success or error messages after form submission attempts.
-/// Only renders when there is a submission result to show.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing submission result state
-/// 
-/// ## Returns
-/// A Lustre Element containing the result message, or empty text if no result
 fn render_submission_result(model: FormModel) -> Element(FormMsg) {
   case model.submission_result {
     Some(model.SubmissionSuccess(message)) ->
