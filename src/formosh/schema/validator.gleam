@@ -1,5 +1,6 @@
 // Validation functions for form fields
 
+import formosh/path_format
 import formosh/schema/conditional_resolver
 import formosh/schema/types.{
   type SchemaProperty, type ValidationError, type Value, ArrayValue,
@@ -472,39 +473,28 @@ fn validate_url(url: String) -> Bool {
 /// Resolves the item schema against the row's own values (so item-level
 /// `if/then/else` and `allOf` rules take effect), then validates every
 /// field in the resolved schema using its `required` list. Errors carry
-/// a path-style field name `<array>.<index>.<field>` so they can be keyed
-/// into the form model's error map without colliding with top-level fields.
+/// a path-style field name `<prefix>.[<index>].<field>` matching the
+/// canonical `path.to_string` format used elsewhere in the form layer.
 ///
 /// ## Parameters
-/// - `array_name`: Name of the parent array field
+/// - `prefix`: Path-string of the parent array (e.g. `"lesions"` for a
+///   top-level array, or `"outer.[2].inner"` for nested arrays)
 /// - `index`: Zero-based row index
 /// - `item_schema`: The array's `items` schema (may carry conditionals)
 /// - `item_values`: Field values for this single row
 ///
 /// ## Returns
-/// Validation errors aggregated across every visible field of the row.
+/// Validation errors aggregated across every visible field of the row,
+/// including recursive errors from nested objects/arrays.
 pub fn validate_array_item(
-  array_name: String,
+  prefix: String,
   index: Int,
   item_schema: SchemaProperty,
   item_values: Dict(String, Value),
 ) -> List(ValidationError) {
-  let resolved =
-    conditional_resolver.resolve_conditional_property(item_schema, item_values)
-
-  case resolved.properties {
-    Some(props) ->
-      list.flat_map(props, fn(entry) {
-        let #(field_name, field_prop) = entry
-        let field_value =
-          dict.get(item_values, field_name) |> option.from_result
-        let is_required = list.contains(resolved.required, field_name)
-        let path_key =
-          array_name <> "." <> int.to_string(index) <> "." <> field_name
-        validate_field(path_key, field_value, field_prop, is_required)
-      })
-    None -> []
-  }
+  validate_resolved_props(item_schema, item_values, fn(field_name) {
+    path_format.array_item_key(prefix, index, field_name)
+  })
 }
 
 /// Validate every row of an array against item-level conditional rules.
@@ -512,7 +502,7 @@ pub fn validate_array_item(
 /// Iterates the array's `ArrayValue`, treating each `ObjectValue` row as a
 /// dict for `validate_array_item`. Non-object rows produce no errors.
 pub fn validate_array_items(
-  array_name: String,
+  prefix: String,
   item_schema: SchemaProperty,
   array_value: Value,
 ) -> List(ValidationError) {
@@ -523,9 +513,85 @@ pub fn validate_array_items(
           ObjectValue(fields) -> dict.from_list(fields)
           _ -> dict.new()
         }
-        validate_array_item(array_name, index, item_schema, item_values)
+        validate_array_item(prefix, index, item_schema, item_values)
       })
       |> list.flatten
     _ -> []
+  }
+}
+
+/// Validate every field of a nested object against its schema.
+///
+/// Mirrors `validate_array_item` but for object-typed fields: resolves
+/// conditionals on the object's own values, then validates each visible
+/// property under `<prefix>.<field>` keys, recursing into nested
+/// objects/arrays.
+pub fn validate_object_fields(
+  prefix: String,
+  schema_prop: SchemaProperty,
+  values: Dict(String, Value),
+) -> List(ValidationError) {
+  validate_resolved_props(schema_prop, values, fn(field_name) {
+    path_format.object_field_key(prefix, field_name)
+  })
+}
+
+/// Shared core for `validate_array_item` / `validate_object_fields`.
+///
+/// Resolves `schema_prop`'s conditionals against `values`, then for each
+/// visible property validates the scalar field and recurses into nested
+/// objects/arrays via `validate_nested`. Callers supply `key_for` to
+/// produce the canonical path-string key for each visited field.
+fn validate_resolved_props(
+  schema_prop: SchemaProperty,
+  values: Dict(String, Value),
+  key_for: fn(String) -> String,
+) -> List(ValidationError) {
+  let resolved =
+    conditional_resolver.resolve_conditional_property(schema_prop, values)
+
+  case resolved.properties {
+    Some(props) ->
+      list.flat_map(props, fn(entry) {
+        let #(field_name, field_prop) = entry
+        let field_value = dict.get(values, field_name) |> option.from_result
+        let is_required = list.contains(resolved.required, field_name)
+        let path_key = key_for(field_name)
+        let own_errors =
+          validate_field(path_key, field_value, field_prop, is_required)
+        let nested = validate_nested(path_key, field_prop, field_value)
+        list.append(own_errors, nested)
+      })
+    None -> []
+  }
+}
+
+/// Recurse into nested object/array structures and collect their errors.
+///
+/// `validate_field` only handles scalar types — this helper dispatches
+/// on `field_prop.field_type` to dive into `ObjectType` (via
+/// `validate_object_fields`) and `ArrayType` (via `validate_array_items`),
+/// keyed by `prefix`. Returns `[]` when there is nothing to recurse into:
+/// scalar fields, missing values, or type/value mismatches. In particular,
+/// an absent or non-`ObjectValue` value for an `ObjectType` field skips
+/// validation of its required children — those are surfaced only through
+/// the parent's own `required` check, not as misleading child errors.
+pub fn validate_nested(
+  prefix: String,
+  field_prop: SchemaProperty,
+  field_value: Option(Value),
+) -> List(ValidationError) {
+  case field_prop.field_type, field_prop.items {
+    Some(types.ArrayType), Some(item_subschema) -> {
+      let av = option.unwrap(field_value, NullValue)
+      validate_array_items(prefix, item_subschema, av)
+    }
+    Some(types.ObjectType), _ ->
+      case field_value {
+        Some(ObjectValue(fields)) ->
+          validate_object_fields(prefix, field_prop, dict.from_list(fields))
+        _ -> []
+      }
+    _, _ -> []
   }
 }

@@ -1,5 +1,6 @@
 /// Tests for JSON Schema conditional logic (if/then/else)
 import formosh/form/model
+import formosh/form/path
 import formosh/form/update
 import formosh/schema/conditional_resolver
 import formosh/schema/parser
@@ -918,7 +919,8 @@ pub fn validate_all_fields_array_item_required_test() {
   let validated = update.validate_all_fields(form_model)
 
   // Path-keyed error for the missing required field appears on the model.
-  model.field_has_errors(validated, "lesions.0.visible")
+  // Format matches `path.to_string` — `<array>.[<index>].<field>`.
+  model.field_has_errors(validated, "lesions.[0].visible")
   |> should.be_true()
 
   // Filling visible="yes" cascades into conclusion being required.
@@ -937,7 +939,7 @@ pub fn validate_all_fields_array_item_required_test() {
     model.FormModel(..form_model, values: values2, resolved_schema: resolved2)
 
   let validated2 = update.validate_all_fields(form_model2)
-  model.field_has_errors(validated2, "lesions.0.conclusion")
+  model.field_has_errors(validated2, "lesions.[0].conclusion")
   |> should.be_true()
 
   // Switching is_resected back to false clears all conditional errors.
@@ -956,8 +958,228 @@ pub fn validate_all_fields_array_item_required_test() {
     model.FormModel(..form_model, values: values3, resolved_schema: resolved3)
 
   let validated3 = update.validate_all_fields(form_model3)
-  model.field_has_errors(validated3, "lesions.0.visible")
+  model.field_has_errors(validated3, "lesions.[0].visible")
   |> should.be_false()
-  model.field_has_errors(validated3, "lesions.0.conclusion")
+  model.field_has_errors(validated3, "lesions.[0].conclusion")
+  |> should.be_false()
+}
+
+// ----------------------------------------------------------------------------
+// Extra coverage: else-branch, multi-row, missing-if-field, key format,
+// path-key alignment with `path.to_string`.
+// ----------------------------------------------------------------------------
+
+/// Schema where the if-branch toggles between two distinct property sets
+/// (then vs else). Used to verify the `else` branch is honoured.
+fn category_items_schema_json() -> String {
+  "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"items\": {
+        \"type\": \"array\",
+        \"items\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"kind\": {\"type\": \"string\", \"enum\": [\"book\", \"movie\"]}
+          },
+          \"required\": [\"kind\"],
+          \"if\":   {\"properties\": {\"kind\": {\"const\": \"book\"}}},
+          \"then\": {
+            \"properties\": {\"pages\": {\"type\": \"integer\"}},
+            \"required\": [\"pages\"]
+          },
+          \"else\": {
+            \"properties\": {\"runtime\": {\"type\": \"integer\"}},
+            \"required\": [\"runtime\"]
+          }
+        }
+      }
+    }
+  }"
+}
+
+fn category_item_schema() -> SchemaProperty {
+  let parse_result = parser.parse_schema(category_items_schema_json())
+  parse_result |> should.be_ok()
+  let assert Ok(schema) = parse_result
+  let items_result = list.key_find(schema.properties, "items")
+  items_result |> should.be_ok()
+  let assert Ok(items) = items_result
+  let assert Some(item_schema) = items.items
+  item_schema
+}
+
+/// When the if-condition is False, the else-branch's properties/required
+/// are merged into the resolved item.
+pub fn array_item_else_branch_applies_when_condition_false_test() {
+  let item_schema = category_item_schema()
+
+  let movie_row = dict.from_list([#("kind", StringValue("movie"))])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, movie_row)
+
+  let assert Some(props) = resolved.properties
+  types.has_property_key(props, "runtime") |> should.be_true()
+  types.has_property_key(props, "pages") |> should.be_false()
+  list.contains(resolved.required, "runtime") |> should.be_true()
+  list.contains(resolved.required, "pages") |> should.be_false()
+}
+
+/// When the if-condition is True, the then-branch fields show, else does not.
+pub fn array_item_then_branch_applies_when_condition_true_test() {
+  let item_schema = category_item_schema()
+
+  let book_row = dict.from_list([#("kind", StringValue("book"))])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, book_row)
+
+  let assert Some(props) = resolved.properties
+  types.has_property_key(props, "pages") |> should.be_true()
+  types.has_property_key(props, "runtime") |> should.be_false()
+  list.contains(resolved.required, "pages") |> should.be_true()
+}
+
+/// Two rows in the same array — only the row missing its conditional-required
+/// field produces an error; the other row stays clean.
+pub fn array_items_multi_row_independent_validation_test() {
+  let parse_result = parser.parse_schema(lesions_schema_json())
+  parse_result |> should.be_ok()
+  let assert Ok(parsed_schema) = parse_result
+
+  // Row 0: is_resected=true, missing `visible` → should produce an error.
+  // Row 1: is_resected=false → no conditional-required at all, should be clean.
+  let row0 =
+    types.ObjectValue([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(True)),
+    ])
+  let row1 =
+    types.ObjectValue([
+      #("lesion_num", IntegerValue(2)),
+      #("is_resected", BooleanValue(False)),
+    ])
+  let values = dict.from_list([#("lesions", types.ArrayValue([row0, row1]))])
+
+  let resolved_schema =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values)
+
+  let form_model =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values,
+      resolved_schema: resolved_schema,
+    )
+
+  let validated = update.validate_all_fields(form_model)
+
+  // Row 0 has the conditional-required `visible` missing.
+  model.field_has_errors(validated, "lesions.[0].visible")
+  |> should.be_true()
+  // Row 1 should NOT have a `visible` error — visible isn't even in its
+  // resolved schema (is_resected=False).
+  model.field_has_errors(validated, "lesions.[1].visible")
+  |> should.be_false()
+}
+
+/// `evaluate_condition` returns False when the value referenced by `if` is
+/// missing from the row, so the then-branch must not apply.
+pub fn array_item_missing_if_field_falls_through_test() {
+  let item_schema = lesions_item_schema()
+
+  // Empty row — no is_resected at all.
+  let empty_row = dict.from_list([])
+
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, empty_row)
+
+  let assert Some(props) = resolved.properties
+  // Without is_resected, the then-branch fields stay hidden.
+  types.has_property_key(props, "visible") |> should.be_false()
+  types.has_property_key(props, "tumor_cells") |> should.be_false()
+}
+
+/// Error keys in the model match `path.to_string` exactly, so any UI code
+/// looking up errors via `get_errors_at_path` will find them.
+pub fn array_item_error_key_matches_path_to_string_test() {
+  let parse_result = parser.parse_schema(lesions_schema_json())
+  parse_result |> should.be_ok()
+  let assert Ok(parsed_schema) = parse_result
+
+  let row =
+    types.ObjectValue([
+      #("lesion_num", IntegerValue(1)),
+      #("is_resected", BooleanValue(True)),
+    ])
+  let values = dict.from_list([#("lesions", types.ArrayValue([row]))])
+
+  let resolved_schema =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values)
+
+  let form_model =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values,
+      resolved_schema: resolved_schema,
+    )
+
+  let validated = update.validate_all_fields(form_model)
+
+  let field_path = path.to_array_item_field("lesions", 0, "visible")
+
+  // Path-based API (used by UI) finds the error under the canonical key.
+  model.has_errors_at_path(validated, field_path)
+  |> should.be_true()
+
+  // And the canonical key has the expected literal format with brackets.
+  path.to_string(field_path)
+  |> should.equal("lesions.[0].visible")
+}
+
+/// Top-level object with a required nested property routes through
+/// `validate_nested` → `validate_object_fields` and keys the error under
+/// `<parent>.<child>` (no array index involved).
+pub fn validate_top_level_object_nested_required_test() {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"address\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"street\": {\"type\": \"string\"},
+            \"city\":   {\"type\": \"string\"}
+          },
+          \"required\": [\"street\"]
+        }
+      }
+    }"
+  let parse_result = parser.parse_schema(json)
+  parse_result |> should.be_ok()
+  let assert Ok(parsed_schema) = parse_result
+
+  // `address` exists but is missing the required `street`.
+  let values =
+    dict.from_list([
+      #("address", types.ObjectValue([#("city", StringValue("NYC"))])),
+    ])
+  let resolved_schema =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values)
+
+  let form_model =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values,
+      resolved_schema: resolved_schema,
+    )
+
+  let validated = update.validate_all_fields(form_model)
+
+  // Error is keyed under the canonical "<parent>.<child>" format.
+  model.field_has_errors(validated, "address.street")
+  |> should.be_true()
+  // Sibling that was provided has no errors.
+  model.field_has_errors(validated, "address.city")
   |> should.be_false()
 }
