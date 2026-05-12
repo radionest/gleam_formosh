@@ -1,5 +1,6 @@
 // Validation functions for form fields
 
+import formosh/path_format
 import formosh/schema/conditional_resolver
 import formosh/schema/types.{
   type SchemaProperty, type ValidationError, type Value, ArrayValue,
@@ -502,7 +503,7 @@ pub fn validate_array_item(
         let field_value =
           dict.get(item_values, field_name) |> option.from_result
         let is_required = list.contains(resolved.required, field_name)
-        let path_key = array_item_field_key(prefix, index, field_name)
+        let path_key = path_format.array_item_key(prefix, index, field_name)
         let own_errors =
           validate_field(path_key, field_value, field_prop, is_required)
         let nested = validate_nested(path_key, field_prop, field_value)
@@ -556,7 +557,7 @@ pub fn validate_object_fields(
         let #(field_name, field_prop) = entry
         let field_value = dict.get(values, field_name) |> option.from_result
         let is_required = list.contains(resolved.required, field_name)
-        let path_key = prefix <> "." <> field_name
+        let path_key = path_format.object_field_key(prefix, field_name)
         let own_errors =
           validate_field(path_key, field_value, field_prop, is_required)
         let nested = validate_nested(path_key, field_prop, field_value)
@@ -591,17 +592,4 @@ pub fn validate_nested(
     }
     _, _ -> []
   }
-}
-
-/// Build a path-string key for an array-item field, matching the format
-/// produced by `formosh/form/path.to_string` (e.g. `"lesions.[0].visible"`).
-///
-/// Kept here as a local helper to avoid a `schema/` → `form/` import.
-/// Must stay in sync with `path.to_string`.
-fn array_item_field_key(
-  prefix: String,
-  index: Int,
-  field_name: String,
-) -> String {
-  prefix <> ".[" <> int.to_string(index) <> "]." <> field_name
 }

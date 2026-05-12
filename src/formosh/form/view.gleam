@@ -60,12 +60,12 @@ fn render_form_header(model: FormModel) -> Element(FormMsg) {
     case model.schema.title {
       Some(title) ->
         html.h2([attribute.class("formosh-title")], [html.text(title)])
-      None -> html.text("")
+      None -> element.none()
     },
     case model.schema.description {
       Some(desc) ->
         html.p([attribute.class("formosh-description")], [html.text(desc)])
-      None -> html.text("")
+      None -> element.none()
     },
   ])
 }
@@ -130,7 +130,7 @@ fn render_field(
   let is_readonly = property.read_only
   case is_readonly && !model.show_readonly_fields {
     // Skip rendering if field is readOnly and show_readonly_fields is False
-    True -> html.text("")
+    True -> element.none()
     False -> render_visible_field(model, field_name, property, is_readonly)
   }
 }
@@ -267,7 +267,7 @@ fn render_visible_field(
       field_element,
       case has_errors && is_touched {
         True -> field_common.render_field_errors(errors)
-        False -> html.text("")
+        False -> element.none()
       },
     ],
   )
@@ -330,6 +330,6 @@ fn render_submission_result(model: FormModel) -> Element(FormMsg) {
       html.div([attribute.class("formosh-error-message")], [
         html.text(message),
       ])
-    None -> html.text("")
+    None -> element.none()
   }
 }

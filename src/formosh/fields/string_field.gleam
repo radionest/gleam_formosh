@@ -308,7 +308,7 @@ fn render_regular_enum(
   is_readonly: Bool,
 ) -> Element(FormMsg) {
   case property.enum_values {
-    None -> html.text("")
+    None -> element.none()
     Some(enum_vals) -> {
       let current_value = field_common.extract_string_value(value)
 

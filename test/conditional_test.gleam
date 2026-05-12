@@ -1057,3 +1057,48 @@ pub fn array_item_error_key_matches_path_to_string_test() {
   path.to_string(field_path)
   |> should.equal("lesions.[0].visible")
 }
+
+/// Top-level object with a required nested property routes through
+/// `validate_nested` → `validate_object_fields` and keys the error under
+/// `<parent>.<child>` (no array index involved).
+pub fn validate_top_level_object_nested_required_test() {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"address\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"street\": {\"type\": \"string\"},
+            \"city\":   {\"type\": \"string\"}
+          },
+          \"required\": [\"street\"]
+        }
+      }
+    }"
+  let assert Ok(parsed_schema) = parser.parse_schema(json)
+
+  // `address` exists but is missing the required `street`.
+  let values =
+    dict.from_list([
+      #("address", types.ObjectValue([#("city", StringValue("NYC"))])),
+    ])
+  let resolved_schema =
+    conditional_resolver.resolve_conditional_schema(parsed_schema, values)
+
+  let form_model =
+    model.FormModel(
+      ..model.init(parsed_schema),
+      values: values,
+      resolved_schema: resolved_schema,
+    )
+
+  let validated = update.validate_all_fields(form_model)
+
+  // Error is keyed under the canonical "<parent>.<child>" format.
+  model.field_has_errors(validated, "address.street")
+  |> should.be_true()
+  // Sibling that was provided has no errors.
+  model.field_has_errors(validated, "address.city")
+  |> should.be_false()
+}

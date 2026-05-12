@@ -68,7 +68,7 @@ pub fn render_label(
       case is_required {
         True ->
           html.span([attribute.class("formosh-required")], [html.text(" *")])
-        False -> html.text("")
+        False -> element.none()
       },
     ],
   )
@@ -91,7 +91,7 @@ pub fn render_help_text(property: types.SchemaProperty) -> Element(FormMsg) {
       html.div([attribute.class("formosh-help")], [
         html.text(desc),
       ])
-    None -> html.text("")
+    None -> element.none()
   }
 }
 

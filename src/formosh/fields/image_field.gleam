@@ -72,7 +72,7 @@ pub fn render(
       ),
       // Add button (hidden when disabled/readonly or no upload URL)
       case effective_disabled || option.is_none(upload_base_url) {
-        True -> html.text("")
+        True -> element.none()
         False ->
           html.button(
             [
@@ -106,7 +106,7 @@ fn render_uploaded_image(
       attribute.alt("Uploaded image"),
     ]),
     case is_disabled {
-      True -> html.text("")
+      True -> element.none()
       False ->
         html.button(
           [
