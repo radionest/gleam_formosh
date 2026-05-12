@@ -1,6 +1,5 @@
 import formosh/schema/parser
 import formosh/schema/types
-import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
@@ -61,11 +60,54 @@ pub fn object_with_properties_test() {
       should.equal(schema.required, ["name"])
 
       // Check that properties were parsed
-      let property_count = dict.size(schema.properties)
+      let property_count = list.length(schema.properties)
       should.equal(property_count, 2)
     }
     Error(_) -> panic as "Parser should succeed"
   }
+}
+
+pub fn properties_preserve_source_order_test() {
+  // Keys deliberately in non-alphabetical order to detect any reordering.
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"zeta\": {\"type\": \"string\"},
+      \"alpha\": {\"type\": \"integer\"},
+      \"mu\": {\"type\": \"boolean\"},
+      \"beta\": {\"type\": \"number\"}
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema.properties
+  |> list.map(fn(entry) { entry.0 })
+  |> should.equal(["zeta", "alpha", "mu", "beta"])
+}
+
+pub fn nested_properties_preserve_source_order_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"outer\": {
+        \"type\": \"object\",
+        \"properties\": {
+          \"z\": {\"type\": \"string\"},
+          \"a\": {\"type\": \"string\"},
+          \"m\": {\"type\": \"string\"}
+        }
+      }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(outer) = list.key_find(schema.properties, "outer")
+  let assert Some(nested) = outer.properties
+  nested
+  |> list.map(fn(entry) { entry.0 })
+  |> should.equal(["z", "a", "m"])
 }
 
 pub fn array_with_items_test() {
@@ -110,7 +152,7 @@ pub fn schema_without_title_test() {
       should.equal(schema.title, None)
       should.equal(schema.field_type, types.ObjectType)
 
-      let property_count = dict.size(schema.properties)
+      let property_count = list.length(schema.properties)
       should.equal(property_count, 1)
     }
     Error(_) -> panic as "Parser should succeed for schema without title"
@@ -136,7 +178,7 @@ pub fn one_of_with_const_title_test() {
   should.be_ok(result)
 
   let assert Ok(schema) = result
-  let assert Ok(prop) = dict.get(schema.properties, "best_series")
+  let assert Ok(prop) = list.key_find(schema.properties, "best_series")
 
   // field_type should be string
   should.equal(prop.field_type, Some(types.StringType))
@@ -178,7 +220,7 @@ pub fn one_of_without_title_test() {
   should.be_ok(result)
 
   let assert Ok(schema) = result
-  let assert Ok(prop) = dict.get(schema.properties, "value")
+  let assert Ok(prop) = list.key_find(schema.properties, "value")
 
   case prop.one_of {
     Some(schemas) -> {
@@ -224,7 +266,7 @@ pub fn image_upload_widget_test() {
   should.be_ok(result)
 
   let assert Ok(schema) = result
-  let assert Ok(prop) = dict.get(schema.properties, "photos")
+  let assert Ok(prop) = list.key_find(schema.properties, "photos")
 
   should.equal(prop.field_type, Some(types.ArrayType))
   should.equal(prop.widget, Some("image-upload"))
@@ -263,7 +305,7 @@ pub fn image_upload_defaults_test() {
   should.be_ok(result)
 
   let assert Ok(schema) = result
-  let assert Ok(prop) = dict.get(schema.properties, "photos")
+  let assert Ok(prop) = list.key_find(schema.properties, "photos")
 
   should.equal(prop.widget, Some("image-upload"))
 
@@ -290,7 +332,7 @@ pub fn no_widget_property_test() {
   should.be_ok(result)
 
   let assert Ok(schema) = result
-  let assert Ok(prop) = dict.get(schema.properties, "name")
+  let assert Ok(prop) = list.key_find(schema.properties, "name")
 
   should.equal(prop.widget, None)
   should.equal(prop.upload_config, None)
@@ -314,7 +356,7 @@ pub fn image_upload_custom_accept_test() {
   should.be_ok(result)
 
   let assert Ok(schema) = result
-  let assert Ok(prop) = dict.get(schema.properties, "documents")
+  let assert Ok(prop) = list.key_find(schema.properties, "documents")
 
   should.equal(prop.widget, Some("image-upload"))
   case prop.upload_config {

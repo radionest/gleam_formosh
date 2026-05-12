@@ -317,7 +317,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 /// ## Returns
 /// A new FormModel with updated validation errors for the field
 fn validate_field(model: FormModel, field_name: String) -> FormModel {
-  case dict.get(model.resolved_schema.properties, field_name) {
+  case list.key_find(model.resolved_schema.properties, field_name) {
     Ok(property) -> {
       let value = model.get_field_value(model, field_name)
       let errors =
@@ -354,7 +354,8 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
 /// ## Returns
 /// A new FormModel with validation errors for all invalid fields
 pub fn validate_all_fields(model: FormModel) -> FormModel {
-  dict.keys(model.resolved_schema.properties)
+  model.resolved_schema.properties
+  |> list.map(fn(entry) { entry.0 })
   |> list.fold(model.clear_all_errors(model), validate_field)
 }
 
@@ -480,7 +481,7 @@ fn create_upload_effect(
       }
       let config = case first_segment {
         Some(name) ->
-          case dict.get(model.resolved_schema.properties, name) {
+          case list.key_find(model.resolved_schema.properties, name) {
             Ok(prop) -> prop.upload_config
             Error(_) -> None
           }

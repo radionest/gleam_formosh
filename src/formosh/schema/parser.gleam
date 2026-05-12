@@ -1,3 +1,4 @@
+import formosh/ffi/dynamic_object
 import formosh/schema/resolver
 import formosh/schema/types.{
   type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
@@ -102,7 +103,7 @@ fn schema_decoder() -> Decoder(JsonSchema) {
   )
   use properties <- decode.optional_field(
     "properties",
-    dict.new(),
+    [],
     properties_decoder(),
   )
   use required <- decode.optional_field(
@@ -159,11 +160,29 @@ fn field_type_decoder() -> Decoder(FieldType) {
 }
 
 /// Decode the "properties" object from a JSON Schema.
-/// 
-/// This decoder handles the properties object which contains all the
-/// field definitions for an object-type schema.
-fn properties_decoder() -> Decoder(Dict(String, SchemaProperty)) {
-  decode.dict(decode.string, property_decoder())
+///
+/// Preserves the original key order from the source JSON by reading the
+/// underlying JS object entries (insertion order is guaranteed by ES2020+
+/// for string keys) instead of going through `decode.dict`, which builds
+/// a hash-based structure that loses ordering.
+///
+/// If decoding any individual property fails, the whole `properties` block
+/// fails fast — matching the prior `decode.dict` behaviour rather than
+/// silently dropping malformed entries.
+fn properties_decoder() -> Decoder(List(#(String, SchemaProperty))) {
+  use dynamic_data <- decode.then(decode.dynamic)
+  let entries = dynamic_object.entries(dynamic_data)
+  let try_decode_entry = fn(entry: #(String, Dynamic)) {
+    let #(key, value) = entry
+    decode.run(value, property_decoder())
+    |> result.map(fn(prop) { #(key, prop) })
+    |> result.map_error(fn(_) { key })
+  }
+  case list.try_map(entries, try_decode_entry) {
+    Ok(pairs) -> decode.success(pairs)
+    Error(key) ->
+      decode.failure([], "Invalid schema property at key '" <> key <> "'")
+  }
 }
 
 /// Decode the "$defs" object from a JSON Schema.

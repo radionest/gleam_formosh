@@ -1,7 +1,9 @@
 // JSON Schema types for form generation
 
 import gleam/dict.{type Dict}
+import gleam/list
 import gleam/option.{type Option, None}
+import gleam/result
 
 /// Unified value type for both schema definitions and form values.
 /// 
@@ -105,7 +107,7 @@ pub type SchemaProperty {
     // For array types
     items: Option(SchemaProperty),
     // For object types
-    properties: Option(Dict(String, SchemaProperty)),
+    properties: Option(List(#(String, SchemaProperty))),
     required: List(String),
     // JSON Schema readOnly annotation
     read_only: Bool,
@@ -149,7 +151,7 @@ pub type JsonSchema {
     title: Option(String),
     description: Option(String),
     field_type: FieldType,
-    properties: Dict(String, SchemaProperty),
+    properties: List(#(String, SchemaProperty)),
     required: List(String),
     // Schema definitions for reuse via $ref
     defs: Option(Dict(String, SchemaProperty)),
@@ -217,6 +219,14 @@ pub fn empty_number_constraints() -> NumberConstraints {
     exclusive_maximum: None,
     multiple_of: None,
   )
+}
+
+/// Check whether an ordered property list contains the given key.
+pub fn has_property_key(
+  properties: List(#(String, SchemaProperty)),
+  key: String,
+) -> Bool {
+  list.key_find(properties, key) |> result.is_ok()
 }
 
 /// Create an empty SchemaProperty with default values.

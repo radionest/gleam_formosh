@@ -48,20 +48,18 @@ pub fn resolve_refs(schema: JsonSchema) -> Result(JsonSchema, ResolveError) {
   Ok(types.JsonSchema(..schema, properties: resolved_properties))
 }
 
-/// Resolve references in a dictionary of properties
+/// Resolve references in an ordered list of properties, preserving key order.
 fn resolve_properties_refs(
-  properties: Dict(String, SchemaProperty),
+  properties: List(#(String, SchemaProperty)),
   context: Dict(String, SchemaProperty),
   visited: List(String),
-) -> Result(Dict(String, SchemaProperty), ResolveError) {
+) -> Result(List(#(String, SchemaProperty)), ResolveError) {
   properties
-  |> dict.to_list()
   |> list.try_map(fn(entry) {
     let #(key, prop) = entry
     use resolved_prop <- result.try(resolve_property_ref(prop, context, visited))
     Ok(#(key, resolved_prop))
   })
-  |> result.map(dict.from_list)
 }
 
 /// Resolve a single property that might contain a $ref

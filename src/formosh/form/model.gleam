@@ -1,7 +1,9 @@
 // Form model for MVU architecture
 
 import formosh/form/path.{type FieldPath}
-import formosh/schema/types.{type JsonSchema, type ValidationError, type Value}
+import formosh/schema/types.{
+  type JsonSchema, type ValidationError, type Value, has_property_key,
+}
 import formosh/validation/field_requirements
 import gleam/dict.{type Dict}
 import gleam/list
@@ -434,7 +436,7 @@ pub fn get_form_values(model: FormModel) -> Dict(String, Value) {
 /// preserved and will reappear if the condition toggles back.
 pub fn get_resolved_values(model: FormModel) -> Dict(String, Value) {
   dict.filter(model.values, fn(key, _value) {
-    dict.has_key(model.resolved_schema.properties, key)
+    has_property_key(model.resolved_schema.properties, key)
   })
 }
 
