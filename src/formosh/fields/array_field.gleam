@@ -194,7 +194,7 @@ fn render_item_fields(
 
   case resolved.properties {
     Some(props) ->
-      dict.to_list(props)
+      props
       |> list.map(fn(entry) {
         let #(field_name, field_prop) = entry
         let value =

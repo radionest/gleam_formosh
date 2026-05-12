@@ -83,7 +83,7 @@ fn render_form_header(model: FormModel) -> Element(FormMsg) {
 /// A Lustre Element containing the form body with all fields
 fn render_form_body(model: FormModel) -> Element(FormMsg) {
   let fields =
-    dict.to_list(model.resolved_schema.properties)
+    model.resolved_schema.properties
     |> list.map(fn(pair) {
       let #(field_name, property) = pair
       render_field(model, field_name, property)

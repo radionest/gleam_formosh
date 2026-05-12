@@ -552,8 +552,7 @@ fn validate_resolved_props(
 
   case resolved.properties {
     Some(props) ->
-      dict.to_list(props)
-      |> list.flat_map(fn(entry) {
+      list.flat_map(props, fn(entry) {
         let #(field_name, field_prop) = entry
         let field_value = dict.get(values, field_name) |> option.from_result
         let is_required = list.contains(resolved.required, field_name)

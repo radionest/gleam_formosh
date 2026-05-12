@@ -2,7 +2,6 @@
 
 import formosh/schema/parser
 import formosh/schema/types
-import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
@@ -53,7 +52,7 @@ pub fn simple_ref_test() {
       should.equal(schema.title, Some("Person Form"))
 
       // Check that both address properties have been resolved
-      case dict.get(schema.properties, "billing_address") {
+      case list.key_find(schema.properties, "billing_address") {
         Ok(billing) -> {
           // The ref should be resolved and cleared
           should.equal(billing.ref, None)
@@ -62,8 +61,8 @@ pub fn simple_ref_test() {
           // Check nested properties exist
           case billing.properties {
             Some(props) -> {
-              should.equal(dict.size(props), 3)
-              case dict.get(props, "street") {
+              should.equal(list.length(props), 3)
+              case list.key_find(props, "street") {
                 Ok(street) -> {
                   should.equal(street.field_type, Some(types.StringType))
                   case street.string_constraints {
@@ -85,7 +84,7 @@ pub fn simple_ref_test() {
         Error(_) -> panic as "Billing address should exist"
       }
 
-      case dict.get(schema.properties, "shipping_address") {
+      case list.key_find(schema.properties, "shipping_address") {
         Ok(shipping) -> {
           should.equal(shipping.ref, None)
           should.equal(shipping.field_type, Some(types.ObjectType))
@@ -133,7 +132,7 @@ pub fn ref_with_override_test() {
 
   case result {
     Ok(schema) -> {
-      case dict.get(schema.properties, "contact") {
+      case list.key_find(schema.properties, "contact") {
         Ok(contact) -> {
           // Local overrides should take precedence
           should.equal(contact.title, Some("Primary Contact"))
@@ -143,7 +142,7 @@ pub fn ref_with_override_test() {
 
           case contact.properties {
             Some(props) -> {
-              should.equal(dict.size(props), 2)
+              should.equal(list.length(props), 2)
             }
             None -> panic as "Contact should have properties"
           }
@@ -191,7 +190,7 @@ pub fn ref_in_array_items_test() {
 
   case result {
     Ok(schema) -> {
-      case dict.get(schema.properties, "members") {
+      case list.key_find(schema.properties, "members") {
         Ok(members) -> {
           should.equal(members.field_type, Some(types.ArrayType))
 
@@ -204,9 +203,9 @@ pub fn ref_in_array_items_test() {
 
               case item_schema.properties {
                 Some(props) -> {
-                  should.equal(dict.size(props), 2)
+                  should.equal(list.length(props), 2)
 
-                  case dict.get(props, "role") {
+                  case list.key_find(props, "role") {
                     Ok(role) -> {
                       case role.enum_values {
                         Some(values) -> {
@@ -295,13 +294,13 @@ pub fn circular_ref_test() {
   // The resolver should detect the cycle and stop
   case result {
     Ok(schema) -> {
-      case dict.get(schema.properties, "node") {
+      case list.key_find(schema.properties, "node") {
         Ok(node) -> {
           should.equal(node.field_type, Some(types.ObjectType))
 
           case node.properties {
             Some(props) -> {
-              case dict.get(props, "child") {
+              case list.key_find(props, "child") {
                 Ok(child) -> {
                   // The child should still have the ref 
                   // or be resolved to avoid infinite recursion
@@ -356,7 +355,7 @@ pub fn definitions_compatibility_test() {
 
   case result {
     Ok(schema) -> {
-      case dict.get(schema.properties, "person") {
+      case list.key_find(schema.properties, "person") {
         Ok(person) -> {
           should.equal(person.ref, None)
           should.equal(person.field_type, Some(types.ObjectType))
@@ -366,4 +365,33 @@ pub fn definitions_compatibility_test() {
     }
     Error(_) -> panic as "Parser should succeed with #/definitions/ syntax"
   }
+}
+
+/// Resolving $ref must preserve the declaration order of nested properties.
+pub fn ref_preserves_nested_property_order_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"address\": {\"$ref\": \"#/$defs/address\"}
+    },
+    \"$defs\": {
+      \"address\": {
+        \"type\": \"object\",
+        \"properties\": {
+          \"street\": {\"type\": \"string\"},
+          \"apartment\": {\"type\": \"string\"},
+          \"city\": {\"type\": \"string\"},
+          \"zip\": {\"type\": \"string\"}
+        }
+      }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(address) = list.key_find(schema.properties, "address")
+  let assert Some(nested) = address.properties
+  nested
+  |> list.map(fn(entry) { entry.0 })
+  |> should.equal(["street", "apartment", "city", "zip"])
 }

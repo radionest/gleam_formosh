@@ -1,5 +1,6 @@
 ---
-globs: "src/formosh/fields/**/*.gleam"
+paths:
+  - "src/formosh/fields/**/*.gleam"
 ---
 
 # Field rendering rules

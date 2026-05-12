@@ -6,7 +6,7 @@
 import formosh/schema/types.{
   type ConditionalRule, type JsonSchema, type SchemaProperty, type Value,
   BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue, SchemaProperty,
-  StringValue,
+  StringValue, has_property_key,
 }
 import gleam/dict.{type Dict}
 import gleam/list
@@ -73,8 +73,7 @@ fn evaluate_condition(
   // For object conditions, check if all properties match
   case condition.properties {
     Some(props) -> {
-      dict.to_list(props)
-      |> list.all(fn(prop_pair) {
+      list.all(props, fn(prop_pair) {
         let #(field_name, prop_schema) = prop_pair
         case dict.get(form_values, field_name) {
           Ok(field_value) -> check_property_match(prop_schema, field_value)
@@ -165,7 +164,8 @@ fn merge_schema_properties(
 ) -> JsonSchema {
   case conditional_props.properties {
     Some(new_props) -> {
-      let merged_properties = dict.merge(base_schema.properties, new_props)
+      let merged_properties =
+        merge_property_lists(base_schema.properties, new_props)
       let merged_required =
         list.append(base_schema.required, conditional_props.required)
         |> list.unique()
@@ -177,6 +177,48 @@ fn merge_schema_properties(
     }
     None -> base_schema
   }
+}
+
+/// Merge two ordered property lists.
+///
+/// Existing keys keep their position but receive the override value from
+/// `additions`. Keys only present in `additions` are appended at the end,
+/// preserving their relative order — and deduplicated so a key cannot
+/// surface twice in the rendered form. This matches the typical UX for
+/// conditional fields: static fields stay where authored, dynamic ones
+/// surface after them.
+fn merge_property_lists(
+  base: List(#(String, SchemaProperty)),
+  additions: List(#(String, SchemaProperty)),
+) -> List(#(String, SchemaProperty)) {
+  let deduped_additions = dedup_by_key(additions)
+  let #(base_keys, updated_base) =
+    list.map_fold(base, [], fn(seen, entry) {
+      let #(key, _) = entry
+      let merged = case list.key_find(deduped_additions, key) {
+        Ok(new_prop) -> #(key, new_prop)
+        Error(_) -> entry
+      }
+      #([key, ..seen], merged)
+    })
+  let new_only =
+    list.filter(deduped_additions, fn(entry) {
+      !list.contains(base_keys, entry.0)
+    })
+  list.append(updated_base, new_only)
+}
+
+/// Keep only the first occurrence of each key, preserving order.
+fn dedup_by_key(entries: List(#(String, a))) -> List(#(String, a)) {
+  let #(_, reversed) =
+    list.fold(entries, #([], []), fn(state, entry) {
+      let #(seen, acc) = state
+      case list.contains(seen, entry.0) {
+        True -> state
+        False -> #([entry.0, ..seen], [entry, ..acc])
+      }
+    })
+  list.reverse(reversed)
 }
 
 /// Property-level analogue of `apply_then_branch`.
@@ -211,7 +253,7 @@ fn merge_into_property(
   case conditional.properties {
     Some(new_props) -> {
       let merged_props = case base.properties {
-        Some(existing) -> dict.merge(existing, new_props)
+        Some(existing) -> merge_property_lists(existing, new_props)
         None -> new_props
       }
       let merged_required =
@@ -229,46 +271,15 @@ fn merge_into_property(
 
 /// Check if a field should be visible based on conditional rules.
 ///
-/// This is a helper function to determine field visibility without
-/// fully resolving the schema.
+/// Delegates to `resolve_conditional_schema` and checks whether the field
+/// ends up in the merged property list. This is equivalent to (and replaces)
+/// the previous hand-rolled walk over each conditional's then/else branches,
+/// which duplicated the merge logic and re-evaluated every rule per call.
 pub fn is_field_visible(
   field_name: String,
   base_schema: JsonSchema,
   form_values: Dict(String, Value),
 ) -> Bool {
-  // First check if field is in base properties
-  let in_base = dict.has_key(base_schema.properties, field_name)
-
-  // Then check if any conditional rule adds this field
-  let added_by_conditional =
-    list.any(base_schema.conditionals, fn(rule) {
-      let condition_met = evaluate_condition(rule.if_schema, form_values)
-
-      case condition_met {
-        True -> {
-          case rule.then_schema {
-            Some(then_props) -> {
-              case then_props.properties {
-                Some(props) -> dict.has_key(props, field_name)
-                None -> False
-              }
-            }
-            None -> False
-          }
-        }
-        False -> {
-          case rule.else_schema {
-            Some(else_props) -> {
-              case else_props.properties {
-                Some(props) -> dict.has_key(props, field_name)
-                None -> False
-              }
-            }
-            None -> False
-          }
-        }
-      }
-    })
-
-  in_base || added_by_conditional
+  let resolved = resolve_conditional_schema(base_schema, form_values)
+  has_property_key(resolved.properties, field_name)
 }
