@@ -492,25 +492,9 @@ pub fn validate_array_item(
   item_schema: SchemaProperty,
   item_values: Dict(String, Value),
 ) -> List(ValidationError) {
-  let resolved =
-    conditional_resolver.resolve_conditional_property(item_schema, item_values)
-
-  case resolved.properties {
-    Some(props) ->
-      dict.to_list(props)
-      |> list.flat_map(fn(entry) {
-        let #(field_name, field_prop) = entry
-        let field_value =
-          dict.get(item_values, field_name) |> option.from_result
-        let is_required = list.contains(resolved.required, field_name)
-        let path_key = path_format.array_item_key(prefix, index, field_name)
-        let own_errors =
-          validate_field(path_key, field_value, field_prop, is_required)
-        let nested = validate_nested(path_key, field_prop, field_value)
-        list.append(own_errors, nested)
-      })
-    None -> []
-  }
+  validate_resolved_props(item_schema, item_values, fn(field_name) {
+    path_format.array_item_key(prefix, index, field_name)
+  })
 }
 
 /// Validate every row of an array against item-level conditional rules.
@@ -547,6 +531,22 @@ pub fn validate_object_fields(
   schema_prop: SchemaProperty,
   values: Dict(String, Value),
 ) -> List(ValidationError) {
+  validate_resolved_props(schema_prop, values, fn(field_name) {
+    path_format.object_field_key(prefix, field_name)
+  })
+}
+
+/// Shared core for `validate_array_item` / `validate_object_fields`.
+///
+/// Resolves `schema_prop`'s conditionals against `values`, then for each
+/// visible property validates the scalar field and recurses into nested
+/// objects/arrays via `validate_nested`. Callers supply `key_for` to
+/// produce the canonical path-string key for each visited field.
+fn validate_resolved_props(
+  schema_prop: SchemaProperty,
+  values: Dict(String, Value),
+  key_for: fn(String) -> String,
+) -> List(ValidationError) {
   let resolved =
     conditional_resolver.resolve_conditional_property(schema_prop, values)
 
@@ -557,7 +557,7 @@ pub fn validate_object_fields(
         let #(field_name, field_prop) = entry
         let field_value = dict.get(values, field_name) |> option.from_result
         let is_required = list.contains(resolved.required, field_name)
-        let path_key = path_format.object_field_key(prefix, field_name)
+        let path_key = key_for(field_name)
         let own_errors =
           validate_field(path_key, field_value, field_prop, is_required)
         let nested = validate_nested(path_key, field_prop, field_value)
@@ -572,7 +572,11 @@ pub fn validate_object_fields(
 /// `validate_field` only handles scalar types — this helper dispatches
 /// on `field_prop.field_type` to dive into `ObjectType` (via
 /// `validate_object_fields`) and `ArrayType` (via `validate_array_items`),
-/// keyed by `prefix`. Returns `[]` for scalar fields.
+/// keyed by `prefix`. Returns `[]` when there is nothing to recurse into:
+/// scalar fields, missing values, or type/value mismatches. In particular,
+/// an absent or non-`ObjectValue` value for an `ObjectType` field skips
+/// validation of its required children — those are surfaced only through
+/// the parent's own `required` check, not as misleading child errors.
 pub fn validate_nested(
   prefix: String,
   field_prop: SchemaProperty,
@@ -583,13 +587,12 @@ pub fn validate_nested(
       let av = option.unwrap(field_value, NullValue)
       validate_array_items(prefix, item_subschema, av)
     }
-    Some(types.ObjectType), _ -> {
-      let nested_values = case field_value {
-        Some(ObjectValue(fields)) -> dict.from_list(fields)
-        _ -> dict.new()
+    Some(types.ObjectType), _ ->
+      case field_value {
+        Some(ObjectValue(fields)) ->
+          validate_object_fields(prefix, field_prop, dict.from_list(fields))
+        _ -> []
       }
-      validate_object_fields(prefix, field_prop, nested_values)
-    }
     _, _ -> []
   }
 }

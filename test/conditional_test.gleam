@@ -928,8 +928,12 @@ fn category_items_schema_json() -> String {
 }
 
 fn category_item_schema() -> SchemaProperty {
-  let assert Ok(schema) = parser.parse_schema(category_items_schema_json())
-  let assert Ok(items) = dict.get(schema.properties, "items")
+  let parse_result = parser.parse_schema(category_items_schema_json())
+  parse_result |> should.be_ok()
+  let assert Ok(schema) = parse_result
+  let items_result = dict.get(schema.properties, "items")
+  items_result |> should.be_ok()
+  let assert Ok(items) = items_result
   let assert Some(item_schema) = items.items
   item_schema
 }
@@ -969,7 +973,9 @@ pub fn array_item_then_branch_applies_when_condition_true_test() {
 /// Two rows in the same array — only the row missing its conditional-required
 /// field produces an error; the other row stays clean.
 pub fn array_items_multi_row_independent_validation_test() {
-  let assert Ok(parsed_schema) = parser.parse_schema(lesions_schema_json())
+  let parse_result = parser.parse_schema(lesions_schema_json())
+  parse_result |> should.be_ok()
+  let assert Ok(parsed_schema) = parse_result
 
   // Row 0: is_resected=true, missing `visible` → should produce an error.
   // Row 1: is_resected=false → no conditional-required at all, should be clean.
@@ -1026,7 +1032,9 @@ pub fn array_item_missing_if_field_falls_through_test() {
 /// Error keys in the model match `path.to_string` exactly, so any UI code
 /// looking up errors via `get_errors_at_path` will find them.
 pub fn array_item_error_key_matches_path_to_string_test() {
-  let assert Ok(parsed_schema) = parser.parse_schema(lesions_schema_json())
+  let parse_result = parser.parse_schema(lesions_schema_json())
+  parse_result |> should.be_ok()
+  let assert Ok(parsed_schema) = parse_result
 
   let row =
     types.ObjectValue([
@@ -1076,7 +1084,9 @@ pub fn validate_top_level_object_nested_required_test() {
         }
       }
     }"
-  let assert Ok(parsed_schema) = parser.parse_schema(json)
+  let parse_result = parser.parse_schema(json)
+  parse_result |> should.be_ok()
+  let assert Ok(parsed_schema) = parse_result
 
   // `address` exists but is missing the required `street`.
   let values =
