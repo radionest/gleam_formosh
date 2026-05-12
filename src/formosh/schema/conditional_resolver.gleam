@@ -5,8 +5,8 @@
 /// field visibility and validation.
 import formosh/schema/types.{
   type ConditionalRule, type JsonSchema, type SchemaProperty, type Value,
-  BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue, StringValue,
-  has_property_key,
+  BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue, SchemaProperty,
+  StringValue, has_property_key,
 }
 import gleam/dict.{type Dict}
 import gleam/list
@@ -32,6 +32,32 @@ pub fn resolve_conditional_schema(
     case evaluate_condition(rule.if_schema, form_values) {
       True -> apply_then_branch(schema, rule)
       False -> apply_else_branch(schema, rule)
+    }
+  })
+}
+
+/// Resolve an item-level schema property with its own conditional rules.
+///
+/// Mirrors `resolve_conditional_schema` but operates on a `SchemaProperty`
+/// (used for array `items`). Conditions evaluate against the item-local
+/// values dict, so each array row resolves independently.
+///
+/// ## Parameters
+/// - `base`: The property carrying its own `conditionals` (typically an
+///   array's `items` schema)
+/// - `item_values`: Values belonging to a single array row
+///
+/// ## Returns
+/// A SchemaProperty with then/else branches merged into `properties` and
+/// `required` based on rule evaluation.
+pub fn resolve_conditional_property(
+  base: SchemaProperty,
+  item_values: Dict(String, Value),
+) -> SchemaProperty {
+  list.fold(base.conditionals, base, fn(prop, rule) {
+    case evaluate_condition(rule.if_schema, item_values) {
+      True -> apply_then_branch_property(prop, rule)
+      False -> apply_else_branch_property(prop, rule)
     }
   })
 }
@@ -193,6 +219,54 @@ fn dedup_by_key(entries: List(#(String, a))) -> List(#(String, a)) {
       }
     })
   list.reverse(reversed)
+}
+
+/// Property-level analogue of `apply_then_branch`.
+fn apply_then_branch_property(
+  base: SchemaProperty,
+  rule: ConditionalRule,
+) -> SchemaProperty {
+  case rule.then_schema {
+    Some(then_props) -> merge_into_property(base, then_props)
+    None -> base
+  }
+}
+
+/// Property-level analogue of `apply_else_branch`.
+fn apply_else_branch_property(
+  base: SchemaProperty,
+  rule: ConditionalRule,
+) -> SchemaProperty {
+  case rule.else_schema {
+    Some(else_props) -> merge_into_property(base, else_props)
+    None -> base
+  }
+}
+
+/// Merge a conditional branch's `properties`/`required` into a base property.
+///
+/// Mirrors `merge_schema_properties` but on `SchemaProperty`.
+fn merge_into_property(
+  base: SchemaProperty,
+  conditional: SchemaProperty,
+) -> SchemaProperty {
+  case conditional.properties {
+    Some(new_props) -> {
+      let merged_props = case base.properties {
+        Some(existing) -> merge_property_lists(existing, new_props)
+        None -> new_props
+      }
+      let merged_required =
+        list.append(base.required, conditional.required)
+        |> list.unique()
+      SchemaProperty(
+        ..base,
+        properties: Some(merged_props),
+        required: merged_required,
+      )
+    }
+    None -> base
+  }
 }
 
 /// Check if a field should be visible based on conditional rules.

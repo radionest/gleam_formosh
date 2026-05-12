@@ -1,11 +1,13 @@
 // Validation functions for form fields
 
+import formosh/schema/conditional_resolver
 import formosh/schema/types.{
   type SchemaProperty, type ValidationError, type Value, ArrayValue,
-  BooleanValue, IntegerValue, NullValue, NumberValue, StringValue,
+  BooleanValue, IntegerValue, NullValue, NumberValue, ObjectValue, StringValue,
   ValidationError,
 }
 import formosh/validation/field_requirements
+import gleam/dict.{type Dict}
 import gleam/float
 import gleam/int
 import gleam/list
@@ -448,19 +450,82 @@ fn validate_email(email: String) -> Bool {
 }
 
 /// Check if a string is a valid URL.
-/// 
+///
 /// This is a simple URL validation that checks for HTTP/HTTPS protocol prefixes.
 /// It's not comprehensive but catches obviously invalid URLs.
-/// 
+///
 /// ## Parameters
 /// - `url`: The URL string to validate
-/// 
+///
 /// ## Returns
 /// True if the URL appears to be valid, False otherwise
-/// 
+///
 /// ## Note
 /// This is a basic validation. For production use, consider more robust
 /// URL validation libraries.
 fn validate_url(url: String) -> Bool {
   string.starts_with(url, "http://") || string.starts_with(url, "https://")
+}
+
+/// Validate all fields of a single array item.
+///
+/// Resolves the item schema against the row's own values (so item-level
+/// `if/then/else` and `allOf` rules take effect), then validates every
+/// field in the resolved schema using its `required` list. Errors carry
+/// a path-style field name `<array>.<index>.<field>` so they can be keyed
+/// into the form model's error map without colliding with top-level fields.
+///
+/// ## Parameters
+/// - `array_name`: Name of the parent array field
+/// - `index`: Zero-based row index
+/// - `item_schema`: The array's `items` schema (may carry conditionals)
+/// - `item_values`: Field values for this single row
+///
+/// ## Returns
+/// Validation errors aggregated across every visible field of the row.
+pub fn validate_array_item(
+  array_name: String,
+  index: Int,
+  item_schema: SchemaProperty,
+  item_values: Dict(String, Value),
+) -> List(ValidationError) {
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, item_values)
+
+  case resolved.properties {
+    Some(props) ->
+      list.flat_map(props, fn(entry) {
+        let #(field_name, field_prop) = entry
+        let field_value =
+          dict.get(item_values, field_name) |> option.from_result
+        let is_required = list.contains(resolved.required, field_name)
+        let path_key =
+          array_name <> "." <> int.to_string(index) <> "." <> field_name
+        validate_field(path_key, field_value, field_prop, is_required)
+      })
+    None -> []
+  }
+}
+
+/// Validate every row of an array against item-level conditional rules.
+///
+/// Iterates the array's `ArrayValue`, treating each `ObjectValue` row as a
+/// dict for `validate_array_item`. Non-object rows produce no errors.
+pub fn validate_array_items(
+  array_name: String,
+  item_schema: SchemaProperty,
+  array_value: Value,
+) -> List(ValidationError) {
+  case array_value {
+    ArrayValue(items) ->
+      list.index_map(items, fn(item, index) {
+        let item_values = case item {
+          ObjectValue(fields) -> dict.from_list(fields)
+          _ -> dict.new()
+        }
+        validate_array_item(array_name, index, item_schema, item_values)
+      })
+      |> list.flatten
+    _ -> []
+  }
 }

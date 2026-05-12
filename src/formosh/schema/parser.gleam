@@ -288,6 +288,9 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   let widget = extract_widget(dynamic_data)
   let upload_config = extract_upload_config(dynamic_data)
 
+  // Extract property-level conditional rules (if/then/else, allOf)
+  let conditionals = extract_conditionals(dynamic_data)
+
   decode.success(SchemaProperty(
     field_type: field_type,
     title: title,
@@ -304,6 +307,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     read_only: read_only,
     widget: widget,
     upload_config: upload_config,
+    conditionals: conditionals,
   ))
 }
 

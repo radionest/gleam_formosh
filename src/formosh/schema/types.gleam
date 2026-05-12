@@ -115,6 +115,9 @@ pub type SchemaProperty {
     widget: Option(String),
     // Upload configuration from x- extensions
     upload_config: Option(UploadConfig),
+    // Conditional rules (if/then/else, allOf) scoped to this property.
+    // Used for item-level conditionals inside array `items`.
+    conditionals: List(ConditionalRule),
   )
 }
 
@@ -253,5 +256,6 @@ pub fn empty_property() -> SchemaProperty {
     read_only: False,
     widget: None,
     upload_config: None,
+    conditionals: [],
   )
 }
