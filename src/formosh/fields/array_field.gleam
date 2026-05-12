@@ -7,9 +7,12 @@
 /// The array field supports nested object schemas with various field types
 /// including strings, numbers, booleans, and enums within each array item.
 import formosh/fields/boolean_field
+import formosh/fields/field_common
 import formosh/fields/number_field
 import formosh/fields/string_field
-import formosh/form/model.{type FormMsg, AddArrayItemPath, RemoveArrayItemPath}
+import formosh/form/model.{
+  type FormModel, type FormMsg, AddArrayItemPath, RemoveArrayItemPath,
+}
 import formosh/form/path
 import formosh/schema/conditional_resolver
 import formosh/schema/types.{type SchemaProperty, type Value}
@@ -54,6 +57,7 @@ pub fn view(
   errors: List(String),
   required: Bool,
   is_readonly: Bool,
+  model: FormModel,
 ) -> Element(FormMsg) {
   let title = option.unwrap(property.title, name)
   let description = property.description
@@ -73,7 +77,14 @@ pub fn view(
     html.div(
       [class("array-items")],
       list.index_map(values, fn(item_values, index) {
-        render_array_item(name, property, item_values, index, is_readonly)
+        render_array_item(
+          name,
+          property,
+          item_values,
+          index,
+          is_readonly,
+          model,
+        )
       }),
     ),
     case is_readonly {
@@ -121,6 +132,7 @@ fn render_array_item(
   item_values: dict.Dict(String, Value),
   index: Int,
   is_readonly: Bool,
+  model: FormModel,
 ) -> Element(FormMsg) {
   case property.items {
     Some(item_schema) ->
@@ -147,7 +159,7 @@ fn render_array_item(
         ]),
         html.div(
           [class("array-item-fields")],
-          render_item_fields(array_name, item_schema, item_values, index),
+          render_item_fields(array_name, item_schema, item_values, index, model),
         ),
       ])
     None -> element.none()
@@ -173,6 +185,7 @@ fn render_item_fields(
   item_schema: SchemaProperty,
   item_values: dict.Dict(String, Value),
   index: Int,
+  model: FormModel,
 ) -> List(Element(FormMsg)) {
   // Apply item-level conditionals (if/then/else, allOf) using the row's own
   // values as context. Each row resolves independently.
@@ -193,6 +206,7 @@ fn render_item_fields(
           field_prop,
           value,
           list.contains(resolved.required, field_name),
+          model,
         )
       })
     None -> []
@@ -226,9 +240,11 @@ fn render_field(
   property: SchemaProperty,
   value: Value,
   required: Bool,
+  model: FormModel,
 ) -> Element(FormMsg) {
   // Create a path for this nested field
   let field_path = path.to_array_item_field(array_name, index, field_name)
+  let path_key = path.to_string(field_path)
 
   // Array item fields inherit read_only from their property
   let is_readonly = property.read_only
@@ -267,5 +283,26 @@ fn render_field(
       ])
   }
 
-  html.div([class("array-item-field")], [field_element])
+  let field_errors = model.get_errors_at_path(model, field_path)
+  let is_touched = model.is_field_touched(model, path_key)
+  let has_errors = field_errors != []
+
+  html.div(
+    [
+      class(
+        "array-item-field"
+        <> case has_errors && is_touched {
+          True -> " formosh-field-error"
+          False -> ""
+        },
+      ),
+    ],
+    [
+      field_element,
+      case has_errors && is_touched {
+        True -> field_common.render_field_errors(field_errors)
+        False -> element.none()
+      },
+    ],
+  )
 }

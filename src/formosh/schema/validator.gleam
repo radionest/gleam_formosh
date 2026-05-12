@@ -472,19 +472,21 @@ fn validate_url(url: String) -> Bool {
 /// Resolves the item schema against the row's own values (so item-level
 /// `if/then/else` and `allOf` rules take effect), then validates every
 /// field in the resolved schema using its `required` list. Errors carry
-/// a path-style field name `<array>.<index>.<field>` so they can be keyed
-/// into the form model's error map without colliding with top-level fields.
+/// a path-style field name `<prefix>.[<index>].<field>` matching the
+/// canonical `path.to_string` format used elsewhere in the form layer.
 ///
 /// ## Parameters
-/// - `array_name`: Name of the parent array field
+/// - `prefix`: Path-string of the parent array (e.g. `"lesions"` for a
+///   top-level array, or `"outer.[2].inner"` for nested arrays)
 /// - `index`: Zero-based row index
 /// - `item_schema`: The array's `items` schema (may carry conditionals)
 /// - `item_values`: Field values for this single row
 ///
 /// ## Returns
-/// Validation errors aggregated across every visible field of the row.
+/// Validation errors aggregated across every visible field of the row,
+/// including recursive errors from nested objects/arrays.
 pub fn validate_array_item(
-  array_name: String,
+  prefix: String,
   index: Int,
   item_schema: SchemaProperty,
   item_values: Dict(String, Value),
@@ -500,9 +502,11 @@ pub fn validate_array_item(
         let field_value =
           dict.get(item_values, field_name) |> option.from_result
         let is_required = list.contains(resolved.required, field_name)
-        let path_key =
-          array_name <> "." <> int.to_string(index) <> "." <> field_name
-        validate_field(path_key, field_value, field_prop, is_required)
+        let path_key = array_item_field_key(prefix, index, field_name)
+        let own_errors =
+          validate_field(path_key, field_value, field_prop, is_required)
+        let nested = validate_nested(path_key, field_prop, field_value)
+        list.append(own_errors, nested)
       })
     None -> []
   }
@@ -513,7 +517,7 @@ pub fn validate_array_item(
 /// Iterates the array's `ArrayValue`, treating each `ObjectValue` row as a
 /// dict for `validate_array_item`. Non-object rows produce no errors.
 pub fn validate_array_items(
-  array_name: String,
+  prefix: String,
   item_schema: SchemaProperty,
   array_value: Value,
 ) -> List(ValidationError) {
@@ -524,9 +528,80 @@ pub fn validate_array_items(
           ObjectValue(fields) -> dict.from_list(fields)
           _ -> dict.new()
         }
-        validate_array_item(array_name, index, item_schema, item_values)
+        validate_array_item(prefix, index, item_schema, item_values)
       })
       |> list.flatten
     _ -> []
   }
+}
+
+/// Validate every field of a nested object against its schema.
+///
+/// Mirrors `validate_array_item` but for object-typed fields: resolves
+/// conditionals on the object's own values, then validates each visible
+/// property under `<prefix>.<field>` keys, recursing into nested
+/// objects/arrays.
+pub fn validate_object_fields(
+  prefix: String,
+  schema_prop: SchemaProperty,
+  values: Dict(String, Value),
+) -> List(ValidationError) {
+  let resolved =
+    conditional_resolver.resolve_conditional_property(schema_prop, values)
+
+  case resolved.properties {
+    Some(props) ->
+      dict.to_list(props)
+      |> list.flat_map(fn(entry) {
+        let #(field_name, field_prop) = entry
+        let field_value = dict.get(values, field_name) |> option.from_result
+        let is_required = list.contains(resolved.required, field_name)
+        let path_key = prefix <> "." <> field_name
+        let own_errors =
+          validate_field(path_key, field_value, field_prop, is_required)
+        let nested = validate_nested(path_key, field_prop, field_value)
+        list.append(own_errors, nested)
+      })
+    None -> []
+  }
+}
+
+/// Recurse into nested object/array structures and collect their errors.
+///
+/// `validate_field` only handles scalar types — this helper dispatches
+/// on `field_prop.field_type` to dive into `ObjectType` (via
+/// `validate_object_fields`) and `ArrayType` (via `validate_array_items`),
+/// keyed by `prefix`. Returns `[]` for scalar fields.
+pub fn validate_nested(
+  prefix: String,
+  field_prop: SchemaProperty,
+  field_value: Option(Value),
+) -> List(ValidationError) {
+  case field_prop.field_type, field_prop.items {
+    Some(types.ArrayType), Some(item_subschema) -> {
+      let av = option.unwrap(field_value, NullValue)
+      validate_array_items(prefix, item_subschema, av)
+    }
+    Some(types.ObjectType), _ -> {
+      let nested_values = case field_value {
+        Some(ObjectValue(fields)) -> dict.from_list(fields)
+        _ -> dict.new()
+      }
+      validate_object_fields(prefix, field_prop, nested_values)
+    }
+    _, _ -> []
+  }
+}
+
+/// Build a path-string key for an array-item field, matching the format
+/// produced by `formosh/form/path.to_string` (e.g. `"lesions.[0].visible"`).
+///
+/// Kept here as a local helper to avoid a `schema/` → `form/` import.
+/// Must stay in sync with `path.to_string`.
+fn array_item_field_key(
+  prefix: String,
+  index: Int,
+  field_name: String,
+) -> String {
+  prefix <> ".[" <> int.to_string(index) <> "]." <> field_name
 }

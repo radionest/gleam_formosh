@@ -2,6 +2,7 @@
 
 import formosh/fields/array_field
 import formosh/fields/boolean_field
+import formosh/fields/field_common
 import formosh/fields/image_field
 import formosh/fields/number_field
 import formosh/fields/object_field
@@ -218,6 +219,7 @@ fn render_visible_field(
             list.map(errors, fn(e) { e.message }),
             is_required,
             is_readonly,
+            model,
           )
         }
         Some(types.ObjectType) ->
@@ -264,31 +266,10 @@ fn render_visible_field(
     [
       field_element,
       case has_errors && is_touched {
-        True -> render_field_errors(errors)
+        True -> field_common.render_field_errors(errors)
         False -> html.text("")
       },
     ],
-  )
-}
-
-/// Render validation errors for a field.
-/// 
-/// Creates a styled error container displaying all validation error messages
-/// for a field. Only called when the field has errors and has been touched.
-/// 
-/// ## Parameters
-/// - `errors`: List of validation errors to display
-/// 
-/// ## Returns
-/// A Lustre Element containing the formatted error messages
-fn render_field_errors(errors: List(types.ValidationError)) -> Element(FormMsg) {
-  html.div(
-    [attribute.class("formosh-errors")],
-    list.map(errors, fn(error) {
-      html.div([attribute.class("formosh-error")], [
-        html.text(error.message),
-      ])
-    }),
   )
 }
 
