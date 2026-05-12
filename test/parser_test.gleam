@@ -86,6 +86,51 @@ pub fn properties_preserve_source_order_test() {
   |> should.equal(["zeta", "alpha", "mu", "beta"])
 }
 
+pub fn array_item_subfields_preserve_source_order_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"items\": {
+        \"type\": \"array\",
+        \"items\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"zeta\": {\"type\": \"string\"},
+            \"alpha\": {\"type\": \"string\"},
+            \"mu\": {\"type\": \"string\"}
+          }
+        }
+      }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(items) = list.key_find(schema.properties, "items")
+  let assert Some(item_schema) = items.items
+  let assert Some(subfields) = item_schema.properties
+  subfields
+  |> list.map(fn(entry) { entry.0 })
+  |> should.equal(["zeta", "alpha", "mu"])
+}
+
+pub fn nested_invalid_properties_fail_test() {
+  // Recursive properties_decoder must fail-fast even when the malformed
+  // value sits inside a nested object, not just at the root.
+  parser.parse_schema(
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"outer\": {
+          \"type\": \"object\",
+          \"properties\": \"not-an-object\"
+        }
+      }
+    }",
+  )
+  |> should.be_error()
+}
+
 pub fn nested_properties_preserve_source_order_test() {
   let json =
     "{
