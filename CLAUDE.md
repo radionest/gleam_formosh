@@ -6,6 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Formosh is a JSON Schema-based form generator library for Gleam/Lustre that creates dynamic, type-safe forms using the Model-View-Update (MVU) architecture. It parses JSON Schema (draft 2020-12) and generates fully functional forms with validation.
 
+## Worktree Workflow
+
+- Feature development: always enter a worktree via `EnterWorktree` before making changes. Never `git checkout -b` on main — `block-branch-switch.sh` blocks it
+- If unstaged changes are already on main: `git stash` → `EnterWorktree` → `git stash pop`
+- Edits under `.claude/` (hooks, settings, agents) — allowed directly on main; `require-worktree.sh` whitelists `.claude/*` and blocks `Edit`/`Write` elsewhere
+- Worktrees contain only git-tracked files. `hooks/`, `settings.json`, `settings.local.json` live in `$CLAUDE_PROJECT_DIR/.claude/` and are shared
+- Before `gh pr create`: always run `Agent(subagent_type="pr-diff-reviewer", ...)` first — `pre-pr-review.sh` blocks `gh pr create` otherwise
+- After `gh pr create` succeeds: default to `ExitWorktree(keep)` silently — do not ask. Worktree stays until PR merges
+- `ExitWorktree(remove)` requires `discard_changes=true` if there are commits not in main
+- Post-merge cleanup: `ExitWorktree(remove)` first, then `git pull --ff-only origin main`. Do not use `gh pr merge --delete-branch` while worktree exists — local branch deletion will fail
+- The Stop hook blocks session end in a worktree — ask the user to choose:
+  1. **Push + PR**: commit all → `git push -u origin <branch>` → run `pr-diff-reviewer` → `gh pr create` → `ExitWorktree(keep)`
+  2. **Keep**: `ExitWorktree(keep)` — worktree stays for later
+  3. **Discard**: `ExitWorktree(remove, discard_changes=true)`
+
 ## Essential Commands
 
 ```bash
@@ -69,16 +84,3 @@ Registers as `<formosh-form>` custom element. Attributes: `schema`, `submit-url`
 - `oneOf`/`anyOf` composition keywords are not yet implemented
 - `x-widget: "image-upload"` works only on top-level properties; nested image-upload fields (inside objects/arrays) are not yet supported
 - HTTP submissions use the `rsvp` library for effect management
-- Post-merge worktree cleanup: `ExitWorktree(remove)` first, then `git pull`. Do not use `gh pr merge --delete-branch` while worktree exists — local branch deletion will fail
-
-## Worktree Workflow
-
-- Feature development: always enter a worktree via `EnterWorktree` before making changes
-- Edits under `.claude/` (hooks, settings, agents) — allowed directly on main; `require-worktree.sh` whitelists `.claude/*` and blocks `Edit`/`Write` elsewhere
-- Worktrees contain only git-tracked files. `hooks/`, `settings.json`, `settings.local.json` live in `$CLAUDE_PROJECT_DIR/.claude/` and are shared
-- `ExitWorktree(remove)` requires `discard_changes=true` if there are commits not in main
-- For PRs in review prefer `ExitWorktree(keep)` until merge
-- The Stop hook blocks session end in a worktree — ask the user to choose:
-  1. **Push + PR**: commit all → `git push -u origin <branch>` → `gh pr create` → `ExitWorktree(keep)`
-  2. **Keep**: `ExitWorktree(keep)` — worktree stays for later
-  3. **Discard**: `ExitWorktree(remove, discard_changes=true)`
