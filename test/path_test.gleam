@@ -191,6 +191,37 @@ pub fn add_array_item_nested_test() {
   |> should.equal(option.Some(types.NumberValue(15.0)))
 }
 
+// Document and pin down `set_at_path` auto-vivification: when the path
+// crosses a non-container value (scalar, NullValue) the segment is
+// silently rebuilt as the matching container. This is intentional — form
+// renderers rely on it so writing `user.name` works even when `user`
+// hasn't been initialised — but it also means the call cannot detect a
+// caller bug like reusing a leaf path as a container path. The test pins
+// the behaviour so any future tightening (e.g. to a Result return) stays
+// a deliberate change.
+pub fn set_at_path_through_scalar_auto_vivifies_test() {
+  // `name` starts as a string, but we set `name.first = "Ada"`.
+  let data =
+    types.ObjectValue([
+      #("name", types.StringValue("legacy")),
+    ])
+
+  let updated =
+    path.set_at_path(
+      data,
+      [path.PropertySegment("name"), path.PropertySegment("first")],
+      types.StringValue("Ada"),
+    )
+
+  // The scalar at `name` was replaced by an ObjectValue holding `first`.
+  updated
+  |> should.equal(
+    types.ObjectValue([
+      #("name", types.ObjectValue([#("first", types.StringValue("Ada"))])),
+    ]),
+  )
+}
+
 // Update one root key — verify all sibling top-level keys survive intact.
 pub fn set_at_path_preserves_siblings_at_root_test() {
   let data =

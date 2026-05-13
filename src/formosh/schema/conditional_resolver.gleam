@@ -63,11 +63,18 @@ pub fn resolve_conditional_property(
   })
 }
 
-/// Look up a top-level field in an `ObjectValue` Value.
+/// Look up a top-level field in a Value.
 ///
-/// Returns `None` for non-object Values or missing keys. Lives here as a
-/// local helper instead of pulling in `formosh/form/path` to avoid making
-/// the schema layer depend on the form layer.
+/// Returns `Some(value)` for an existing key inside an `ObjectValue`,
+/// `None` for a missing key, and — by design — `None` for any
+/// non-`ObjectValue` input. The latter case is reachable from item-level
+/// resolution: `resolve_conditional_property` may receive a scalar row
+/// (e.g. a `string[]` array's element). Treating it as "no fields" makes
+/// `evaluate_condition` return False and the row keeps its base schema
+/// unchanged — conditionals on a scalar row are meaningless.
+///
+/// Lives here as a local helper instead of pulling in `formosh/form/path`
+/// to avoid making the schema layer depend on the form layer.
 fn lookup_field(form_values: Value, field_name: String) -> option.Option(Value) {
   case form_values {
     ObjectValue(fields) ->
@@ -81,8 +88,10 @@ fn lookup_field(form_values: Value, field_name: String) -> option.Option(Value) 
 
 /// Evaluate if a condition schema matches the current form values.
 ///
-/// Checks if the form values satisfy the constraints defined in the
-/// condition schema (typically checking for specific property values).
+/// Object conditions require every declared property to match the
+/// corresponding value via `check_property_match`. Non-`ObjectValue`
+/// `form_values` (see `lookup_field`) makes every lookup return `None`,
+/// so the predicate is False and only the else-branch is applied.
 fn evaluate_condition(condition: SchemaProperty, form_values: Value) -> Bool {
   // For object conditions, check if all properties match
   case condition.properties {

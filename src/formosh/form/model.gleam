@@ -185,25 +185,24 @@ pub fn init_with_full_config(
   )
 }
 
-// Merge JSON Schema defaults into a hierarchical Value. For an ObjectValue,
-// each declared property is walked: existing non-null entries are kept;
-// missing or NullValue entries are filled from `property.default` (or, for
-// ObjectType, from a synthesised inner default tree). Caller-supplied keys
-// not declared in the schema are preserved verbatim and appended after the
-// declared block, matching the previous Dict-based ordering guarantee.
+// Merge JSON Schema defaults into a hierarchical Value. Each declared
+// property is walked: existing non-null entries are kept; missing or
+// NullValue entries are filled from `property.default` (or, for ObjectType,
+// from a synthesised inner default tree). Caller-supplied keys not declared
+// in the schema are preserved verbatim and appended after the declared
+// block, matching the previous Dict-based ordering guarantee.
 //
-// Non-ObjectValue inputs are returned unchanged — defaults only make sense
-// for object containers, and the caller should never reach this with a
-// scalar at the root anyway.
+// Form storage is one ObjectValue tree by construction (init/reset build
+// one; every handler writes Value back through `path.set_at_path`), so the
+// `let assert` enforces the invariant: a scalar or array at the form root
+// would be a programming error, not a runtime data shape we silently fall
+// back to.
 fn apply_schema_defaults(
   properties: List(#(String, SchemaProperty)),
   value: Value,
 ) -> Value {
-  case value {
-    ObjectValue(fields) ->
-      ObjectValue(merge_property_defaults(properties, fields))
-    other -> other
-  }
+  let assert ObjectValue(fields) = value
+  ObjectValue(merge_property_defaults(properties, fields))
 }
 
 // Walk the declared properties in schema order, materialising each entry's
