@@ -74,13 +74,20 @@ pub fn resolve_conditional_property(
 /// render-time (`array_field.render_item_fields`); only static conditionals
 /// inside the `items` sub-schema are pre-applied.
 ///
+/// Implementation detail of `resolve_recursive` — kept private; the contract
+/// may shift without deprecation.
+///
 /// Known limitations:
 /// - Defaults of fields newly revealed by a conditional are not back-filled
 ///   into `model.values` — defaults apply at init only.
 /// - Cross-level conditions (root rule inspecting a nested field) are not
 ///   supported by the matcher; declare conditions alongside the fields they
 ///   inspect.
-pub fn resolve_nested_conditionals(
+/// - Conditionals on objects nested **inside array items** do not fire
+///   recursively. `array_field.render_item_fields` calls
+///   `resolve_conditional_property` once per row (shallow), so item-level
+///   rules work but rules on objects/arrays inside an item do not.
+fn resolve_nested_conditionals(
   property: SchemaProperty,
   value: Option(Value),
 ) -> SchemaProperty {
@@ -94,16 +101,16 @@ pub fn resolve_nested_conditionals(
     Some(ObjectType) ->
       case resolved_self.properties {
         Some(props) -> {
+          let fields_opt = case value {
+            Some(ObjectValue(fs)) -> Some(fs)
+            _ -> None
+          }
           let new_props =
             list.map(props, fn(entry) {
               let #(name, child) = entry
-              let child_value = case value {
-                Some(ObjectValue(fields)) ->
-                  case list.key_find(fields, name) {
-                    Ok(v) -> Some(v)
-                    Error(_) -> None
-                  }
-                _ -> None
+              let child_value = case fields_opt {
+                Some(fs) -> option.from_result(list.key_find(fs, name))
+                None -> None
               }
               #(name, resolve_nested_conditionals(child, child_value))
             })
@@ -126,23 +133,29 @@ pub fn resolve_nested_conditionals(
   }
 }
 
-/// Root-level wrapper: runs `resolve_conditional_schema` for root rules,
+/// Root-level entry point: runs `resolve_conditional_schema` for root rules,
 /// then descends into every top-level property with its slice of values.
 ///
-/// This is the call point for `update.update` and component init — the result
-/// is cached in `FormModel.resolved_schema` and used by the renderer.
+/// The result is cached in `FormModel.resolved_schema` and used by the
+/// renderer — called from `update.update` and component init.
+///
+/// Note on argument shape: root takes a bare `Value` (always `ObjectValue`
+/// for a form), recursion uses `Option(Value)` because children may be
+/// absent. Do not collapse them by calling `resolve_recursive` recursively —
+/// the root-resolve step is for top-level `JsonSchema.conditionals` only and
+/// must not run per subtree.
 pub fn resolve_recursive(schema: JsonSchema, values: Value) -> JsonSchema {
   let root_resolved = resolve_conditional_schema(schema, values)
+  let fields_opt = case values {
+    ObjectValue(fs) -> Some(fs)
+    _ -> None
+  }
   let new_props =
     list.map(root_resolved.properties, fn(entry) {
       let #(name, prop) = entry
-      let child_value = case values {
-        ObjectValue(fields) ->
-          case list.key_find(fields, name) {
-            Ok(v) -> Some(v)
-            Error(_) -> None
-          }
-        _ -> None
+      let child_value = case fields_opt {
+        Some(fs) -> option.from_result(list.key_find(fs, name))
+        None -> None
       }
       #(name, resolve_nested_conditionals(prop, child_value))
     })

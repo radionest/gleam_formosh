@@ -1810,3 +1810,102 @@ pub fn resolve_recursive_top_level_regression_test() {
   |> has_property_key("is_confidential")
   |> should.be_false()
 }
+
+/// Else-branch of a nested conditional must merge when the condition fails.
+pub fn nested_object_conditional_else_branch_test() {
+  let payment_if =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "method",
+          SchemaProperty(
+            ..empty_property(),
+            enum_values: Some([StringValue("card")]),
+          ),
+        ),
+      ]),
+    )
+
+  let payment_then =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "card_number",
+          SchemaProperty(..empty_property(), field_type: Some(types.StringType)),
+        ),
+      ]),
+    )
+
+  let payment_else =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "wallet_id",
+          SchemaProperty(..empty_property(), field_type: Some(types.StringType)),
+        ),
+      ]),
+    )
+
+  let payment_prop =
+    SchemaProperty(
+      ..empty_property(),
+      field_type: Some(types.ObjectType),
+      properties: Some([
+        #(
+          "method",
+          SchemaProperty(..empty_property(), field_type: Some(types.StringType)),
+        ),
+      ]),
+      conditionals: [
+        ConditionalRule(
+          if_schema: payment_if,
+          then_schema: Some(payment_then),
+          else_schema: Some(payment_else),
+        ),
+      ],
+    )
+
+  let schema =
+    JsonSchema(
+      title: None,
+      description: None,
+      field_type: types.ObjectType,
+      properties: [#("payment", payment_prop)],
+      required: [],
+      defs: None,
+      conditionals: [],
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  // method != "card" → else fires
+  let values_else =
+    ObjectValue([
+      #("payment", ObjectValue([#("method", StringValue("paypal"))])),
+    ])
+  let resolved_else =
+    conditional_resolver.resolve_recursive(schema, values_else)
+  payment_props(resolved_else)
+  |> has_property_key("wallet_id")
+  |> should.be_true()
+  payment_props(resolved_else)
+  |> has_property_key("card_number")
+  |> should.be_false()
+
+  // method == "card" → then fires (mirror check)
+  let values_then =
+    ObjectValue([
+      #("payment", ObjectValue([#("method", StringValue("card"))])),
+    ])
+  let resolved_then =
+    conditional_resolver.resolve_recursive(schema, values_then)
+  payment_props(resolved_then)
+  |> has_property_key("card_number")
+  |> should.be_true()
+  payment_props(resolved_then)
+  |> has_property_key("wallet_id")
+  |> should.be_false()
+}
