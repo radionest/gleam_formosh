@@ -34,8 +34,11 @@ pub type FormModel {
     schema: JsonSchema,
     // The resolved schema with conditionals applied
     resolved_schema: JsonSchema,
-    // Current form values
-    values: Dict(String, Value),
+    // Current form values as a single hierarchical Value tree (always
+    // ObjectValue at the root). All path-based reads and writes go through
+    // `path.get_at_path` / `path.set_at_path` directly — no Dict↔Value
+    // conversion in update handlers.
+    values: Value,
     // Form validation errors
     errors: Dict(String, List(ValidationError)),
     // Form metadata
@@ -158,8 +161,12 @@ pub fn init_with_full_config(
   show_readonly_fields: Bool,
   initial_values: Dict(String, Value),
 ) -> FormModel {
+  // Public API still accepts a flat Dict of top-level values. Internally
+  // we store one ObjectValue tree, so convert at the boundary and let the
+  // (now Value-typed) defaults pass walk it like any nested object.
+  let initial_value = ObjectValue(dict.to_list(initial_values))
   let values_with_defaults =
-    apply_schema_defaults(schema.properties, initial_values)
+    apply_schema_defaults(schema.properties, initial_value)
   FormModel(
     schema: schema,
     resolved_schema: schema,
@@ -178,31 +185,53 @@ pub fn init_with_full_config(
   )
 }
 
-// Merge JSON Schema defaults into top-level form values. Existing non-null
-// entries are preserved; missing or NullValue entries are filled from
-// `property.default`. Recurses into ObjectValue / ArrayValue so partially
-// hydrated nested structures get their missing leaves filled as well.
+// Merge JSON Schema defaults into a hierarchical Value. For an ObjectValue,
+// each declared property is walked: existing non-null entries are kept;
+// missing or NullValue entries are filled from `property.default` (or, for
+// ObjectType, from a synthesised inner default tree). Caller-supplied keys
+// not declared in the schema are preserved verbatim and appended after the
+// declared block, matching the previous Dict-based ordering guarantee.
+//
+// Non-ObjectValue inputs are returned unchanged — defaults only make sense
+// for object containers, and the caller should never reach this with a
+// scalar at the root anyway.
 fn apply_schema_defaults(
   properties: List(#(String, SchemaProperty)),
-  values: Dict(String, Value),
-) -> Dict(String, Value) {
-  list.fold(properties, values, fn(acc, pair) {
-    let #(field_name, property) = pair
-    // Top-level NullValue is treated as "absent" so a schema `default`
-    // can fill it. This is intentional and applies only during init/reset
-    // — runtime field updates flow through `UpdateFieldPath` and do not
-    // re-enter this code, so explicit user clears (NullValue dispatched
-    // from empty inputs) are not silently turned back into defaults.
-    let current = case dict.get(acc, field_name) {
-      Ok(NullValue) -> option.None
-      Ok(v) -> option.Some(v)
-      Error(_) -> option.None
-    }
-    case apply_defaults_to_value(property, current) {
-      option.Some(v) -> dict.insert(acc, field_name, v)
-      option.None -> acc
-    }
-  })
+  value: Value,
+) -> Value {
+  case value {
+    ObjectValue(fields) ->
+      ObjectValue(merge_property_defaults(properties, fields))
+    other -> other
+  }
+}
+
+// Walk the declared properties in schema order, materialising each entry's
+// post-default value, then append any extra keys (additionalProperties,
+// legacy fields) in their original order. NullValue is treated as "absent"
+// so a schema `default` can fill it — see `apply_schema_defaults` doc for
+// why this only applies during init/reset.
+fn merge_property_defaults(
+  properties: List(#(String, SchemaProperty)),
+  fields: List(#(String, Value)),
+) -> List(#(String, Value)) {
+  let declared =
+    list.filter_map(properties, fn(pair) {
+      let #(field_name, property) = pair
+      let current = case list.key_find(fields, field_name) {
+        Ok(NullValue) -> option.None
+        Ok(v) -> option.Some(v)
+        Error(_) -> option.None
+      }
+      case apply_defaults_to_value(property, current) {
+        option.Some(v) -> Ok(#(field_name, v))
+        option.None -> Error(Nil)
+      }
+    })
+  let declared_names = list.map(properties, fn(pair) { pair.0 })
+  let extras =
+    list.filter(fields, fn(pair) { !list.contains(declared_names, pair.0) })
+  list.append(declared, extras)
 }
 
 // Compute the post-default value for a single field. Returns None when the
@@ -252,30 +281,15 @@ fn defaults_for_missing(property: SchemaProperty) -> Option(Value) {
 }
 
 // Recurse into an existing ObjectValue, filling missing sub-fields from
-// their defaults. Schema-declared properties come first (preserving schema
-// order), then any caller-supplied keys not declared in the schema are
-// appended in their original order — this keeps additionalProperties /
-// legacy fields from being silently dropped.
+// their defaults. Delegates to `merge_property_defaults` so schema order
+// and extra-key preservation are handled in a single place.
 fn merge_object_defaults(
   property: SchemaProperty,
   fields: List(#(String, Value)),
 ) -> Value {
   case property.properties {
-    option.Some(sub_props) -> {
-      let merged = apply_schema_defaults(sub_props, dict.from_list(fields))
-      let declared =
-        list.filter_map(sub_props, fn(pair) {
-          let #(name, _) = pair
-          case dict.get(merged, name) {
-            Ok(v) -> Ok(#(name, v))
-            Error(_) -> Error(Nil)
-          }
-        })
-      let declared_names = list.map(sub_props, fn(pair) { pair.0 })
-      let extra =
-        list.filter(fields, fn(pair) { !list.contains(declared_names, pair.0) })
-      ObjectValue(list.append(declared, extra))
-    }
+    option.Some(sub_props) ->
+      ObjectValue(merge_property_defaults(sub_props, fields))
     option.None -> ObjectValue(fields)
   }
 }
@@ -357,7 +371,7 @@ pub fn reset(model: FormModel) -> FormModel {
     resolved_schema: model.schema,
     // Reset to base schema with no conditionals applied;
     // re-apply schema defaults to stay consistent with init.
-    values: apply_schema_defaults(model.schema.properties, dict.new()),
+    values: apply_schema_defaults(model.schema.properties, ObjectValue([])),
     errors: dict.new(),
     is_submitting: False,
     is_dirty: False,
@@ -372,127 +386,54 @@ pub fn reset(model: FormModel) -> FormModel {
   )
 }
 
-/// Get all current form values as a dictionary.
+/// Get the full hierarchical form values.
 ///
-/// Returns the complete set of form field values, including values from
-/// inactive conditional branches. For filtered values that exclude hidden
-/// fields, use `get_resolved_values` instead.
+/// Returns the complete `Value` tree (always rooted at `ObjectValue`),
+/// including values from inactive conditional branches. For filtered
+/// values that exclude top-level hidden fields, use `get_resolved_values`.
 ///
 /// ## Parameters
 /// - `model`: The form model containing field values
-///
-/// ## Returns
-/// A dictionary mapping field names to their current values
-pub fn get_form_values(model: FormModel) -> Dict(String, Value) {
+pub fn get_form_values(model: FormModel) -> Value {
   model.values
 }
 
 /// Get form values filtered by the current resolved schema.
 ///
-/// Returns only values for fields present in `resolved_schema.properties`.
-/// Fields from inactive conditional branches (if/then/else) are excluded.
-/// Internal `model.values` is not modified — hidden field values are
-/// preserved and will reappear if the condition toggles back.
-pub fn get_resolved_values(model: FormModel) -> Dict(String, Value) {
-  dict.filter(model.values, fn(key, _value) {
-    has_property_key(model.resolved_schema.properties, key)
-  })
+/// Filters the root `ObjectValue` to only include top-level fields that
+/// are present in `resolved_schema.properties`. Fields from inactive
+/// top-level if/then/else branches are excluded. Nested inactive
+/// conditional fields are NOT yet filtered — that requires resolved
+/// schemas at every nesting level (planned for the recursive-nested PR 5).
+/// Internal `model.values` is not modified, so hidden values reappear
+/// if the condition toggles back.
+pub fn get_resolved_values(model: FormModel) -> Value {
+  case model.values {
+    ObjectValue(fields) ->
+      ObjectValue(
+        list.filter(fields, fn(pair) {
+          has_property_key(model.resolved_schema.properties, pair.0)
+        }),
+      )
+    other -> other
+  }
 }
 
 /// Get the value at a specific path in the form.
-/// 
-/// Traverses the form values following the given path to retrieve a value
-/// from potentially nested structures (arrays, objects).
-/// 
-/// ## Parameters
-/// - `model`: The form model containing field values
-/// - `path`: The field path to traverse
-/// 
+///
+/// Delegates to `path.get_at_path` against the single hierarchical
+/// `model.values` tree.
+///
 /// ## Returns
 /// - `Some(Value)` if a value exists at the path
-/// - `None` if the path doesn't exist or has no value
+/// - `None` if the path doesn't exist or is empty
 pub fn get_value_at_path(
   model: FormModel,
   field_path: FieldPath,
 ) -> Option(Value) {
   case field_path {
     [] -> option.None
-    [path.PropertySegment(name)] ->
-      dict.get(model.values, name) |> option.from_result
-    [path.PropertySegment(name), ..rest] ->
-      case dict.get(model.values, name) {
-        Ok(types.ArrayValue(items)) -> traverse_array_path(items, rest)
-        Ok(types.ObjectValue(obj)) -> traverse_object_path(obj, rest)
-        _ -> option.None
-      }
-    [path.ArraySegment(_), ..] ->
-      // Array segment at root level doesn't make sense
-      option.None
-  }
-}
-
-/// Helper function to traverse an array with a path.
-fn traverse_array_path(
-  items: List(types.Value),
-  remaining_path: FieldPath,
-) -> Option(Value) {
-  case remaining_path {
-    [] -> option.None
-    [path.ArraySegment(index), ..rest] ->
-      case list_at(items, index) {
-        option.Some(types.ObjectValue(obj_fields)) ->
-          case rest {
-            [] -> option.None
-            [path.PropertySegment(field_name)] ->
-              case list.find(obj_fields, fn(f) { f.0 == field_name }) {
-                Ok(#(_, val)) -> option.Some(val)
-                Error(_) -> option.None
-              }
-            [path.PropertySegment(field_name), ..more] ->
-              case list.find(obj_fields, fn(f) { f.0 == field_name }) {
-                Ok(#(_, types.ArrayValue(nested_items))) ->
-                  traverse_array_path(nested_items, more)
-                Ok(#(_, types.ObjectValue(nested_obj))) ->
-                  traverse_object_path(nested_obj, more)
-                _ -> option.None
-              }
-            _ -> option.None
-          }
-        _ -> option.None
-      }
-    _ -> option.None
-  }
-}
-
-/// Helper function to get list element by index.
-fn list_at(items: List(a), index: Int) -> Option(a) {
-  case index, items {
-    0, [first, ..] -> option.Some(first)
-    n, [_, ..rest] if n > 0 -> list_at(rest, n - 1)
-    _, _ -> option.None
-  }
-}
-
-/// Helper function to traverse an object with a path.
-fn traverse_object_path(
-  obj: List(#(String, types.Value)),
-  remaining_path: FieldPath,
-) -> Option(Value) {
-  case remaining_path {
-    [] -> option.None
-    [path.PropertySegment(field_name)] ->
-      case list.find(obj, fn(f) { f.0 == field_name }) {
-        Ok(#(_, val)) -> option.Some(val)
-        Error(_) -> option.None
-      }
-    [path.PropertySegment(field_name), ..rest] ->
-      case list.find(obj, fn(f) { f.0 == field_name }) {
-        Ok(#(_, types.ArrayValue(items))) -> traverse_array_path(items, rest)
-        Ok(#(_, types.ObjectValue(nested_obj))) ->
-          traverse_object_path(nested_obj, rest)
-        _ -> option.None
-      }
-    _ -> option.None
+    _ -> path.get_at_path(model.values, field_path)
   }
 }
 

@@ -45,57 +45,16 @@ import rsvp
 /// - `SubmissionError(message)`: Submission failed (internal)
 /// - `ValidateForm`: Validate entire form
 /// - `ResetForm`: Reset form to initial state
-/// Convert model values to a hierarchical Value root for path operations.
-/// 
-/// This helper function converts the flat dictionary of field values in the model
-/// to a hierarchical Value object that can be used with path-based operations.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing the values dictionary
-/// 
-/// ## Returns
-/// A Value (ObjectValue) representing the hierarchical form data
-fn model_to_root_value(model: FormModel) -> types.Value {
-  case dict.to_list(model.values) {
-    [] -> types.ObjectValue([])
-    values -> types.ObjectValue(values)
-  }
-}
-
-/// Convert a hierarchical Value root back to model values dictionary.
-/// 
-/// This helper function converts the hierarchical Value object returned from
-/// path operations back to the flat dictionary format used by the model.
-/// 
-/// ## Parameters
-/// - `root_value`: The hierarchical Value to convert
-/// 
-/// ## Returns
-/// A dictionary of field names to Values
-fn root_value_to_model_values(
-  root_value: types.Value,
-) -> dict.Dict(String, types.Value) {
-  case root_value {
-    types.ObjectValue(fields) -> dict.from_list(fields)
-    _ -> dict.new()
-  }
-}
-
 pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   case msg {
-    // Path-based handlers (simplified approach)
+    // Path-based handlers — work directly against the single Value tree.
     UpdateFieldPath(field_path, value) -> {
-      let root_value = model_to_root_value(model)
-      let updated_root = path.set_at_path(root_value, field_path, value)
-      let new_values = root_value_to_model_values(updated_root)
-
-      // Recalculate resolved schema based on new values
+      let new_values = path.set_at_path(model.values, field_path, value)
       let resolved_schema =
         conditional_resolver.resolve_conditional_schema(
           model.schema,
           new_values,
         )
-
       let touched_model = model.mark_field_touched(model, field_path)
       let new_model =
         model.FormModel(
@@ -108,21 +67,20 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       #(validated_model, effect.none())
     }
 
-    AddArrayItemPath(path) -> {
-      let root_value = model_to_root_value(model)
-      let updated_root =
-        path.add_array_item_at_path(root_value, path, types.ObjectValue([]))
-      let new_values = root_value_to_model_values(updated_root)
-
+    AddArrayItemPath(field_path) -> {
+      let new_values =
+        path.add_array_item_at_path(
+          model.values,
+          field_path,
+          types.ObjectValue([]),
+        )
       let new_model = model.FormModel(..model, values: new_values)
       #(new_model, effect.none())
     }
 
-    RemoveArrayItemPath(path, index) -> {
-      let root_value = model_to_root_value(model)
-      let updated_root = path.remove_array_item_at_path(root_value, path, index)
-      let new_values = root_value_to_model_values(updated_root)
-
+    RemoveArrayItemPath(field_path, index) -> {
+      let new_values =
+        path.remove_array_item_at_path(model.values, field_path, index)
       let new_model = model.FormModel(..model, values: new_values)
       #(new_model, effect.none())
     }
@@ -213,21 +171,19 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         None -> Nil
       }
 
-      // Add server_url to the array value
-      let root_value = model_to_root_value(model)
-      let current_array = case path.get_at_path(root_value, field_path) {
+      // Append server_url to the array value
+      let current_array = case path.get_at_path(model.values, field_path) {
         Some(types.ArrayValue(items)) -> items
         _ -> []
       }
       let updated_array =
         list.append(current_array, [types.StringValue(server_url)])
-      let updated_root =
+      let new_values =
         path.set_at_path(
-          root_value,
+          model.values,
           field_path,
           types.ArrayValue(updated_array),
         )
-      let new_values = root_value_to_model_values(updated_root)
 
       let new_model =
         model.FormModel(
@@ -269,8 +225,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 
     ImageRemoved(field_path, server_url) -> {
       // Remove URL from array value
-      let root_value = model_to_root_value(model)
-      let current_array = case path.get_at_path(root_value, field_path) {
+      let current_array = case path.get_at_path(model.values, field_path) {
         Some(types.ArrayValue(items)) -> items
         _ -> []
       }
@@ -278,13 +233,12 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         list.filter(current_array, fn(item) {
           item != types.StringValue(server_url)
         })
-      let updated_root =
+      let new_values =
         path.set_at_path(
-          root_value,
+          model.values,
           field_path,
           types.ArrayValue(updated_array),
         )
-      let new_values = root_value_to_model_values(updated_root)
 
       // Send DELETE request via FFI
       let delete_effect = case model.upload_base_url {
@@ -371,7 +325,7 @@ pub fn validate_all_fields(model: FormModel) -> FormModel {
   list.fold(after_top.resolved_schema.properties, after_top, fn(acc, entry) {
     let #(field_name, property) = entry
     let field_path = path.from_field_name(field_name)
-    let field_value = dict.get(acc.values, field_name) |> option.from_result
+    let field_value = path.get_at_path(acc.values, field_path)
     let nested_errors =
       validator.validate_nested(field_path, property, field_value)
     list.fold(nested_errors, acc, fn(m, err) {
@@ -587,13 +541,7 @@ fn extract_filename(url: String) -> String {
   |> option.unwrap(url)
 }
 
-/// Convert form values dictionary to JSON.
-fn values_to_json(values: dict.Dict(String, Value)) -> json.Json {
-  values
-  |> dict.to_list()
-  |> list.map(fn(pair) {
-    let #(key, val) = pair
-    #(key, json_utils.value_to_json(val))
-  })
-  |> json.object()
+/// Convert the form values tree to JSON.
+fn values_to_json(values: Value) -> json.Json {
+  json_utils.value_to_json(values)
 }

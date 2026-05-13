@@ -5,10 +5,9 @@
 /// field visibility and validation.
 import formosh/schema/types.{
   type ConditionalRule, type JsonSchema, type SchemaProperty, type Value,
-  BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue, SchemaProperty,
-  StringValue, has_property_key,
+  BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue, ObjectValue,
+  SchemaProperty, StringValue, has_property_key,
 }
-import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{None, Some}
 
@@ -20,13 +19,14 @@ import gleam/option.{None, Some}
 ///
 /// ## Parameters
 /// - `base_schema`: The original schema with conditional rules
-/// - `form_values`: Current form field values to evaluate conditions against
+/// - `form_values`: Current form values as a single hierarchical Value
+///   (always `ObjectValue` at the root)
 ///
 /// ## Returns
 /// A new JsonSchema with conditional properties merged based on evaluation
 pub fn resolve_conditional_schema(
   base_schema: JsonSchema,
-  form_values: Dict(String, Value),
+  form_values: Value,
 ) -> JsonSchema {
   list.fold(base_schema.conditionals, base_schema, fn(schema, rule) {
     case evaluate_condition(rule.if_schema, form_values) {
@@ -40,19 +40,20 @@ pub fn resolve_conditional_schema(
 ///
 /// Mirrors `resolve_conditional_schema` but operates on a `SchemaProperty`
 /// (used for array `items`). Conditions evaluate against the item-local
-/// values dict, so each array row resolves independently.
+/// values, so each array row resolves independently.
 ///
 /// ## Parameters
 /// - `base`: The property carrying its own `conditionals` (typically an
 ///   array's `items` schema)
-/// - `item_values`: Values belonging to a single array row
+/// - `item_values`: Values belonging to a single array row, as a single
+///   `Value` (typically `ObjectValue` of the row's fields)
 ///
 /// ## Returns
 /// A SchemaProperty with then/else branches merged into `properties` and
 /// `required` based on rule evaluation.
 pub fn resolve_conditional_property(
   base: SchemaProperty,
-  item_values: Dict(String, Value),
+  item_values: Value,
 ) -> SchemaProperty {
   list.fold(base.conditionals, base, fn(prop, rule) {
     case evaluate_condition(rule.if_schema, item_values) {
@@ -62,22 +63,35 @@ pub fn resolve_conditional_property(
   })
 }
 
+/// Look up a top-level field in an `ObjectValue` Value.
+///
+/// Returns `None` for non-object Values or missing keys. Lives here as a
+/// local helper instead of pulling in `formosh/form/path` to avoid making
+/// the schema layer depend on the form layer.
+fn lookup_field(form_values: Value, field_name: String) -> option.Option(Value) {
+  case form_values {
+    ObjectValue(fields) ->
+      case list.key_find(fields, field_name) {
+        Ok(value) -> Some(value)
+        Error(_) -> None
+      }
+    _ -> None
+  }
+}
+
 /// Evaluate if a condition schema matches the current form values.
 ///
 /// Checks if the form values satisfy the constraints defined in the
 /// condition schema (typically checking for specific property values).
-fn evaluate_condition(
-  condition: SchemaProperty,
-  form_values: Dict(String, Value),
-) -> Bool {
+fn evaluate_condition(condition: SchemaProperty, form_values: Value) -> Bool {
   // For object conditions, check if all properties match
   case condition.properties {
     Some(props) -> {
       list.all(props, fn(prop_pair) {
         let #(field_name, prop_schema) = prop_pair
-        case dict.get(form_values, field_name) {
-          Ok(field_value) -> check_property_match(prop_schema, field_value)
-          Error(_) -> False
+        case lookup_field(form_values, field_name) {
+          Some(field_value) -> check_property_match(prop_schema, field_value)
+          None -> False
         }
       })
     }
@@ -278,7 +292,7 @@ fn merge_into_property(
 pub fn is_field_visible(
   field_name: String,
   base_schema: JsonSchema,
-  form_values: Dict(String, Value),
+  form_values: Value,
 ) -> Bool {
   let resolved = resolve_conditional_schema(base_schema, form_values)
   has_property_key(resolved.properties, field_name)

@@ -396,8 +396,14 @@ fn validate_resolved_props(
   values: Dict(String, Value),
   key_for: fn(String) -> FieldPath,
 ) -> List(ValidationError) {
+  // `resolve_conditional_property` now operates on a `Value` tree. Wrap
+  // the local Dict into the equivalent `ObjectValue`; broader Dict→Value
+  // migration through this validator is left for a follow-up.
   let resolved =
-    conditional_resolver.resolve_conditional_property(schema_prop, values)
+    conditional_resolver.resolve_conditional_property(
+      schema_prop,
+      ObjectValue(dict.to_list(values)),
+    )
 
   case resolved.properties {
     Some(props) ->

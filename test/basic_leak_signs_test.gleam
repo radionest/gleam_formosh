@@ -1,8 +1,7 @@
 /// Test for parsing basic_leak_signs.json schema
 import formosh/schema/conditional_resolver
 import formosh/schema/parser
-import formosh/schema/types.{BooleanValue, has_property_key}
-import gleam/dict
+import formosh/schema/types.{BooleanValue, ObjectValue, has_property_key}
 import gleam/list
 import gleam/option.{Some}
 import gleeunit
@@ -54,7 +53,7 @@ pub fn conditional_fields_appear_test() {
   |> should.be_false()
 
   // When air_bubble is true, conditional fields should appear
-  let form_values = dict.from_list([#("air_bubble", BooleanValue(True))])
+  let form_values = ObjectValue([#("air_bubble", BooleanValue(True))])
 
   let resolved_schema =
     conditional_resolver.resolve_conditional_schema(schema, form_values)
@@ -86,7 +85,7 @@ pub fn multiple_conditionals_independent_test() {
 
   // Enable air_bubble and pneumoperitoneum
   let form_values =
-    dict.from_list([
+    ObjectValue([
       #("air_bubble", BooleanValue(True)),
       #("pneumoperitoneum", BooleanValue(True)),
     ])

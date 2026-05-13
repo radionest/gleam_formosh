@@ -17,7 +17,6 @@ import gleam/dict
 import gleam/dynamic/decode
 import gleam/io
 import gleam/json
-import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import lustre
@@ -457,15 +456,9 @@ fn view(model: Model) -> Element(Msg) {
 
 // EFFECTS ---------------------------------------------------------------------
 
-/// Convert form values dictionary to JSON object.
-fn values_to_json(values: dict.Dict(String, Value)) -> json.Json {
-  values
-  |> dict.to_list()
-  |> list.map(fn(pair) {
-    let #(key, val) = pair
-    #(key, json_utils.value_to_json(val))
-  })
-  |> json.object()
+/// Convert the form values tree to JSON object.
+fn values_to_json(values: Value) -> json.Json {
+  json_utils.value_to_json(values)
 }
 
 /// Emit the submission result to parent component.

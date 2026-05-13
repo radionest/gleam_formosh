@@ -6,9 +6,8 @@ import formosh/schema/conditional_resolver
 import formosh/schema/parser
 import formosh/schema/types.{
   type SchemaProperty, BooleanValue, ConditionalRule, IntegerValue, JsonSchema,
-  SchemaProperty, StringValue, empty_property, has_property_key,
+  ObjectValue, SchemaProperty, StringValue, empty_property, has_property_key,
 }
-import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import gleeunit
@@ -16,6 +15,10 @@ import gleeunit/should
 
 pub fn main() {
   gleeunit.main()
+}
+
+fn has_field(value: types.Value, name: String) -> Bool {
+  path.get_at_path(value, path.from_field_name(name)) |> option.is_some
 }
 
 /// Test that conditional fields are added when condition is met
@@ -75,7 +78,7 @@ pub fn conditional_field_appears_when_condition_met_test() {
 
   // Test when condition is met
   let form_values_met =
-    dict.from_list([
+    ObjectValue([
       #("subject", StringValue("Общий вопрос")),
     ])
 
@@ -89,7 +92,7 @@ pub fn conditional_field_appears_when_condition_met_test() {
 
   // Test when condition is not met
   let form_values_not_met =
-    dict.from_list([
+    ObjectValue([
       #("subject", StringValue("Техническая поддержка")),
     ])
 
@@ -181,7 +184,7 @@ pub fn conditional_else_branch_test() {
 
   // Test when hasAccount is true (then branch)
   let form_values_true =
-    dict.from_list([
+    ObjectValue([
       #("hasAccount", BooleanValue(True)),
     ])
 
@@ -200,7 +203,7 @@ pub fn conditional_else_branch_test() {
 
   // Test when hasAccount is false (else branch)
   let form_values_false =
-    dict.from_list([
+    ObjectValue([
       #("hasAccount", BooleanValue(False)),
     ])
 
@@ -272,12 +275,12 @@ pub fn is_field_visible_test() {
     )
 
   let form_values_met =
-    dict.from_list([
+    ObjectValue([
       #("subject", StringValue("Special")),
     ])
 
   let form_values_not_met =
-    dict.from_list([
+    ObjectValue([
       #("subject", StringValue("Normal")),
     ])
 
@@ -343,7 +346,7 @@ pub fn multiple_conditionals_allof_test() {
   |> should.equal(2)
 
   // Test when air_bubble is true
-  let form_values_air = dict.from_list([#("air_bubble", BooleanValue(True))])
+  let form_values_air = ObjectValue([#("air_bubble", BooleanValue(True))])
 
   let resolved_air =
     conditional_resolver.resolve_conditional_schema(
@@ -363,7 +366,7 @@ pub fn multiple_conditionals_allof_test() {
 
   // Test when pneumoperitoneum is true
   let form_values_pneumo =
-    dict.from_list([#("pneumoperitoneum", BooleanValue(True))])
+    ObjectValue([#("pneumoperitoneum", BooleanValue(True))])
 
   let resolved_pneumo =
     conditional_resolver.resolve_conditional_schema(
@@ -383,7 +386,7 @@ pub fn multiple_conditionals_allof_test() {
 
   // Test when both are true
   let form_values_both =
-    dict.from_list([
+    ObjectValue([
       #("air_bubble", BooleanValue(True)),
       #("pneumoperitoneum", BooleanValue(True)),
     ])
@@ -424,7 +427,7 @@ pub fn const_keyword_parsing_test() {
   let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
 
   // Test that const: true works like enum: [true]
-  let form_values_true = dict.from_list([#("flag", BooleanValue(True))])
+  let form_values_true = ObjectValue([#("flag", BooleanValue(True))])
 
   let resolved_true =
     conditional_resolver.resolve_conditional_schema(
@@ -437,7 +440,7 @@ pub fn const_keyword_parsing_test() {
   |> should.be_true()
 
   // Test that const: false doesn't match true
-  let form_values_false = dict.from_list([#("flag", BooleanValue(False))])
+  let form_values_false = ObjectValue([#("flag", BooleanValue(False))])
 
   let resolved_false =
     conditional_resolver.resolve_conditional_schema(
@@ -472,7 +475,7 @@ pub fn get_resolved_values_filters_hidden_fields_test() {
 
   // Build model with flag=true, fill all fields
   let values_true =
-    dict.from_list([
+    ObjectValue([
       #("flag", BooleanValue(True)),
       #("always_field", StringValue("ok")),
       #("extra_field", StringValue("data")),
@@ -490,13 +493,13 @@ pub fn get_resolved_values_filters_hidden_fields_test() {
 
   // When flag=true, resolved values should include extra_field
   let resolved_values_true = model.get_resolved_values(form_model_true)
-  dict.has_key(resolved_values_true, "flag") |> should.be_true()
-  dict.has_key(resolved_values_true, "always_field") |> should.be_true()
-  dict.has_key(resolved_values_true, "extra_field") |> should.be_true()
+  has_field(resolved_values_true, "flag") |> should.be_true()
+  has_field(resolved_values_true, "always_field") |> should.be_true()
+  has_field(resolved_values_true, "extra_field") |> should.be_true()
 
   // Switch flag=false — extra_field should be filtered out
   let values_false =
-    dict.from_list([
+    ObjectValue([
       #("flag", BooleanValue(False)),
       #("always_field", StringValue("ok")),
       #("extra_field", StringValue("data")),
@@ -513,12 +516,12 @@ pub fn get_resolved_values_filters_hidden_fields_test() {
     )
 
   let resolved_values_false = model.get_resolved_values(form_model_false)
-  dict.has_key(resolved_values_false, "flag") |> should.be_true()
-  dict.has_key(resolved_values_false, "always_field") |> should.be_true()
-  dict.has_key(resolved_values_false, "extra_field") |> should.be_false()
+  has_field(resolved_values_false, "flag") |> should.be_true()
+  has_field(resolved_values_false, "always_field") |> should.be_true()
+  has_field(resolved_values_false, "extra_field") |> should.be_false()
 
   // model.values still contains extra_field (not deleted)
-  dict.has_key(form_model_false.values, "extra_field") |> should.be_true()
+  has_field(form_model_false.values, "extra_field") |> should.be_true()
 }
 
 /// Test that hidden field values are preserved and reappear on toggle
@@ -542,7 +545,7 @@ pub fn resolved_values_preserved_on_toggle_test() {
 
   // Step 1: flag=true, fill extra_field
   let values =
-    dict.from_list([
+    ObjectValue([
       #("flag", BooleanValue(True)),
       #("extra_field", StringValue("my data")),
     ])
@@ -558,38 +561,46 @@ pub fn resolved_values_preserved_on_toggle_test() {
     )
 
   model.get_resolved_values(form_model)
-  |> dict.get("extra_field")
-  |> should.equal(Ok(StringValue("my data")))
+  |> path.get_at_path(path.from_field_name("extra_field"))
+  |> should.equal(Some(StringValue("my data")))
 
   // Step 2: flag=false — extra_field hidden but data preserved in values
+  let values_off =
+    path.set_at_path(values, path.from_field_name("flag"), BooleanValue(False))
   let form_model_off =
     model.FormModel(
       ..form_model,
-      values: dict.insert(values, "flag", BooleanValue(False)),
+      values: values_off,
       resolved_schema: conditional_resolver.resolve_conditional_schema(
         parsed_schema,
-        dict.insert(values, "flag", BooleanValue(False)),
+        values_off,
       ),
     )
 
   model.get_resolved_values(form_model_off)
-  |> dict.has_key("extra_field")
+  |> has_field("extra_field")
   |> should.be_false()
 
   // Step 3: flag=true again — extra_field reappears with original data
+  let values_on =
+    path.set_at_path(
+      form_model_off.values,
+      path.from_field_name("flag"),
+      BooleanValue(True),
+    )
   let form_model_on =
     model.FormModel(
       ..form_model_off,
-      values: dict.insert(form_model_off.values, "flag", BooleanValue(True)),
+      values: values_on,
       resolved_schema: conditional_resolver.resolve_conditional_schema(
         parsed_schema,
-        dict.insert(form_model_off.values, "flag", BooleanValue(True)),
+        values_on,
       ),
     )
 
   model.get_resolved_values(form_model_on)
-  |> dict.get("extra_field")
-  |> should.equal(Ok(StringValue("my data")))
+  |> path.get_at_path(path.from_field_name("extra_field"))
+  |> should.equal(Some(StringValue("my data")))
 }
 
 /// Test that validate_all_fields validates conditional required fields
@@ -614,7 +625,7 @@ pub fn validate_all_fields_conditional_required_test() {
 
   // flag=true, extra_field not filled → should have validation error
   let values_true =
-    dict.from_list([
+    ObjectValue([
       #("flag", BooleanValue(True)),
     ])
 
@@ -635,7 +646,7 @@ pub fn validate_all_fields_conditional_required_test() {
 
   // flag=false → no error on extra_field (field not in resolved schema)
   let values_false =
-    dict.from_list([
+    ObjectValue([
       #("flag", BooleanValue(False)),
     ])
 
@@ -674,7 +685,7 @@ pub fn conditional_appends_after_base_properties_test() {
     }"
 
   let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
-  let form_values = dict.from_list([#("alpha", StringValue("x"))])
+  let form_values = ObjectValue([#("alpha", StringValue("x"))])
   let resolved =
     conditional_resolver.resolve_conditional_schema(parsed_schema, form_values)
 
@@ -705,7 +716,7 @@ pub fn conditional_else_appends_after_base_properties_test() {
 
   let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
   // alpha != "x" → condition fails → else branch activates
-  let form_values = dict.from_list([#("alpha", StringValue("other"))])
+  let form_values = ObjectValue([#("alpha", StringValue("other"))])
   let resolved =
     conditional_resolver.resolve_conditional_schema(parsed_schema, form_values)
 
@@ -735,7 +746,7 @@ pub fn conditional_override_keeps_position_test() {
     }"
 
   let assert Ok(parsed_schema) = parser.parse_schema(schema_json)
-  let form_values = dict.from_list([#("alpha", StringValue("x"))])
+  let form_values = ObjectValue([#("alpha", StringValue("x"))])
   let resolved =
     conditional_resolver.resolve_conditional_schema(parsed_schema, form_values)
 
@@ -806,7 +817,7 @@ pub fn array_item_hides_conditional_fields_when_condition_false_test() {
   let item_schema = lesions_item_schema()
 
   let values =
-    dict.from_list([
+    ObjectValue([
       #("lesion_num", IntegerValue(1)),
       #("is_resected", BooleanValue(False)),
     ])
@@ -827,7 +838,7 @@ pub fn array_item_shows_and_requires_visible_when_resected_test() {
   let item_schema = lesions_item_schema()
 
   let values =
-    dict.from_list([
+    ObjectValue([
       #("lesion_num", IntegerValue(1)),
       #("is_resected", BooleanValue(True)),
     ])
@@ -846,7 +857,7 @@ pub fn array_item_cascade_conclusion_required_test() {
   let item_schema = lesions_item_schema()
 
   let values =
-    dict.from_list([
+    ObjectValue([
       #("lesion_num", IntegerValue(1)),
       #("is_resected", BooleanValue(True)),
       #("visible", StringValue("yes")),
@@ -865,8 +876,8 @@ pub fn array_item_cascade_conclusion_required_test() {
 pub fn array_items_resolve_independently_per_row_test() {
   let item_schema = lesions_item_schema()
 
-  let row_collapsed = dict.from_list([#("is_resected", BooleanValue(False))])
-  let row_expanded = dict.from_list([#("is_resected", BooleanValue(True))])
+  let row_collapsed = ObjectValue([#("is_resected", BooleanValue(False))])
+  let row_expanded = ObjectValue([#("is_resected", BooleanValue(True))])
 
   let resolved_collapsed =
     conditional_resolver.resolve_conditional_property(
@@ -904,7 +915,7 @@ pub fn validate_all_fields_array_item_required_test() {
       #("lesion_num", IntegerValue(1)),
       #("is_resected", BooleanValue(True)),
     ])
-  let values = dict.from_list([#("lesions", types.ArrayValue([row]))])
+  let values = ObjectValue([#("lesions", types.ArrayValue([row]))])
 
   let resolved_schema =
     conditional_resolver.resolve_conditional_schema(parsed_schema, values)
@@ -933,7 +944,7 @@ pub fn validate_all_fields_array_item_required_test() {
       #("is_resected", BooleanValue(True)),
       #("visible", StringValue("yes")),
     ])
-  let values2 = dict.from_list([#("lesions", types.ArrayValue([row_visible]))])
+  let values2 = ObjectValue([#("lesions", types.ArrayValue([row_visible]))])
 
   let resolved2 =
     conditional_resolver.resolve_conditional_schema(parsed_schema, values2)
@@ -954,8 +965,7 @@ pub fn validate_all_fields_array_item_required_test() {
       #("lesion_num", IntegerValue(1)),
       #("is_resected", BooleanValue(False)),
     ])
-  let values3 =
-    dict.from_list([#("lesions", types.ArrayValue([row_collapsed]))])
+  let values3 = ObjectValue([#("lesions", types.ArrayValue([row_collapsed]))])
 
   let resolved3 =
     conditional_resolver.resolve_conditional_schema(parsed_schema, values3)
@@ -1026,7 +1036,7 @@ fn category_item_schema() -> SchemaProperty {
 pub fn array_item_else_branch_applies_when_condition_false_test() {
   let item_schema = category_item_schema()
 
-  let movie_row = dict.from_list([#("kind", StringValue("movie"))])
+  let movie_row = ObjectValue([#("kind", StringValue("movie"))])
 
   let resolved =
     conditional_resolver.resolve_conditional_property(item_schema, movie_row)
@@ -1042,7 +1052,7 @@ pub fn array_item_else_branch_applies_when_condition_false_test() {
 pub fn array_item_then_branch_applies_when_condition_true_test() {
   let item_schema = category_item_schema()
 
-  let book_row = dict.from_list([#("kind", StringValue("book"))])
+  let book_row = ObjectValue([#("kind", StringValue("book"))])
 
   let resolved =
     conditional_resolver.resolve_conditional_property(item_schema, book_row)
@@ -1072,7 +1082,7 @@ pub fn array_items_multi_row_independent_validation_test() {
       #("lesion_num", IntegerValue(2)),
       #("is_resected", BooleanValue(False)),
     ])
-  let values = dict.from_list([#("lesions", types.ArrayValue([row0, row1]))])
+  let values = ObjectValue([#("lesions", types.ArrayValue([row0, row1]))])
 
   let resolved_schema =
     conditional_resolver.resolve_conditional_schema(parsed_schema, values)
@@ -1107,7 +1117,7 @@ pub fn array_item_missing_if_field_falls_through_test() {
   let item_schema = lesions_item_schema()
 
   // Empty row — no is_resected at all.
-  let empty_row = dict.from_list([])
+  let empty_row = ObjectValue([])
 
   let resolved =
     conditional_resolver.resolve_conditional_property(item_schema, empty_row)
@@ -1130,7 +1140,7 @@ pub fn array_item_error_key_matches_path_to_string_test() {
       #("lesion_num", IntegerValue(1)),
       #("is_resected", BooleanValue(True)),
     ])
-  let values = dict.from_list([#("lesions", types.ArrayValue([row]))])
+  let values = ObjectValue([#("lesions", types.ArrayValue([row]))])
 
   let resolved_schema =
     conditional_resolver.resolve_conditional_schema(parsed_schema, values)
@@ -1179,7 +1189,7 @@ pub fn validate_top_level_object_nested_required_test() {
 
   // `address` exists but is missing the required `street`.
   let values =
-    dict.from_list([
+    ObjectValue([
       #("address", types.ObjectValue([#("city", StringValue("NYC"))])),
     ])
   let resolved_schema =
@@ -1382,7 +1392,7 @@ pub fn is_required_at_path_root_required_in_then_branch_test() {
   list.contains(parsed.required, "extra") |> should.be_false()
 
   // flag=false → `extra` not required (it's not even in resolved properties)
-  let values_off = dict.from_list([#("flag", BooleanValue(False))])
+  let values_off = ObjectValue([#("flag", BooleanValue(False))])
   let resolved_off =
     conditional_resolver.resolve_conditional_schema(parsed, values_off)
   let model_off =
@@ -1395,7 +1405,7 @@ pub fn is_required_at_path_root_required_in_then_branch_test() {
   |> should.be_false()
 
   // flag=true → `extra` required, surfaced only via resolved_schema
-  let values_on = dict.from_list([#("flag", BooleanValue(True))])
+  let values_on = ObjectValue([#("flag", BooleanValue(True))])
   let resolved_on =
     conditional_resolver.resolve_conditional_schema(parsed, values_on)
   let model_on =

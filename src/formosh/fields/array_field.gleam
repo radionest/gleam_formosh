@@ -10,7 +10,6 @@ import formosh/form/model.{
 import formosh/form/path.{type FieldPath}
 import formosh/schema/conditional_resolver
 import formosh/schema/types.{type SchemaProperty, type Value}
-import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
@@ -155,12 +154,8 @@ fn render_item_fields(
   render_child: fn(FieldPath, SchemaProperty, FormModel, Bool, Bool, Bool) ->
     Element(FormMsg),
 ) -> List(Element(FormMsg)) {
-  let item_values = case item {
-    types.ObjectValue(fields) -> dict.from_list(fields)
-    _ -> dict.new()
-  }
   let resolved =
-    conditional_resolver.resolve_conditional_property(item_schema, item_values)
+    conditional_resolver.resolve_conditional_property(item_schema, item)
   let item_path = list.append(array_path, [path.ArraySegment(index)])
 
   case resolved.properties {
