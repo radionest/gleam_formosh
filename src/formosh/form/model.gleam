@@ -300,20 +300,6 @@ fn map_array_item_defaults(
   }
 }
 
-/// Check if a top-level field is required according to the current resolved schema.
-///
-/// Convenience wrapper over `is_required_at_path` for root-level fields.
-///
-/// ## Parameters
-/// - `model`: The form model containing the schema
-/// - `field_name`: The name of the field to check
-///
-/// ## Returns
-/// True if the field is required, False otherwise
-pub fn is_field_required(model: FormModel, field_name: String) -> Bool {
-  is_required_at_path(model, path.from_field_name(field_name))
-}
-
 /// Check if a field has been touched (focused and then blurred).
 /// 
 /// Touched fields are typically used to determine when to show validation

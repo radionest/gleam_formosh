@@ -1,5 +1,7 @@
 import formosh/form/path
 import formosh/schema/types
+import gleam/list
+import gleam/option
 import gleeunit
 import gleeunit/should
 
@@ -230,6 +232,3 @@ pub fn from_string_round_trip_test() {
     |> should.equal(s)
   })
 }
-
-import gleam/list
-import gleam/option

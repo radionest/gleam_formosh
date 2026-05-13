@@ -13,7 +13,6 @@ import formosh/form/path
 import formosh/schema/conditional_resolver
 import formosh/schema/types.{type Value}
 import formosh/schema/validator
-import formosh/validation/field_requirements
 import gleam/dict
 import gleam/http/response
 import gleam/json
@@ -328,7 +327,7 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
           field_name,
           value,
           property,
-          field_requirements.is_required(model.resolved_schema, field_name),
+          model.is_required_at_path(model, field_path),
         )
 
       case errors {
