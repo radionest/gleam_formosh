@@ -5,11 +5,11 @@
 /// field visibility and validation.
 import formosh/schema/types.{
   type ConditionalRule, type JsonSchema, type SchemaProperty, type Value,
-  BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue, ObjectValue,
-  SchemaProperty, StringValue, has_property_key,
+  ArrayType, BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue,
+  ObjectType, ObjectValue, SchemaProperty, StringValue, has_property_key,
 }
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 
 /// Resolve a schema with conditional rules applied based on current form values.
 ///
@@ -61,6 +61,92 @@ pub fn resolve_conditional_property(
       False -> apply_else_branch_property(prop, rule)
     }
   })
+}
+
+/// Recursively resolve conditionals at every depth of a SchemaProperty subtree.
+///
+/// Apply-then-descend: conditionals on the current node fire first against the
+/// supplied `value` (typically the subtree's slice of form values), then the
+/// merged children are walked with their corresponding sub-values from the
+/// form tree.
+///
+/// Array items are recursed with `None` so per-row dynamic resolve stays in
+/// render-time (`array_field.render_item_fields`); only static conditionals
+/// inside the `items` sub-schema are pre-applied.
+///
+/// Known limitations:
+/// - Defaults of fields newly revealed by a conditional are not back-filled
+///   into `model.values` — defaults apply at init only.
+/// - Cross-level conditions (root rule inspecting a nested field) are not
+///   supported by the matcher; declare conditions alongside the fields they
+///   inspect.
+pub fn resolve_nested_conditionals(
+  property: SchemaProperty,
+  value: Option(Value),
+) -> SchemaProperty {
+  let resolved_self = case property.conditionals, value {
+    [], _ -> property
+    _, Some(ObjectValue(_) as v) -> resolve_conditional_property(property, v)
+    _, _ -> property
+  }
+
+  case resolved_self.field_type {
+    Some(ObjectType) ->
+      case resolved_self.properties {
+        Some(props) -> {
+          let new_props =
+            list.map(props, fn(entry) {
+              let #(name, child) = entry
+              let child_value = case value {
+                Some(ObjectValue(fields)) ->
+                  case list.key_find(fields, name) {
+                    Ok(v) -> Some(v)
+                    Error(_) -> None
+                  }
+                _ -> None
+              }
+              #(name, resolve_nested_conditionals(child, child_value))
+            })
+          SchemaProperty(..resolved_self, properties: Some(new_props))
+        }
+        None -> resolved_self
+      }
+
+    Some(ArrayType) ->
+      case resolved_self.items {
+        Some(items_schema) ->
+          SchemaProperty(
+            ..resolved_self,
+            items: Some(resolve_nested_conditionals(items_schema, None)),
+          )
+        None -> resolved_self
+      }
+
+    _ -> resolved_self
+  }
+}
+
+/// Root-level wrapper: runs `resolve_conditional_schema` for root rules,
+/// then descends into every top-level property with its slice of values.
+///
+/// This is the call point for `update.update` and component init — the result
+/// is cached in `FormModel.resolved_schema` and used by the renderer.
+pub fn resolve_recursive(schema: JsonSchema, values: Value) -> JsonSchema {
+  let root_resolved = resolve_conditional_schema(schema, values)
+  let new_props =
+    list.map(root_resolved.properties, fn(entry) {
+      let #(name, prop) = entry
+      let child_value = case values {
+        ObjectValue(fields) ->
+          case list.key_find(fields, name) {
+            Ok(v) -> Some(v)
+            Error(_) -> None
+          }
+        _ -> None
+      }
+      #(name, resolve_nested_conditionals(prop, child_value))
+    })
+  JsonSchema(..root_resolved, properties: new_props)
 }
 
 /// Look up a top-level field in a Value.

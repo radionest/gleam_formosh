@@ -51,10 +51,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     UpdateFieldPath(field_path, value) -> {
       let new_values = path.set_at_path(model.values, field_path, value)
       let resolved_schema =
-        conditional_resolver.resolve_conditional_schema(
-          model.schema,
-          new_values,
-        )
+        conditional_resolver.resolve_recursive(model.schema, new_values)
       let touched_model = model.mark_field_touched(model, field_path)
       let new_model =
         model.FormModel(

@@ -5,8 +5,9 @@ import formosh/form/update
 import formosh/schema/conditional_resolver
 import formosh/schema/parser
 import formosh/schema/types.{
-  type SchemaProperty, BooleanValue, ConditionalRule, IntegerValue, JsonSchema,
-  ObjectValue, SchemaProperty, StringValue, empty_property, has_property_key,
+  type JsonSchema, type SchemaProperty, BooleanValue, ConditionalRule,
+  IntegerValue, JsonSchema, ObjectValue, SchemaProperty, StringValue,
+  empty_property, has_property_key,
 }
 import gleam/list
 import gleam/option.{None, Some}
@@ -1416,4 +1417,396 @@ pub fn is_required_at_path_root_required_in_then_branch_test() {
     )
   model.is_required_at_path(model_on, path.from_field_name("extra"))
   |> should.be_true()
+}
+
+/// Build a schema whose `payment` is a nested ObjectType carrying its own
+/// `conditionals`. Returns the schema plus the nested property name pairs
+/// declared on payment (used to assert merging behaviour).
+fn nested_payment_schema() -> JsonSchema {
+  let payment_if =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "method",
+          SchemaProperty(
+            ..empty_property(),
+            enum_values: Some([StringValue("card")]),
+          ),
+        ),
+      ]),
+    )
+
+  let payment_then =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "card_number",
+          SchemaProperty(
+            ..empty_property(),
+            field_type: Some(types.StringType),
+            title: Some("Card Number"),
+          ),
+        ),
+      ]),
+    )
+
+  let payment_prop =
+    SchemaProperty(
+      ..empty_property(),
+      field_type: Some(types.ObjectType),
+      properties: Some([
+        #(
+          "method",
+          SchemaProperty(..empty_property(), field_type: Some(types.StringType)),
+        ),
+      ]),
+      conditionals: [
+        ConditionalRule(
+          if_schema: payment_if,
+          then_schema: Some(payment_then),
+          else_schema: None,
+        ),
+      ],
+    )
+
+  JsonSchema(
+    title: Some("Payment"),
+    description: None,
+    field_type: types.ObjectType,
+    properties: [#("payment", payment_prop)],
+    required: [],
+    defs: None,
+    conditionals: [],
+    string_constraints: None,
+    number_constraints: None,
+  )
+}
+
+fn payment_props(schema: JsonSchema) -> List(#(String, SchemaProperty)) {
+  let assert Ok(payment_entry) = list.key_find(schema.properties, "payment")
+  let assert Some(props) = payment_entry.properties
+  props
+}
+
+/// resolve_recursive applies a conditional declared on a nested ObjectType
+/// when the nested value satisfies the condition.
+pub fn nested_object_conditional_applies_when_value_matches_test() {
+  let schema = nested_payment_schema()
+
+  let values_match =
+    ObjectValue([
+      #("payment", ObjectValue([#("method", StringValue("card"))])),
+    ])
+
+  let resolved_match =
+    conditional_resolver.resolve_recursive(schema, values_match)
+  payment_props(resolved_match)
+  |> has_property_key("card_number")
+  |> should.be_true()
+
+  let values_other =
+    ObjectValue([
+      #("payment", ObjectValue([#("method", StringValue("cash"))])),
+    ])
+
+  let resolved_other =
+    conditional_resolver.resolve_recursive(schema, values_other)
+  payment_props(resolved_other)
+  |> has_property_key("card_number")
+  |> should.be_false()
+}
+
+/// When the nested value tree is missing entirely, the nested then-branch
+/// must not fire.
+pub fn nested_conditional_with_missing_value_keeps_base_test() {
+  let schema = nested_payment_schema()
+  let resolved = conditional_resolver.resolve_recursive(schema, ObjectValue([]))
+
+  payment_props(resolved)
+  |> has_property_key("card_number")
+  |> should.be_false()
+
+  // The base `method` property must still be there.
+  payment_props(resolved)
+  |> has_property_key("method")
+  |> should.be_true()
+}
+
+/// A root conditional revealing a nested ObjectType with its own conditionals
+/// must trigger those nested rules in the same resolve_recursive pass.
+pub fn then_branch_introduces_nested_object_with_own_conditionals_test() {
+  // Inner conditional: if details.flag == true then add `secret`.
+  let inner_if =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "flag",
+          SchemaProperty(
+            ..empty_property(),
+            enum_values: Some([BooleanValue(True)]),
+          ),
+        ),
+      ]),
+    )
+
+  let inner_then =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "secret",
+          SchemaProperty(..empty_property(), field_type: Some(types.StringType)),
+        ),
+      ]),
+    )
+
+  let nested_obj_prop =
+    SchemaProperty(
+      ..empty_property(),
+      field_type: Some(types.ObjectType),
+      properties: Some([
+        #(
+          "flag",
+          SchemaProperty(
+            ..empty_property(),
+            field_type: Some(types.BooleanType),
+          ),
+        ),
+      ]),
+      conditionals: [
+        ConditionalRule(
+          if_schema: inner_if,
+          then_schema: Some(inner_then),
+          else_schema: None,
+        ),
+      ],
+    )
+
+  // Root conditional: if mode == "advanced" then reveal `details` (the nested
+  // object whose own conditional we want to fire).
+  let root_if =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "mode",
+          SchemaProperty(
+            ..empty_property(),
+            enum_values: Some([StringValue("advanced")]),
+          ),
+        ),
+      ]),
+    )
+
+  let root_then =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([#("details", nested_obj_prop)]),
+    )
+
+  let schema =
+    JsonSchema(
+      title: None,
+      description: None,
+      field_type: types.ObjectType,
+      properties: [#("mode", empty_property())],
+      required: [],
+      defs: None,
+      conditionals: [
+        ConditionalRule(
+          if_schema: root_if,
+          then_schema: Some(root_then),
+          else_schema: None,
+        ),
+      ],
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  let values =
+    ObjectValue([
+      #("mode", StringValue("advanced")),
+      #("details", ObjectValue([#("flag", BooleanValue(True))])),
+    ])
+
+  let resolved = conditional_resolver.resolve_recursive(schema, values)
+
+  // `details` was revealed by the root rule.
+  has_property_key(resolved.properties, "details") |> should.be_true()
+
+  // ...and its own conditional ran in the same pass.
+  let assert Ok(details_entry) = list.key_find(resolved.properties, "details")
+  let assert Some(details_props) = details_entry.properties
+  details_props |> has_property_key("secret") |> should.be_true()
+}
+
+/// resolve_recursive must descend into ArrayType `items` with `None`, so per-row
+/// resolve stays at render-time but the items sub-schema is preserved.
+pub fn array_items_recursion_preserves_items_schema_test() {
+  let item_schema =
+    SchemaProperty(
+      ..empty_property(),
+      field_type: Some(types.ObjectType),
+      properties: Some([
+        #(
+          "priority",
+          SchemaProperty(..empty_property(), field_type: Some(types.StringType)),
+        ),
+      ]),
+      conditionals: [
+        ConditionalRule(
+          if_schema: SchemaProperty(
+            ..empty_property(),
+            properties: Some([
+              #(
+                "priority",
+                SchemaProperty(
+                  ..empty_property(),
+                  enum_values: Some([StringValue("high")]),
+                ),
+              ),
+            ]),
+          ),
+          then_schema: Some(
+            SchemaProperty(
+              ..empty_property(),
+              properties: Some([
+                #(
+                  "assignee",
+                  SchemaProperty(
+                    ..empty_property(),
+                    field_type: Some(types.StringType),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+          else_schema: None,
+        ),
+      ],
+    )
+
+  let tasks_prop =
+    SchemaProperty(
+      ..empty_property(),
+      field_type: Some(types.ArrayType),
+      items: Some(item_schema),
+    )
+
+  let schema =
+    JsonSchema(
+      title: None,
+      description: None,
+      field_type: types.ObjectType,
+      properties: [#("tasks", tasks_prop)],
+      required: [],
+      defs: None,
+      conditionals: [],
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  let resolved = conditional_resolver.resolve_recursive(schema, ObjectValue([]))
+
+  let assert Ok(tasks_entry) = list.key_find(resolved.properties, "tasks")
+  let assert Some(items_after) = tasks_entry.items
+  let assert Some(item_props) = items_after.properties
+
+  // No per-row resolve applied — `priority` is still in the base, `assignee`
+  // is not pre-added because resolve_recursive passes None for array items.
+  item_props |> has_property_key("priority") |> should.be_true()
+  item_props |> has_property_key("assignee") |> should.be_false()
+
+  // Item-level conditionals are preserved so render-time per-row resolve
+  // (array_field.render_item_fields) can still fire them.
+  list.length(items_after.conditionals) |> should.equal(1)
+}
+
+/// End-to-end via `update.update`: dispatching an UpdateFieldPath on a nested
+/// field must yield a resolved_schema in which the nested conditional fired.
+pub fn update_dispatch_resolves_nested_conditional_test() {
+  let schema = nested_payment_schema()
+  let initial = model.init(schema)
+
+  let #(after, _effect) =
+    update.update(
+      initial,
+      model.UpdateFieldPath(
+        [path.PropertySegment("payment"), path.PropertySegment("method")],
+        StringValue("card"),
+      ),
+    )
+
+  payment_props(after.resolved_schema)
+  |> has_property_key("card_number")
+  |> should.be_true()
+}
+
+/// Regression: top-level conditional still works when called through
+/// resolve_recursive (the new wrapper).
+pub fn resolve_recursive_top_level_regression_test() {
+  let base_properties = [#("subject", empty_property())]
+
+  let if_condition =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "subject",
+          SchemaProperty(
+            ..empty_property(),
+            enum_values: Some([StringValue("Общий вопрос")]),
+          ),
+        ),
+      ]),
+    )
+
+  let then_schema =
+    SchemaProperty(
+      ..empty_property(),
+      properties: Some([
+        #(
+          "is_confidential",
+          SchemaProperty(
+            ..empty_property(),
+            field_type: Some(types.BooleanType),
+          ),
+        ),
+      ]),
+    )
+
+  let schema =
+    JsonSchema(
+      title: None,
+      description: None,
+      field_type: types.ObjectType,
+      properties: base_properties,
+      required: [],
+      defs: None,
+      conditionals: [
+        ConditionalRule(
+          if_schema: if_condition,
+          then_schema: Some(then_schema),
+          else_schema: None,
+        ),
+      ],
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  let values_met = ObjectValue([#("subject", StringValue("Общий вопрос"))])
+  let resolved_met = conditional_resolver.resolve_recursive(schema, values_met)
+  resolved_met.properties
+  |> has_property_key("is_confidential")
+  |> should.be_true()
+
+  let values_missed = ObjectValue([#("subject", StringValue("Other"))])
+  let resolved_missed =
+    conditional_resolver.resolve_recursive(schema, values_missed)
+  resolved_missed.properties
+  |> has_property_key("is_confidential")
+  |> should.be_false()
 }
