@@ -1,15 +1,20 @@
 import formosh/form/model
+import formosh/form/path
 import formosh/schema/parser
 import formosh/schema/types.{
   ArrayValue, BooleanValue, IntegerValue, NullValue, ObjectValue, StringValue,
 }
 import gleam/dict
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import gleeunit/should
 
 fn init_with(schema_json: String, values: dict.Dict(String, types.Value)) {
   let assert Ok(schema) = parser.parse_schema(schema_json)
   model.init_with_full_config(schema, None, False, values)
+}
+
+fn read(m: model.FormModel, name: String) -> option.Option(types.Value) {
+  model.get_value_at_path(m, path.from_field_name(name))
 }
 
 pub fn top_level_boolean_default_applied_test() {
@@ -23,8 +28,8 @@ pub fn top_level_boolean_default_applied_test() {
     }"
 
   let m = init_with(schema, dict.new())
-  dict.get(m.values, "is_resected")
-  |> should.equal(Ok(BooleanValue(False)))
+  read(m, "is_resected")
+  |> should.equal(Some(BooleanValue(False)))
 }
 
 pub fn top_level_string_default_applied_test() {
@@ -37,8 +42,8 @@ pub fn top_level_string_default_applied_test() {
     }"
 
   let m = init_with(schema, dict.new())
-  dict.get(m.values, "side")
-  |> should.equal(Ok(StringValue("left")))
+  read(m, "side")
+  |> should.equal(Some(StringValue("left")))
 }
 
 pub fn existing_value_not_overridden_test() {
@@ -51,8 +56,8 @@ pub fn existing_value_not_overridden_test() {
     }"
 
   let m = init_with(schema, dict.from_list([#("flag", BooleanValue(True))]))
-  dict.get(m.values, "flag")
-  |> should.equal(Ok(BooleanValue(True)))
+  read(m, "flag")
+  |> should.equal(Some(BooleanValue(True)))
 }
 
 pub fn null_value_replaced_by_default_test() {
@@ -65,8 +70,8 @@ pub fn null_value_replaced_by_default_test() {
     }"
 
   let m = init_with(schema, dict.from_list([#("flag", NullValue)]))
-  dict.get(m.values, "flag")
-  |> should.equal(Ok(BooleanValue(False)))
+  read(m, "flag")
+  |> should.equal(Some(BooleanValue(False)))
 }
 
 pub fn field_without_default_skipped_test() {
@@ -79,7 +84,7 @@ pub fn field_without_default_skipped_test() {
     }"
 
   let m = init_with(schema, dict.new())
-  dict.has_key(m.values, "name") |> should.be_false()
+  read(m, "name") |> should.equal(None)
 }
 
 pub fn nested_object_defaults_applied_test() {
@@ -97,8 +102,8 @@ pub fn nested_object_defaults_applied_test() {
     }"
 
   let m = init_with(schema, dict.new())
-  dict.get(m.values, "patient")
-  |> should.equal(Ok(ObjectValue([#("age", IntegerValue(0))])))
+  read(m, "patient")
+  |> should.equal(Some(ObjectValue([#("age", IntegerValue(0))])))
 }
 
 pub fn partial_hydration_fills_missing_subfields_test() {
@@ -124,9 +129,9 @@ pub fn partial_hydration_fills_missing_subfields_test() {
       ]),
     )
 
-  dict.get(m.values, "patient")
+  read(m, "patient")
   |> should.equal(
-    Ok(
+    Some(
       ObjectValue([
         #("name", StringValue("X")),
         #("age", IntegerValue(0)),
@@ -167,9 +172,9 @@ pub fn array_items_get_defaults_test() {
       ]),
     )
 
-  dict.get(m.values, "lesions")
+  read(m, "lesions")
   |> should.equal(
-    Ok(
+    Some(
       ArrayValue([
         ObjectValue([
           #("size", IntegerValue(5)),
@@ -203,8 +208,8 @@ pub fn empty_array_no_items_created_test() {
 
   let m = init_with(schema, dict.from_list([#("lesions", ArrayValue([]))]))
 
-  dict.get(m.values, "lesions")
-  |> should.equal(Ok(ArrayValue([])))
+  read(m, "lesions")
+  |> should.equal(Some(ArrayValue([])))
 }
 
 pub fn array_absent_no_items_created_test() {
@@ -225,7 +230,7 @@ pub fn array_absent_no_items_created_test() {
     }"
 
   let m = init_with(schema, dict.new())
-  dict.has_key(m.values, "lesions") |> should.be_false()
+  read(m, "lesions") |> should.equal(None)
 }
 
 pub fn submit_includes_defaults_test() {
@@ -240,8 +245,8 @@ pub fn submit_includes_defaults_test() {
 
   let m = init_with(schema, dict.new())
   let resolved = model.get_resolved_values(m)
-  dict.get(resolved, "is_resected")
-  |> should.equal(Ok(BooleanValue(False)))
+  path.get_at_path(resolved, path.from_field_name("is_resected"))
+  |> should.equal(Some(BooleanValue(False)))
 }
 
 pub fn extra_object_keys_preserved_test() {
@@ -273,13 +278,74 @@ pub fn extra_object_keys_preserved_test() {
       ]),
     )
 
-  dict.get(m.values, "patient")
+  read(m, "patient")
   |> should.equal(
-    Ok(
+    Some(
       ObjectValue([
         #("name", StringValue("X")),
         #("age", IntegerValue(0)),
         #("legacy_id", StringValue("42")),
+      ]),
+    ),
+  )
+}
+
+// `extra_object_keys_preserved_test` covers the basic "extras survive"
+// case but only one declared key carries a default. This pins the more
+// involved mix: multiple declared keys (one with a hydrated value, one
+// with a missing default) interleaved with extras at arbitrary
+// positions. Expected order is *all declared* (in schema order) followed
+// by *all extras* (in the caller's original order) — extras must never
+// jump ahead of the declared block, even if the user supplied them
+// first.
+pub fn declared_with_defaults_and_extras_order_test() {
+  let schema =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"patient\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"name\": {\"type\": \"string\"},
+            \"age\": {\"type\": \"integer\", \"default\": 0},
+            \"role\": {\"type\": \"string\", \"default\": \"patient\"}
+          }
+        }
+      }
+    }"
+
+  let m =
+    init_with(
+      schema,
+      dict.from_list([
+        #(
+          "patient",
+          ObjectValue([
+            // Caller order: extra, declared (hydrated), extra, declared
+            // (missing → default fills), extra. Schema order is name,
+            // age, role.
+            #("legacy_a", StringValue("first")),
+            #("name", StringValue("Ada")),
+            #("legacy_b", StringValue("second")),
+            #("age", IntegerValue(42)),
+            #("legacy_c", StringValue("third")),
+          ]),
+        ),
+      ]),
+    )
+
+  read(m, "patient")
+  |> should.equal(
+    Some(
+      ObjectValue([
+        // Declared block in schema order; `role` came from the default.
+        #("name", StringValue("Ada")),
+        #("age", IntegerValue(42)),
+        #("role", StringValue("patient")),
+        // Extras in caller order, after the declared block.
+        #("legacy_a", StringValue("first")),
+        #("legacy_b", StringValue("second")),
+        #("legacy_c", StringValue("third")),
       ]),
     ),
   )
@@ -298,6 +364,6 @@ pub fn reset_reapplies_defaults_test() {
   let m =
     init_with(schema, dict.from_list([#("is_resected", BooleanValue(True))]))
   let after_reset = model.reset(m)
-  dict.get(after_reset.values, "is_resected")
-  |> should.equal(Ok(BooleanValue(False)))
+  model.get_value_at_path(after_reset, path.from_field_name("is_resected"))
+  |> should.equal(Some(BooleanValue(False)))
 }

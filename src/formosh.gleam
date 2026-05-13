@@ -304,13 +304,15 @@ pub fn from_json_string_with_config(
   }
 }
 
-/// Get all current form values.
-/// 
+/// Get all current form values as a hierarchical Value tree.
+///
+/// **BREAKING CHANGE.** Previously returned `Dict(String, Value)`. The
+/// model now stores a single `Value` (always `ObjectValue` at the root),
+/// so this returns the tree directly. Use `path.get_at_path` for typed
+/// access or `json_utils.value_to_json` for serialisation.
+///
 /// ## Parameters
 /// - `model`: The form model
-/// 
-/// ## Returns
-/// Dictionary of field names to their current values
-pub fn get_values(model: model.FormModel) -> dict.Dict(String, types.Value) {
+pub fn get_values(model: model.FormModel) -> types.Value {
   model.values
 }

@@ -1,7 +1,9 @@
 import formosh/path_format
 import formosh/schema/types
+import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/string
 
 /// Represents a path to a field in a nested data structure.
@@ -20,6 +22,42 @@ pub type PathSegment {
 /// Create a path from a simple field name.
 pub fn from_field_name(field_name: String) -> FieldPath {
   [PropertySegment(field_name)]
+}
+
+/// Parse a path-string back into a `FieldPath`.
+///
+/// Inverse of `to_string` for paths produced by it: segments separated by
+/// `.`, with `[N]` denoting an array index. `to_string(from_string(s)) == s`
+/// holds for any `s` originally produced by `to_string` (i.e. when field
+/// names contain neither `.` nor `[]`). The empty string maps to `[]`.
+pub fn from_string(s: String) -> FieldPath {
+  case s {
+    "" -> []
+    _ ->
+      string.split(s, ".")
+      |> list.map(parse_segment)
+  }
+}
+
+fn parse_segment(segment: String) -> PathSegment {
+  // Require length > 2 so `"[]"` and similar empty brackets fall through
+  // to `PropertySegment(segment)` instead of feeding an empty inner string
+  // to `int.parse`. The documented round-trip with `to_string` only emits
+  // `"[N]"` with N ≥ 0, so this guard only affects malformed input.
+  case
+    string.starts_with(segment, "[")
+    && string.ends_with(segment, "]")
+    && string.length(segment) > 2
+  {
+    True -> {
+      let inner = string.slice(segment, 1, string.length(segment) - 2)
+      case int.parse(inner) {
+        Ok(i) -> ArraySegment(i)
+        Error(_) -> PropertySegment(segment)
+      }
+    }
+    False -> PropertySegment(segment)
+  }
 }
 
 /// Create a path to an array item's field.
@@ -256,4 +294,39 @@ pub fn remove_array_item_at_path(
       _ -> value
     }
   })
+}
+
+/// After removing an item at `removed_index` from the array at `array_path`,
+/// rewrite a touched/error FieldPath so it still points at the same logical
+/// row.
+///
+/// Returns `None` when the path belonged to the removed row itself (callers
+/// should drop it). Paths outside the array, or with array indices below the
+/// removed index, pass through unchanged.
+pub fn reindex_after_array_removal(
+  path: FieldPath,
+  array_path: FieldPath,
+  removed_index: Int,
+) -> Option(FieldPath) {
+  case strip_prefix(path, array_path) {
+    Some([ArraySegment(i), ..rest]) ->
+      case int.compare(i, removed_index) {
+        order.Eq -> None
+        order.Lt -> Some(path)
+        order.Gt -> Some(list.append(array_path, [ArraySegment(i - 1), ..rest]))
+      }
+    _ -> Some(path)
+  }
+}
+
+fn strip_prefix(path: FieldPath, prefix: FieldPath) -> Option(FieldPath) {
+  case prefix, path {
+    [], rest -> Some(rest)
+    [p, ..ps], [q, ..qs] ->
+      case p == q {
+        True -> strip_prefix(qs, ps)
+        False -> None
+      }
+    _, _ -> None
+  }
 }

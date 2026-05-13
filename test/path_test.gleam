@@ -1,5 +1,7 @@
 import formosh/form/path
 import formosh/schema/types
+import gleam/list
+import gleam/option
 import gleeunit
 import gleeunit/should
 
@@ -189,4 +191,165 @@ pub fn add_array_item_nested_test() {
   |> should.equal(option.Some(types.NumberValue(15.0)))
 }
 
-import gleam/option
+// Document and pin down `set_at_path` auto-vivification: when the path
+// crosses a non-container value (scalar, NullValue) the segment is
+// silently rebuilt as the matching container. This is intentional — form
+// renderers rely on it so writing `user.name` works even when `user`
+// hasn't been initialised — but it also means the call cannot detect a
+// caller bug like reusing a leaf path as a container path. The test pins
+// the behaviour so any future tightening (e.g. to a Result return) stays
+// a deliberate change.
+pub fn set_at_path_through_scalar_auto_vivifies_test() {
+  // `name` starts as a string, but we set `name.first = "Ada"`.
+  let data =
+    types.ObjectValue([
+      #("name", types.StringValue("legacy")),
+    ])
+
+  let updated =
+    path.set_at_path(
+      data,
+      [path.PropertySegment("name"), path.PropertySegment("first")],
+      types.StringValue("Ada"),
+    )
+
+  // The scalar at `name` was replaced by an ObjectValue holding `first`.
+  updated
+  |> should.equal(
+    types.ObjectValue([
+      #("name", types.ObjectValue([#("first", types.StringValue("Ada"))])),
+    ]),
+  )
+}
+
+// Update one root key — verify all sibling top-level keys survive intact.
+pub fn set_at_path_preserves_siblings_at_root_test() {
+  let data =
+    types.ObjectValue([
+      #("a", types.StringValue("alpha")),
+      #("b", types.NumberValue(1.0)),
+      #("c", types.BooleanValue(True)),
+      #("d", types.ArrayValue([types.StringValue("keep")])),
+    ])
+
+  let updated =
+    path.set_at_path(data, [path.PropertySegment("b")], types.NumberValue(99.0))
+
+  updated
+  |> should.equal(
+    types.ObjectValue([
+      #("a", types.StringValue("alpha")),
+      #("b", types.NumberValue(99.0)),
+      #("c", types.BooleanValue(True)),
+      #("d", types.ArrayValue([types.StringValue("keep")])),
+    ]),
+  )
+}
+
+// Three-level nested set must touch only the leaf and rebuild the
+// containing objects without losing the sibling branches at any level.
+pub fn set_at_path_three_level_nested_test() {
+  let data =
+    types.ObjectValue([
+      #(
+        "outer",
+        types.ObjectValue([
+          #("keep_outer_sibling", types.StringValue("o")),
+          #(
+            "middle",
+            types.ObjectValue([
+              #("keep_middle_sibling", types.StringValue("m")),
+              #(
+                "inner",
+                types.ObjectValue([
+                  #("keep_inner_sibling", types.StringValue("i")),
+                  #("leaf", types.StringValue("old")),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+
+  let leaf_path = [
+    path.PropertySegment("outer"),
+    path.PropertySegment("middle"),
+    path.PropertySegment("inner"),
+    path.PropertySegment("leaf"),
+  ]
+  let updated = path.set_at_path(data, leaf_path, types.StringValue("new"))
+
+  // Leaf updated.
+  path.get_at_path(updated, leaf_path)
+  |> should.equal(option.Some(types.StringValue("new")))
+
+  // All sibling branches at every level still intact.
+  path.get_at_path(updated, [
+    path.PropertySegment("outer"),
+    path.PropertySegment("keep_outer_sibling"),
+  ])
+  |> should.equal(option.Some(types.StringValue("o")))
+
+  path.get_at_path(updated, [
+    path.PropertySegment("outer"),
+    path.PropertySegment("middle"),
+    path.PropertySegment("keep_middle_sibling"),
+  ])
+  |> should.equal(option.Some(types.StringValue("m")))
+
+  path.get_at_path(updated, [
+    path.PropertySegment("outer"),
+    path.PropertySegment("middle"),
+    path.PropertySegment("inner"),
+    path.PropertySegment("keep_inner_sibling"),
+  ])
+  |> should.equal(option.Some(types.StringValue("i")))
+}
+
+pub fn from_string_empty_test() {
+  path.from_string("")
+  |> should.equal([])
+}
+
+pub fn from_string_single_property_test() {
+  path.from_string("email")
+  |> should.equal([path.PropertySegment("email")])
+}
+
+pub fn from_string_nested_property_test() {
+  path.from_string("address.street")
+  |> should.equal([
+    path.PropertySegment("address"),
+    path.PropertySegment("street"),
+  ])
+}
+
+pub fn from_string_array_item_field_test() {
+  path.from_string("lesions.[0].visible")
+  |> should.equal([
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("visible"),
+  ])
+}
+
+pub fn from_string_empty_brackets_test() {
+  path.from_string("[]")
+  |> should.equal([path.PropertySegment("[]")])
+}
+
+pub fn from_string_round_trip_test() {
+  let originals = [
+    "email",
+    "address.street",
+    "lesions.[0].visible",
+    "outer.[2].inner.[10].leaf",
+  ]
+  originals
+  |> list.each(fn(s) {
+    path.from_string(s)
+    |> path.to_string
+    |> should.equal(s)
+  })
+}
