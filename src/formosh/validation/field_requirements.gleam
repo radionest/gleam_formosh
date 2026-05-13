@@ -34,7 +34,8 @@ pub fn is_required(schema: JsonSchema, field_name: String) -> Bool {
 /// It considers None, NullValue, and empty strings as missing values for required fields.
 ///
 /// ## Parameters
-/// - `field_name`: The name of the field being validated (used in error messages)
+/// - `field_path`: The canonical `FieldPath` of the field being validated,
+///   used as the `ValidationError.field` key
 /// - `value`: The current field value, or None if not set
 /// - `is_field_required`: Whether this field is required
 ///
@@ -44,7 +45,11 @@ pub fn is_required(schema: JsonSchema, field_name: String) -> Bool {
 ///
 /// ## Example
 /// ```gleam
-/// case check_required_value("email", Some(StringValue("")), True) {
+/// case check_required_value(
+///   path.from_field_name("email"),
+///   Some(StringValue("")),
+///   True,
+/// ) {
 ///   Ok(_) -> // Field is valid
 ///   Error(validation_error) -> // Field is required but empty
 /// }

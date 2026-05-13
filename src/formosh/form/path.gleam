@@ -3,6 +3,7 @@ import formosh/schema/types
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/string
 
 /// Represents a path to a field in a nested data structure.
@@ -293,4 +294,39 @@ pub fn remove_array_item_at_path(
       _ -> value
     }
   })
+}
+
+/// After removing an item at `removed_index` from the array at `array_path`,
+/// rewrite a touched/error FieldPath so it still points at the same logical
+/// row.
+///
+/// Returns `None` when the path belonged to the removed row itself (callers
+/// should drop it). Paths outside the array, or with array indices below the
+/// removed index, pass through unchanged.
+pub fn reindex_after_array_removal(
+  path: FieldPath,
+  array_path: FieldPath,
+  removed_index: Int,
+) -> Option(FieldPath) {
+  case strip_prefix(path, array_path) {
+    Some([ArraySegment(i), ..rest]) ->
+      case int.compare(i, removed_index) {
+        order.Eq -> None
+        order.Lt -> Some(path)
+        order.Gt -> Some(list.append(array_path, [ArraySegment(i - 1), ..rest]))
+      }
+    _ -> Some(path)
+  }
+}
+
+fn strip_prefix(path: FieldPath, prefix: FieldPath) -> Option(FieldPath) {
+  case prefix, path {
+    [], rest -> Some(rest)
+    [p, ..ps], [q, ..qs] ->
+      case p == q {
+        True -> strip_prefix(qs, ps)
+        False -> None
+      }
+    _, _ -> None
+  }
 }

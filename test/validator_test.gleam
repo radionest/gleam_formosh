@@ -1,8 +1,9 @@
 import formosh/form/path
 import formosh/schema/types.{
-  ArrayValue, SchemaProperty, StringValue, empty_property,
+  type SchemaProperty, ArrayValue, SchemaProperty, StringValue, empty_property,
 }
 import formosh/schema/validator
+import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
 
@@ -70,4 +71,46 @@ pub fn image_upload_not_required_none_value_test() {
   let errors = validator.validate_field(photos_path(), None, property, False)
 
   should.equal(errors, [])
+}
+
+fn enum_status_property() -> SchemaProperty {
+  SchemaProperty(
+    ..empty_property(),
+    field_type: Some(types.StringType),
+    enum_values: Some([StringValue("active"), StringValue("inactive")]),
+  )
+}
+
+fn status_path() -> path.FieldPath {
+  path.from_field_name("status")
+}
+
+// Regression: validate_enum used to be a no-op stub that accepted everything.
+// A value outside the declared set must now produce a "enum" rule error.
+pub fn validate_enum_rejects_value_outside_set_test() {
+  let errors =
+    validator.validate_field(
+      status_path(),
+      Some(StringValue("banned")),
+      enum_status_property(),
+      False,
+    )
+
+  list.any(errors, fn(e) { e.rule == "enum" })
+  |> should.be_true()
+}
+
+// Regression: validate_enum must NOT produce an error when the value is one
+// of the allowed enum members.
+pub fn validate_enum_accepts_value_in_set_test() {
+  let errors =
+    validator.validate_field(
+      status_path(),
+      Some(StringValue("active")),
+      enum_status_property(),
+      False,
+    )
+
+  list.any(errors, fn(e) { e.rule == "enum" })
+  |> should.be_false()
 }

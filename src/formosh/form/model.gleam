@@ -152,7 +152,10 @@ pub fn init_with_config(
 /// - `schema`: The JSON Schema definition for this form
 /// - `submit_config`: Optional submission configuration
 /// - `show_readonly_fields`: Whether to display readOnly fields
-/// - `initial_values`: Initial values to populate the form with
+/// - `initial_values`: Initial values keyed by **top-level property name**.
+///   Keys are not dot-notation paths — `"user.name"` is treated as a single
+///   top-level key, not unflattened. For nested fields, supply nested
+///   `Value` trees, e.g. `ObjectValue([#("name", StringValue("..."))])`.
 ///
 /// ## Returns
 /// A new FormModel with the provided configuration

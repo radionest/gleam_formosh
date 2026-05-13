@@ -159,11 +159,6 @@ fn validate_string(
             None -> errors
           }
 
-          let errors = case c.pattern {
-            Some(_pattern) -> errors
-            None -> errors
-          }
-
           let errors = case c.format {
             Some(types.EmailFormat) ->
               case validate_email(str) {
@@ -326,11 +321,24 @@ fn validate_boolean(
 }
 
 fn validate_enum(
-  _field_path: FieldPath,
-  _value: Value,
-  _allowed_values: List(types.Value),
+  field_path: FieldPath,
+  value: Value,
+  allowed_values: List(types.Value),
 ) -> List(ValidationError) {
-  []
+  case
+    list.any(allowed_values, fn(allowed) {
+      conditional_resolver.compare_values(allowed, value)
+    })
+  {
+    True -> []
+    False -> [
+      ValidationError(
+        field: field_path,
+        message: "Value is not one of the allowed options",
+        rule: "enum",
+      ),
+    ]
+  }
 }
 
 fn validate_email(email: String) -> Bool {

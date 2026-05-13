@@ -243,7 +243,7 @@ fn check_property_match(prop_schema: SchemaProperty, field_value: Value) -> Bool
 }
 
 /// Compare two values for equality.
-fn compare_values(val1: Value, val2: Value) -> Bool {
+pub fn compare_values(val1: Value, val2: Value) -> Bool {
   case val1, val2 {
     StringValue(s1), StringValue(s2) -> s1 == s2
     NumberValue(n1), NumberValue(n2) -> n1 == n2

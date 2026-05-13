@@ -71,15 +71,31 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           field_path,
           types.ObjectValue([]),
         )
-      let new_model = model.FormModel(..model, values: new_values)
-      #(new_model, effect.none())
+      let new_model =
+        model.FormModel(..model, values: new_values, is_dirty: True)
+      let validated_model = validate_all_fields(new_model)
+      #(validated_model, effect.none())
     }
 
     RemoveArrayItemPath(field_path, index) -> {
       let new_values =
         path.remove_array_item_at_path(model.values, field_path, index)
-      let new_model = model.FormModel(..model, values: new_values)
-      #(new_model, effect.none())
+      let new_touched =
+        list.filter_map(model.touched_fields, fn(p) {
+          case path.reindex_after_array_removal(p, field_path, index) {
+            Some(new_p) -> Ok(new_p)
+            None -> Error(Nil)
+          }
+        })
+      let new_model =
+        model.FormModel(
+          ..model,
+          values: new_values,
+          touched_fields: new_touched,
+          is_dirty: True,
+        )
+      let validated_model = validate_all_fields(new_model)
+      #(validated_model, effect.none())
     }
 
     FormSubmit -> {
