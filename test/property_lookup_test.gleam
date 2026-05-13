@@ -35,6 +35,10 @@ const lookup_schema = "{
           }
         }
       }
+    },
+    \"tags\": {
+      \"type\": \"array\",
+      \"items\": {\"type\": \"string\"}
     }
   }
 }"
@@ -97,5 +101,30 @@ pub fn array_segment_prefix_returns_error_test() {
 pub fn empty_path_returns_error_test() {
   let m = init_for_lookup()
   model.find_property_at_path(m, [])
+  |> should.be_error()
+}
+
+// `name` is a scalar string — trying to descend into a child PropertySegment
+// has no schema-level meaning. Lookup must bottom out at Error(Nil), not
+// silently return the parent or crash on the missing `properties` field.
+pub fn descending_past_scalar_returns_error_test() {
+  let m = init_for_lookup()
+  model.find_property_at_path(m, [
+    path.PropertySegment("name"),
+    path.PropertySegment("foo"),
+  ])
+  |> should.be_error()
+}
+
+// `tags` is an array of strings — once we step into an item, the items-
+// schema has no `properties` of its own. A further PropertySegment after
+// ArraySegment must yield Error(Nil).
+pub fn descending_through_array_of_scalars_returns_error_test() {
+  let m = init_for_lookup()
+  model.find_property_at_path(m, [
+    path.PropertySegment("tags"),
+    path.ArraySegment(0),
+    path.PropertySegment("foo"),
+  ])
   |> should.be_error()
 }

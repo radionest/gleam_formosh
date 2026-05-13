@@ -389,7 +389,6 @@ fn lookup_property(
   field_path: FieldPath,
 ) -> Result(SchemaProperty, Nil) {
   case field_path {
-    [path.PropertySegment(name)] -> list.key_find(properties, name)
     [path.PropertySegment(name), ..rest] ->
       case list.key_find(properties, name) {
         Ok(prop) -> walk_into_property(prop, rest)
