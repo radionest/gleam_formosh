@@ -1,9 +1,10 @@
 // Form model for MVU architecture
 
+import formosh/form/defaults
 import formosh/form/path.{type FieldPath}
 import formosh/schema/types.{
-  type JsonSchema, type SchemaProperty, type Value, ArrayValue, NullValue,
-  ObjectType, ObjectValue, has_property_key,
+  type JsonSchema, type SchemaProperty, type Value, ObjectValue,
+  has_property_key,
 }
 import formosh/validation/error.{type ValidationError}
 import gleam/dict.{type Dict}
@@ -166,7 +167,7 @@ pub fn init_with_full_config(
   // (now Value-typed) defaults pass walk it like any nested object.
   let initial_value = ObjectValue(dict.to_list(initial_values))
   let values_with_defaults =
-    apply_schema_defaults(schema.properties, initial_value)
+    defaults.apply_schema_defaults(schema.properties, initial_value)
   FormModel(
     schema: schema,
     resolved_schema: schema,
@@ -183,135 +184,6 @@ pub fn init_with_full_config(
     upload_base_url: option.None,
     upload_states: dict.new(),
   )
-}
-
-// Merge JSON Schema defaults into a hierarchical Value. Each declared
-// property is walked: existing non-null entries are kept; missing or
-// NullValue entries are filled from `property.default` (or, for ObjectType,
-// from a synthesised inner default tree). Caller-supplied keys not declared
-// in the schema are preserved verbatim and appended after the declared
-// block, matching the previous Dict-based ordering guarantee.
-//
-// Form storage is one ObjectValue tree by construction (init/reset build
-// one; every handler writes Value back through `path.set_at_path`), so the
-// `let assert` enforces the invariant: a scalar or array at the form root
-// would be a programming error, not a runtime data shape we silently fall
-// back to.
-fn apply_schema_defaults(
-  properties: List(#(String, SchemaProperty)),
-  value: Value,
-) -> Value {
-  let assert ObjectValue(fields) = value
-  ObjectValue(merge_property_defaults(properties, fields))
-}
-
-// Walk the declared properties in schema order, materialising each entry's
-// post-default value, then append any extra keys (additionalProperties,
-// legacy fields) in their original order. NullValue is treated as "absent"
-// so a schema `default` can fill it — see `apply_schema_defaults` doc for
-// why this only applies during init/reset.
-fn merge_property_defaults(
-  properties: List(#(String, SchemaProperty)),
-  fields: List(#(String, Value)),
-) -> List(#(String, Value)) {
-  let declared =
-    list.filter_map(properties, fn(pair) {
-      let #(field_name, property) = pair
-      let current = case list.key_find(fields, field_name) {
-        Ok(NullValue) -> option.None
-        Ok(v) -> option.Some(v)
-        Error(_) -> option.None
-      }
-      case apply_defaults_to_value(property, current) {
-        option.Some(v) -> Ok(#(field_name, v))
-        option.None -> Error(Nil)
-      }
-    })
-  let declared_names = list.map(properties, fn(pair) { pair.0 })
-  let extras =
-    list.filter(fields, fn(pair) { !list.contains(declared_names, pair.0) })
-  list.append(declared, extras)
-}
-
-// Compute the post-default value for a single field. Returns None when the
-// field has no current value and no schema default would produce one
-// (so the caller leaves the key absent rather than inserting an empty hole).
-fn apply_defaults_to_value(
-  property: SchemaProperty,
-  current: Option(Value),
-) -> Option(Value) {
-  case current {
-    option.None -> defaults_for_missing(property)
-    option.Some(ObjectValue(fields)) ->
-      option.Some(merge_object_defaults(property, fields))
-    option.Some(ArrayValue(items)) ->
-      option.Some(map_array_item_defaults(property, items))
-    option.Some(other) -> option.Some(other)
-  }
-}
-
-// Build a value for a field that currently has nothing set:
-// prefer `property.default`, otherwise synthesise an ObjectValue from
-// sub-property defaults (so a missing nested object can still surface its
-// inner defaults). Arrays are NOT auto-populated — without a hydrated
-// array we cannot guess how many items to create.
-fn defaults_for_missing(property: SchemaProperty) -> Option(Value) {
-  case property.default {
-    option.Some(d) -> option.Some(d)
-    option.None ->
-      case property.field_type, property.properties {
-        option.Some(ObjectType), option.Some(sub_props) -> {
-          let built =
-            list.filter_map(sub_props, fn(pair) {
-              let #(name, sub_prop) = pair
-              case apply_defaults_to_value(sub_prop, option.None) {
-                option.Some(v) -> Ok(#(name, v))
-                option.None -> Error(Nil)
-              }
-            })
-          case built {
-            [] -> option.None
-            _ -> option.Some(ObjectValue(built))
-          }
-        }
-        _, _ -> option.None
-      }
-  }
-}
-
-// Recurse into an existing ObjectValue, filling missing sub-fields from
-// their defaults. Delegates to `merge_property_defaults` so schema order
-// and extra-key preservation are handled in a single place.
-fn merge_object_defaults(
-  property: SchemaProperty,
-  fields: List(#(String, Value)),
-) -> Value {
-  case property.properties {
-    option.Some(sub_props) ->
-      ObjectValue(merge_property_defaults(sub_props, fields))
-    option.None -> ObjectValue(fields)
-  }
-}
-
-// Recurse into each existing array item using the items-schema. We do not
-// create new items — defaults only apply inside elements the caller
-// already hydrated. `apply_defaults_to_value` is total for any
-// `Some(_)` input, so we can `let assert` the result.
-fn map_array_item_defaults(
-  property: SchemaProperty,
-  items: List(Value),
-) -> Value {
-  case property.items {
-    option.Some(item_schema) ->
-      ArrayValue(
-        list.map(items, fn(item) {
-          let assert option.Some(v) =
-            apply_defaults_to_value(item_schema, option.Some(item))
-          v
-        }),
-      )
-    option.None -> ArrayValue(items)
-  }
 }
 
 /// Check if a field at a path has been touched (focused and then blurred).
@@ -370,7 +242,10 @@ pub fn reset(model: FormModel) -> FormModel {
     resolved_schema: model.schema,
     // Reset to base schema with no conditionals applied;
     // re-apply schema defaults to stay consistent with init.
-    values: apply_schema_defaults(model.schema.properties, ObjectValue([])),
+    values: defaults.apply_schema_defaults(
+      model.schema.properties,
+      ObjectValue([]),
+    ),
     errors: dict.new(),
     is_submitting: False,
     is_dirty: False,
@@ -488,6 +363,59 @@ fn required_in_node(
         Error(_) -> False
       }
     _ -> False
+  }
+}
+
+/// Resolve the `SchemaProperty` at any depth in the current resolved schema.
+///
+/// Walks `model.resolved_schema.properties` along `field_path`, descending
+/// into `prop.properties` for `PropertySegment` and into `prop.items` for
+/// `ArraySegment`. Returns `Error(Nil)` for empty paths, paths starting
+/// with `ArraySegment`, or paths that don't land on a declared property
+/// (missing key, or a scalar/array property without further structure).
+///
+/// Useful for any feature that needs the schema metadata of a nested
+/// field — e.g. resolving `upload_config` for `image-upload` widgets that
+/// live inside array items or nested objects.
+pub fn find_property_at_path(
+  model: FormModel,
+  field_path: FieldPath,
+) -> Result(SchemaProperty, Nil) {
+  lookup_property(model.resolved_schema.properties, field_path)
+}
+
+fn lookup_property(
+  properties: List(#(String, SchemaProperty)),
+  field_path: FieldPath,
+) -> Result(SchemaProperty, Nil) {
+  case field_path {
+    [path.PropertySegment(name)] -> list.key_find(properties, name)
+    [path.PropertySegment(name), ..rest] ->
+      case list.key_find(properties, name) {
+        Ok(prop) -> walk_into_property(prop, rest)
+        Error(_) -> Error(Nil)
+      }
+    _ -> Error(Nil)
+  }
+}
+
+fn walk_into_property(
+  property: SchemaProperty,
+  rest: FieldPath,
+) -> Result(SchemaProperty, Nil) {
+  case rest {
+    [] -> Ok(property)
+    [path.PropertySegment(_), ..] ->
+      case property.properties {
+        option.Some(sub) -> lookup_property(sub, rest)
+        option.None -> Error(Nil)
+      }
+    [path.ArraySegment(_), ..rest_after_array] ->
+      case property.items {
+        option.Some(items_schema) ->
+          walk_into_property(items_schema, rest_after_array)
+        option.None -> Error(Nil)
+      }
   }
 }
 

@@ -449,18 +449,9 @@ fn create_upload_effect(
   case model.upload_base_url {
     None -> effect.none()
     Some(upload_url) -> {
-      // Look up the property to get upload config
-      let first_segment = case field_path {
-        [path.PropertySegment(name), ..] -> Some(name)
-        _ -> None
-      }
-      let config = case first_segment {
-        Some(name) ->
-          case list.key_find(model.resolved_schema.properties, name) {
-            Ok(prop) -> prop.upload_config
-            Error(_) -> None
-          }
-        None -> None
+      let config = case model.find_property_at_path(model, field_path) {
+        Ok(prop) -> prop.upload_config
+        Error(_) -> None
       }
       let accept = case config {
         Some(c) -> c.accept
