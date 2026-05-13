@@ -321,7 +321,8 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 fn validate_field(model: FormModel, field_name: String) -> FormModel {
   case list.key_find(model.resolved_schema.properties, field_name) {
     Ok(property) -> {
-      let value = model.get_field_value(model, field_name)
+      let field_path = path.from_field_name(field_name)
+      let value = model.get_value_at_path(model, field_path)
       let errors =
         validator.validate_field(
           field_name,
@@ -331,12 +332,12 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
         )
 
       case errors {
-        [] -> model.clear_field_errors(model, field_name)
+        [] -> model.clear_errors_at_path(model, field_path)
         _ -> {
           list.fold(
             errors,
-            model.clear_field_errors(model, field_name),
-            fn(acc, error) { model.add_field_error(acc, field_name, error) },
+            model.clear_errors_at_path(model, field_path),
+            fn(acc, error) { model.add_error_at_path(acc, field_path, error) },
           )
         }
       }
@@ -375,7 +376,7 @@ pub fn validate_all_fields(model: FormModel) -> FormModel {
     let nested_errors =
       validator.validate_nested(field_name, property, field_value)
     list.fold(nested_errors, acc, fn(m, err) {
-      model.add_field_error(m, err.field, err)
+      model.add_error_at_path(m, path.from_string(err.field), err)
     })
   })
 }

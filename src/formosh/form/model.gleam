@@ -5,7 +5,6 @@ import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type ValidationError, type Value,
   ArrayValue, NullValue, ObjectType, ObjectValue, has_property_key,
 }
-import formosh/validation/field_requirements
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option}
@@ -190,7 +189,7 @@ fn apply_schema_defaults(
     let #(field_name, property) = pair
     // Top-level NullValue is treated as "absent" so a schema `default`
     // can fill it. This is intentional and applies only during init/reset
-    // — runtime field updates flow through `set_field_value` and do not
+    // — runtime field updates flow through `UpdateFieldPath` and do not
     // re-enter this code, so explicit user clears (NullValue dispatched
     // from empty inputs) are not silently turned back into defaults.
     let current = case dict.get(acc, field_name) {
@@ -301,11 +300,9 @@ fn map_array_item_defaults(
   }
 }
 
-/// Check if a field is required according to the schema.
+/// Check if a top-level field is required according to the current resolved schema.
 ///
-/// Delegates to the centralized field_requirements module to determine
-/// if a field is required. This is used for validation and rendering
-/// required field indicators.
+/// Convenience wrapper over `is_required_at_path` for root-level fields.
 ///
 /// ## Parameters
 /// - `model`: The form model containing the schema
@@ -314,24 +311,7 @@ fn map_array_item_defaults(
 /// ## Returns
 /// True if the field is required, False otherwise
 pub fn is_field_required(model: FormModel, field_name: String) -> Bool {
-  field_requirements.is_required(model.schema, field_name)
-}
-
-/// Check if a field has any validation errors.
-/// 
-/// This is useful for conditional rendering of error states and styling.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing error state
-/// - `field_name`: The name of the field to check
-/// 
-/// ## Returns
-/// True if the field has one or more validation errors, False otherwise
-pub fn field_has_errors(model: FormModel, field_name: String) -> Bool {
-  case dict.get(model.errors, field_name) {
-    Ok(errors) -> errors != []
-    Error(_) -> False
-  }
+  is_required_at_path(model, path.from_field_name(field_name))
 }
 
 /// Check if a field has been touched (focused and then blurred).
@@ -363,112 +343,6 @@ pub fn is_field_touched(model: FormModel, field_name: String) -> Bool {
 /// True if the field is disabled, False otherwise
 pub fn is_field_disabled(model: FormModel, field_name: String) -> Bool {
   list.contains(model.disabled_fields, field_name)
-}
-
-/// Get the current value of a field.
-/// 
-/// Retrieves the current value for a named field from the form's value store.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing field values
-/// - `field_name`: The name of the field to retrieve
-/// 
-/// ## Returns
-/// - `Some(Value)` if the field has a value
-/// - `None` if the field has not been set or doesn't exist
-pub fn get_field_value(model: FormModel, field_name: String) -> Option(Value) {
-  case dict.get(model.values, field_name) {
-    Ok(value) -> option.Some(value)
-    Error(_) -> option.None
-  }
-}
-
-/// Get all validation errors for a specific field.
-/// 
-/// Returns the list of validation errors associated with a field name.
-/// This is used for displaying error messages in the UI.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing error state
-/// - `field_name`: The name of the field to get errors for
-/// 
-/// ## Returns
-/// A list of ValidationError objects. Empty list means no errors.
-pub fn get_field_errors(
-  model: FormModel,
-  field_name: String,
-) -> List(ValidationError) {
-  case dict.get(model.errors, field_name) {
-    Ok(errors) -> errors
-    Error(_) -> []
-  }
-}
-
-/// Set the value of a field and mark the form as dirty.
-/// 
-/// Updates a field's value in the form model and marks the form as dirty
-/// (indicating it has been modified from its initial state).
-/// 
-/// ## Parameters
-/// - `model`: The current form model
-/// - `field_name`: The name of the field to update
-/// - `value`: The new value for the field
-/// 
-/// ## Returns
-/// A new FormModel with the updated field value and dirty state
-pub fn set_field_value(
-  model: FormModel,
-  field_name: String,
-  value: Value,
-) -> FormModel {
-  FormModel(
-    ..model,
-    values: dict.insert(model.values, field_name, value),
-    is_dirty: True,
-  )
-}
-
-/// Add a validation error to a field.
-/// 
-/// Appends a new validation error to the field's error list and marks
-/// the form as invalid.
-/// 
-/// ## Parameters
-/// - `model`: The current form model
-/// - `field_name`: The name of the field to add the error to
-/// - `error`: The validation error to add
-/// 
-/// ## Returns
-/// A new FormModel with the added error and updated validity state
-pub fn add_field_error(
-  model: FormModel,
-  field_name: String,
-  error: ValidationError,
-) -> FormModel {
-  let current_errors = get_field_errors(model, field_name)
-  let new_errors = list.append(current_errors, [error])
-
-  FormModel(
-    ..model,
-    errors: dict.insert(model.errors, field_name, new_errors),
-    is_valid: False,
-  )
-}
-
-/// Clear all validation errors for a specific field.
-/// 
-/// Removes all validation errors associated with a field name and updates
-/// the form's overall validity if this was the last field with errors.
-/// 
-/// ## Parameters
-/// - `model`: The current form model
-/// - `field_name`: The name of the field to clear errors for
-/// 
-/// ## Returns
-/// A new FormModel with the field's errors cleared
-pub fn clear_field_errors(model: FormModel, field_name: String) -> FormModel {
-  let new_errors = dict.delete(model.errors, field_name)
-  FormModel(..model, errors: new_errors, is_valid: dict.size(new_errors) == 0)
 }
 
 /// Clear all validation errors from the form.
@@ -583,11 +457,12 @@ pub fn get_value_at_path(
 ) -> Option(Value) {
   case field_path {
     [] -> option.None
-    [path.PropertySegment(name)] -> get_field_value(model, name)
+    [path.PropertySegment(name)] ->
+      dict.get(model.values, name) |> option.from_result
     [path.PropertySegment(name), ..rest] ->
-      case get_field_value(model, name) {
-        option.Some(types.ArrayValue(items)) -> traverse_array_path(items, rest)
-        option.Some(types.ObjectValue(obj)) -> traverse_object_path(obj, rest)
+      case dict.get(model.values, name) {
+        Ok(types.ArrayValue(items)) -> traverse_array_path(items, rest)
+        Ok(types.ObjectValue(obj)) -> traverse_object_path(obj, rest)
         _ -> option.None
       }
     [path.ArraySegment(_), ..] ->
@@ -661,24 +536,58 @@ fn traverse_object_path(
   }
 }
 
-/// Check if a field at a specific path is required.
-/// 
-/// For root-level fields, checks the schema's required list.
-/// For nested fields, would need schema traversal (not implemented yet).
-/// 
-/// ## Parameters
-/// - `model`: The form model containing the schema
-/// - `field_path`: The path to the field
-/// 
-/// ## Returns
-/// True if the field is required, False otherwise
+/// Check if a field at any depth is required by the current resolved schema.
+///
+/// Traverses `model.resolved_schema` along `field_path`, reading the
+/// `required` list of each containing object/array-item. Top-level
+/// `if/then/else` conditionals are already applied (root is resolved); item-level
+/// conditionals inside `items.allOf` are not yet resolved here (PR 5).
+///
+/// Returns False for empty paths, paths that don't resolve to a property
+/// (intermediate scalar, missing key), or paths starting with `ArraySegment`.
 pub fn is_required_at_path(model: FormModel, field_path: FieldPath) -> Bool {
+  required_in_node(
+    model.resolved_schema.properties,
+    model.resolved_schema.required,
+    field_path,
+  )
+}
+
+fn required_in_node(
+  properties: List(#(String, SchemaProperty)),
+  required: List(String),
+  field_path: FieldPath,
+) -> Bool {
   case field_path {
-    [path.PropertySegment(name)] -> is_field_required(model, name)
-    _ ->
-      // For nested paths, we'd need to traverse the schema
-      // For now, default to not required for nested fields
-      False
+    [path.PropertySegment(name)] -> list.contains(required, name)
+    [path.PropertySegment(name), path.PropertySegment(child), ..rest] ->
+      case list.key_find(properties, name) {
+        Ok(prop) ->
+          case prop.properties {
+            option.Some(sub) ->
+              required_in_node(sub, prop.required, [
+                path.PropertySegment(child),
+                ..rest
+              ])
+            option.None -> False
+          }
+        Error(_) -> False
+      }
+    [path.PropertySegment(name), path.ArraySegment(_), ..rest] ->
+      case list.key_find(properties, name) {
+        Ok(prop) ->
+          case prop.items {
+            option.Some(items_schema) ->
+              case items_schema.properties {
+                option.Some(item_props) ->
+                  required_in_node(item_props, items_schema.required, rest)
+                option.None -> False
+              }
+            option.None -> False
+          }
+        Error(_) -> False
+      }
+    _ -> False
   }
 }
 
@@ -717,28 +626,30 @@ pub fn get_errors_at_path(
   }
 }
 
-/// Set the value at a specific path in the form.
-/// 
-/// Updates a value at the given path, handling nested structures.
-/// 
-/// ## Parameters
-/// - `model`: The current form model
-/// - `field_path`: The path where to set the value
-/// - `value`: The new value
-/// 
-/// ## Returns
-/// A new FormModel with the updated value
-pub fn set_value_at_path(
+/// Add a validation error to a field at the given path.
+pub fn add_error_at_path(
   model: FormModel,
   field_path: FieldPath,
-  value: Value,
+  error: ValidationError,
 ) -> FormModel {
   let path_key = path.to_string(field_path)
+  let current = get_errors_at_path(model, field_path)
+  let new_errors = list.append(current, [error])
   FormModel(
     ..model,
-    values: dict.insert(model.values, path_key, value),
-    is_dirty: True,
+    errors: dict.insert(model.errors, path_key, new_errors),
+    is_valid: False,
   )
+}
+
+/// Clear all validation errors for a field at the given path.
+pub fn clear_errors_at_path(
+  model: FormModel,
+  field_path: FieldPath,
+) -> FormModel {
+  let path_key = path.to_string(field_path)
+  let new_errors = dict.delete(model.errors, path_key)
+  FormModel(..model, errors: new_errors, is_valid: dict.size(new_errors) == 0)
 }
 
 /// Check if the form can be submitted.

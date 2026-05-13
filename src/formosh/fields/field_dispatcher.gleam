@@ -27,11 +27,12 @@ import lustre/element/html
 
 /// Render a single form field at the given path.
 ///
-/// `is_required`, `is_disabled`, `is_readonly` are decided by the *parent*
-/// (root view, array container, object container) — `field_path` alone is
-/// not enough to know if a field is required because `required` is declared
-/// on the parent schema. The recursive `is_required_at_path` lookup arrives
-/// in PR 2; until then callers pass it explicitly.
+/// `is_required`, `is_disabled`, `is_readonly` come from the *parent*
+/// (root view, array container, object container). The parent has direct
+/// access to its own `required` list and can pass an item-resolved value
+/// (e.g. after `allOf` for array rows), which a path-based lookup against
+/// the form-level resolved schema cannot yet see. The recursive
+/// `model.is_required_at_path/2` is available for external callers.
 pub fn render_field_at_path(
   field_path: FieldPath,
   property: SchemaProperty,

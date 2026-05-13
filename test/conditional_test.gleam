@@ -630,7 +630,7 @@ pub fn validate_all_fields_conditional_required_test() {
 
   let validated_true = update.validate_all_fields(form_model_true)
   // extra_field should have a required error
-  model.field_has_errors(validated_true, "extra_field")
+  model.has_errors_at_path(validated_true, path.from_field_name("extra_field"))
   |> should.be_true()
 
   // flag=false → no error on extra_field (field not in resolved schema)
@@ -650,7 +650,7 @@ pub fn validate_all_fields_conditional_required_test() {
     )
 
   let validated_false = update.validate_all_fields(form_model_false)
-  model.field_has_errors(validated_false, "extra_field")
+  model.has_errors_at_path(validated_false, path.from_field_name("extra_field"))
   |> should.be_false()
 }
 
@@ -920,7 +920,10 @@ pub fn validate_all_fields_array_item_required_test() {
 
   // Path-keyed error for the missing required field appears on the model.
   // Format matches `path.to_string` — `<array>.[<index>].<field>`.
-  model.field_has_errors(validated, "lesions.[0].visible")
+  model.has_errors_at_path(
+    validated,
+    path.to_array_item_field("lesions", 0, "visible"),
+  )
   |> should.be_true()
 
   // Filling visible="yes" cascades into conclusion being required.
@@ -939,7 +942,10 @@ pub fn validate_all_fields_array_item_required_test() {
     model.FormModel(..form_model, values: values2, resolved_schema: resolved2)
 
   let validated2 = update.validate_all_fields(form_model2)
-  model.field_has_errors(validated2, "lesions.[0].conclusion")
+  model.has_errors_at_path(
+    validated2,
+    path.to_array_item_field("lesions", 0, "conclusion"),
+  )
   |> should.be_true()
 
   // Switching is_resected back to false clears all conditional errors.
@@ -958,9 +964,15 @@ pub fn validate_all_fields_array_item_required_test() {
     model.FormModel(..form_model, values: values3, resolved_schema: resolved3)
 
   let validated3 = update.validate_all_fields(form_model3)
-  model.field_has_errors(validated3, "lesions.[0].visible")
+  model.has_errors_at_path(
+    validated3,
+    path.to_array_item_field("lesions", 0, "visible"),
+  )
   |> should.be_false()
-  model.field_has_errors(validated3, "lesions.[0].conclusion")
+  model.has_errors_at_path(
+    validated3,
+    path.to_array_item_field("lesions", 0, "conclusion"),
+  )
   |> should.be_false()
 }
 
@@ -1075,11 +1087,17 @@ pub fn array_items_multi_row_independent_validation_test() {
   let validated = update.validate_all_fields(form_model)
 
   // Row 0 has the conditional-required `visible` missing.
-  model.field_has_errors(validated, "lesions.[0].visible")
+  model.has_errors_at_path(
+    validated,
+    path.to_array_item_field("lesions", 0, "visible"),
+  )
   |> should.be_true()
   // Row 1 should NOT have a `visible` error — visible isn't even in its
   // resolved schema (is_resected=False).
-  model.field_has_errors(validated, "lesions.[1].visible")
+  model.has_errors_at_path(
+    validated,
+    path.to_array_item_field("lesions", 1, "visible"),
+  )
   |> should.be_false()
 }
 
@@ -1176,10 +1194,216 @@ pub fn validate_top_level_object_nested_required_test() {
 
   let validated = update.validate_all_fields(form_model)
 
+  let address_street_path = [
+    path.PropertySegment("address"),
+    path.PropertySegment("street"),
+  ]
+  let address_city_path = [
+    path.PropertySegment("address"),
+    path.PropertySegment("city"),
+  ]
   // Error is keyed under the canonical "<parent>.<child>" format.
-  model.field_has_errors(validated, "address.street")
+  model.has_errors_at_path(validated, address_street_path)
   |> should.be_true()
   // Sibling that was provided has no errors.
-  model.field_has_errors(validated, "address.city")
+  model.has_errors_at_path(validated, address_city_path)
   |> should.be_false()
+}
+
+// ----------------------------------------------------------------------------
+// is_required_at_path tests
+// ----------------------------------------------------------------------------
+
+fn simple_required_schema_json() -> String {
+  "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"name\":     {\"type\": \"string\"},
+      \"optional\": {\"type\": \"string\"}
+    },
+    \"required\": [\"name\"]
+  }"
+}
+
+fn parse_form_model(json: String) -> model.FormModel {
+  let assert Ok(parsed) = parser.parse_schema(json)
+  model.init(parsed)
+}
+
+pub fn is_required_at_path_root_required_test() {
+  let form_model = parse_form_model(simple_required_schema_json())
+  model.is_required_at_path(form_model, path.from_field_name("name"))
+  |> should.be_true()
+}
+
+pub fn is_required_at_path_root_not_required_test() {
+  let form_model = parse_form_model(simple_required_schema_json())
+  model.is_required_at_path(form_model, path.from_field_name("optional"))
+  |> should.be_false()
+}
+
+pub fn is_required_at_path_root_missing_test() {
+  let form_model = parse_form_model(simple_required_schema_json())
+  model.is_required_at_path(form_model, path.from_field_name("ghost"))
+  |> should.be_false()
+}
+
+fn nested_object_schema_json() -> String {
+  "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"address\": {
+        \"type\": \"object\",
+        \"properties\": {
+          \"street\": {\"type\": \"string\"},
+          \"city\":   {\"type\": \"string\"}
+        },
+        \"required\": [\"street\"]
+      }
+    }
+  }"
+}
+
+pub fn is_required_at_path_nested_object_required_test() {
+  let form_model = parse_form_model(nested_object_schema_json())
+  let street_path = [
+    path.PropertySegment("address"),
+    path.PropertySegment("street"),
+  ]
+  model.is_required_at_path(form_model, street_path)
+  |> should.be_true()
+}
+
+pub fn is_required_at_path_nested_object_not_required_test() {
+  let form_model = parse_form_model(nested_object_schema_json())
+  let city_path = [
+    path.PropertySegment("address"),
+    path.PropertySegment("city"),
+  ]
+  model.is_required_at_path(form_model, city_path)
+  |> should.be_false()
+}
+
+pub fn is_required_at_path_array_item_required_test() {
+  let form_model = parse_form_model(lesions_schema_json())
+  let p = path.to_array_item_field("lesions", 0, "lesion_num")
+  model.is_required_at_path(form_model, p)
+  |> should.be_true()
+}
+
+pub fn is_required_at_path_array_item_not_required_test() {
+  // `visible` becomes required only via `allOf` (item-level conditional),
+  // which is not resolved by the static walk in PR 2. Expect False.
+  let form_model = parse_form_model(lesions_schema_json())
+  let p = path.to_array_item_field("lesions", 0, "visible")
+  model.is_required_at_path(form_model, p)
+  |> should.be_false()
+}
+
+fn deep_object_in_array_schema_json() -> String {
+  "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"outer\": {
+        \"type\": \"array\",
+        \"items\": {
+          \"type\": \"object\",
+          \"properties\": {
+            \"inner\": {
+              \"type\": \"object\",
+              \"properties\": {
+                \"leaf\": {\"type\": \"string\"}
+              },
+              \"required\": [\"leaf\"]
+            }
+          }
+        }
+      }
+    }
+  }"
+}
+
+pub fn is_required_at_path_deep_object_in_array_test() {
+  let form_model = parse_form_model(deep_object_in_array_schema_json())
+  let p = [
+    path.PropertySegment("outer"),
+    path.ArraySegment(0),
+    path.PropertySegment("inner"),
+    path.PropertySegment("leaf"),
+  ]
+  model.is_required_at_path(form_model, p)
+  |> should.be_true()
+}
+
+pub fn is_required_at_path_empty_test() {
+  let form_model = parse_form_model(simple_required_schema_json())
+  model.is_required_at_path(form_model, [])
+  |> should.be_false()
+}
+
+pub fn is_required_at_path_leading_array_segment_test() {
+  let form_model = parse_form_model(simple_required_schema_json())
+  model.is_required_at_path(form_model, [
+    path.ArraySegment(0),
+    path.PropertySegment("name"),
+  ])
+  |> should.be_false()
+}
+
+pub fn is_required_at_path_intermediate_scalar_test() {
+  // `name` is a string scalar — path tries to descend further, must fall through.
+  let form_model = parse_form_model(simple_required_schema_json())
+  let p = [path.PropertySegment("name"), path.PropertySegment("subfield")]
+  model.is_required_at_path(form_model, p)
+  |> should.be_false()
+}
+
+/// view.gleam now uses `is_required_at_path` over `resolved_schema`, so root
+/// fields surfaced by a conditional then-branch appear as required only
+/// after the condition is satisfied.
+pub fn is_required_at_path_root_required_in_then_branch_test() {
+  let schema_json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"flag\": {\"type\": \"boolean\"}
+      },
+      \"if\":   {\"properties\": {\"flag\": {\"const\": true}}},
+      \"then\": {
+        \"properties\": {\"extra\": {\"type\": \"string\"}},
+        \"required\": [\"extra\"]
+      }
+    }"
+  let assert Ok(parsed) = parser.parse_schema(schema_json)
+
+  // Base `schema.required` never contains "extra" — only the resolved
+  // version sees it after the condition fires. This guards against
+  // regressions where `view.render_field` consulted `model.schema`.
+  list.contains(parsed.required, "extra") |> should.be_false()
+
+  // flag=false → `extra` not required (it's not even in resolved properties)
+  let values_off = dict.from_list([#("flag", BooleanValue(False))])
+  let resolved_off =
+    conditional_resolver.resolve_conditional_schema(parsed, values_off)
+  let model_off =
+    model.FormModel(
+      ..model.init(parsed),
+      values: values_off,
+      resolved_schema: resolved_off,
+    )
+  model.is_required_at_path(model_off, path.from_field_name("extra"))
+  |> should.be_false()
+
+  // flag=true → `extra` required, surfaced only via resolved_schema
+  let values_on = dict.from_list([#("flag", BooleanValue(True))])
+  let resolved_on =
+    conditional_resolver.resolve_conditional_schema(parsed, values_on)
+  let model_on =
+    model.FormModel(
+      ..model.init(parsed),
+      values: values_on,
+      resolved_schema: resolved_on,
+    )
+  model.is_required_at_path(model_on, path.from_field_name("extra"))
+  |> should.be_true()
 }

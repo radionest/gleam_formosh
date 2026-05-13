@@ -1,5 +1,6 @@
 import formosh/path_format
 import formosh/schema/types
+import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -20,6 +21,34 @@ pub type PathSegment {
 /// Create a path from a simple field name.
 pub fn from_field_name(field_name: String) -> FieldPath {
   [PropertySegment(field_name)]
+}
+
+/// Parse a path-string back into a `FieldPath`.
+///
+/// Inverse of `to_string` for paths produced by it: segments separated by
+/// `.`, with `[N]` denoting an array index. `to_string(from_string(s)) == s`
+/// holds for any `s` originally produced by `to_string` (i.e. when field
+/// names contain neither `.` nor `[]`). The empty string maps to `[]`.
+pub fn from_string(s: String) -> FieldPath {
+  case s {
+    "" -> []
+    _ ->
+      string.split(s, ".")
+      |> list.map(parse_segment)
+  }
+}
+
+fn parse_segment(segment: String) -> PathSegment {
+  case string.starts_with(segment, "[") && string.ends_with(segment, "]") {
+    True -> {
+      let inner = string.slice(segment, 1, string.length(segment) - 2)
+      case int.parse(inner) {
+        Ok(i) -> ArraySegment(i)
+        Error(_) -> PropertySegment(segment)
+      }
+    }
+    False -> PropertySegment(segment)
+  }
 }
 
 /// Create a path to an array item's field.

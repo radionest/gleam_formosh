@@ -4,7 +4,6 @@ import formosh/fields/field_dispatcher
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
 import formosh/schema/types
-import formosh/validation/field_requirements
 import gleam/list
 import gleam/option.{None, Some}
 import lustre/attribute
@@ -61,7 +60,7 @@ fn render_field(
   property: types.SchemaProperty,
 ) -> Element(FormMsg) {
   let field_path = path.from_field_name(field_name)
-  let is_required = field_requirements.is_required(model.schema, field_name)
+  let is_required = model.is_required_at_path(model, field_path)
   let is_disabled = model.is_field_disabled(model, field_name)
   let is_readonly = property.read_only
   field_dispatcher.render_field_at_path(

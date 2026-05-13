@@ -189,4 +189,47 @@ pub fn add_array_item_nested_test() {
   |> should.equal(option.Some(types.NumberValue(15.0)))
 }
 
+pub fn from_string_empty_test() {
+  path.from_string("")
+  |> should.equal([])
+}
+
+pub fn from_string_single_property_test() {
+  path.from_string("email")
+  |> should.equal([path.PropertySegment("email")])
+}
+
+pub fn from_string_nested_property_test() {
+  path.from_string("address.street")
+  |> should.equal([
+    path.PropertySegment("address"),
+    path.PropertySegment("street"),
+  ])
+}
+
+pub fn from_string_array_item_field_test() {
+  path.from_string("lesions.[0].visible")
+  |> should.equal([
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("visible"),
+  ])
+}
+
+pub fn from_string_round_trip_test() {
+  let originals = [
+    "email",
+    "address.street",
+    "lesions.[0].visible",
+    "outer.[2].inner.[10].leaf",
+  ]
+  originals
+  |> list.each(fn(s) {
+    path.from_string(s)
+    |> path.to_string
+    |> should.equal(s)
+  })
+}
+
+import gleam/list
 import gleam/option
