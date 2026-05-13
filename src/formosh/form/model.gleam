@@ -2,9 +2,10 @@
 
 import formosh/form/path.{type FieldPath}
 import formosh/schema/types.{
-  type JsonSchema, type SchemaProperty, type ValidationError, type Value,
-  ArrayValue, NullValue, ObjectType, ObjectValue, has_property_key,
+  type JsonSchema, type SchemaProperty, type Value, ArrayValue, NullValue,
+  ObjectType, ObjectValue, has_property_key,
 }
+import formosh/validation/error.{type ValidationError}
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option}
@@ -42,9 +43,9 @@ pub type FormModel {
     is_dirty: Bool,
     is_valid: Bool,
     // Touched fields (for showing errors)
-    touched_fields: List(String),
+    touched_fields: List(FieldPath),
     // Disabled fields
-    disabled_fields: List(String),
+    disabled_fields: List(FieldPath),
     // Form submission result
     submission_result: Option(SubmissionResult),
     // Submission configuration
@@ -300,35 +301,18 @@ fn map_array_item_defaults(
   }
 }
 
-/// Check if a field has been touched (focused and then blurred).
-/// 
-/// Touched fields are typically used to determine when to show validation
-/// errors - usually errors are only shown after a user has interacted with
-/// a field to avoid showing errors on initial page load.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing touch state
-/// - `field_name`: The name of the field to check
-/// 
-/// ## Returns
-/// True if the field has been touched, False otherwise
-pub fn is_field_touched(model: FormModel, field_name: String) -> Bool {
-  list.contains(model.touched_fields, field_name)
+/// Check if a field at a path has been touched (focused and then blurred).
+///
+/// Touched state is keyed by `FieldPath` so nested fields can be tracked
+/// without ambiguity. Use the field's full path including any
+/// `ArraySegment`/`PropertySegment` chain leading up to it.
+pub fn is_field_touched(model: FormModel, field_path: FieldPath) -> Bool {
+  list.contains(model.touched_fields, field_path)
 }
 
-/// Check if a field is currently disabled.
-/// 
-/// Disabled fields cannot be edited and are typically rendered with
-/// different styling to indicate their state.
-/// 
-/// ## Parameters
-/// - `model`: The form model containing disabled field state
-/// - `field_name`: The name of the field to check
-/// 
-/// ## Returns
-/// True if the field is disabled, False otherwise
-pub fn is_field_disabled(model: FormModel, field_name: String) -> Bool {
-  list.contains(model.disabled_fields, field_name)
+/// Check if a field at a path is currently disabled.
+pub fn is_field_disabled(model: FormModel, field_path: FieldPath) -> Bool {
+  list.contains(model.disabled_fields, field_path)
 }
 
 /// Clear all validation errors from the form.
@@ -345,24 +329,14 @@ pub fn clear_all_errors(model: FormModel) -> FormModel {
   FormModel(..model, errors: dict.new(), is_valid: True)
 }
 
-/// Mark a field as touched (user has interacted with it).
-/// 
-/// Adds a field to the touched fields list if it's not already there.
-/// Touched state is used to determine when to show validation errors.
-/// 
-/// ## Parameters
-/// - `model`: The current form model
-/// - `field_name`: The name of the field to mark as touched
-/// 
-/// ## Returns
-/// A new FormModel with the field marked as touched
-pub fn mark_field_touched(model: FormModel, field_name: String) -> FormModel {
-  case is_field_touched(model, field_name) {
+/// Mark a field at the given path as touched.
+pub fn mark_field_touched(model: FormModel, field_path: FieldPath) -> FormModel {
+  case is_field_touched(model, field_path) {
     True -> model
     False ->
       FormModel(
         ..model,
-        touched_fields: list.append(model.touched_fields, [field_name]),
+        touched_fields: list.append(model.touched_fields, [field_path]),
       )
   }
 }

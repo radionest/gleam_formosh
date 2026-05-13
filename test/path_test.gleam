@@ -218,6 +218,11 @@ pub fn from_string_array_item_field_test() {
   ])
 }
 
+pub fn from_string_empty_brackets_test() {
+  path.from_string("[]")
+  |> should.equal([path.PropertySegment("[]")])
+}
+
 pub fn from_string_round_trip_test() {
   let originals = [
     "email",

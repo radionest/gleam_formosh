@@ -183,14 +183,6 @@ pub type FieldMeta {
   )
 }
 
-/// A validation error for a specific field.
-/// 
-/// This type represents a single validation failure with the field name,
-/// human-readable message, and the validation rule that failed.
-pub type ValidationError {
-  ValidationError(field: String, message: String, rule: String)
-}
-
 /// Create an empty StringConstraints with no validation rules.
 /// 
 /// This is useful as a default value when no string constraints are specified

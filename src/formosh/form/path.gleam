@@ -39,7 +39,15 @@ pub fn from_string(s: String) -> FieldPath {
 }
 
 fn parse_segment(segment: String) -> PathSegment {
-  case string.starts_with(segment, "[") && string.ends_with(segment, "]") {
+  // Require length > 2 so `"[]"` and similar empty brackets fall through
+  // to `PropertySegment(segment)` instead of feeding an empty inner string
+  // to `int.parse`. The documented round-trip with `to_string` only emits
+  // `"[N]"` with N ≥ 0, so this guard only affects malformed input.
+  case
+    string.starts_with(segment, "[")
+    && string.ends_with(segment, "]")
+    && string.length(segment) > 2
+  {
     True -> {
       let inner = string.slice(segment, 1, string.length(segment) - 2)
       case int.parse(inner) {

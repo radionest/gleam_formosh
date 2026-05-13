@@ -96,8 +96,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           new_values,
         )
 
-      let touched_model =
-        model.mark_field_touched(model, path.to_string(field_path))
+      let touched_model = model.mark_field_touched(model, field_path)
       let new_model =
         model.FormModel(
           ..touched_model,
@@ -324,7 +323,7 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
       let value = model.get_value_at_path(model, field_path)
       let errors =
         validator.validate_field(
-          field_name,
+          field_path,
           value,
           property,
           model.is_required_at_path(model, field_path),
@@ -371,11 +370,12 @@ pub fn validate_all_fields(model: FormModel) -> FormModel {
 
   list.fold(after_top.resolved_schema.properties, after_top, fn(acc, entry) {
     let #(field_name, property) = entry
+    let field_path = path.from_field_name(field_name)
     let field_value = dict.get(acc.values, field_name) |> option.from_result
     let nested_errors =
-      validator.validate_nested(field_name, property, field_value)
+      validator.validate_nested(field_path, property, field_value)
     list.fold(nested_errors, acc, fn(m, err) {
-      model.add_error_at_path(m, path.from_string(err.field), err)
+      model.add_error_at_path(m, err.field, err)
     })
   })
 }

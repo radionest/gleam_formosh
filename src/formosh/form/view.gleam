@@ -61,7 +61,7 @@ fn render_field(
 ) -> Element(FormMsg) {
   let field_path = path.from_field_name(field_name)
   let is_required = model.is_required_at_path(model, field_path)
-  let is_disabled = model.is_field_disabled(model, field_name)
+  let is_disabled = model.is_field_disabled(model, field_path)
   let is_readonly = property.read_only
   field_dispatcher.render_field_at_path(
     field_path,

@@ -2,10 +2,9 @@
 // This module provides a single source of truth for checking if fields are required
 // and validating required field values, eliminating code duplication across the codebase.
 
-import formosh/schema/types.{
-  type JsonSchema, type ValidationError, type Value, NullValue, StringValue,
-  ValidationError,
-}
+import formosh/form/path.{type FieldPath}
+import formosh/schema/types.{type JsonSchema, type Value, NullValue, StringValue}
+import formosh/validation/error.{type ValidationError, ValidationError}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 
@@ -51,7 +50,7 @@ pub fn is_required(schema: JsonSchema, field_name: String) -> Bool {
 /// }
 /// ```
 pub fn check_required_value(
-  field_name: String,
+  field_path: FieldPath,
   value: Option(Value),
   is_field_required: Bool,
 ) -> Result(Nil, ValidationError) {
@@ -61,13 +60,13 @@ pub fn check_required_value(
       case value {
         None | Some(NullValue) ->
           Error(ValidationError(
-            field: field_name,
+            field: field_path,
             message: "This field is required",
             rule: "required",
           ))
         Some(StringValue("")) ->
           Error(ValidationError(
-            field: field_name,
+            field: field_path,
             message: "This field is required",
             rule: "required",
           ))

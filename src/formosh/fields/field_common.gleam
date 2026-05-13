@@ -3,6 +3,7 @@
 import formosh/form/model.{type FormMsg, UpdateFieldPath}
 import formosh/form/path
 import formosh/schema/types
+import formosh/validation/error.{type ValidationError}
 import gleam/float
 import gleam/int
 import gleam/list
@@ -246,9 +247,7 @@ pub fn extract_boolean_value(value: Option(types.Value)) -> Bool {
 /// Wraps the messages in a `formosh-errors` container so the styling matches
 /// the rest of the form. Used by `view.gleam` for top-level fields and by
 /// `array_field.gleam` for item-level fields inside arrays.
-pub fn render_field_errors(
-  errors: List(types.ValidationError),
-) -> Element(FormMsg) {
+pub fn render_field_errors(errors: List(ValidationError)) -> Element(FormMsg) {
   html.div(
     [attribute.class("formosh-errors")],
     list.map(errors, fn(error) {

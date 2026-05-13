@@ -19,6 +19,7 @@ import formosh/fields/string_field
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path.{type FieldPath}
 import formosh/schema/types.{type SchemaProperty, type Value}
+import formosh/validation/error.{type ValidationError}
 import gleam/dict
 import gleam/option.{type Option, None, Some}
 import lustre/attribute
@@ -63,9 +64,8 @@ fn render_visible(
   is_disabled: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let path_key = path.to_string(field_path)
   let value = model.get_value_at_path(model, field_path)
-  let is_touched = model.is_field_touched(model, path_key)
+  let is_touched = model.is_field_touched(model, field_path)
   let errors = model.get_errors_at_path(model, field_path)
   let has_errors = errors != []
 
@@ -178,7 +178,7 @@ fn render_widget(
 
 fn wrap_with_errors(
   field_element: Element(FormMsg),
-  errors: List(types.ValidationError),
+  errors: List(ValidationError),
   is_touched: Bool,
   has_errors: Bool,
   is_readonly: Bool,
