@@ -106,7 +106,10 @@ pub type SchemaProperty {
     number_constraints: Option(NumberConstraints),
     // For array types
     items: Option(SchemaProperty),
-    // For object types
+    // For object types.
+    // Order-preserving: use `list.key_find` and other list helpers — never
+    // convert to a Dict, that drops the schema author's field order which
+    // rendering relies on.
     properties: Option(List(#(String, SchemaProperty))),
     required: List(String),
     // JSON Schema readOnly annotation
@@ -158,6 +161,8 @@ pub type JsonSchema {
     title: Option(String),
     description: Option(String),
     field_type: FieldType,
+    // Order-preserving (same contract as `SchemaProperty.properties`):
+    // use list helpers, never `dict.from_list`.
     properties: List(#(String, SchemaProperty)),
     required: List(String),
     // Schema definitions for reuse via $ref

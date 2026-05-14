@@ -12,8 +12,10 @@ Formosh is a JSON Schema-based form generator library for Gleam/Lustre that crea
 - If unstaged changes are already on main: `git stash` → `EnterWorktree` → `git stash pop`
 - Edits under `.claude/` (hooks, settings, agents) — allowed directly on main; `require-worktree.sh` whitelists `.claude/*` and blocks `Edit`/`Write` elsewhere
 - Worktrees contain only git-tracked files. `hooks/`, `settings.json`, `settings.local.json` live in `$CLAUDE_PROJECT_DIR/.claude/` and are shared
-- Before `gh pr create`: always run `Agent(subagent_type="pr-diff-reviewer", ...)` first — `pre-pr-review.sh` blocks `gh pr create` otherwise
+- Before `gh pr create`: always run `Agent(subagent_type="pr-diff-reviewer", ...)` first. This is an advisory rule — no hook enforces it; the reviewer's report is the gate
+- After `gh pr create` succeeds: `pr-monitor.sh` (PostToolUse Bash) auto-spawns `pr-watch.sh` in the background. CI report lands at `/tmp/pr-<N>-report.md` — read that file when the user asks about CI status, do not re-poll `gh pr checks`
 - After `gh pr create` succeeds: default to `ExitWorktree(keep)` silently — do not ask. Worktree stays until PR merges
+- `EnterWorktree(path)` borrows a worktree but does not own its lifecycle — `ExitWorktree(remove)` will refuse to delete it. Files placed outside git tracking (build artefacts, scratch dirs) are not cleaned up; remove them manually before exit
 - `ExitWorktree(remove)` requires `discard_changes=true` if there are commits not in main
 - Post-merge cleanup: `ExitWorktree(remove)` first, then `git pull --ff-only origin main`. Do not use `gh pr merge --delete-branch` while worktree exists — local branch deletion will fail
 - The Stop hook blocks session end in a worktree — ask the user to choose:
@@ -65,7 +67,9 @@ to_string(path: FieldPath) -> String    // Convert to dot notation
 get_field_name(path: FieldPath) -> String  // Extract final segment
 ```
 
-Form values are stored as `Dict(String, Value)` with dot-notation keys (e.g. `"user.name"` → `StringValue("John")`).
+Form values are stored as `Dict(String, Value)` with dot-notation keys (e.g. `"user.name"` → `StringValue("John")`). The same keys are used for `model.errors`.
+
+Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segment` + segment join rules). `path.to_string` delegates to it — treat `path_format.gleam` as the single source of truth and never re-implement the join elsewhere.
 
 ## Common Pitfalls
 
