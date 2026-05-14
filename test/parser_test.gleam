@@ -425,3 +425,73 @@ pub fn image_upload_custom_accept_test() {
     None -> panic as "Expected upload_config to be Some"
   }
 }
+
+pub fn array_addable_removable_defaults_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"items\": {
+        \"type\": \"array\",
+        \"items\": { \"type\": \"string\" }
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = list.key_find(schema.properties, "items")
+
+  should.be_true(prop.addable)
+  should.be_true(prop.removable)
+}
+
+pub fn array_addable_removable_explicit_false_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"items\": {
+        \"type\": \"array\",
+        \"x-addable\": false,
+        \"x-removable\": false,
+        \"items\": { \"type\": \"string\" }
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = list.key_find(schema.properties, "items")
+
+  should.be_false(prop.addable)
+  should.be_false(prop.removable)
+}
+
+pub fn array_addable_removable_independent_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"items\": {
+        \"type\": \"array\",
+        \"x-addable\": true,
+        \"x-removable\": false,
+        \"items\": { \"type\": \"string\" }
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = list.key_find(schema.properties, "items")
+
+  should.be_true(prop.addable)
+  should.be_false(prop.removable)
+}

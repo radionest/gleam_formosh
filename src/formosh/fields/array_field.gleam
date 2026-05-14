@@ -73,7 +73,7 @@ pub fn render_container(
         )
       }),
     ),
-    case is_readonly {
+    case is_readonly || !property.addable {
       True -> element.none()
       False ->
         html.button(
@@ -107,7 +107,7 @@ fn render_array_item(
           html.span([class("array-item-index")], [
             html.text("№ " <> int.to_string(index + 1)),
           ]),
-          case is_readonly {
+          case is_readonly || !property.removable {
             True -> element.none()
             False ->
               html.button(

@@ -253,6 +253,11 @@ function bitArrayByteAt(buffer, bitOffset, index5) {
     return a | b;
   }
 }
+var UtfCodepoint = class {
+  constructor(value2) {
+    this.value = value2;
+  }
+};
 var isBitArrayDeprecationMessagePrinted = {};
 function bitArrayPrintDeprecationWarning(name2, message2) {
   if (isBitArrayDeprecationMessagePrinted[name2]) {
@@ -277,7 +282,7 @@ var Ok = class extends Result {
     return true;
   }
 };
-var Error = class extends Result {
+var Error2 = class extends Result {
   constructor(detail) {
     super();
     this[0] = detail;
@@ -370,12 +375,18 @@ var Some = class extends CustomType {
 };
 var None = class extends CustomType {
 };
+function is_some(option2) {
+  return !(option2 instanceof None);
+}
+function is_none(option2) {
+  return option2 instanceof None;
+}
 function to_result(option2, e) {
   if (option2 instanceof Some) {
     let a = option2[0];
     return new Ok(a);
   } else {
-    return new Error(e);
+    return new Error2(e);
   }
 }
 function from_result(result) {
@@ -1114,6 +1125,21 @@ var Eq = class extends CustomType {
 var Gt = class extends CustomType {
 };
 
+// build/dev/javascript/gleam_stdlib/gleam/int.mjs
+function compare(a, b) {
+  let $ = a === b;
+  if ($) {
+    return new Eq();
+  } else {
+    let $1 = a < b;
+    if ($1) {
+      return new Lt();
+    } else {
+      return new Gt();
+    }
+  }
+}
+
 // build/dev/javascript/gleam_stdlib/gleam/list.mjs
 var Ascending = class extends CustomType {
 };
@@ -1170,6 +1196,33 @@ function contains(loop$list, loop$elem) {
     }
   }
 }
+function filter_loop(loop$list, loop$fun, loop$acc) {
+  while (true) {
+    let list4 = loop$list;
+    let fun = loop$fun;
+    let acc = loop$acc;
+    if (list4 instanceof Empty) {
+      return reverse(acc);
+    } else {
+      let first$1 = list4.head;
+      let rest$1 = list4.tail;
+      let _block;
+      let $ = fun(first$1);
+      if ($) {
+        _block = prepend(first$1, acc);
+      } else {
+        _block = acc;
+      }
+      let new_acc = _block;
+      loop$list = rest$1;
+      loop$fun = fun;
+      loop$acc = new_acc;
+    }
+  }
+}
+function filter(list4, predicate) {
+  return filter_loop(list4, predicate, toList([]));
+}
 function filter_map_loop(loop$list, loop$fun, loop$acc) {
   while (true) {
     let list4 = loop$list;
@@ -1216,6 +1269,32 @@ function map_loop(loop$list, loop$fun, loop$acc) {
 }
 function map(list4, fun) {
   return map_loop(list4, fun, toList([]));
+}
+function map_fold_loop(loop$list, loop$fun, loop$acc, loop$list_acc) {
+  while (true) {
+    let list4 = loop$list;
+    let fun = loop$fun;
+    let acc = loop$acc;
+    let list_acc = loop$list_acc;
+    if (list4 instanceof Empty) {
+      return [acc, reverse(list_acc)];
+    } else {
+      let first$1 = list4.head;
+      let rest$1 = list4.tail;
+      let $ = fun(acc, first$1);
+      let acc$1;
+      let first$2;
+      acc$1 = $[0];
+      first$2 = $[1];
+      loop$list = rest$1;
+      loop$fun = fun;
+      loop$acc = acc$1;
+      loop$list_acc = prepend(first$2, list_acc);
+    }
+  }
+}
+function map_fold(list4, initial, fun) {
+  return map_fold_loop(list4, fun, initial, toList([]));
 }
 function index_map_loop(loop$list, loop$fun, loop$index, loop$acc) {
   while (true) {
@@ -1301,6 +1380,9 @@ function flatten_loop(loop$lists, loop$acc) {
 function flatten(lists) {
   return flatten_loop(lists, toList([]));
 }
+function flat_map(list4, fun) {
+  return flatten(map(list4, fun));
+}
 function fold(loop$list, loop$initial, loop$fun) {
   while (true) {
     let list4 = loop$list;
@@ -1343,7 +1425,7 @@ function find2(loop$list, loop$is_desired) {
     let list4 = loop$list;
     let is_desired = loop$is_desired;
     if (list4 instanceof Empty) {
-      return new Error(void 0);
+      return new Error2(void 0);
     } else {
       let first$1 = list4.head;
       let rest$1 = list4.tail;
@@ -1353,6 +1435,25 @@ function find2(loop$list, loop$is_desired) {
       } else {
         loop$list = rest$1;
         loop$is_desired = is_desired;
+      }
+    }
+  }
+}
+function find_map(loop$list, loop$fun) {
+  while (true) {
+    let list4 = loop$list;
+    let fun = loop$fun;
+    if (list4 instanceof Empty) {
+      return new Error2(void 0);
+    } else {
+      let first$1 = list4.head;
+      let rest$1 = list4.tail;
+      let $ = fun(first$1);
+      if ($ instanceof Ok) {
+        return $;
+      } else {
+        loop$list = rest$1;
+        loop$fun = fun;
       }
     }
   }
@@ -1394,6 +1495,32 @@ function any(loop$list, loop$predicate) {
       }
     }
   }
+}
+function unique_loop(loop$list, loop$seen, loop$acc) {
+  while (true) {
+    let list4 = loop$list;
+    let seen = loop$seen;
+    let acc = loop$acc;
+    if (list4 instanceof Empty) {
+      return reverse(acc);
+    } else {
+      let first$1 = list4.head;
+      let rest$1 = list4.tail;
+      let $ = has_key(seen, first$1);
+      if ($) {
+        loop$list = rest$1;
+        loop$seen = seen;
+        loop$acc = acc;
+      } else {
+        loop$list = rest$1;
+        loop$seen = insert(seen, first$1, void 0);
+        loop$acc = prepend(first$1, acc);
+      }
+    }
+  }
+}
+function unique(list4) {
+  return unique_loop(list4, new_map(), toList([]));
 }
 function sequences(loop$list, loop$compare, loop$growing, loop$direction, loop$prev, loop$acc) {
   while (true) {
@@ -1746,6 +1873,23 @@ function repeat_loop(loop$item, loop$times, loop$acc) {
 function repeat(a, times) {
   return repeat_loop(a, times, toList([]));
 }
+function key_find(keyword_list, desired_key) {
+  return find_map(
+    keyword_list,
+    (keyword) => {
+      let key;
+      let value2;
+      key = keyword[0];
+      value2 = keyword[1];
+      let $ = isEqual(key, desired_key);
+      if ($) {
+        return new Ok(value2);
+      } else {
+        return new Error2(void 0);
+      }
+    }
+  );
+}
 function key_set_loop(loop$list, loop$key, loop$value, loop$inspected) {
   while (true) {
     let list4 = loop$list;
@@ -1777,7 +1921,7 @@ function last(loop$list) {
   while (true) {
     let list4 = loop$list;
     if (list4 instanceof Empty) {
-      return new Error(void 0);
+      return new Error2(void 0);
     } else {
       let $ = list4.tail;
       if ($ instanceof Empty) {
@@ -1862,6 +2006,16 @@ function drop_start(loop$string, loop$num_graphemes) {
     }
   }
 }
+function split2(x, substring) {
+  if (substring === "") {
+    return graphemes(x);
+  } else {
+    let _pipe = x;
+    let _pipe$1 = identity(_pipe);
+    let _pipe$2 = split(_pipe$1, substring);
+    return map(_pipe$2, identity);
+  }
+}
 function capitalise(string5) {
   let $ = pop_grapheme(string5);
   if ($ instanceof Ok) {
@@ -1871,6 +2025,10 @@ function capitalise(string5) {
   } else {
     return "";
   }
+}
+function inspect2(term) {
+  let _pipe = inspect(term);
+  return identity(_pipe);
 }
 
 // build/dev/javascript/gleam_stdlib/gleam/dynamic/decode.mjs
@@ -1888,6 +2046,11 @@ var Decoder = class extends CustomType {
     this.function = function$;
   }
 };
+var dynamic = /* @__PURE__ */ new Decoder(decode_dynamic);
+var bool = /* @__PURE__ */ new Decoder(decode_bool);
+var int2 = /* @__PURE__ */ new Decoder(decode_int);
+var float2 = /* @__PURE__ */ new Decoder(decode_float);
+var string2 = /* @__PURE__ */ new Decoder(decode_string);
 function run(data, decoder) {
   let $ = decoder.function(data);
   let maybe_invalid_data;
@@ -1897,7 +2060,7 @@ function run(data, decoder) {
   if (errors instanceof Empty) {
     return new Ok(maybe_invalid_data);
   } else {
-    return new Error(errors);
+    return new Error2(errors);
   }
 }
 function success(data) {
@@ -2000,7 +2163,6 @@ function optional(inner) {
     }
   );
 }
-var dynamic = /* @__PURE__ */ new Decoder(decode_dynamic);
 function decode_error(expected, found) {
   return toList([
     new DecodeError(expected, classify_dynamic(found), toList([]))
@@ -2043,13 +2205,9 @@ function failure(zero, expected) {
     return [zero, decode_error(expected, d)];
   });
 }
-var bool = /* @__PURE__ */ new Decoder(decode_bool);
-var int2 = /* @__PURE__ */ new Decoder(decode_int);
-var float2 = /* @__PURE__ */ new Decoder(decode_float);
 function decode_string(data) {
   return run_dynamic_function(data, "String", string);
 }
-var string2 = /* @__PURE__ */ new Decoder(decode_string);
 function fold_dict(acc, key, value2, key_decoder, value_decoder2) {
   let $ = key_decoder(key);
   let $1 = $[1];
@@ -2289,14 +2447,14 @@ function parse_int(value2) {
   if (/^[-+]?(\d+)$/.test(value2)) {
     return new Ok(parseInt(value2));
   } else {
-    return new Error(Nil);
+    return new Error2(Nil);
   }
 }
 function parse_float(value2) {
   if (/^[-+]?(\d+)\.(\d+)([eE][-+]?\d+)?$/.test(value2)) {
     return new Ok(parseFloat(value2));
   } else {
-    return new Error(Nil);
+    return new Error2(Nil);
   }
 }
 function to_string(term) {
@@ -2320,6 +2478,14 @@ function string_length(string5) {
     return string5.match(/./gsu).length;
   }
 }
+function graphemes(string5) {
+  const iterator = graphemes_iterator(string5);
+  if (iterator) {
+    return List.fromArray(Array.from(iterator).map((item) => item.segment));
+  } else {
+    return List.fromArray(string5.match(/./gsu));
+  }
+}
 var segmenter = void 0;
 function graphemes_iterator(string5) {
   if (globalThis.Intl && Intl.Segmenter) {
@@ -2338,7 +2504,7 @@ function pop_grapheme(string5) {
   if (first) {
     return new Ok([first, string5.slice(first.length)]);
   } else {
-    return new Error(Nil);
+    return new Error2(Nil);
   }
 }
 function pop_codeunit(str) {
@@ -2349,6 +2515,9 @@ function lowercase(string5) {
 }
 function uppercase(string5) {
   return string5.toUpperCase();
+}
+function split(xs, pattern) {
+  return List.fromArray(xs.split(pattern));
 }
 function string_codeunit_slice(str, from2, length4) {
   return str.slice(from2, from2 + length4);
@@ -2383,6 +2552,9 @@ var trim_start_regex = /* @__PURE__ */ new RegExp(
   `^[${unicode_whitespaces}]*`
 );
 var trim_end_regex = /* @__PURE__ */ new RegExp(`[${unicode_whitespaces}]*$`);
+function console_error(term) {
+  console.error(term);
+}
 function new_map() {
   return Dict.new();
 }
@@ -2398,7 +2570,7 @@ function map_remove(key, map8) {
 function map_get(map8, key) {
   const value2 = map8.get(key, NOT_FOUND);
   if (value2 === NOT_FOUND) {
-    return new Error(Nil);
+    return new Error2(Nil);
   }
   return new Ok(value2);
 }
@@ -2433,6 +2605,9 @@ function classify_dynamic(data) {
     return type.charAt(0).toUpperCase() + type.slice(1);
   }
 }
+function inspect(v) {
+  return new Inspector().inspect(v);
+}
 function float_to_string(float4) {
   const string5 = float4.toString().replace("+", "");
   if (string5.indexOf(".") >= 0) {
@@ -2446,6 +2621,160 @@ function float_to_string(float4) {
     }
   }
 }
+var Inspector = class {
+  #references = /* @__PURE__ */ new Set();
+  inspect(v) {
+    const t = typeof v;
+    if (v === true) return "True";
+    if (v === false) return "False";
+    if (v === null) return "//js(null)";
+    if (v === void 0) return "Nil";
+    if (t === "string") return this.#string(v);
+    if (t === "bigint" || Number.isInteger(v)) return v.toString();
+    if (t === "number") return float_to_string(v);
+    if (v instanceof UtfCodepoint) return this.#utfCodepoint(v);
+    if (v instanceof BitArray) return this.#bit_array(v);
+    if (v instanceof RegExp) return `//js(${v})`;
+    if (v instanceof Date) return `//js(Date("${v.toISOString()}"))`;
+    if (v instanceof globalThis.Error) return `//js(${v.toString()})`;
+    if (v instanceof Function) {
+      const args = [];
+      for (const i of Array(v.length).keys())
+        args.push(String.fromCharCode(i + 97));
+      return `//fn(${args.join(", ")}) { ... }`;
+    }
+    if (this.#references.size === this.#references.add(v).size) {
+      return "//js(circular reference)";
+    }
+    let printed;
+    if (Array.isArray(v)) {
+      printed = `#(${v.map((v2) => this.inspect(v2)).join(", ")})`;
+    } else if (v instanceof List) {
+      printed = this.#list(v);
+    } else if (v instanceof CustomType) {
+      printed = this.#customType(v);
+    } else if (v instanceof Dict) {
+      printed = this.#dict(v);
+    } else if (v instanceof Set) {
+      return `//js(Set(${[...v].map((v2) => this.inspect(v2)).join(", ")}))`;
+    } else {
+      printed = this.#object(v);
+    }
+    this.#references.delete(v);
+    return printed;
+  }
+  #object(v) {
+    const name2 = Object.getPrototypeOf(v)?.constructor?.name || "Object";
+    const props = [];
+    for (const k of Object.keys(v)) {
+      props.push(`${this.inspect(k)}: ${this.inspect(v[k])}`);
+    }
+    const body = props.length ? " " + props.join(", ") + " " : "";
+    const head = name2 === "Object" ? "" : name2 + " ";
+    return `//js(${head}{${body}})`;
+  }
+  #dict(map8) {
+    let body = "dict.from_list([";
+    let first = true;
+    map8.forEach((value2, key) => {
+      if (!first) body = body + ", ";
+      body = body + "#(" + this.inspect(key) + ", " + this.inspect(value2) + ")";
+      first = false;
+    });
+    return body + "])";
+  }
+  #customType(record) {
+    const props = Object.keys(record).map((label2) => {
+      const value2 = this.inspect(record[label2]);
+      return isNaN(parseInt(label2)) ? `${label2}: ${value2}` : value2;
+    }).join(", ");
+    return props ? `${record.constructor.name}(${props})` : record.constructor.name;
+  }
+  #list(list4) {
+    if (list4 instanceof Empty) {
+      return "[]";
+    }
+    let char_out = 'charlist.from_string("';
+    let list_out = "[";
+    let current = list4;
+    while (current instanceof NonEmpty) {
+      let element4 = current.head;
+      current = current.tail;
+      if (list_out !== "[") {
+        list_out += ", ";
+      }
+      list_out += this.inspect(element4);
+      if (char_out) {
+        if (Number.isInteger(element4) && element4 >= 32 && element4 <= 126) {
+          char_out += String.fromCharCode(element4);
+        } else {
+          char_out = null;
+        }
+      }
+    }
+    if (char_out) {
+      return char_out + '")';
+    } else {
+      return list_out + "]";
+    }
+  }
+  #string(str) {
+    let new_str = '"';
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      switch (char) {
+        case "\n":
+          new_str += "\\n";
+          break;
+        case "\r":
+          new_str += "\\r";
+          break;
+        case "	":
+          new_str += "\\t";
+          break;
+        case "\f":
+          new_str += "\\f";
+          break;
+        case "\\":
+          new_str += "\\\\";
+          break;
+        case '"':
+          new_str += '\\"';
+          break;
+        default:
+          if (char < " " || char > "~" && char < "\xA0") {
+            new_str += "\\u{" + char.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0") + "}";
+          } else {
+            new_str += char;
+          }
+      }
+    }
+    new_str += '"';
+    return new_str;
+  }
+  #utfCodepoint(codepoint2) {
+    return `//utfcodepoint(${String.fromCodePoint(codepoint2.value)})`;
+  }
+  #bit_array(bits) {
+    if (bits.bitSize === 0) {
+      return "<<>>";
+    }
+    let acc = "<<";
+    for (let i = 0; i < bits.byteSize - 1; i++) {
+      acc += bits.byteAt(i).toString();
+      acc += ", ";
+    }
+    if (bits.byteSize * 8 === bits.bitSize) {
+      acc += bits.byteAt(bits.byteSize - 1).toString();
+    } else {
+      const trailingBitsCount = bits.bitSize % 8;
+      acc += bits.byteAt(bits.byteSize - 1) >> 8 - trailingBitsCount;
+      acc += `:size(${trailingBitsCount})`;
+    }
+    acc += ">>";
+    return acc;
+  }
+};
 function index2(data, key) {
   if (data instanceof Dict || data instanceof WeakMap || data instanceof Map) {
     const token = {};
@@ -2460,13 +2789,13 @@ function index2(data, key) {
       if (i === key) return new Ok(new Some(value2));
       i++;
     }
-    return new Error("Indexable");
+    return new Error2("Indexable");
   }
   if (key_is_int && Array.isArray(data) || data && typeof data === "object" || data && Object.getPrototypeOf(data) === Object.prototype) {
     if (key in data) return new Ok(new Some(data[key]));
     return new Ok(new None());
   }
-  return new Error(key_is_int ? "Indexable" : "Dict");
+  return new Error2(key_is_int ? "Indexable" : "Dict");
 }
 function list(data, decode2, pushPath, index5, emptyList) {
   if (!(data instanceof List || Array.isArray(data))) {
@@ -2494,34 +2823,40 @@ function dict(data) {
     return new Ok(Dict.fromMap(data));
   }
   if (data == null) {
-    return new Error("Dict");
+    return new Error2("Dict");
   }
   if (typeof data !== "object") {
-    return new Error("Dict");
+    return new Error2("Dict");
   }
   const proto = Object.getPrototypeOf(data);
   if (proto === Object.prototype || proto === null) {
     return new Ok(Dict.fromObject(data));
   }
-  return new Error("Dict");
+  return new Error2("Dict");
 }
 function float(data) {
   if (typeof data === "number") return new Ok(data);
-  return new Error(0);
+  return new Error2(0);
 }
 function int(data) {
   if (Number.isInteger(data)) return new Ok(data);
-  return new Error(0);
+  return new Error2(0);
 }
 function string(data) {
   if (typeof data === "string") return new Ok(data);
-  return new Error("");
+  return new Error2("");
 }
 function is_null(data) {
   return data === null || data === void 0;
 }
 
 // build/dev/javascript/gleam_stdlib/gleam/dict.mjs
+function do_has_key(key, dict4) {
+  return !isEqual(map_get(dict4, key), new Error2(void 0));
+}
+function has_key(dict4, key) {
+  return do_has_key(key, dict4);
+}
 function insert(dict4, key, value2) {
   return map_insert(key, value2, dict4);
 }
@@ -2542,59 +2877,6 @@ function from_list_loop(loop$list, loop$initial) {
 }
 function from_list(list4) {
   return from_list_loop(list4, new_map());
-}
-function reverse_and_concat(loop$remaining, loop$accumulator) {
-  while (true) {
-    let remaining = loop$remaining;
-    let accumulator = loop$accumulator;
-    if (remaining instanceof Empty) {
-      return accumulator;
-    } else {
-      let first = remaining.head;
-      let rest = remaining.tail;
-      loop$remaining = rest;
-      loop$accumulator = prepend(first, accumulator);
-    }
-  }
-}
-function do_keys_loop(loop$list, loop$acc) {
-  while (true) {
-    let list4 = loop$list;
-    let acc = loop$acc;
-    if (list4 instanceof Empty) {
-      return reverse_and_concat(acc, toList([]));
-    } else {
-      let rest = list4.tail;
-      let key = list4.head[0];
-      loop$list = rest;
-      loop$acc = prepend(key, acc);
-    }
-  }
-}
-function keys(dict4) {
-  return do_keys_loop(map_to_list(dict4), toList([]));
-}
-function insert_pair(dict4, pair) {
-  return insert(dict4, pair[0], pair[1]);
-}
-function fold_inserts(loop$new_entries, loop$dict) {
-  while (true) {
-    let new_entries = loop$new_entries;
-    let dict4 = loop$dict;
-    if (new_entries instanceof Empty) {
-      return dict4;
-    } else {
-      let first = new_entries.head;
-      let rest = new_entries.tail;
-      loop$new_entries = rest;
-      loop$dict = insert_pair(dict4, first);
-    }
-  }
-}
-function merge(dict4, new_entries) {
-  let _pipe = new_entries;
-  let _pipe$1 = map_to_list(_pipe);
-  return fold_inserts(_pipe$1, dict4);
 }
 function delete$(dict4, key) {
   return map_remove(key, dict4);
@@ -2621,6 +2903,13 @@ function fold2(dict4, initial, fun) {
 }
 
 // build/dev/javascript/gleam_stdlib/gleam/result.mjs
+function is_ok(result) {
+  if (result instanceof Ok) {
+    return true;
+  } else {
+    return false;
+  }
+}
 function map3(result, fun) {
   if (result instanceof Ok) {
     let x = result[0];
@@ -2634,7 +2923,7 @@ function map_error(result, fun) {
     return result;
   } else {
     let error = result[0];
-    return new Error(fun(error));
+    return new Error2(fun(error));
   }
 }
 function try$(result, fun) {
@@ -2653,20 +2942,11 @@ function unwrap2(result, default$) {
     return default$;
   }
 }
-function unwrap_both(result) {
-  if (result instanceof Ok) {
-    let a = result[0];
-    return a;
-  } else {
-    let a = result[0];
-    return a;
-  }
-}
 function replace_error(result, error) {
   if (result instanceof Ok) {
     return result;
   } else {
-    return new Error(error);
+    return new Error2(error);
   }
 }
 function values2(results) {
@@ -2693,8 +2973,8 @@ function identity2(x) {
 function json_to_string(json2) {
   return JSON.stringify(json2);
 }
-function object(entries) {
-  return Object.fromEntries(entries);
+function object(entries2) {
+  return Object.fromEntries(entries2);
 }
 function identity3(x) {
   return x;
@@ -2710,7 +2990,7 @@ function decode(string5) {
     const result = JSON.parse(string5);
     return new Ok(result);
   } catch (err) {
-    return new Error(getJsonDecodeError(err, string5));
+    return new Error2(getJsonDecodeError(err, string5));
   }
 }
 function getJsonDecodeError(stdErr, json2) {
@@ -2840,20 +3120,20 @@ function float3(input2) {
 function null$() {
   return do_null();
 }
-function object2(entries) {
-  return object(entries);
+function object2(entries2) {
+  return object(entries2);
 }
 function preprocessed_array(from2) {
   return array(from2);
 }
-function array2(entries, inner_type) {
-  let _pipe = entries;
+function array2(entries2, inner_type) {
+  let _pipe = entries2;
   let _pipe$1 = map(_pipe, inner_type);
   return preprocessed_array(_pipe$1);
 }
 
 // build/dev/javascript/lustre/lustre/internals/constants.ffi.mjs
-var document = () => globalThis?.document;
+var document2 = () => globalThis?.document;
 var NAMESPACE_HTML = "http://www.w3.org/1999/xhtml";
 var ELEMENT_NODE = 1;
 var TEXT_NODE = 3;
@@ -2928,7 +3208,14 @@ var Always = class extends CustomType {
     this.kind = kind;
   }
 };
-function merge2(loop$attributes, loop$merged) {
+var attribute_kind = 0;
+var property_kind = 1;
+var event_kind = 2;
+var never_kind = 0;
+var never = /* @__PURE__ */ new Never(never_kind);
+var always_kind = 2;
+var always = /* @__PURE__ */ new Always(always_kind);
+function merge(loop$attributes, loop$merged) {
   while (true) {
     let attributes = loop$attributes;
     let merged = loop$merged;
@@ -3049,19 +3336,16 @@ function prepare(attributes) {
       let _pipe$1 = sort(_pipe, (a, b) => {
         return compare3(b, a);
       });
-      return merge2(_pipe$1, empty_list);
+      return merge(_pipe$1, empty_list);
     }
   }
 }
-var attribute_kind = 0;
 function attribute(name2, value2) {
   return new Attribute(attribute_kind, name2, value2);
 }
-var property_kind = 1;
 function property(name2, value2) {
   return new Property(property_kind, name2, value2);
 }
-var event_kind = 2;
 function event(name2, handler, include, prevent_default2, stop_propagation, immediate, debounce, throttle) {
   return new Event2(
     event_kind,
@@ -3075,10 +3359,6 @@ function event(name2, handler, include, prevent_default2, stop_propagation, imme
     throttle
   );
 }
-var never_kind = 0;
-var never = /* @__PURE__ */ new Never(never_kind);
-var always_kind = 2;
-var always = /* @__PURE__ */ new Always(always_kind);
 
 // build/dev/javascript/lustre/lustre/attribute.mjs
 function attribute2(name2, value2) {
@@ -3100,6 +3380,12 @@ function class$(name2) {
 function id(value2) {
   return attribute2("id", value2);
 }
+function alt(text4) {
+  return attribute2("alt", text4);
+}
+function src(url) {
+  return attribute2("src", url);
+}
 function checked(is_checked) {
   return boolean_attribute("checked", is_checked);
 }
@@ -3118,8 +3404,8 @@ function min2(value2) {
 function name(element_name) {
   return attribute2("name", element_name);
 }
-function required(is_required2) {
-  return boolean_attribute("required", is_required2);
+function required(is_required) {
+  return boolean_attribute("required", is_required);
 }
 function selected(is_selected) {
   return boolean_attribute("selected", is_selected);
@@ -3153,6 +3439,11 @@ var Actions = class extends CustomType {
     this.provide = provide2;
   }
 };
+var empty = /* @__PURE__ */ new Effect(
+  /* @__PURE__ */ toList([]),
+  /* @__PURE__ */ toList([]),
+  /* @__PURE__ */ toList([])
+);
 function do_comap_select(_, _1, _2) {
   return void 0;
 }
@@ -3186,11 +3477,6 @@ function map4(effect, f) {
     do_map(effect.after_paint, f)
   );
 }
-var empty = /* @__PURE__ */ new Effect(
-  /* @__PURE__ */ toList([]),
-  /* @__PURE__ */ toList([]),
-  /* @__PURE__ */ toList([])
-);
 function none() {
   return empty;
 }
@@ -3230,7 +3516,7 @@ function get(map8, key) {
   if (value2 != null) {
     return new Ok(value2);
   } else {
-    return new Error(void 0);
+    return new Error2(void 0);
   }
 }
 function has_key2(map8, key) {
@@ -3263,6 +3549,9 @@ var Index = class extends CustomType {
     this.parent = parent;
   }
 };
+var root2 = /* @__PURE__ */ new Root();
+var separator_element = "	";
+var separator_event = "\n";
 function do_matches(loop$path, loop$candidates) {
   while (true) {
     let path = loop$path;
@@ -3289,8 +3578,6 @@ function add2(parent, index5, key) {
     return new Key(key, parent);
   }
 }
-var root2 = /* @__PURE__ */ new Root();
-var separator_element = "	";
 function do_to_string(loop$path, loop$acc) {
   while (true) {
     let path = loop$path;
@@ -3328,7 +3615,6 @@ function matches(path, candidates) {
     return do_matches(to_string3(path), candidates);
   }
 }
-var separator_event = "\n";
 function event3(path, event4) {
   return do_to_string(path, toList([separator_event, event4]));
 }
@@ -3380,6 +3666,10 @@ var UnsafeInnerHtml = class extends CustomType {
     this.inner_html = inner_html;
   }
 };
+var fragment_kind = 0;
+var element_kind = 1;
+var text_kind = 2;
+var unsafe_inner_html_kind = 3;
 function is_void_element(tag, namespace) {
   if (namespace === "") {
     if (tag === "area") {
@@ -3453,11 +3743,9 @@ function to_keyed(key, node) {
     );
   }
 }
-var fragment_kind = 0;
 function fragment(key, mapper, children, keyed_children) {
   return new Fragment(fragment_kind, key, mapper, children, keyed_children);
 }
-var element_kind = 1;
 function element(key, mapper, namespace, tag, attributes, children, keyed_children, self_closing, void$) {
   return new Element(
     element_kind,
@@ -3472,11 +3760,9 @@ function element(key, mapper, namespace, tag, attributes, children, keyed_childr
     void$ || is_void_element(tag, namespace)
   );
 }
-var text_kind = 2;
 function text(key, mapper, content) {
   return new Text(text_kind, key, mapper, content);
 }
-var unsafe_inner_html_kind = 3;
 
 // build/dev/javascript/lustre/lustre/internals/equals.ffi.mjs
 var isReferenceEqual = (a, b) => a === b;
@@ -3596,7 +3882,7 @@ function handle(events, path, name2, event4) {
     let handler = $[0];
     return [events$1, run(event4, handler)];
   } else {
-    return [events$1, new Error(toList([]))];
+    return [events$1, new Error2(toList([]))];
   }
 }
 function has_dispatched_events(events, path) {
@@ -3853,6 +4139,9 @@ function p(attrs, children) {
 function span(attrs, children) {
   return element2("span", attrs, children);
 }
+function img(attrs) {
+  return element2("img", attrs, empty_list);
+}
 function button(attrs, children) {
   return element2("button", attrs, children);
 }
@@ -3942,43 +4231,43 @@ var Insert = class extends CustomType {
     this.before = before;
   }
 };
+var replace_text_kind = 0;
+var replace_inner_html_kind = 1;
+var update_kind = 2;
+var move_kind = 3;
+var remove_kind = 4;
+var replace_kind = 5;
+var insert_kind = 6;
 function new$5(index5, removed, changes, children) {
   return new Patch(index5, removed, changes, children);
 }
-var replace_text_kind = 0;
 function replace_text(content) {
   return new ReplaceText(replace_text_kind, content);
 }
-var replace_inner_html_kind = 1;
 function replace_inner_html(inner_html) {
   return new ReplaceInnerHtml(replace_inner_html_kind, inner_html);
 }
-var update_kind = 2;
 function update(added, removed) {
   return new Update(update_kind, added, removed);
 }
-var move_kind = 3;
 function move(key, before) {
   return new Move(move_kind, key, before);
 }
-var remove_kind = 4;
 function remove2(index5) {
   return new Remove(remove_kind, index5);
 }
-var replace_kind = 5;
 function replace2(index5, with$) {
   return new Replace(replace_kind, index5, with$);
 }
-var insert_kind = 6;
 function insert3(children, before) {
   return new Insert(insert_kind, children, before);
 }
 
 // build/dev/javascript/lustre/lustre/vdom/diff.mjs
 var Diff = class extends CustomType {
-  constructor(patch, events) {
+  constructor(patch2, events) {
     super();
-    this.patch = patch;
+    this.patch = patch2;
     this.events = events;
   }
 };
@@ -4486,17 +4775,17 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
         if ($ instanceof Fragment) {
           let $1 = new$8.head;
           if ($1 instanceof Fragment) {
-            let prev$1 = $;
+            let prev2 = $;
             let old$1 = old.tail;
-            let next$1 = $1;
+            let next2 = $1;
             let new$1 = new$8.tail;
-            let composed_mapper = compose_mapper(mapper, next$1.mapper);
-            let child_path = add2(path, node_index, next$1.key);
+            let composed_mapper = compose_mapper(mapper, next2.mapper);
+            let child_path = add2(path, node_index, next2.key);
             let child = do_diff(
-              prev$1.children,
-              prev$1.keyed_children,
-              next$1.children,
-              next$1.keyed_children,
+              prev2.children,
+              prev2.keyed_children,
+              next2.children,
+              next2.keyed_children,
               empty2(),
               0,
               0,
@@ -4542,21 +4831,15 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
             loop$mapper = mapper;
             loop$events = child.events;
           } else {
-            let prev$1 = $;
+            let prev2 = $;
             let old_remaining = old.tail;
-            let next$1 = $1;
+            let next2 = $1;
             let new_remaining = new$8.tail;
-            let change = replace2(node_index - moved_offset, next$1);
+            let change = replace2(node_index - moved_offset, next2);
             let _block;
             let _pipe = events;
-            let _pipe$1 = remove_child(_pipe, path, node_index, prev$1);
-            _block = add_child(
-              _pipe$1,
-              mapper,
-              path,
-              node_index,
-              next$1
-            );
+            let _pipe$1 = remove_child(_pipe, path, node_index, prev2);
+            _block = add_child(_pipe$1, mapper, path, node_index, next2);
             let events$1 = _block;
             loop$old = old_remaining;
             loop$old_keyed = old_keyed;
@@ -4576,20 +4859,17 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
         } else if ($ instanceof Element) {
           let $1 = new$8.head;
           if ($1 instanceof Element) {
-            let prev$1 = $;
-            let next$1 = $1;
-            if (prev$1.namespace === next$1.namespace && prev$1.tag === next$1.tag) {
+            let prev2 = $;
+            let next2 = $1;
+            if (prev2.namespace === next2.namespace && prev2.tag === next2.tag) {
               let old$1 = old.tail;
               let new$1 = new$8.tail;
-              let composed_mapper = compose_mapper(
-                mapper,
-                next$1.mapper
-              );
-              let child_path = add2(path, node_index, next$1.key);
+              let composed_mapper = compose_mapper(mapper, next2.mapper);
+              let child_path = add2(path, node_index, next2.key);
               let controlled = is_controlled(
                 events,
-                next$1.namespace,
-                next$1.tag,
+                next2.namespace,
+                next2.tag,
                 child_path
               );
               let $2 = diff_attributes(
@@ -4597,8 +4877,8 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
                 child_path,
                 composed_mapper,
                 events,
-                prev$1.attributes,
-                next$1.attributes,
+                prev2.attributes,
+                next2.attributes,
                 empty_list,
                 empty_list
               );
@@ -4616,10 +4896,10 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               }
               let initial_child_changes = _block;
               let child = do_diff(
-                prev$1.children,
-                prev$1.keyed_children,
-                next$1.children,
-                next$1.keyed_children,
+                prev2.children,
+                prev2.keyed_children,
+                next2.children,
+                next2.keyed_children,
                 empty2(),
                 0,
                 0,
@@ -4665,25 +4945,20 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               loop$mapper = mapper;
               loop$events = child.events;
             } else {
-              let prev$2 = $;
+              let prev3 = $;
               let old_remaining = old.tail;
-              let next$2 = $1;
+              let next3 = $1;
               let new_remaining = new$8.tail;
-              let change = replace2(node_index - moved_offset, next$2);
+              let change = replace2(node_index - moved_offset, next3);
               let _block;
               let _pipe = events;
-              let _pipe$1 = remove_child(
-                _pipe,
-                path,
-                node_index,
-                prev$2
-              );
+              let _pipe$1 = remove_child(_pipe, path, node_index, prev3);
               _block = add_child(
                 _pipe$1,
                 mapper,
                 path,
                 node_index,
-                next$2
+                next3
               );
               let events$1 = _block;
               loop$old = old_remaining;
@@ -4702,21 +4977,15 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               loop$events = events$1;
             }
           } else {
-            let prev$1 = $;
+            let prev2 = $;
             let old_remaining = old.tail;
-            let next$1 = $1;
+            let next2 = $1;
             let new_remaining = new$8.tail;
-            let change = replace2(node_index - moved_offset, next$1);
+            let change = replace2(node_index - moved_offset, next2);
             let _block;
             let _pipe = events;
-            let _pipe$1 = remove_child(_pipe, path, node_index, prev$1);
-            _block = add_child(
-              _pipe$1,
-              mapper,
-              path,
-              node_index,
-              next$1
-            );
+            let _pipe$1 = remove_child(_pipe, path, node_index, prev2);
+            _block = add_child(_pipe$1, mapper, path, node_index, next2);
             let events$1 = _block;
             loop$old = old_remaining;
             loop$old_keyed = old_keyed;
@@ -4736,9 +5005,9 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
         } else if ($ instanceof Text) {
           let $1 = new$8.head;
           if ($1 instanceof Text) {
-            let prev$1 = $;
-            let next$1 = $1;
-            if (prev$1.content === next$1.content) {
+            let prev2 = $;
+            let next2 = $1;
+            if (prev2.content === next2.content) {
               let old$1 = old.tail;
               let new$1 = new$8.tail;
               loop$old = old$1;
@@ -4757,12 +5026,12 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               loop$events = events;
             } else {
               let old$1 = old.tail;
-              let next$2 = $1;
+              let next3 = $1;
               let new$1 = new$8.tail;
               let child = new$5(
                 node_index,
                 0,
-                toList([replace_text(next$2.content)]),
+                toList([replace_text(next3.content)]),
                 empty_list
               );
               loop$old = old$1;
@@ -4781,21 +5050,15 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
               loop$events = events;
             }
           } else {
-            let prev$1 = $;
+            let prev2 = $;
             let old_remaining = old.tail;
-            let next$1 = $1;
+            let next2 = $1;
             let new_remaining = new$8.tail;
-            let change = replace2(node_index - moved_offset, next$1);
+            let change = replace2(node_index - moved_offset, next2);
             let _block;
             let _pipe = events;
-            let _pipe$1 = remove_child(_pipe, path, node_index, prev$1);
-            _block = add_child(
-              _pipe$1,
-              mapper,
-              path,
-              node_index,
-              next$1
-            );
+            let _pipe$1 = remove_child(_pipe, path, node_index, prev2);
+            _block = add_child(_pipe$1, mapper, path, node_index, next2);
             let events$1 = _block;
             loop$old = old_remaining;
             loop$old_keyed = old_keyed;
@@ -4815,19 +5078,19 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
         } else {
           let $1 = new$8.head;
           if ($1 instanceof UnsafeInnerHtml) {
-            let prev$1 = $;
+            let prev2 = $;
             let old$1 = old.tail;
-            let next$1 = $1;
+            let next2 = $1;
             let new$1 = new$8.tail;
-            let composed_mapper = compose_mapper(mapper, next$1.mapper);
-            let child_path = add2(path, node_index, next$1.key);
+            let composed_mapper = compose_mapper(mapper, next2.mapper);
+            let child_path = add2(path, node_index, next2.key);
             let $2 = diff_attributes(
               false,
               child_path,
               composed_mapper,
               events,
-              prev$1.attributes,
-              next$1.attributes,
+              prev2.attributes,
+              next2.attributes,
               empty_list,
               empty_list
             );
@@ -4845,12 +5108,12 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
             }
             let child_changes = _block;
             let _block$1;
-            let $3 = prev$1.inner_html === next$1.inner_html;
+            let $3 = prev2.inner_html === next2.inner_html;
             if ($3) {
               _block$1 = child_changes;
             } else {
               _block$1 = prepend(
-                replace_inner_html(next$1.inner_html),
+                replace_inner_html(next2.inner_html),
                 child_changes
               );
             }
@@ -4880,21 +5143,15 @@ function do_diff(loop$old, loop$old_keyed, loop$new, loop$new_keyed, loop$moved,
             loop$mapper = mapper;
             loop$events = events$1;
           } else {
-            let prev$1 = $;
+            let prev2 = $;
             let old_remaining = old.tail;
-            let next$1 = $1;
+            let next2 = $1;
             let new_remaining = new$8.tail;
-            let change = replace2(node_index - moved_offset, next$1);
+            let change = replace2(node_index - moved_offset, next2);
             let _block;
             let _pipe = events;
-            let _pipe$1 = remove_child(_pipe, path, node_index, prev$1);
-            _block = add_child(
-              _pipe$1,
-              mapper,
-              path,
-              node_index,
-              next$1
-            );
+            let _pipe$1 = remove_child(_pipe, path, node_index, prev2);
+            _block = add_child(_pipe$1, mapper, path, node_index, next2);
             let events$1 = _block;
             loop$old = old_remaining;
             loop$old_keyed = old_keyed;
@@ -4938,9 +5195,9 @@ function diff(events, old, new$8) {
 // build/dev/javascript/lustre/lustre/vdom/reconciler.ffi.mjs
 var setTimeout = globalThis.setTimeout;
 var clearTimeout = globalThis.clearTimeout;
-var createElementNS = (ns, name2) => document().createElementNS(ns, name2);
-var createTextNode = (data) => document().createTextNode(data);
-var createDocumentFragment = () => document().createDocumentFragment();
+var createElementNS = (ns, name2) => document2().createElementNS(ns, name2);
+var createTextNode = (data) => document2().createTextNode(data);
+var createDocumentFragment = () => document2().createDocumentFragment();
 var insertBefore = (parent, node, reference) => parent.insertBefore(node, reference);
 var moveBefore = SUPPORTS_MOVE_BEFORE ? (parent, node, reference) => parent.moveBefore(node, reference) : insertBefore;
 var removeChild = (parent, child) => parent.removeChild(child);
@@ -5001,8 +5258,8 @@ var Reconciler = class {
     insertMetadataChild(element_kind, null, this.#root, 0, null);
     this.#insertChild(this.#root, null, this.#root[meta], 0, vdom);
   }
-  push(patch) {
-    this.#stack.push({ node: this.#root[meta], patch });
+  push(patch2) {
+    this.#stack.push({ node: this.#root[meta], patch: patch2 });
     this.#reconcile();
   }
   // PATCHING ------------------------------------------------------------------
@@ -5010,9 +5267,9 @@ var Reconciler = class {
   #reconcile() {
     const stack = this.#stack;
     while (stack.length) {
-      const { node, patch } = stack.pop();
+      const { node, patch: patch2 } = stack.pop();
       const { children: childNodes } = node;
-      const { changes, removed, children: childPatches } = patch;
+      const { changes, removed, children: childPatches } = patch2;
       iterate(changes, (change) => this.#patch(node, change));
       if (removed) {
         this.#removeChildren(node, childNodes.length - removed, removed);
@@ -5462,7 +5719,7 @@ var virtualise = (root3) => {
     if (canVirtualiseNode(child)) virtualisableRootChildren += 1;
   }
   if (virtualisableRootChildren === 0) {
-    const placeholder = document().createTextNode("");
+    const placeholder = document2().createTextNode("");
     insertMetadataChild(text_kind, rootMeta, placeholder, 0, null);
     root3.replaceChildren(placeholder);
     return none2();
@@ -5471,7 +5728,7 @@ var virtualise = (root3) => {
     const children2 = virtualiseChildNodes(rootMeta, root3);
     return children2.head[1];
   }
-  const fragmentHead = document().createTextNode("");
+  const fragmentHead = document2().createTextNode("");
   const fragmentMeta = insertMetadataChild(fragment_kind, rootMeta, fragmentHead, 0, null);
   const children = virtualiseChildNodes(fragmentMeta, root3);
   root3.insertBefore(fragmentHead, root3.firstChild);
@@ -5524,7 +5781,7 @@ var virtualiseInputEvents = (tag, node) => {
     node.checked = checked2;
     node.dispatchEvent(new Event("input", { bubbles: true }));
     node.dispatchEvent(new Event("change", { bubbles: true }));
-    if (document().activeElement !== node) {
+    if (document2().activeElement !== node) {
       node.dispatchEvent(new Event("blur", { bubbles: true }));
     }
   });
@@ -5577,12 +5834,12 @@ var virtualiseAttribute = (attr) => {
 };
 
 // build/dev/javascript/lustre/lustre/runtime/client/runtime.ffi.mjs
-var is_browser = () => !!document();
+var is_browser = () => !!document2();
 var Runtime = class {
-  constructor(root3, [model, effects], view5, update5) {
+  constructor(root3, [model, effects], view4, update5) {
     this.root = root3;
     this.#model = model;
-    this.#view = view5;
+    this.#view = view4;
     this.#update = update5;
     this.root.addEventListener("context-request", (event4) => {
       if (!(event4.context && event4.callback)) return;
@@ -5708,10 +5965,10 @@ var Runtime = class {
     this.#shouldFlush = false;
     this.#renderTimer = null;
     const next = this.#view(this.#model);
-    const { patch, events } = diff(this.#events, this.#vdom, next);
+    const { patch: patch2, events } = diff(this.#events, this.#vdom, next);
     this.#events = events;
     this.#vdom = next;
-    this.#reconciler.push(patch);
+    this.#reconciler.push(patch2);
     if (this.#beforePaint instanceof NonEmpty) {
       const effects = makeEffect(this.#beforePaint);
       this.#beforePaint = empty_list;
@@ -5749,7 +6006,7 @@ function listAppend(a, b) {
 var copiedStyleSheets = /* @__PURE__ */ new WeakMap();
 async function adoptStylesheets(shadowRoot) {
   const pendingParentStylesheets = [];
-  for (const node of document().querySelectorAll(
+  for (const node of document2().querySelectorAll(
     "link[rel=stylesheet], style"
   )) {
     if (node.sheet) continue;
@@ -5766,7 +6023,7 @@ async function adoptStylesheets(shadowRoot) {
   }
   shadowRoot.adoptedStyleSheets = shadowRoot.host.getRootNode().adoptedStyleSheets;
   const pending = [];
-  for (const sheet of document().styleSheets) {
+  for (const sheet of document2().styleSheets) {
     try {
       shadowRoot.adoptedStyleSheets.push(sheet);
     } catch {
@@ -5816,11 +6073,11 @@ var SystemRequestedShutdown = class extends CustomType {
 };
 
 // build/dev/javascript/lustre/lustre/runtime/client/component.ffi.mjs
-var make_component = ({ init: init3, update: update5, view: view5, config: config2 }, name2) => {
-  if (!is_browser()) return new Error(new NotABrowser());
-  if (!name2.includes("-")) return new Error(new BadComponentName(name2));
+var make_component = ({ init: init3, update: update5, view: view4, config: config2 }, name2) => {
+  if (!is_browser()) return new Error2(new NotABrowser());
+  if (!name2.includes("-")) return new Error2(new BadComponentName(name2));
   if (customElements.get(name2)) {
-    return new Error(new ComponentAlreadyRegistered(name2));
+    return new Error2(new ComponentAlreadyRegistered(name2));
   }
   const attributes = /* @__PURE__ */ new Map();
   const observedAttributes = [];
@@ -5857,7 +6114,7 @@ var make_component = ({ init: init3, update: update5, view: view5, config: confi
       this.#runtime = new Runtime(
         this.#shadowRoot,
         [model, effects],
-        view5,
+        view4,
         update5
       );
     }
@@ -6044,8 +6301,8 @@ function on_attribute_change(name2, decoder) {
 // build/dev/javascript/lustre/lustre/runtime/client/spa.ffi.mjs
 var Spa = class {
   #runtime;
-  constructor(root3, [init3, effects], update5, view5) {
-    this.#runtime = new Runtime(root3, [init3, effects], view5, update5);
+  constructor(root3, [init3, effects], update5, view4) {
+    this.#runtime = new Runtime(root3, [init3, effects], view4, update5);
   }
   send(message2) {
     switch (message2.constructor) {
@@ -6068,20 +6325,20 @@ var Spa = class {
     this.#runtime.emit(event4, data);
   }
 };
-var start = ({ init: init3, update: update5, view: view5 }, selector, flags) => {
-  if (!is_browser()) return new Error(new NotABrowser());
-  const root3 = selector instanceof HTMLElement ? selector : document().querySelector(selector);
-  if (!root3) return new Error(new ElementNotFound(selector));
-  return new Ok(new Spa(root3, init3(flags), update5, view5));
+var start = ({ init: init3, update: update5, view: view4 }, selector, flags) => {
+  if (!is_browser()) return new Error2(new NotABrowser());
+  const root3 = selector instanceof HTMLElement ? selector : document2().querySelector(selector);
+  if (!root3) return new Error2(new ElementNotFound(selector));
+  return new Ok(new Spa(root3, init3(flags), update5, view4));
 };
 
 // build/dev/javascript/lustre/lustre.mjs
 var App = class extends CustomType {
-  constructor(init3, update5, view5, config2) {
+  constructor(init3, update5, view4, config2) {
     super();
     this.init = init3;
     this.update = update5;
-    this.view = view5;
+    this.view = view4;
     this.config = config2;
   }
 };
@@ -6105,23 +6362,23 @@ var ElementNotFound = class extends CustomType {
 };
 var NotABrowser = class extends CustomType {
 };
-function component(init3, update5, view5, options) {
-  return new App(init3, update5, view5, new$6(options));
+function component(init3, update5, view4, options) {
+  return new App(init3, update5, view4, new$6(options));
 }
-function application(init3, update5, view5) {
-  return new App(init3, update5, view5, new$6(empty_list));
+function application(init3, update5, view4) {
+  return new App(init3, update5, view4, new$6(empty_list));
 }
 function start3(app, selector, start_args) {
   return guard(
     !is_browser(),
-    new Error(new NotABrowser()),
+    new Error2(new NotABrowser()),
     () => {
       return start(app, selector, start_args);
     }
   );
 }
 
-// build/dev/javascript/formosh/schema/types.mjs
+// build/dev/javascript/formosh/formosh/schema/types.mjs
 var StringValue = class extends CustomType {
   constructor($0) {
     super();
@@ -6213,20 +6470,34 @@ var NumberConstraints = class extends CustomType {
     this.multiple_of = multiple_of;
   }
 };
+var UploadConfig = class extends CustomType {
+  constructor(accept, max_file_size) {
+    super();
+    this.accept = accept;
+    this.max_file_size = max_file_size;
+  }
+};
 var SchemaProperty = class extends CustomType {
-  constructor(field_type, title, description, default$, enum_values, ref, string_constraints, number_constraints, items, properties, required2) {
+  constructor(field_type, title, description, default$, enum_values, one_of2, ref, string_constraints, number_constraints, items, properties, required2, read_only, addable, removable, widget, upload_config, conditionals) {
     super();
     this.field_type = field_type;
     this.title = title;
     this.description = description;
     this.default = default$;
     this.enum_values = enum_values;
+    this.one_of = one_of2;
     this.ref = ref;
     this.string_constraints = string_constraints;
     this.number_constraints = number_constraints;
     this.items = items;
     this.properties = properties;
     this.required = required2;
+    this.read_only = read_only;
+    this.addable = addable;
+    this.removable = removable;
+    this.widget = widget;
+    this.upload_config = upload_config;
+    this.conditionals = conditionals;
   }
 };
 var ConditionalRule = class extends CustomType {
@@ -6251,16 +6522,209 @@ var JsonSchema = class extends CustomType {
     this.number_constraints = number_constraints;
   }
 };
-var ValidationError = class extends CustomType {
-  constructor(field2, message2, rule) {
-    super();
-    this.field = field2;
-    this.message = message2;
-    this.rule = rule;
-  }
-};
+function has_property_key(properties, key) {
+  let _pipe = key_find(properties, key);
+  return is_ok(_pipe);
+}
+function empty_property() {
+  return new SchemaProperty(
+    new None(),
+    new None(),
+    new None(),
+    new None(),
+    new None(),
+    new None(),
+    new None(),
+    new None(),
+    new None(),
+    new None(),
+    new None(),
+    toList([]),
+    false,
+    true,
+    true,
+    new None(),
+    new None(),
+    toList([])
+  );
+}
 
-// build/dev/javascript/formosh/form/path.mjs
+// build/dev/javascript/formosh/formosh/form/defaults.mjs
+var FILEPATH = "src/formosh/form/defaults.gleam";
+function merge_object_defaults(property3, fields) {
+  let $ = property3.properties;
+  if ($ instanceof Some) {
+    let sub_props = $[0];
+    return new ObjectValue(merge_property_defaults(sub_props, fields));
+  } else {
+    return new ObjectValue(fields);
+  }
+}
+function merge_property_defaults(properties, fields) {
+  let declared = filter_map(
+    properties,
+    (pair) => {
+      let field_name;
+      let property3;
+      field_name = pair[0];
+      property3 = pair[1];
+      let _block;
+      let $ = key_find(fields, field_name);
+      if ($ instanceof Ok) {
+        let $12 = $[0];
+        if ($12 instanceof NullValue) {
+          _block = new None();
+        } else {
+          let v = $12;
+          _block = new Some(v);
+        }
+      } else {
+        _block = new None();
+      }
+      let current = _block;
+      let $1 = apply_defaults_to_value(property3, current);
+      if ($1 instanceof Some) {
+        let v = $1[0];
+        return new Ok([field_name, v]);
+      } else {
+        return new Error2(void 0);
+      }
+    }
+  );
+  let declared_names = map(properties, (pair) => {
+    return pair[0];
+  });
+  let extras = filter(
+    fields,
+    (pair) => {
+      return !contains(declared_names, pair[0]);
+    }
+  );
+  return append(declared, extras);
+}
+function apply_defaults_to_value(property3, current) {
+  if (current instanceof Some) {
+    let $ = current[0];
+    if ($ instanceof ArrayValue) {
+      let items = $[0];
+      return new Some(map_array_item_defaults(property3, items));
+    } else if ($ instanceof ObjectValue) {
+      let fields = $[0];
+      return new Some(merge_object_defaults(property3, fields));
+    } else {
+      return current;
+    }
+  } else {
+    return defaults_for_missing(property3);
+  }
+}
+function apply_schema_defaults(properties, value2) {
+  let fields;
+  if (value2 instanceof ObjectValue) {
+    fields = value2[0];
+  } else {
+    throw makeError(
+      "let_assert",
+      FILEPATH,
+      "formosh/form/defaults",
+      31,
+      "apply_schema_defaults",
+      "Pattern match failed, no pattern matched the value.",
+      {
+        value: value2,
+        start: 1412,
+        end: 1450,
+        pattern_start: 1423,
+        pattern_end: 1442
+      }
+    );
+  }
+  return new ObjectValue(merge_property_defaults(properties, fields));
+}
+function defaults_for_missing(property3) {
+  let $ = property3.default;
+  if ($ instanceof Some) {
+    return $;
+  } else {
+    let $1 = property3.field_type;
+    let $2 = property3.properties;
+    if ($1 instanceof Some && $2 instanceof Some) {
+      let $3 = $1[0];
+      if ($3 instanceof ObjectType) {
+        let sub_props = $2[0];
+        let built = filter_map(
+          sub_props,
+          (pair) => {
+            let name2;
+            let sub_prop;
+            name2 = pair[0];
+            sub_prop = pair[1];
+            let $4 = apply_defaults_to_value(sub_prop, new None());
+            if ($4 instanceof Some) {
+              let v = $4[0];
+              return new Ok([name2, v]);
+            } else {
+              return new Error2(void 0);
+            }
+          }
+        );
+        if (built instanceof Empty) {
+          return new None();
+        } else {
+          return new Some(new ObjectValue(built));
+        }
+      } else {
+        return new None();
+      }
+    } else {
+      return new None();
+    }
+  }
+}
+function map_array_item_defaults(property3, items) {
+  let $ = property3.items;
+  if ($ instanceof Some) {
+    let item_schema = $[0];
+    return new ArrayValue(
+      map(
+        items,
+        (item) => {
+          let $1 = apply_defaults_to_value(item_schema, new Some(item));
+          let v;
+          if ($1 instanceof Some) {
+            v = $1[0];
+          } else {
+            throw makeError(
+              "let_assert",
+              FILEPATH,
+              "formosh/form/defaults",
+              135,
+              "map_array_item_defaults",
+              "Pattern match failed, no pattern matched the value.",
+              {
+                value: $1,
+                start: 5297,
+                end: 5392,
+                pattern_start: 5308,
+                pattern_end: 5322
+              }
+            );
+          }
+          return v;
+        }
+      )
+    );
+  } else {
+    return new ArrayValue(items);
+  }
+}
+
+// build/dev/javascript/formosh/formosh/path_format.mjs
+function array_index_segment(index5) {
+  return "[" + to_string(index5) + "]";
+}
+
+// build/dev/javascript/formosh/formosh/form/path.mjs
 var PropertySegment = class extends CustomType {
   constructor(name2) {
     super();
@@ -6276,13 +6740,6 @@ var ArraySegment = class extends CustomType {
 function from_field_name(field_name) {
   return toList([new PropertySegment(field_name)]);
 }
-function to_array_item_field(array_name, index5, field_name) {
-  return toList([
-    new PropertySegment(array_name),
-    new ArraySegment(index5),
-    new PropertySegment(field_name)
-  ]);
-}
 function to_string5(path) {
   let _pipe = path;
   let _pipe$1 = map(
@@ -6293,7 +6750,7 @@ function to_string5(path) {
         return name2;
       } else {
         let index5 = segment.index;
-        return "[" + to_string(index5) + "]";
+        return array_index_segment(index5);
       }
     }
   );
@@ -6311,6 +6768,70 @@ function get_field_name(path) {
     }
   } else {
     return "field";
+  }
+}
+function get_list_item(loop$items, loop$index) {
+  while (true) {
+    let items = loop$items;
+    let index5 = loop$index;
+    if (items instanceof Empty) {
+      return new None();
+    } else if (index5 === 0) {
+      let first = items.head;
+      return new Some(first);
+    } else {
+      let n = index5;
+      if (n > 0) {
+        let rest = items.tail;
+        loop$items = rest;
+        loop$index = n - 1;
+      } else {
+        return new None();
+      }
+    }
+  }
+}
+function get_at_path(loop$value, loop$path) {
+  while (true) {
+    let value2 = loop$value;
+    let path = loop$path;
+    if (path instanceof Empty) {
+      return new Some(value2);
+    } else {
+      let segment = path.head;
+      let rest = path.tail;
+      if (segment instanceof PropertySegment) {
+        if (value2 instanceof ObjectValue) {
+          let name2 = segment.name;
+          let fields = value2[0];
+          let $ = find2(fields, (field2) => {
+            return field2[0] === name2;
+          });
+          if ($ instanceof Ok) {
+            let value$1 = $[0][1];
+            loop$value = value$1;
+            loop$path = rest;
+          } else {
+            return new None();
+          }
+        } else {
+          return new None();
+        }
+      } else if (value2 instanceof ArrayValue) {
+        let index5 = segment.index;
+        let items = value2[0];
+        let $ = get_list_item(items, index5);
+        if ($ instanceof Some) {
+          let item = $[0];
+          loop$value = item;
+          loop$path = rest;
+        } else {
+          return $;
+        }
+      } else {
+        return new None();
+      }
+    }
   }
 }
 function get_object_fields(value2) {
@@ -6467,46 +6988,71 @@ function remove_array_item_at_path(root3, path, index5) {
     }
   );
 }
-
-// build/dev/javascript/formosh/validation/field_requirements.mjs
-function is_required(schema, field_name) {
-  return contains(schema.required, field_name);
-}
-function check_required_value(field_name, value2, is_field_required) {
-  if (is_field_required) {
-    if (value2 instanceof Some) {
-      let $ = value2[0];
-      if ($ instanceof StringValue) {
-        let $1 = $[0];
-        if ($1 === "") {
-          return new Error(
-            new ValidationError(
-              field_name,
-              "This field is required",
-              "required"
-            )
-          );
-        } else {
-          return new Ok(void 0);
-        }
-      } else if ($ instanceof NullValue) {
-        return new Error(
-          new ValidationError(field_name, "This field is required", "required")
-        );
-      } else {
-        return new Ok(void 0);
-      }
+function strip_prefix(loop$path, loop$prefix) {
+  while (true) {
+    let path = loop$path;
+    let prefix = loop$prefix;
+    if (prefix instanceof Empty) {
+      let rest = path;
+      return new Some(rest);
+    } else if (path instanceof Empty) {
+      return new None();
     } else {
-      return new Error(
-        new ValidationError(field_name, "This field is required", "required")
-      );
+      let p2 = prefix.head;
+      let ps = prefix.tail;
+      let q = path.head;
+      let qs = path.tail;
+      let $ = isEqual(p2, q);
+      if ($) {
+        loop$path = qs;
+        loop$prefix = ps;
+      } else {
+        return new None();
+      }
+    }
+  }
+}
+function reindex_after_array_removal(path, array_path, removed_index) {
+  let $ = strip_prefix(path, array_path);
+  if ($ instanceof Some) {
+    let $1 = $[0];
+    if ($1 instanceof Empty) {
+      return new Some(path);
+    } else {
+      let $2 = $1.head;
+      if ($2 instanceof ArraySegment) {
+        let rest = $1.tail;
+        let i = $2.index;
+        let $3 = compare(i, removed_index);
+        if ($3 instanceof Lt) {
+          return new Some(path);
+        } else if ($3 instanceof Eq) {
+          return new None();
+        } else {
+          return new Some(
+            append(array_path, prepend(new ArraySegment(i - 1), rest))
+          );
+        }
+      } else {
+        return new Some(path);
+      }
     }
   } else {
-    return new Ok(void 0);
+    return new Some(path);
   }
 }
 
-// build/dev/javascript/formosh/form/model.mjs
+// build/dev/javascript/formosh/formosh/validation/error.mjs
+var ValidationError = class extends CustomType {
+  constructor(field2, message2, rule) {
+    super();
+    this.field = field2;
+    this.message = message2;
+    this.rule = rule;
+  }
+};
+
+// build/dev/javascript/formosh/formosh/form/model.mjs
 var HttpSubmit = class extends CustomType {
   constructor(url, method, headers) {
     super();
@@ -6524,7 +7070,7 @@ var CustomSubmit = class extends CustomType {
 var NoSubmit = class extends CustomType {
 };
 var FormModel = class extends CustomType {
-  constructor(schema, resolved_schema, values3, errors, is_submitting, is_dirty, is_valid, touched_fields, disabled_fields, submission_result, submit_config) {
+  constructor(schema, resolved_schema, values3, errors, is_submitting, is_dirty, is_valid, touched_fields, disabled_fields, submission_result, submit_config, show_readonly_fields, upload_base_url, upload_states) {
     super();
     this.schema = schema;
     this.resolved_schema = resolved_schema;
@@ -6537,6 +7083,23 @@ var FormModel = class extends CustomType {
     this.disabled_fields = disabled_fields;
     this.submission_result = submission_result;
     this.submit_config = submit_config;
+    this.show_readonly_fields = show_readonly_fields;
+    this.upload_base_url = upload_base_url;
+    this.upload_states = upload_states;
+  }
+};
+var FileUploading = class extends CustomType {
+  constructor(temp_id, preview_url) {
+    super();
+    this.temp_id = temp_id;
+    this.preview_url = preview_url;
+  }
+};
+var FileUploadError = class extends CustomType {
+  constructor(temp_id, error) {
+    super();
+    this.temp_id = temp_id;
+    this.error = error;
   }
 };
 var SubmissionSuccess = class extends CustomType {
@@ -6583,11 +7146,53 @@ var ValidateForm = class extends CustomType {
 };
 var ResetForm = class extends CustomType {
 };
-function init_with_config(schema, submit_config) {
+var ImageUploadRequested = class extends CustomType {
+  constructor(path) {
+    super();
+    this.path = path;
+  }
+};
+var ImageUploadStarted = class extends CustomType {
+  constructor(path, temp_id, preview_url) {
+    super();
+    this.path = path;
+    this.temp_id = temp_id;
+    this.preview_url = preview_url;
+  }
+};
+var ImageUploadCompleted = class extends CustomType {
+  constructor(path, temp_id, server_url) {
+    super();
+    this.path = path;
+    this.temp_id = temp_id;
+    this.server_url = server_url;
+  }
+};
+var ImageUploadFailed = class extends CustomType {
+  constructor(path, temp_id, error) {
+    super();
+    this.path = path;
+    this.temp_id = temp_id;
+    this.error = error;
+  }
+};
+var ImageRemoved = class extends CustomType {
+  constructor(path, server_url) {
+    super();
+    this.path = path;
+    this.server_url = server_url;
+  }
+};
+function init_with_full_config(schema, submit_config, show_readonly_fields, initial_values) {
+  let initial_value = new ObjectValue(map_to_list(initial_values));
+  let values_with_defaults = apply_schema_defaults(
+    schema.properties,
+    initial_value
+  );
   return new FormModel(
     schema,
     schema,
-    new_map(),
+    values_with_defaults,
     new_map(),
     false,
     false,
@@ -6595,74 +7200,17 @@ function init_with_config(schema, submit_config) {
     toList([]),
     toList([]),
     new None(),
-    submit_config
+    submit_config,
+    show_readonly_fields,
+    new None(),
+    new_map()
   );
 }
-function field_has_errors(model, field_name) {
-  let $ = map_get(model.errors, field_name);
-  if ($ instanceof Ok) {
-    let errors = $[0];
-    return length(errors) > 0;
-  } else {
-    return false;
-  }
+function is_field_touched(model, field_path) {
+  return contains(model.touched_fields, field_path);
 }
-function is_field_touched(model, field_name) {
-  return contains(model.touched_fields, field_name);
-}
-function is_field_disabled(model, field_name) {
-  return contains(model.disabled_fields, field_name);
-}
-function get_field_value2(model, field_name) {
-  let $ = map_get(model.values, field_name);
-  if ($ instanceof Ok) {
-    let value2 = $[0];
-    return new Some(value2);
-  } else {
-    return new None();
-  }
-}
-function get_field_errors(model, field_name) {
-  let $ = map_get(model.errors, field_name);
-  if ($ instanceof Ok) {
-    let errors = $[0];
-    return errors;
-  } else {
-    return toList([]);
-  }
-}
-function add_field_error(model, field_name, error) {
-  let current_errors = get_field_errors(model, field_name);
-  let new_errors = append(current_errors, toList([error]));
-  return new FormModel(
-    model.schema,
-    model.resolved_schema,
-    model.values,
-    insert(model.errors, field_name, new_errors),
-    model.is_submitting,
-    model.is_dirty,
-    false,
-    model.touched_fields,
-    model.disabled_fields,
-    model.submission_result,
-    model.submit_config
-  );
-}
-function clear_field_errors(model, field_name) {
-  let new_errors = delete$(model.errors, field_name);
-  return new FormModel(
-    model.schema,
-    model.resolved_schema,
-    model.values,
-    new_errors,
-    model.is_submitting,
-    model.is_dirty,
-    map_size(new_errors) === 0,
-    model.touched_fields,
-    model.disabled_fields,
-    model.submission_result,
-    model.submit_config
-  );
+function is_field_disabled(model, field_path) {
+  return contains(model.disabled_fields, field_path);
 }
 function clear_all_errors(model) {
   return new FormModel(
@@ -6676,14 +7224,43 @@ function clear_all_errors(model) {
     model.touched_fields,
     model.disabled_fields,
     model.submission_result,
-    model.submit_config
+    model.submit_config,
+    model.show_readonly_fields,
+    model.upload_base_url,
+    model.upload_states
   );
+}
+function mark_field_touched(model, field_path) {
+  let $ = is_field_touched(model, field_path);
+  if ($) {
+    return model;
+  } else {
+    return new FormModel(
+      model.schema,
+      model.resolved_schema,
+      model.values,
+      model.errors,
+      model.is_submitting,
+      model.is_dirty,
+      model.is_valid,
+      append(model.touched_fields, toList([field_path])),
+      model.disabled_fields,
+      model.submission_result,
+      model.submit_config,
+      model.show_readonly_fields,
+      model.upload_base_url,
+      model.upload_states
+    );
+  }
 }
 function reset(model) {
   return new FormModel(
     model.schema,
     model.schema,
-    new_map(),
+    apply_schema_defaults(
+      model.schema.properties,
+      new ObjectValue(toList([]))
+    ),
     new_map(),
     false,
     false,
@@ -6691,11 +7268,218 @@ function reset(model) {
     toList([]),
     toList([]),
     new None(),
-    model.submit_config
+    model.submit_config,
+    model.show_readonly_fields,
+    model.upload_base_url,
+    new_map()
+  );
+}
+function get_resolved_values(model) {
+  let $ = model.values;
+  if ($ instanceof ObjectValue) {
+    let fields = $[0];
+    return new ObjectValue(
+      filter(
+        fields,
+        (pair) => {
+          return has_property_key(model.resolved_schema.properties, pair[0]);
+        }
+      )
+    );
+  } else {
+    return $;
+  }
+}
+function get_value_at_path(model, field_path) {
+  if (field_path instanceof Empty) {
+    return new None();
+  } else {
+    return get_at_path(model.values, field_path);
+  }
+}
+function required_in_node(loop$properties, loop$required, loop$field_path) {
+  while (true) {
+    let properties = loop$properties;
+    let required2 = loop$required;
+    let field_path = loop$field_path;
+    if (field_path instanceof Empty) {
+      return false;
+    } else {
+      let $ = field_path.head;
+      if ($ instanceof PropertySegment) {
+        let $1 = field_path.tail;
+        if ($1 instanceof Empty) {
+          let name2 = $.name;
+          return contains(required2, name2);
+        } else {
+          let $2 = $1.head;
+          if ($2 instanceof PropertySegment) {
+            let name2 = $.name;
+            let rest = $1.tail;
+            let child = $2.name;
+            let $3 = key_find(properties, name2);
+            if ($3 instanceof Ok) {
+              let prop = $3[0];
+              let $4 = prop.properties;
+              if ($4 instanceof Some) {
+                let sub = $4[0];
+                loop$properties = sub;
+                loop$required = prop.required;
+                loop$field_path = prepend(
+                  new PropertySegment(child),
+                  rest
+                );
+              } else {
+                return false;
+              }
+            } else {
+              return false;
+            }
+          } else {
+            let name2 = $.name;
+            let rest = $1.tail;
+            let $3 = key_find(properties, name2);
+            if ($3 instanceof Ok) {
+              let prop = $3[0];
+              let $4 = prop.items;
+              if ($4 instanceof Some) {
+                let items_schema = $4[0];
+                let $5 = items_schema.properties;
+                if ($5 instanceof Some) {
+                  let item_props = $5[0];
+                  loop$properties = item_props;
+                  loop$required = items_schema.required;
+                  loop$field_path = rest;
+                } else {
+                  return false;
+                }
+              } else {
+                return false;
+              }
+            } else {
+              return false;
+            }
+          }
+        }
+      } else {
+        return false;
+      }
+    }
+  }
+}
+function is_required_at_path(model, field_path) {
+  return required_in_node(
+    model.resolved_schema.properties,
+    model.resolved_schema.required,
+    field_path
+  );
+}
+function get_errors_at_path(model, field_path) {
+  let path_key = to_string5(field_path);
+  let $ = map_get(model.errors, path_key);
+  if ($ instanceof Ok) {
+    let errors = $[0];
+    return errors;
+  } else {
+    return toList([]);
+  }
+}
+function add_error_at_path(model, field_path, error) {
+  let path_key = to_string5(field_path);
+  let current = get_errors_at_path(model, field_path);
+  let new_errors = append(current, toList([error]));
+  return new FormModel(
+    model.schema,
+    model.resolved_schema,
+    model.values,
+    insert(model.errors, path_key, new_errors),
+    model.is_submitting,
+    model.is_dirty,
+    false,
+    model.touched_fields,
+    model.disabled_fields,
+    model.submission_result,
+    model.submit_config,
+    model.show_readonly_fields,
+    model.upload_base_url,
+    model.upload_states
+  );
+}
+function clear_errors_at_path(model, field_path) {
+  let path_key = to_string5(field_path);
+  let new_errors = delete$(model.errors, path_key);
+  return new FormModel(
+    model.schema,
+    model.resolved_schema,
+    model.values,
+    new_errors,
+    model.is_submitting,
+    model.is_dirty,
+    map_size(new_errors) === 0,
+    model.touched_fields,
+    model.disabled_fields,
+    model.submission_result,
+    model.submit_config,
+    model.show_readonly_fields,
+    model.upload_base_url,
+    model.upload_states
   );
 }
 function can_submit(model) {
   return model.is_valid && !model.is_submitting;
+}
+function walk_into_property(loop$property, loop$rest) {
+  while (true) {
+    let property3 = loop$property;
+    let rest = loop$rest;
+    if (rest instanceof Empty) {
+      return new Ok(property3);
+    } else {
+      let $ = rest.head;
+      if ($ instanceof PropertySegment) {
+        let $1 = property3.properties;
+        if ($1 instanceof Some) {
+          let sub = $1[0];
+          return lookup_property(sub, rest);
+        } else {
+          return new Error2(void 0);
+        }
+      } else {
+        let rest_after_array = rest.tail;
+        let $1 = property3.items;
+        if ($1 instanceof Some) {
+          let items_schema = $1[0];
+          loop$property = items_schema;
+          loop$rest = rest_after_array;
+        } else {
+          return new Error2(void 0);
+        }
+      }
+    }
+  }
+}
+function lookup_property(properties, field_path) {
+  if (field_path instanceof Empty) {
+    return new Error2(void 0);
+  } else {
+    let $ = field_path.head;
+    if ($ instanceof PropertySegment) {
+      let rest = field_path.tail;
+      let name2 = $.name;
+      let $1 = key_find(properties, name2);
+      if ($1 instanceof Ok) {
+        let prop = $1[0];
+        return walk_into_property(prop, rest);
+      } else {
+        return new Error2(void 0);
+      }
+    } else {
+      return new Error2(void 0);
+    }
+  }
+}
+function find_property_at_path(model, field_path) {
+  return lookup_property(model.resolved_schema.properties, field_path);
 }
 
 // build/dev/javascript/gleam_http/gleam/http.mjs
@@ -6759,9 +7543,19 @@ function scheme_from_string(scheme) {
   } else if ($ === "https") {
     return new Ok(new Https());
   } else {
-    return new Error(void 0);
+    return new Error2(void 0);
   }
 }
+
+// build/dev/javascript/gleam_http/gleam/http/response.mjs
+var Response = class extends CustomType {
+  constructor(status, headers, body) {
+    super();
+    this.status = status;
+    this.headers = headers;
+    this.body = body;
+  }
+};
 
 // build/dev/javascript/gleam_stdlib/gleam/uri.mjs
 var Uri = class extends CustomType {
@@ -6776,6 +7570,15 @@ var Uri = class extends CustomType {
     this.fragment = fragment3;
   }
 };
+var empty3 = /* @__PURE__ */ new Uri(
+  /* @__PURE__ */ new None(),
+  /* @__PURE__ */ new None(),
+  /* @__PURE__ */ new None(),
+  /* @__PURE__ */ new None(),
+  "",
+  /* @__PURE__ */ new None(),
+  /* @__PURE__ */ new None()
+);
 function is_valid_host_within_brackets_char(char) {
   return 48 >= char && char <= 57 || 65 >= char && char <= 90 || 97 >= char && char <= 122 || char === 58 || char === 46;
 }
@@ -7003,7 +7806,7 @@ function parse_port_loop(loop$uri_string, loop$pieces, loop$port) {
         )
       );
     } else {
-      return new Error(void 0);
+      return new Error2(void 0);
     }
   }
 }
@@ -7061,10 +7864,10 @@ function parse_port(uri_string, pieces) {
     if (rest.startsWith("/")) {
       return parse_path(rest, pieces);
     } else {
-      return new Error(void 0);
+      return new Error2(void 0);
     }
   } else {
-    return new Error(void 0);
+    return new Error2(void 0);
   }
 }
 function parse_host_outside_of_brackets_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
@@ -7419,7 +8222,7 @@ function parse_scheme_loop(loop$original, loop$uri_string, loop$pieces, loop$siz
       }
     } else if (uri_string.startsWith(":")) {
       if (size2 === 0) {
-        return new Error(void 0);
+        return new Error2(void 0);
       } else {
         let rest = uri_string.slice(1);
         let scheme = string_codeunit_slice(original, 0, size2);
@@ -7539,16 +8342,7 @@ function to_string6(uri) {
   let parts$5 = _block$4;
   return concat2(parts$5);
 }
-var empty3 = /* @__PURE__ */ new Uri(
-  /* @__PURE__ */ new None(),
-  /* @__PURE__ */ new None(),
-  /* @__PURE__ */ new None(),
-  /* @__PURE__ */ new None(),
-  "",
-  /* @__PURE__ */ new None(),
-  /* @__PURE__ */ new None()
-);
-function parse2(uri_string) {
+function parse3(uri_string) {
   return parse_scheme_loop(uri_string, uri_string, empty3, 0);
 }
 
@@ -7607,7 +8401,7 @@ function from_uri(uri) {
     }
   );
 }
-function set_header(request, key, value2) {
+function set_header2(request, key, value2) {
   let headers = key_set(request.headers, lowercase(key), value2);
   return new Request(
     request.method,
@@ -7649,21 +8443,6 @@ function set_method(req, method) {
     req.query
   );
 }
-function to(url) {
-  let _pipe = url;
-  let _pipe$1 = parse2(_pipe);
-  return try$(_pipe$1, from_uri);
-}
-
-// build/dev/javascript/gleam_http/gleam/http/response.mjs
-var Response = class extends CustomType {
-  constructor(status, headers, body) {
-    super();
-    this.status = status;
-    this.headers = headers;
-    this.body = body;
-  }
-};
 
 // build/dev/javascript/gleam_javascript/gleam_javascript_ffi.mjs
 var PromiseLayer = class _PromiseLayer {
@@ -7710,7 +8489,7 @@ function try_await(promise, callback) {
         return callback(a);
       } else {
         let e = result[0];
-        return resolve(new Error(e));
+        return resolve(new Error2(e));
       }
     }
   );
@@ -7721,7 +8500,7 @@ async function raw_send(request) {
   try {
     return new Ok(await fetch(request));
   } catch (error) {
-    return new Error(new NetworkError(error.toString()));
+    return new Error2(new NetworkError(error.toString()));
   }
 }
 function from_fetch_response(response) {
@@ -7755,7 +8534,7 @@ async function read_text_body(response) {
   try {
     body = await response.body.text();
   } catch (error) {
-    return new Error(new UnableToReadBody());
+    return new Error2(new UnableToReadBody());
   }
   return new Ok(response.withFields({ body }));
 }
@@ -7788,7 +8567,7 @@ function new$7(first, second2) {
 
 // build/dev/javascript/rsvp/rsvp.ffi.mjs
 var from_relative_url = (url_string) => {
-  if (!globalThis.location) return new Error(void 0);
+  if (!globalThis.location) return new Error2(void 0);
   const url = new URL(url_string, globalThis.location.href);
   const uri = uri_from_url(url);
   return new Ok(uri);
@@ -7879,7 +8658,7 @@ function send3(request, handler) {
 function reject(err, handler) {
   return from(
     (dispatch) => {
-      let _pipe = new Error(err);
+      let _pipe = new Error2(err);
       let _pipe$1 = handler.run(_pipe);
       return dispatch(_pipe$1);
     }
@@ -7892,7 +8671,7 @@ function to_uri2(uri_string) {
   } else if (uri_string.startsWith("/")) {
     _block = from_relative_url(uri_string);
   } else {
-    _block = parse2(uri_string);
+    _block = parse3(uri_string);
   }
   let _pipe = _block;
   return replace_error(_pipe, new BadUrl(uri_string));
@@ -7901,20 +8680,13 @@ function get2(url, handler) {
   let $ = to_uri2(url);
   if ($ instanceof Ok) {
     let uri = $[0];
-    let _pipe = from_uri(uri);
-    let _pipe$1 = map3(
-      _pipe,
-      (_capture) => {
-        return send3(_capture, handler);
-      }
-    );
-    let _pipe$2 = map_error(
-      _pipe$1,
-      (_) => {
-        return reject(new BadUrl(url), handler);
-      }
-    );
-    return unwrap_both(_pipe$2);
+    let $1 = from_uri(uri);
+    if ($1 instanceof Ok) {
+      let request = $1[0];
+      return send3(request, handler);
+    } else {
+      return reject(new BadUrl(url), handler);
+    }
   } else {
     let err = $[0];
     return reject(err, handler);
@@ -7924,35 +8696,1066 @@ function post(url, body, handler) {
   let $ = to_uri2(url);
   if ($ instanceof Ok) {
     let uri = $[0];
-    let _pipe = from_uri(uri);
-    let _pipe$1 = map3(
-      _pipe,
-      (request) => {
-        let _pipe$12 = request;
-        let _pipe$22 = set_method(_pipe$12, new Post());
-        let _pipe$3 = set_header(
-          _pipe$22,
-          "content-type",
-          "application/json"
-        );
-        let _pipe$4 = set_body(_pipe$3, to_string2(body));
-        return send3(_pipe$4, handler);
-      }
-    );
-    let _pipe$2 = map_error(
-      _pipe$1,
-      (_) => {
-        return reject(new BadUrl(url), handler);
-      }
-    );
-    return unwrap_both(_pipe$2);
+    let $1 = from_uri(uri);
+    if ($1 instanceof Ok) {
+      let request = $1[0];
+      let _pipe = request;
+      let _pipe$1 = set_method(_pipe, new Post());
+      let _pipe$2 = set_header2(
+        _pipe$1,
+        "content-type",
+        "application/json"
+      );
+      let _pipe$3 = set_body(_pipe$2, to_string2(body));
+      return send3(_pipe$3, handler);
+    } else {
+      return reject(new BadUrl(url), handler);
+    }
+  } else {
+    let err = $[0];
+    return reject(err, handler);
+  }
+}
+function put(url, body, handler) {
+  let $ = to_uri2(url);
+  if ($ instanceof Ok) {
+    let uri = $[0];
+    let $1 = from_uri(uri);
+    if ($1 instanceof Ok) {
+      let request = $1[0];
+      let _pipe = request;
+      let _pipe$1 = set_method(_pipe, new Put());
+      let _pipe$2 = set_header2(
+        _pipe$1,
+        "content-type",
+        "application/json"
+      );
+      let _pipe$3 = set_body(_pipe$2, to_string2(body));
+      return send3(_pipe$3, handler);
+    } else {
+      return reject(new BadUrl(url), handler);
+    }
+  } else {
+    let err = $[0];
+    return reject(err, handler);
+  }
+}
+function patch(url, body, handler) {
+  let $ = to_uri2(url);
+  if ($ instanceof Ok) {
+    let uri = $[0];
+    let $1 = from_uri(uri);
+    if ($1 instanceof Ok) {
+      let request = $1[0];
+      let _pipe = request;
+      let _pipe$1 = set_method(_pipe, new Patch2());
+      let _pipe$2 = set_header2(
+        _pipe$1,
+        "content-type",
+        "application/json"
+      );
+      let _pipe$3 = set_body(_pipe$2, to_string2(body));
+      return send3(_pipe$3, handler);
+    } else {
+      return reject(new BadUrl(url), handler);
+    }
   } else {
     let err = $[0];
     return reject(err, handler);
   }
 }
 
-// build/dev/javascript/formosh/form/json_utils.mjs
+// build/dev/javascript/formosh/formosh/ffi/image_upload_ffi.mjs
+function openFilePicker(accept, maxFileSize, uploadUrl, onStarted, onUploaded, onError) {
+  const input2 = document.createElement("input");
+  input2.type = "file";
+  input2.accept = accept;
+  input2.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (maxFileSize > 0 && file.size > maxFileSize) {
+      const tempId2 = crypto.randomUUID();
+      onError(tempId2, `File too large: ${(file.size / 1048576).toFixed(1)}MB (max ${(maxFileSize / 1048576).toFixed(1)}MB)`);
+      return;
+    }
+    const tempId = crypto.randomUUID();
+    const previewUrl = URL.createObjectURL(file);
+    onStarted(tempId, previewUrl);
+    const formData = new FormData();
+    formData.append("file", file);
+    fetch(uploadUrl, {
+      method: "POST",
+      body: formData,
+      credentials: "include"
+    }).then((r) => {
+      if (!r.ok) throw new Error(`Upload failed: ${r.status}`);
+      return r.json();
+    }).then((data) => {
+      if (!data.url) throw new Error("Server response missing 'url' field");
+      onUploaded(tempId, data.url);
+    }).catch((err) => onError(tempId, err.message));
+  };
+  input2.click();
+}
+function deleteFile(uploadBaseUrl, filename) {
+  fetch(`${uploadBaseUrl}/${filename}`, {
+    method: "DELETE",
+    credentials: "include"
+  }).catch((err) => console.error("formosh: delete failed:", err));
+}
+function revokeObjectUrl(url) {
+  URL.revokeObjectURL(url);
+}
+
+// build/dev/javascript/formosh/formosh/ffi/dynamic_object_ffi.mjs
+function entries(value2) {
+  if (value2 === null || typeof value2 !== "object" || Array.isArray(value2)) {
+    return new Error2(void 0);
+  }
+  return new Ok(toList(Object.entries(value2)));
+}
+
+// build/dev/javascript/formosh/formosh/schema/resolver.mjs
+var ReferenceNotFound = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var CircularReference = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var InvalidReference = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+function resolve_optional(value2, resolver) {
+  if (value2 instanceof Some) {
+    let v = value2[0];
+    return map3(resolver(v), (var0) => {
+      return new Some(var0);
+    });
+  } else {
+    return new Ok(new None());
+  }
+}
+function parse_ref_path(ref_path) {
+  let $ = starts_with(ref_path, "#/$defs/");
+  if ($) {
+    let _block;
+    let _pipe = ref_path;
+    _block = drop_start(_pipe, 8);
+    let definition_name = _block;
+    let $1 = string_length(definition_name) > 0;
+    if ($1) {
+      return new Ok(definition_name);
+    } else {
+      return new Error2(new InvalidReference(ref_path));
+    }
+  } else {
+    let $1 = starts_with(ref_path, "#/definitions/");
+    if ($1) {
+      let _block;
+      let _pipe = ref_path;
+      _block = drop_start(_pipe, 14);
+      let definition_name = _block;
+      let $2 = string_length(definition_name) > 0;
+      if ($2) {
+        return new Ok(definition_name);
+      } else {
+        return new Error2(new InvalidReference(ref_path));
+      }
+    } else {
+      return new Error2(new InvalidReference(ref_path));
+    }
+  }
+}
+function merge_properties(referencing, referenced) {
+  return new SchemaProperty(
+    or(referencing.field_type, referenced.field_type),
+    or(referencing.title, referenced.title),
+    or(referencing.description, referenced.description),
+    or(referencing.default, referenced.default),
+    or(referencing.enum_values, referenced.enum_values),
+    or(referencing.one_of, referenced.one_of),
+    new None(),
+    or(referencing.string_constraints, referenced.string_constraints),
+    or(referencing.number_constraints, referenced.number_constraints),
+    or(referencing.items, referenced.items),
+    or(referencing.properties, referenced.properties),
+    (() => {
+      let $ = referencing.required;
+      if ($ instanceof Empty) {
+        return referenced.required;
+      } else {
+        return referencing.required;
+      }
+    })(),
+    referencing.read_only || referenced.read_only,
+    referencing.addable && referenced.addable,
+    referencing.removable && referenced.removable,
+    or(referencing.widget, referenced.widget),
+    or(referencing.upload_config, referenced.upload_config),
+    append(referencing.conditionals, referenced.conditionals)
+  );
+}
+function resolve_nested_refs(property3, context, visited) {
+  return try$(
+    resolve_optional(
+      property3.properties,
+      (_capture) => {
+        return resolve_properties_refs(_capture, context, visited);
+      }
+    ),
+    (resolved_properties) => {
+      return try$(
+        resolve_optional(
+          property3.items,
+          (_capture) => {
+            return resolve_property_ref(_capture, context, visited);
+          }
+        ),
+        (resolved_items) => {
+          return try$(
+            resolve_optional(
+              property3.one_of,
+              (_capture) => {
+                return try_map(
+                  _capture,
+                  (_capture2) => {
+                    return resolve_property_ref(_capture2, context, visited);
+                  }
+                );
+              }
+            ),
+            (resolved_one_of) => {
+              return new Ok(
+                new SchemaProperty(
+                  property3.field_type,
+                  property3.title,
+                  property3.description,
+                  property3.default,
+                  property3.enum_values,
+                  resolved_one_of,
+                  property3.ref,
+                  property3.string_constraints,
+                  property3.number_constraints,
+                  resolved_items,
+                  resolved_properties,
+                  property3.required,
+                  property3.read_only,
+                  property3.addable,
+                  property3.removable,
+                  property3.widget,
+                  property3.upload_config,
+                  property3.conditionals
+                )
+              );
+            }
+          );
+        }
+      );
+    }
+  );
+}
+function resolve_properties_refs(properties, context, visited) {
+  let _pipe = properties;
+  return try_map(
+    _pipe,
+    (entry) => {
+      let key;
+      let prop;
+      key = entry[0];
+      prop = entry[1];
+      return try$(
+        resolve_property_ref(prop, context, visited),
+        (resolved_prop) => {
+          return new Ok([key, resolved_prop]);
+        }
+      );
+    }
+  );
+}
+function resolve_property_ref(property3, context, visited) {
+  let $ = property3.ref;
+  if ($ instanceof Some) {
+    let ref_path = $[0];
+    let $1 = contains(visited, ref_path);
+    if ($1) {
+      return new Error2(new CircularReference(ref_path));
+    } else {
+      return try$(
+        parse_ref_path(ref_path),
+        (definition_name) => {
+          let $2 = map_get(context, definition_name);
+          if ($2 instanceof Ok) {
+            let referenced_property = $2[0];
+            let new_visited = prepend(ref_path, visited);
+            return try$(
+              resolve_property_ref(referenced_property, context, new_visited),
+              (resolved) => {
+                return new Ok(merge_properties(property3, resolved));
+              }
+            );
+          } else {
+            return new Error2(new ReferenceNotFound(ref_path));
+          }
+        }
+      );
+    }
+  } else {
+    return resolve_nested_refs(property3, context, visited);
+  }
+}
+function resolve_refs(schema) {
+  let _block;
+  let $ = schema.defs;
+  if ($ instanceof Some) {
+    let defs = $[0];
+    _block = defs;
+  } else {
+    _block = new_map();
+  }
+  let context = _block;
+  return try$(
+    resolve_properties_refs(schema.properties, context, toList([])),
+    (resolved_properties) => {
+      return new Ok(
+        new JsonSchema(
+          schema.title,
+          schema.description,
+          schema.field_type,
+          resolved_properties,
+          schema.required,
+          schema.defs,
+          schema.conditionals,
+          schema.string_constraints,
+          schema.number_constraints
+        )
+      );
+    }
+  );
+}
+
+// build/dev/javascript/formosh/formosh/schema/parser.mjs
+var InvalidJson = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var UnexpectedValue = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var DecodingError = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+function field_type_decoder() {
+  let _pipe = string2;
+  return then$(
+    _pipe,
+    (type_str) => {
+      if (type_str === "string") {
+        return success(new StringType());
+      } else if (type_str === "number") {
+        return success(new NumberType());
+      } else if (type_str === "integer") {
+        return success(new IntegerType());
+      } else if (type_str === "boolean") {
+        return success(new BooleanType());
+      } else if (type_str === "null") {
+        return success(new NullType());
+      } else if (type_str === "array") {
+        return success(new ArrayType());
+      } else if (type_str === "object") {
+        return success(new ObjectType());
+      } else {
+        return failure(
+          new StringType(),
+          "Unknown field type: " + type_str
+        );
+      }
+    }
+  );
+}
+function extract_number_constraints(data) {
+  let _block;
+  let _pipe = run(data, at(toList(["minimum"]), float2));
+  _block = from_result(_pipe);
+  let minimum = _block;
+  let _block$1;
+  let _pipe$1 = run(
+    data,
+    at(toList(["maximum"]), float2)
+  );
+  _block$1 = from_result(_pipe$1);
+  let maximum = _block$1;
+  let _block$2;
+  let _pipe$2 = run(
+    data,
+    at(toList(["exclusiveMinimum"]), float2)
+  );
+  _block$2 = from_result(_pipe$2);
+  let exclusive_minimum = _block$2;
+  let _block$3;
+  let _pipe$3 = run(
+    data,
+    at(toList(["exclusiveMaximum"]), float2)
+  );
+  _block$3 = from_result(_pipe$3);
+  let exclusive_maximum = _block$3;
+  let _block$4;
+  let _pipe$4 = run(
+    data,
+    at(toList(["multipleOf"]), float2)
+  );
+  _block$4 = from_result(_pipe$4);
+  let multiple_of = _block$4;
+  if (minimum instanceof None && maximum instanceof None && exclusive_minimum instanceof None && exclusive_maximum instanceof None && multiple_of instanceof None) {
+    return minimum;
+  } else {
+    return new Some(
+      new NumberConstraints(
+        minimum,
+        maximum,
+        exclusive_minimum,
+        exclusive_maximum,
+        multiple_of
+      )
+    );
+  }
+}
+function extract_read_only(data) {
+  let _pipe = run(data, at(toList(["readOnly"]), bool));
+  return unwrap2(_pipe, false);
+}
+function extract_addable(data) {
+  let _pipe = run(data, at(toList(["x-addable"]), bool));
+  return unwrap2(_pipe, true);
+}
+function extract_removable(data) {
+  let _pipe = run(
+    data,
+    at(toList(["x-removable"]), bool)
+  );
+  return unwrap2(_pipe, true);
+}
+function extract_widget(data) {
+  let _pipe = run(
+    data,
+    at(toList(["x-widget"]), string2)
+  );
+  return from_result(_pipe);
+}
+function extract_upload_config(data) {
+  let $ = extract_widget(data);
+  if ($ instanceof Some) {
+    let $1 = $[0];
+    if ($1 === "image-upload") {
+      let _block;
+      let _pipe = run(
+        data,
+        at(toList(["x-accept"]), string2)
+      );
+      _block = from_result(_pipe);
+      let accept = _block;
+      let _block$1;
+      let _pipe$1 = run(
+        data,
+        at(toList(["x-max-file-size"]), int2)
+      );
+      _block$1 = from_result(_pipe$1);
+      let max_file_size = _block$1;
+      return new Some(
+        new UploadConfig(
+          unwrap(accept, "image/*"),
+          max_file_size
+        )
+      );
+    } else {
+      return new None();
+    }
+  } else {
+    return new None();
+  }
+}
+function format_decoder() {
+  let _pipe = string2;
+  return then$(
+    _pipe,
+    (format_str) => {
+      if (format_str === "email") {
+        return success(new EmailFormat());
+      } else if (format_str === "url") {
+        return success(new UrlFormat());
+      } else if (format_str === "uri") {
+        return success(new UrlFormat());
+      } else if (format_str === "uuid") {
+        return success(new UuidFormat());
+      } else {
+        return success(new CustomFormat(format_str));
+      }
+    }
+  );
+}
+function extract_string_constraints(data) {
+  let _block;
+  let _pipe = run(data, at(toList(["minLength"]), int2));
+  _block = from_result(_pipe);
+  let min_length = _block;
+  let _block$1;
+  let _pipe$1 = run(
+    data,
+    at(toList(["maxLength"]), int2)
+  );
+  _block$1 = from_result(_pipe$1);
+  let max_length = _block$1;
+  let _block$2;
+  let _pipe$2 = run(
+    data,
+    at(toList(["pattern"]), string2)
+  );
+  _block$2 = from_result(_pipe$2);
+  let pattern = _block$2;
+  let _block$3;
+  let _pipe$3 = run(
+    data,
+    at(toList(["format"]), format_decoder())
+  );
+  _block$3 = from_result(_pipe$3);
+  let format = _block$3;
+  if (min_length instanceof None && max_length instanceof None && pattern instanceof None && format instanceof None) {
+    return min_length;
+  } else {
+    return new Some(
+      new StringConstraints(min_length, max_length, pattern, format)
+    );
+  }
+}
+function value_decoder() {
+  return then$(
+    dynamic,
+    (dynamic_value) => {
+      let $ = run(dynamic_value, string2);
+      if ($ instanceof Ok) {
+        let s = $[0];
+        return success(new StringValue(s));
+      } else {
+        let $1 = run(dynamic_value, int2);
+        if ($1 instanceof Ok) {
+          let i = $1[0];
+          return success(new IntegerValue(i));
+        } else {
+          let $2 = run(dynamic_value, float2);
+          if ($2 instanceof Ok) {
+            let f = $2[0];
+            return success(new NumberValue(f));
+          } else {
+            let $3 = run(dynamic_value, bool);
+            if ($3 instanceof Ok) {
+              let b = $3[0];
+              return success(new BooleanValue(b));
+            } else {
+              let $4 = run(dynamic_value, list2(dynamic));
+              if ($4 instanceof Ok) {
+                let arr = $4[0];
+                let _block;
+                let _pipe = arr;
+                _block = filter_map(
+                  _pipe,
+                  (item) => {
+                    let $5 = run(item, value_decoder());
+                    if ($5 instanceof Ok) {
+                      return $5;
+                    } else {
+                      return new Error2(void 0);
+                    }
+                  }
+                );
+                let decoded_items = _block;
+                return success(new ArrayValue(decoded_items));
+              } else {
+                let $5 = run(
+                  dynamic_value,
+                  dict2(string2, dynamic)
+                );
+                if ($5 instanceof Ok) {
+                  let obj = $5[0];
+                  let _block;
+                  let _pipe = map_to_list(obj);
+                  _block = filter_map(
+                    _pipe,
+                    (pair) => {
+                      let key;
+                      let value2;
+                      key = pair[0];
+                      value2 = pair[1];
+                      let $6 = run(value2, value_decoder());
+                      if ($6 instanceof Ok) {
+                        let decoded_value = $6[0];
+                        return new Ok([key, decoded_value]);
+                      } else {
+                        return new Error2(void 0);
+                      }
+                    }
+                  );
+                  let decoded_list = _block;
+                  return success(new ObjectValue(decoded_list));
+                } else {
+                  return success(new NullValue());
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  );
+}
+function extract_const_value(data) {
+  let _pipe = run(data, at(toList(["const"]), value_decoder()));
+  let _pipe$1 = map3(
+    _pipe,
+    (const_value) => {
+      return toList([const_value]);
+    }
+  );
+  return from_result(_pipe$1);
+}
+function full_property_decoder() {
+  return then$(
+    dynamic,
+    (dynamic_data) => {
+      return optional_field(
+        "type",
+        new None(),
+        optional(field_type_decoder()),
+        (field_type) => {
+          return optional_field(
+            "title",
+            new None(),
+            optional(string2),
+            (title) => {
+              return optional_field(
+                "description",
+                new None(),
+                optional(string2),
+                (description) => {
+                  return optional_field(
+                    "default",
+                    new None(),
+                    optional(value_decoder()),
+                    (default$) => {
+                      return optional_field(
+                        "enum",
+                        new None(),
+                        optional(list2(value_decoder())),
+                        (enum_values) => {
+                          return optional_field(
+                            "$ref",
+                            new None(),
+                            optional(string2),
+                            (ref) => {
+                              return optional_field(
+                                "items",
+                                new None(),
+                                optional(property_decoder()),
+                                (items) => {
+                                  return optional_field(
+                                    "properties",
+                                    new None(),
+                                    optional(properties_decoder()),
+                                    (properties) => {
+                                      return optional_field(
+                                        "required",
+                                        toList([]),
+                                        list2(string2),
+                                        (required2) => {
+                                          let string_constraints = extract_string_constraints(
+                                            dynamic_data
+                                          );
+                                          let number_constraints = extract_number_constraints(
+                                            dynamic_data
+                                          );
+                                          let read_only = extract_read_only(
+                                            dynamic_data
+                                          );
+                                          let addable = extract_addable(
+                                            dynamic_data
+                                          );
+                                          let removable = extract_removable(
+                                            dynamic_data
+                                          );
+                                          let _block;
+                                          if (enum_values instanceof Some) {
+                                            _block = enum_values;
+                                          } else {
+                                            _block = extract_const_value(
+                                              dynamic_data
+                                            );
+                                          }
+                                          let enum_values_with_const = _block;
+                                          let one_of2 = extract_one_of(
+                                            dynamic_data
+                                          );
+                                          let widget = extract_widget(
+                                            dynamic_data
+                                          );
+                                          let upload_config = extract_upload_config(
+                                            dynamic_data
+                                          );
+                                          let conditionals = extract_conditionals(
+                                            dynamic_data
+                                          );
+                                          return success(
+                                            new SchemaProperty(
+                                              field_type,
+                                              title,
+                                              description,
+                                              default$,
+                                              enum_values_with_const,
+                                              one_of2,
+                                              ref,
+                                              string_constraints,
+                                              number_constraints,
+                                              items,
+                                              properties,
+                                              required2,
+                                              read_only,
+                                              addable,
+                                              removable,
+                                              widget,
+                                              upload_config,
+                                              conditionals
+                                            )
+                                          );
+                                        }
+                                      );
+                                    }
+                                  );
+                                }
+                              );
+                            }
+                          );
+                        }
+                      );
+                    }
+                  );
+                }
+              );
+            }
+          );
+        }
+      );
+    }
+  );
+}
+function extract_conditionals(data) {
+  let $ = run(
+    data,
+    at(toList(["allOf"]), list2(dynamic))
+  );
+  if ($ instanceof Ok) {
+    let allof_items = $[0];
+    return extract_allof_conditionals(allof_items);
+  } else {
+    return extract_single_conditional(data);
+  }
+}
+function extract_allof_conditionals(items) {
+  return filter_map(
+    items,
+    (item) => {
+      return extract_single_conditional_result(item);
+    }
+  );
+}
+function extract_single_conditional_result(data) {
+  let $ = extract_single_conditional(data);
+  if ($ instanceof Empty) {
+    return new Error2(void 0);
+  } else {
+    let $1 = $.tail;
+    if ($1 instanceof Empty) {
+      let rule = $.head;
+      return new Ok(rule);
+    } else {
+      return new Error2(void 0);
+    }
+  }
+}
+function extract_single_conditional(data) {
+  let if_result = run(data, at(toList(["if"]), dynamic));
+  if (if_result instanceof Ok) {
+    let if_data = if_result[0];
+    let _block;
+    let _pipe = run(data, at(toList(["then"]), dynamic));
+    let _pipe$1 = map3(
+      _pipe,
+      (dyn) => {
+        let _pipe$12 = run(dyn, property_decoder());
+        return from_result(_pipe$12);
+      }
+    );
+    _block = unwrap2(_pipe$1, new None());
+    let then_result = _block;
+    let _block$1;
+    let _pipe$2 = run(
+      data,
+      at(toList(["else"]), dynamic)
+    );
+    let _pipe$3 = map3(
+      _pipe$2,
+      (dyn) => {
+        let _pipe$32 = run(dyn, property_decoder());
+        return from_result(_pipe$32);
+      }
+    );
+    _block$1 = unwrap2(_pipe$3, new None());
+    let else_result = _block$1;
+    let $ = run(if_data, property_decoder());
+    if ($ instanceof Ok) {
+      let if_schema = $[0];
+      return toList([new ConditionalRule(if_schema, then_result, else_result)]);
+    } else {
+      return toList([]);
+    }
+  } else {
+    return toList([]);
+  }
+}
+function property_decoder() {
+  return one_of(
+    full_property_decoder(),
+    toList([
+      (() => {
+        let _pipe = string2;
+        return map2(
+          _pipe,
+          (type_str) => {
+            let _record = empty_property();
+            return new SchemaProperty(
+              (() => {
+                if (type_str === "string") {
+                  return new Some(new StringType());
+                } else if (type_str === "number") {
+                  return new Some(new NumberType());
+                } else if (type_str === "integer") {
+                  return new Some(new IntegerType());
+                } else if (type_str === "boolean") {
+                  return new Some(new BooleanType());
+                } else if (type_str === "null") {
+                  return new Some(new NullType());
+                } else if (type_str === "array") {
+                  return new Some(new ArrayType());
+                } else if (type_str === "object") {
+                  return new Some(new ObjectType());
+                } else {
+                  return new None();
+                }
+              })(),
+              _record.title,
+              _record.description,
+              _record.default,
+              _record.enum_values,
+              _record.one_of,
+              _record.ref,
+              _record.string_constraints,
+              _record.number_constraints,
+              _record.items,
+              _record.properties,
+              _record.required,
+              _record.read_only,
+              _record.addable,
+              _record.removable,
+              _record.widget,
+              _record.upload_config,
+              _record.conditionals
+            );
+          }
+        );
+      })()
+    ])
+  );
+}
+function properties_decoder() {
+  return then$(
+    dynamic,
+    (dynamic_data) => {
+      let $ = entries(dynamic_data);
+      if ($ instanceof Ok) {
+        let entries2 = $[0];
+        let try_decode_entry = (entry) => {
+          let key;
+          let value2;
+          key = entry[0];
+          value2 = entry[1];
+          let _pipe = run(value2, property_decoder());
+          let _pipe$1 = map3(_pipe, (prop) => {
+            return [key, prop];
+          });
+          return map_error(_pipe$1, (_) => {
+            return key;
+          });
+        };
+        let $1 = try_map(entries2, try_decode_entry);
+        if ($1 instanceof Ok) {
+          let pairs = $1[0];
+          return success(pairs);
+        } else {
+          let key = $1[0];
+          return failure(
+            toList([]),
+            "Invalid schema property at key '" + key + "'"
+          );
+        }
+      } else {
+        return failure(
+          toList([]),
+          "Expected 'properties' to be a JSON object"
+        );
+      }
+    }
+  );
+}
+function definitions_decoder() {
+  return dict2(string2, property_decoder());
+}
+function schema_decoder() {
+  return optional_field(
+    "title",
+    new None(),
+    optional(string2),
+    (title) => {
+      return optional_field(
+        "description",
+        new None(),
+        optional(string2),
+        (description) => {
+          return optional_field(
+            "type",
+            new ObjectType(),
+            field_type_decoder(),
+            (field_type) => {
+              return optional_field(
+                "properties",
+                toList([]),
+                properties_decoder(),
+                (properties) => {
+                  return optional_field(
+                    "required",
+                    toList([]),
+                    list2(string2),
+                    (required2) => {
+                      return optional_field(
+                        "$defs",
+                        new None(),
+                        optional(definitions_decoder()),
+                        (defs) => {
+                          return then$(
+                            dynamic,
+                            (dynamic_data) => {
+                              let string_constraints = extract_string_constraints(
+                                dynamic_data
+                              );
+                              let number_constraints = extract_number_constraints(
+                                dynamic_data
+                              );
+                              let conditionals = extract_conditionals(
+                                dynamic_data
+                              );
+                              return success(
+                                new JsonSchema(
+                                  title,
+                                  description,
+                                  field_type,
+                                  properties,
+                                  required2,
+                                  defs,
+                                  conditionals,
+                                  string_constraints,
+                                  number_constraints
+                                )
+                              );
+                            }
+                          );
+                        }
+                      );
+                    }
+                  );
+                }
+              );
+            }
+          );
+        }
+      );
+    }
+  );
+}
+function parse_schema(json_string) {
+  return try$(
+    (() => {
+      let _pipe = json_string;
+      let _pipe$1 = parse(_pipe, schema_decoder());
+      return map_error(
+        _pipe$1,
+        (error) => {
+          if (error instanceof UnexpectedEndOfInput) {
+            return new InvalidJson("Unexpected end of input");
+          } else if (error instanceof UnexpectedByte) {
+            let byte = error[0];
+            return new InvalidJson("Unexpected byte: " + byte);
+          } else if (error instanceof UnexpectedSequence) {
+            let seq = error[0];
+            return new InvalidJson("Unexpected sequence: " + seq);
+          } else {
+            let errors = error[0];
+            return new DecodingError(errors);
+          }
+        }
+      );
+    })(),
+    (parsed_schema) => {
+      let _pipe = parsed_schema;
+      let _pipe$1 = resolve_refs(_pipe);
+      return map_error(
+        _pipe$1,
+        (error) => {
+          if (error instanceof ReferenceNotFound) {
+            let ref = error[0];
+            return new UnexpectedValue("Reference not found: " + ref);
+          } else if (error instanceof CircularReference) {
+            let ref = error[0];
+            return new UnexpectedValue("Circular reference detected: " + ref);
+          } else {
+            let ref = error[0];
+            return new UnexpectedValue("Invalid reference format: " + ref);
+          }
+        }
+      );
+    }
+  );
+}
+function extract_one_of(data) {
+  let _pipe = run(
+    data,
+    at(toList(["oneOf"]), list2(property_decoder()))
+  );
+  return from_result(_pipe);
+}
+
+// build/dev/javascript/formosh/formosh/form/json_utils.mjs
 function value_to_json(value2) {
   if (value2 instanceof StringValue) {
     let s = value2[0];
@@ -7990,8 +9793,29 @@ function value_to_json(value2) {
     );
   }
 }
+function json_string_to_values(json_string) {
+  let decoder = dict2(string2, value_decoder());
+  let _pipe = parse(json_string, decoder);
+  return map_error(_pipe, (_) => {
+    return void 0;
+  });
+}
 
-// build/dev/javascript/formosh/schema/conditional_resolver.mjs
+// build/dev/javascript/formosh/formosh/schema/conditional_resolver.mjs
+function lookup_field(form_values, field_name) {
+  if (form_values instanceof ObjectValue) {
+    let fields = form_values[0];
+    let $ = key_find(fields, field_name);
+    if ($ instanceof Ok) {
+      let value2 = $[0];
+      return new Some(value2);
+    } else {
+      return new None();
+    }
+  } else {
+    return new None();
+  }
+}
 function compare_values(val1, val2) {
   if (val1 instanceof StringValue && val2 instanceof StringValue) {
     let s1 = val1[0];
@@ -8050,16 +9874,15 @@ function evaluate_condition(condition, form_values) {
   let $ = condition.properties;
   if ($ instanceof Some) {
     let props = $[0];
-    let _pipe = map_to_list(props);
     return all(
-      _pipe,
+      props,
       (prop_pair) => {
         let field_name;
         let prop_schema;
         field_name = prop_pair[0];
         prop_schema = prop_pair[1];
-        let $1 = map_get(form_values, field_name);
-        if ($1 instanceof Ok) {
+        let $1 = lookup_field(form_values, field_name);
+        if ($1 instanceof Some) {
           let field_value = $1[0];
           return check_property_match(prop_schema, field_value);
         } else {
@@ -8076,17 +9899,77 @@ function evaluate_condition(condition, form_values) {
     }
   }
 }
+function dedup_by_key(entries2) {
+  let $ = fold(
+    entries2,
+    [toList([]), toList([])],
+    (state, entry) => {
+      let seen;
+      let acc;
+      seen = state[0];
+      acc = state[1];
+      let $1 = contains(seen, entry[0]);
+      if ($1) {
+        return state;
+      } else {
+        return [prepend(entry[0], seen), prepend(entry, acc)];
+      }
+    }
+  );
+  let reversed;
+  reversed = $[1];
+  return reverse(reversed);
+}
+function merge_property_lists(base, additions) {
+  let deduped_additions = dedup_by_key(additions);
+  let $ = map_fold(
+    base,
+    toList([]),
+    (seen, entry) => {
+      let key;
+      key = entry[0];
+      let _block;
+      let $1 = key_find(deduped_additions, key);
+      if ($1 instanceof Ok) {
+        let new_prop = $1[0];
+        _block = [key, new_prop];
+      } else {
+        _block = entry;
+      }
+      let merged = _block;
+      return [prepend(key, seen), merged];
+    }
+  );
+  let base_keys;
+  let updated_base;
+  base_keys = $[0];
+  updated_base = $[1];
+  let new_only = filter(
+    deduped_additions,
+    (entry) => {
+      return !contains(base_keys, entry[0]);
+    }
+  );
+  return append(updated_base, new_only);
+}
 function merge_schema_properties(base_schema, conditional_props) {
   let $ = conditional_props.properties;
   if ($ instanceof Some) {
     let new_props = $[0];
-    let merged_properties = merge(base_schema.properties, new_props);
+    let merged_properties = merge_property_lists(
+      base_schema.properties,
+      new_props
+    );
+    let _block;
+    let _pipe = append(base_schema.required, conditional_props.required);
+    _block = unique(_pipe);
+    let merged_required = _block;
     return new JsonSchema(
       base_schema.title,
       base_schema.description,
       base_schema.field_type,
       merged_properties,
-      base_schema.required,
+      merged_required,
       base_schema.defs,
       base_schema.conditionals,
       base_schema.string_constraints,
@@ -8128,9 +10011,339 @@ function resolve_conditional_schema(base_schema, form_values) {
     }
   );
 }
+function merge_into_property(base, conditional) {
+  let $ = conditional.properties;
+  if ($ instanceof Some) {
+    let new_props = $[0];
+    let _block;
+    let $1 = base.properties;
+    if ($1 instanceof Some) {
+      let existing = $1[0];
+      _block = merge_property_lists(existing, new_props);
+    } else {
+      _block = new_props;
+    }
+    let merged_props = _block;
+    let _block$1;
+    let _pipe = append(base.required, conditional.required);
+    _block$1 = unique(_pipe);
+    let merged_required = _block$1;
+    return new SchemaProperty(
+      base.field_type,
+      base.title,
+      base.description,
+      base.default,
+      base.enum_values,
+      base.one_of,
+      base.ref,
+      base.string_constraints,
+      base.number_constraints,
+      base.items,
+      new Some(merged_props),
+      merged_required,
+      base.read_only,
+      base.addable,
+      base.removable,
+      base.widget,
+      base.upload_config,
+      base.conditionals
+    );
+  } else {
+    return base;
+  }
+}
+function apply_then_branch_property(base, rule) {
+  let $ = rule.then_schema;
+  if ($ instanceof Some) {
+    let then_props = $[0];
+    return merge_into_property(base, then_props);
+  } else {
+    return base;
+  }
+}
+function apply_else_branch_property(base, rule) {
+  let $ = rule.else_schema;
+  if ($ instanceof Some) {
+    let else_props = $[0];
+    return merge_into_property(base, else_props);
+  } else {
+    return base;
+  }
+}
+function resolve_conditional_property(base, item_values) {
+  return fold(
+    base.conditionals,
+    base,
+    (prop, rule) => {
+      let $ = evaluate_condition(rule.if_schema, item_values);
+      if ($) {
+        return apply_then_branch_property(prop, rule);
+      } else {
+        return apply_else_branch_property(prop, rule);
+      }
+    }
+  );
+}
+function resolve_nested_conditionals(property3, value2) {
+  let _block;
+  let $ = property3.conditionals;
+  if ($ instanceof Empty) {
+    _block = property3;
+  } else if (value2 instanceof Some) {
+    let $12 = value2[0];
+    if ($12 instanceof ObjectValue) {
+      let v = $12;
+      _block = resolve_conditional_property(property3, v);
+    } else {
+      _block = property3;
+    }
+  } else {
+    _block = property3;
+  }
+  let resolved_self = _block;
+  let $1 = resolved_self.field_type;
+  if ($1 instanceof Some) {
+    let $2 = $1[0];
+    if ($2 instanceof ArrayType) {
+      let $3 = resolved_self.items;
+      if ($3 instanceof Some) {
+        let items_schema = $3[0];
+        return new SchemaProperty(
+          resolved_self.field_type,
+          resolved_self.title,
+          resolved_self.description,
+          resolved_self.default,
+          resolved_self.enum_values,
+          resolved_self.one_of,
+          resolved_self.ref,
+          resolved_self.string_constraints,
+          resolved_self.number_constraints,
+          new Some(resolve_nested_conditionals(items_schema, new None())),
+          resolved_self.properties,
+          resolved_self.required,
+          resolved_self.read_only,
+          resolved_self.addable,
+          resolved_self.removable,
+          resolved_self.widget,
+          resolved_self.upload_config,
+          resolved_self.conditionals
+        );
+      } else {
+        return resolved_self;
+      }
+    } else if ($2 instanceof ObjectType) {
+      let $3 = resolved_self.properties;
+      if ($3 instanceof Some) {
+        let props = $3[0];
+        let _block$1;
+        if (value2 instanceof Some) {
+          let $4 = value2[0];
+          if ($4 instanceof ObjectValue) {
+            let fs = $4[0];
+            _block$1 = new Some(fs);
+          } else {
+            _block$1 = new None();
+          }
+        } else {
+          _block$1 = new None();
+        }
+        let fields_opt = _block$1;
+        let new_props = map(
+          props,
+          (entry) => {
+            let name2;
+            let child;
+            name2 = entry[0];
+            child = entry[1];
+            let _block$2;
+            if (fields_opt instanceof Some) {
+              let fs = fields_opt[0];
+              _block$2 = from_result(key_find(fs, name2));
+            } else {
+              _block$2 = fields_opt;
+            }
+            let child_value = _block$2;
+            return [name2, resolve_nested_conditionals(child, child_value)];
+          }
+        );
+        return new SchemaProperty(
+          resolved_self.field_type,
+          resolved_self.title,
+          resolved_self.description,
+          resolved_self.default,
+          resolved_self.enum_values,
+          resolved_self.one_of,
+          resolved_self.ref,
+          resolved_self.string_constraints,
+          resolved_self.number_constraints,
+          resolved_self.items,
+          new Some(new_props),
+          resolved_self.required,
+          resolved_self.read_only,
+          resolved_self.addable,
+          resolved_self.removable,
+          resolved_self.widget,
+          resolved_self.upload_config,
+          resolved_self.conditionals
+        );
+      } else {
+        return resolved_self;
+      }
+    } else {
+      return resolved_self;
+    }
+  } else {
+    return resolved_self;
+  }
+}
+function resolve_recursive(schema, values3) {
+  let root_resolved = resolve_conditional_schema(schema, values3);
+  let _block;
+  if (values3 instanceof ObjectValue) {
+    let fs = values3[0];
+    _block = new Some(fs);
+  } else {
+    _block = new None();
+  }
+  let fields_opt = _block;
+  let new_props = map(
+    root_resolved.properties,
+    (entry) => {
+      let name2;
+      let prop;
+      name2 = entry[0];
+      prop = entry[1];
+      let _block$1;
+      if (fields_opt instanceof Some) {
+        let fs = fields_opt[0];
+        _block$1 = from_result(key_find(fs, name2));
+      } else {
+        _block$1 = fields_opt;
+      }
+      let child_value = _block$1;
+      return [name2, resolve_nested_conditionals(prop, child_value)];
+    }
+  );
+  return new JsonSchema(
+    root_resolved.title,
+    root_resolved.description,
+    root_resolved.field_type,
+    new_props,
+    root_resolved.required,
+    root_resolved.defs,
+    root_resolved.conditionals,
+    root_resolved.string_constraints,
+    root_resolved.number_constraints
+  );
+}
 
-// build/dev/javascript/formosh/schema/validator.mjs
-function validate_number_constraints(field_name, value2, constraints) {
+// build/dev/javascript/formosh/formosh/validation/field_requirements.mjs
+function check_required_value(field_path, value2, is_field_required) {
+  if (is_field_required) {
+    if (value2 instanceof Some) {
+      let $ = value2[0];
+      if ($ instanceof StringValue) {
+        let $1 = $[0];
+        if ($1 === "") {
+          return new Error2(
+            new ValidationError(
+              field_path,
+              "This field is required",
+              "required"
+            )
+          );
+        } else {
+          return new Ok(void 0);
+        }
+      } else if ($ instanceof NullValue) {
+        return new Error2(
+          new ValidationError(field_path, "This field is required", "required")
+        );
+      } else {
+        return new Ok(void 0);
+      }
+    } else {
+      return new Error2(
+        new ValidationError(field_path, "This field is required", "required")
+      );
+    }
+  } else {
+    return new Ok(void 0);
+  }
+}
+
+// build/dev/javascript/formosh/formosh/schema/validator.mjs
+function validate_image_upload(field_path, value2, is_required) {
+  if (value2 instanceof Some) {
+    let $ = value2[0];
+    if ($ instanceof NullValue) {
+      if (is_required) {
+        return toList([
+          new ValidationError(
+            field_path,
+            "At least one image is required",
+            "required"
+          )
+        ]);
+      } else {
+        return toList([]);
+      }
+    } else if ($ instanceof ArrayValue) {
+      let $1 = $[0];
+      if ($1 instanceof Empty) {
+        if (is_required) {
+          return toList([
+            new ValidationError(
+              field_path,
+              "At least one image is required",
+              "required"
+            )
+          ]);
+        } else {
+          return toList([]);
+        }
+      } else {
+        let items = $1;
+        let invalid = any(
+          items,
+          (item) => {
+            if (item instanceof StringValue) {
+              return false;
+            } else {
+              return true;
+            }
+          }
+        );
+        if (invalid) {
+          return toList([
+            new ValidationError(
+              field_path,
+              "Invalid image upload value",
+              "type"
+            )
+          ]);
+        } else {
+          return toList([]);
+        }
+      }
+    } else {
+      return toList([]);
+    }
+  } else {
+    if (is_required) {
+      return toList([
+        new ValidationError(
+          field_path,
+          "At least one image is required",
+          "required"
+        )
+      ]);
+    } else {
+      return toList([]);
+    }
+  }
+}
+function validate_number_constraints(field_path, value2, constraints) {
   if (constraints instanceof Some) {
     let c = constraints[0];
     let errors = toList([]);
@@ -8144,7 +10357,7 @@ function validate_number_constraints(field_name, value2, constraints) {
           errors,
           toList([
             new ValidationError(
-              field_name,
+              field_path,
               "Must be at least " + float_to_string(min3),
               "minimum"
             )
@@ -8167,7 +10380,7 @@ function validate_number_constraints(field_name, value2, constraints) {
           errors$1,
           toList([
             new ValidationError(
-              field_name,
+              field_path,
               "Must be at most " + float_to_string(max3),
               "maximum"
             )
@@ -8190,7 +10403,7 @@ function validate_number_constraints(field_name, value2, constraints) {
           errors$2,
           toList([
             new ValidationError(
-              field_name,
+              field_path,
               "Must be greater than " + float_to_string(min3),
               "exclusiveMinimum"
             )
@@ -8213,7 +10426,7 @@ function validate_number_constraints(field_name, value2, constraints) {
           errors$3,
           toList([
             new ValidationError(
-              field_name,
+              field_path,
               "Must be less than " + float_to_string(max3),
               "exclusiveMaximum"
             )
@@ -8231,32 +10444,48 @@ function validate_number_constraints(field_name, value2, constraints) {
     return toList([]);
   }
 }
-function validate_number(field_name, value2, constraints) {
+function validate_number(field_path, value2, constraints) {
   if (value2 instanceof NumberValue) {
     let num = value2[0];
-    return validate_number_constraints(field_name, num, constraints);
+    return validate_number_constraints(field_path, num, constraints);
   } else if (value2 instanceof IntegerValue) {
     let num = value2[0];
     return validate_number_constraints(
-      field_name,
+      field_path,
       identity(num),
       constraints
     );
   } else {
-    return toList([new ValidationError(field_name, "Must be a number", "type")]);
+    return toList([new ValidationError(field_path, "Must be a number", "type")]);
   }
 }
-function validate_boolean(field_name, value2) {
+function validate_boolean(field_path, value2) {
   if (value2 instanceof BooleanValue) {
     return toList([]);
   } else {
     return toList([
-      new ValidationError(field_name, "Must be true or false", "type")
+      new ValidationError(field_path, "Must be true or false", "type")
     ]);
   }
 }
-function validate_enum(_, _1, _2) {
-  return toList([]);
+function validate_enum(field_path, value2, allowed_values) {
+  let $ = any(
+    allowed_values,
+    (allowed) => {
+      return compare_values(allowed, value2);
+    }
+  );
+  if ($) {
+    return toList([]);
+  } else {
+    return toList([
+      new ValidationError(
+        field_path,
+        "Value is not one of the allowed options",
+        "enum"
+      )
+    ]);
+  }
 }
 function validate_email(email) {
   return contains_string(email, "@") && contains_string(email, ".");
@@ -8267,7 +10496,7 @@ function validate_url(url) {
     "https://"
   );
 }
-function validate_string(field_name, value2, constraints) {
+function validate_string(field_path, value2, constraints) {
   if (value2 instanceof StringValue) {
     let str = value2[0];
     if (constraints instanceof Some) {
@@ -8283,7 +10512,7 @@ function validate_string(field_name, value2, constraints) {
             errors,
             toList([
               new ValidationError(
-                field_name,
+                field_path,
                 "Must be at least " + to_string(min3) + " characters",
                 "minLength"
               )
@@ -8306,7 +10535,7 @@ function validate_string(field_name, value2, constraints) {
             errors$1,
             toList([
               new ValidationError(
-                field_name,
+                field_path,
                 "Must be at most " + to_string(max3) + " characters",
                 "maxLength"
               )
@@ -8320,74 +10549,66 @@ function validate_string(field_name, value2, constraints) {
       }
       let errors$2 = _block$1;
       let _block$2;
-      let $2 = c.pattern;
+      let $2 = c.format;
       if ($2 instanceof Some) {
-        _block$2 = errors$2;
-      } else {
-        _block$2 = errors$2;
-      }
-      let errors$3 = _block$2;
-      let _block$3;
-      let $3 = c.format;
-      if ($3 instanceof Some) {
-        let $4 = $3[0];
-        if ($4 instanceof EmailFormat) {
-          let $5 = validate_email(str);
-          if ($5) {
-            _block$3 = errors$3;
+        let $3 = $2[0];
+        if ($3 instanceof EmailFormat) {
+          let $4 = validate_email(str);
+          if ($4) {
+            _block$2 = errors$2;
           } else {
-            _block$3 = append(
-              errors$3,
+            _block$2 = append(
+              errors$2,
               toList([
                 new ValidationError(
-                  field_name,
+                  field_path,
                   "Invalid email address",
                   "format"
                 )
               ])
             );
           }
-        } else if ($4 instanceof UriFormat) {
-          let $5 = validate_url(str);
-          if ($5) {
-            _block$3 = errors$3;
+        } else if ($3 instanceof UriFormat) {
+          let $4 = validate_url(str);
+          if ($4) {
+            _block$2 = errors$2;
           } else {
-            _block$3 = append(
-              errors$3,
-              toList([new ValidationError(field_name, "Invalid URL", "format")])
+            _block$2 = append(
+              errors$2,
+              toList([new ValidationError(field_path, "Invalid URL", "format")])
             );
           }
-        } else if ($4 instanceof UrlFormat) {
-          let $5 = validate_url(str);
-          if ($5) {
-            _block$3 = errors$3;
+        } else if ($3 instanceof UrlFormat) {
+          let $4 = validate_url(str);
+          if ($4) {
+            _block$2 = errors$2;
           } else {
-            _block$3 = append(
-              errors$3,
-              toList([new ValidationError(field_name, "Invalid URL", "format")])
+            _block$2 = append(
+              errors$2,
+              toList([new ValidationError(field_path, "Invalid URL", "format")])
             );
           }
         } else {
-          _block$3 = errors$3;
+          _block$2 = errors$2;
         }
       } else {
-        _block$3 = errors$3;
+        _block$2 = errors$2;
       }
-      let errors$4 = _block$3;
-      return errors$4;
+      let errors$3 = _block$2;
+      return errors$3;
     } else {
       return toList([]);
     }
   } else {
-    return toList([new ValidationError(field_name, "Must be a string", "type")]);
+    return toList([new ValidationError(field_path, "Must be a string", "type")]);
   }
 }
-function validate_field(field_name, value2, property3, is_required2) {
+function validate_standard_field(field_path, value2, property3, is_required) {
   let _block;
   let $ = check_required_value(
-    field_name,
+    field_path,
     value2,
-    is_required2
+    is_required
   );
   if ($ instanceof Ok) {
     _block = toList([]);
@@ -8408,24 +10629,24 @@ function validate_field(field_name, value2, property3, is_required2) {
         let $32 = $2[0];
         if ($32 instanceof StringType) {
           _block$1 = validate_string(
-            field_name,
+            field_path,
             val,
             property3.string_constraints
           );
         } else if ($32 instanceof NumberType) {
           _block$1 = validate_number(
-            field_name,
+            field_path,
             val,
             property3.number_constraints
           );
         } else if ($32 instanceof IntegerType) {
           _block$1 = validate_number(
-            field_name,
+            field_path,
             val,
             property3.number_constraints
           );
         } else if ($32 instanceof BooleanType) {
-          _block$1 = validate_boolean(field_name, val);
+          _block$1 = validate_boolean(field_path, val);
         } else {
           _block$1 = toList([]);
         }
@@ -8437,7 +10658,7 @@ function validate_field(field_name, value2, property3, is_required2) {
       let $3 = property3.enum_values;
       if ($3 instanceof Some) {
         let allowed_values = $3[0];
-        _block$2 = validate_enum(field_name, val, allowed_values);
+        _block$2 = validate_enum(field_path, val, allowed_values);
       } else {
         _block$2 = toList([]);
       }
@@ -8448,44 +10669,177 @@ function validate_field(field_name, value2, property3, is_required2) {
     return required_errors;
   }
 }
+function validate_field(field_path, value2, property3, is_required) {
+  let $ = property3.widget;
+  if ($ instanceof Some) {
+    let $1 = $[0];
+    if ($1 === "image-upload") {
+      return validate_image_upload(field_path, value2, is_required);
+    } else {
+      return validate_standard_field(field_path, value2, property3, is_required);
+    }
+  } else {
+    return validate_standard_field(field_path, value2, property3, is_required);
+  }
+}
+function validate_array_items(array_path, item_schema, array_value) {
+  if (array_value instanceof ArrayValue) {
+    let items = array_value[0];
+    let _pipe = index_map(
+      items,
+      (item, index5) => {
+        let _block;
+        if (item instanceof ObjectValue) {
+          let fields = item[0];
+          _block = from_list(fields);
+        } else {
+          _block = new_map();
+        }
+        let item_values = _block;
+        return validate_array_item(array_path, index5, item_schema, item_values);
+      }
+    );
+    return flatten(_pipe);
+  } else {
+    return toList([]);
+  }
+}
+function validate_array_item(array_path, index5, item_schema, item_values) {
+  return validate_resolved_props(
+    item_schema,
+    item_values,
+    (field_name) => {
+      return append(
+        array_path,
+        toList([new ArraySegment(index5), new PropertySegment(field_name)])
+      );
+    }
+  );
+}
+function validate_resolved_props(schema_prop, values3, key_for) {
+  let resolved = resolve_conditional_property(
+    schema_prop,
+    new ObjectValue(map_to_list(values3))
+  );
+  let $ = resolved.properties;
+  if ($ instanceof Some) {
+    let props = $[0];
+    return flat_map(
+      props,
+      (entry) => {
+        let field_name;
+        let field_prop;
+        field_name = entry[0];
+        field_prop = entry[1];
+        let _block;
+        let _pipe = map_get(values3, field_name);
+        _block = from_result(_pipe);
+        let field_value = _block;
+        let is_required = contains(resolved.required, field_name);
+        let field_path = key_for(field_name);
+        let own_errors = validate_field(
+          field_path,
+          field_value,
+          field_prop,
+          is_required
+        );
+        let nested = validate_nested(field_path, field_prop, field_value);
+        return append(own_errors, nested);
+      }
+    );
+  } else {
+    return toList([]);
+  }
+}
+function validate_nested(prefix, field_prop, field_value) {
+  let $ = field_prop.field_type;
+  let $1 = field_prop.items;
+  if ($ instanceof Some) {
+    if ($1 instanceof Some) {
+      let $2 = $[0];
+      if ($2 instanceof ArrayType) {
+        let item_subschema = $1[0];
+        let av = unwrap(field_value, new NullValue());
+        return validate_array_items(prefix, item_subschema, av);
+      } else if ($2 instanceof ObjectType) {
+        if (field_value instanceof Some) {
+          let $3 = field_value[0];
+          if ($3 instanceof ObjectValue) {
+            let fields = $3[0];
+            return validate_object_fields(
+              prefix,
+              field_prop,
+              from_list(fields)
+            );
+          } else {
+            return toList([]);
+          }
+        } else {
+          return toList([]);
+        }
+      } else {
+        return toList([]);
+      }
+    } else {
+      let $2 = $[0];
+      if ($2 instanceof ObjectType) {
+        if (field_value instanceof Some) {
+          let $3 = field_value[0];
+          if ($3 instanceof ObjectValue) {
+            let fields = $3[0];
+            return validate_object_fields(
+              prefix,
+              field_prop,
+              from_list(fields)
+            );
+          } else {
+            return toList([]);
+          }
+        } else {
+          return toList([]);
+        }
+      } else {
+        return toList([]);
+      }
+    }
+  } else {
+    return toList([]);
+  }
+}
+function validate_object_fields(object_path, schema_prop, values3) {
+  return validate_resolved_props(
+    schema_prop,
+    values3,
+    (field_name) => {
+      return append(
+        object_path,
+        toList([new PropertySegment(field_name)])
+      );
+    }
+  );
+}
 
-// build/dev/javascript/formosh/form/update.mjs
-function model_to_root_value(model) {
-  let $ = map_to_list(model.values);
-  if ($ instanceof Empty) {
-    return new ObjectValue(toList([]));
-  } else {
-    let values3 = $;
-    return new ObjectValue(values3);
-  }
-}
-function root_value_to_model_values(root_value) {
-  if (root_value instanceof ObjectValue) {
-    let fields = root_value[0];
-    return from_list(fields);
-  } else {
-    return new_map();
-  }
-}
+// build/dev/javascript/formosh/formosh/form/update.mjs
 function validate_field2(model, field_name) {
-  let $ = map_get(model.schema.properties, field_name);
+  let $ = key_find(model.resolved_schema.properties, field_name);
   if ($ instanceof Ok) {
     let property3 = $[0];
-    let value2 = get_field_value2(model, field_name);
+    let field_path = from_field_name(field_name);
+    let value2 = get_value_at_path(model, field_path);
     let errors = validate_field(
-      field_name,
+      field_path,
       value2,
       property3,
-      is_required(model.schema, field_name)
+      is_required_at_path(model, field_path)
     );
     if (errors instanceof Empty) {
-      return clear_field_errors(model, field_name);
+      return clear_errors_at_path(model, field_path);
     } else {
       return fold(
         errors,
-        clear_field_errors(model, field_name),
+        clear_errors_at_path(model, field_path),
         (acc, error) => {
-          return add_field_error(acc, field_name, error);
+          return add_error_at_path(acc, field_path, error);
         }
       );
     }
@@ -8494,8 +10848,37 @@ function validate_field2(model, field_name) {
   }
 }
 function validate_all_fields(model) {
-  let _pipe = keys(model.schema.properties);
-  return fold(_pipe, clear_all_errors(model), validate_field2);
+  let _block;
+  let _pipe = model.resolved_schema.properties;
+  let _pipe$1 = map(_pipe, (entry) => {
+    return entry[0];
+  });
+  _block = fold(_pipe$1, clear_all_errors(model), validate_field2);
+  let after_top = _block;
+  return fold(
+    after_top.resolved_schema.properties,
+    after_top,
+    (acc, entry) => {
+      let field_name;
+      let property3;
+      field_name = entry[0];
+      property3 = entry[1];
+      let field_path = from_field_name(field_name);
+      let field_value = get_at_path(acc.values, field_path);
+      let nested_errors = validate_nested(
+        field_path,
+        property3,
+        field_value
+      );
+      return fold(
+        nested_errors,
+        acc,
+        (m, err) => {
+          return add_error_at_path(m, err.field, err);
+        }
+      );
+    }
+  );
 }
 function handle_http_response(result) {
   if (result instanceof Ok) {
@@ -8504,7 +10887,7 @@ function handle_http_response(result) {
     if ($) {
       return new FormSubmitted(new Ok(resp.body));
     } else {
-      return new FormSubmitted(new Error("Server error: " + resp.body));
+      return new FormSubmitted(new Error2("Server error: " + resp.body));
     }
   } else {
     let error = result[0];
@@ -8526,23 +10909,123 @@ function handle_http_response(result) {
       _block = "Unexpected response: " + resp.body;
     }
     let error_message = _block;
-    return new FormSubmitted(new Error(error_message));
+    return new FormSubmitted(new Error2(error_message));
   }
 }
-function values_to_json(values3) {
-  let _pipe = values3;
-  let _pipe$1 = map_to_list(_pipe);
-  let _pipe$2 = map(
-    _pipe$1,
-    (pair) => {
-      let key;
-      let val;
-      key = pair[0];
-      val = pair[1];
-      return [key, value_to_json(val)];
+function create_upload_effect(model, field_path) {
+  let $ = model.upload_base_url;
+  if ($ instanceof Some) {
+    let upload_url = $[0];
+    let _block;
+    let $1 = find_property_at_path(model, field_path);
+    if ($1 instanceof Ok) {
+      let prop = $1[0];
+      _block = prop.upload_config;
+    } else {
+      _block = new None();
     }
-  );
-  return object2(_pipe$2);
+    let config2 = _block;
+    let _block$1;
+    if (config2 instanceof Some) {
+      let c = config2[0];
+      _block$1 = c.accept;
+    } else {
+      _block$1 = "image/*";
+    }
+    let accept = _block$1;
+    let _block$2;
+    if (config2 instanceof Some) {
+      let $2 = config2[0].max_file_size;
+      if ($2 instanceof Some) {
+        let size2 = $2[0];
+        _block$2 = size2;
+      } else {
+        _block$2 = 0;
+      }
+    } else {
+      _block$2 = 0;
+    }
+    let max_file_size = _block$2;
+    return from(
+      (dispatch) => {
+        return openFilePicker(
+          accept,
+          max_file_size,
+          upload_url,
+          (temp_id, preview_url) => {
+            dispatch(new ImageUploadStarted(field_path, temp_id, preview_url));
+            return void 0;
+          },
+          (temp_id, server_url) => {
+            dispatch(new ImageUploadCompleted(field_path, temp_id, server_url));
+            return void 0;
+          },
+          (temp_id, error) => {
+            dispatch(new ImageUploadFailed(field_path, temp_id, error));
+            return void 0;
+          }
+        );
+      }
+    );
+  } else {
+    return none();
+  }
+}
+function remove_upload_state(states, path_key, temp_id) {
+  let $ = map_get(states, path_key);
+  if ($ instanceof Ok) {
+    let current = $[0];
+    let filtered = filter(
+      current,
+      (state) => {
+        if (state instanceof FileUploading) {
+          let id2 = state.temp_id;
+          return id2 !== temp_id;
+        } else {
+          let id2 = state.temp_id;
+          return id2 !== temp_id;
+        }
+      }
+    );
+    return insert(states, path_key, filtered);
+  } else {
+    return states;
+  }
+}
+function get_preview_url(states, path_key, temp_id) {
+  let $ = map_get(states, path_key);
+  if ($ instanceof Ok) {
+    let current = $[0];
+    let _pipe = find_map(
+      current,
+      (state) => {
+        if (state instanceof FileUploading) {
+          let id2 = state.temp_id;
+          if (id2 === temp_id) {
+            let url = state.preview_url;
+            return new Ok(url);
+          } else {
+            return new Error2(void 0);
+          }
+        } else {
+          return new Error2(void 0);
+        }
+      }
+    );
+    return from_result(_pipe);
+  } else {
+    return new None();
+  }
+}
+function extract_filename(url) {
+  let _pipe = url;
+  let _pipe$1 = split2(_pipe, "/");
+  let _pipe$2 = last(_pipe$1);
+  let _pipe$3 = from_result(_pipe$2);
+  return unwrap(_pipe$3, url);
+}
+function values_to_json(values3) {
+  return value_to_json(values3);
 }
 function submit_form_effect(model) {
   let $ = model.submit_config;
@@ -8551,8 +11034,7 @@ function submit_form_effect(model) {
     if ($1 instanceof HttpSubmit) {
       let url = $1.url;
       let method = $1.method;
-      let json_data = values_to_json(model.values);
-      let json_string = to_string2(json_data);
+      let json_data = values_to_json(get_resolved_values(model));
       if (method === "POST") {
         return post(
           url,
@@ -8560,36 +11042,22 @@ function submit_form_effect(model) {
           expect_any_response(handle_http_response)
         );
       } else if (method === "PUT") {
-        let $2 = to(url);
-        if ($2 instanceof Ok) {
-          let req = $2[0];
-          let _block;
-          let _pipe = req;
-          let _pipe$1 = set_method(_pipe, new Put());
-          let _pipe$2 = set_header(
-            _pipe$1,
-            "content-type",
-            "application/json"
-          );
-          _block = set_body(_pipe$2, json_string);
-          let put_request = _block;
-          return send3(
-            put_request,
-            expect_any_response(handle_http_response)
-          );
-        } else {
-          return from(
-            (dispatch) => {
-              dispatch(new FormSubmitted(new Error("Invalid URL: " + url)));
-              return void 0;
-            }
-          );
-        }
+        return put(
+          url,
+          json_data,
+          expect_any_response(handle_http_response)
+        );
+      } else if (method === "PATCH") {
+        return patch(
+          url,
+          json_data,
+          expect_any_response(handle_http_response)
+        );
       } else if (method === "GET") {
         return from(
           (dispatch) => {
             dispatch(
-              new FormSubmitted(new Error("GET method not yet supported"))
+              new FormSubmitted(new Error2("GET method not yet supported"))
             );
             return void 0;
           }
@@ -8598,7 +11066,7 @@ function submit_form_effect(model) {
         return from(
           (dispatch) => {
             dispatch(
-              new FormSubmitted(new Error("Unsupported HTTP method: " + method))
+              new FormSubmitted(new Error2("Unsupported HTTP method: " + method))
             );
             return void 0;
           }
@@ -8614,7 +11082,7 @@ function submit_form_effect(model) {
             dispatch(new FormSubmitted(new Ok(message2)));
           } else {
             let error = $2[0];
-            dispatch(new FormSubmitted(new Error(error)));
+            dispatch(new FormSubmitted(new Error2(error)));
           }
           return void 0;
         }
@@ -8638,18 +11106,42 @@ function submit_form_effect(model) {
 }
 function update2(model, msg) {
   if (msg instanceof UpdateFieldPath) {
-    let path = msg.path;
+    let field_path = msg.path;
     let value2 = msg.value;
-    let root_value = model_to_root_value(model);
-    let updated_root = set_at_path(root_value, path, value2);
-    let new_values = root_value_to_model_values(updated_root);
-    let resolved_schema = resolve_conditional_schema(
+    let new_values = set_at_path(model.values, field_path, value2);
+    let resolved_schema = resolve_recursive(
       model.schema,
       new_values
     );
+    let touched_model = mark_field_touched(model, field_path);
+    let new_model = new FormModel(
+      touched_model.schema,
+      resolved_schema,
+      new_values,
+      touched_model.errors,
+      touched_model.is_submitting,
+      true,
+      touched_model.is_valid,
+      touched_model.touched_fields,
+      touched_model.disabled_fields,
+      touched_model.submission_result,
+      touched_model.submit_config,
+      touched_model.show_readonly_fields,
+      touched_model.upload_base_url,
+      touched_model.upload_states
+    );
+    let validated_model = validate_all_fields(new_model);
+    return [validated_model, none()];
+  } else if (msg instanceof AddArrayItemPath) {
+    let field_path = msg.path;
+    let new_values = add_array_item_at_path(
+      model.values,
+      field_path,
+      new ObjectValue(toList([]))
+    );
     let new_model = new FormModel(
       model.schema,
-      resolved_schema,
+      model.resolved_schema,
       new_values,
       model.errors,
       model.is_submitting,
@@ -8658,53 +11150,51 @@ function update2(model, msg) {
       model.touched_fields,
       model.disabled_fields,
       model.submission_result,
-      model.submit_config
+      model.submit_config,
+      model.show_readonly_fields,
+      model.upload_base_url,
+      model.upload_states
     );
     let validated_model = validate_all_fields(new_model);
     return [validated_model, none()];
-  } else if (msg instanceof AddArrayItemPath) {
-    let path = msg.path;
-    let root_value = model_to_root_value(model);
-    let updated_root = add_array_item_at_path(
-      root_value,
-      path,
-      new ObjectValue(toList([]))
-    );
-    let new_values = root_value_to_model_values(updated_root);
-    let new_model = new FormModel(
-      model.schema,
-      model.resolved_schema,
-      new_values,
-      model.errors,
-      model.is_submitting,
-      model.is_dirty,
-      model.is_valid,
-      model.touched_fields,
-      model.disabled_fields,
-      model.submission_result,
-      model.submit_config
-    );
-    return [new_model, none()];
   } else if (msg instanceof RemoveArrayItemPath) {
-    let path = msg.path;
+    let field_path = msg.path;
     let index5 = msg.index;
-    let root_value = model_to_root_value(model);
-    let updated_root = remove_array_item_at_path(root_value, path, index5);
-    let new_values = root_value_to_model_values(updated_root);
+    let new_values = remove_array_item_at_path(
+      model.values,
+      field_path,
+      index5
+    );
+    let new_touched = filter_map(
+      model.touched_fields,
+      (p2) => {
+        let $ = reindex_after_array_removal(p2, field_path, index5);
+        if ($ instanceof Some) {
+          let new_p = $[0];
+          return new Ok(new_p);
+        } else {
+          return new Error2(void 0);
+        }
+      }
+    );
     let new_model = new FormModel(
       model.schema,
       model.resolved_schema,
       new_values,
       model.errors,
       model.is_submitting,
-      model.is_dirty,
+      true,
       model.is_valid,
-      model.touched_fields,
+      new_touched,
       model.disabled_fields,
       model.submission_result,
-      model.submit_config
+      model.submit_config,
+      model.show_readonly_fields,
+      model.upload_base_url,
+      model.upload_states
     );
-    return [new_model, none()];
+    let validated_model = validate_all_fields(new_model);
+    return [validated_model, none()];
   } else if (msg instanceof FormSubmit) {
     let validated_model = validate_all_fields(model);
     let $ = can_submit(validated_model);
@@ -8720,7 +11210,10 @@ function update2(model, msg) {
         validated_model.touched_fields,
         validated_model.disabled_fields,
         validated_model.submission_result,
-        validated_model.submit_config
+        validated_model.submit_config,
+        validated_model.show_readonly_fields,
+        validated_model.upload_base_url,
+        validated_model.upload_states
       );
       let submit_effect = submit_form_effect(submitting_model);
       return [submitting_model, submit_effect];
@@ -8742,7 +11235,10 @@ function update2(model, msg) {
         model.touched_fields,
         model.disabled_fields,
         new Some(new SubmissionSuccess(message2)),
-        model.submit_config
+        model.submit_config,
+        model.show_readonly_fields,
+        model.upload_base_url,
+        model.upload_states
       );
       return [new_model, none()];
     } else {
@@ -8758,16 +11254,227 @@ function update2(model, msg) {
         model.touched_fields,
         model.disabled_fields,
         new Some(new SubmissionError(message2)),
-        model.submit_config
+        model.submit_config,
+        model.show_readonly_fields,
+        model.upload_base_url,
+        model.upload_states
       );
       return [new_model, none()];
     }
   } else if (msg instanceof ValidateForm) {
     let new_model = validate_all_fields(model);
     return [new_model, none()];
-  } else {
+  } else if (msg instanceof ResetForm) {
     let new_model = reset(model);
     return [new_model, none()];
+  } else if (msg instanceof ImageUploadRequested) {
+    let field_path = msg.path;
+    let upload_effect = create_upload_effect(model, field_path);
+    return [model, upload_effect];
+  } else if (msg instanceof ImageUploadStarted) {
+    let field_path = msg.path;
+    let temp_id = msg.temp_id;
+    let preview_url = msg.preview_url;
+    let path_key = to_string5(field_path);
+    let _block;
+    let _pipe = map_get(model.upload_states, path_key);
+    let _pipe$1 = from_result(_pipe);
+    _block = unwrap(_pipe$1, toList([]));
+    let current = _block;
+    let new_states = insert(
+      model.upload_states,
+      path_key,
+      append(current, toList([new FileUploading(temp_id, preview_url)]))
+    );
+    return [
+      new FormModel(
+        model.schema,
+        model.resolved_schema,
+        model.values,
+        model.errors,
+        model.is_submitting,
+        model.is_dirty,
+        model.is_valid,
+        model.touched_fields,
+        model.disabled_fields,
+        model.submission_result,
+        model.submit_config,
+        model.show_readonly_fields,
+        model.upload_base_url,
+        new_states
+      ),
+      none()
+    ];
+  } else if (msg instanceof ImageUploadCompleted) {
+    let field_path = msg.path;
+    let temp_id = msg.temp_id;
+    let server_url = msg.server_url;
+    let path_key = to_string5(field_path);
+    let new_states = remove_upload_state(model.upload_states, path_key, temp_id);
+    let preview_url = get_preview_url(model.upload_states, path_key, temp_id);
+    let _block;
+    if (preview_url instanceof Some) {
+      let url = preview_url[0];
+      _block = revokeObjectUrl(url);
+    } else {
+      _block = void 0;
+    }
+    let $ = _block;
+    let _block$1;
+    let $1 = get_at_path(model.values, field_path);
+    if ($1 instanceof Some) {
+      let $2 = $1[0];
+      if ($2 instanceof ArrayValue) {
+        let items = $2[0];
+        _block$1 = items;
+      } else {
+        _block$1 = toList([]);
+      }
+    } else {
+      _block$1 = toList([]);
+    }
+    let current_array = _block$1;
+    let updated_array = append(
+      current_array,
+      toList([new StringValue(server_url)])
+    );
+    let new_values = set_at_path(
+      model.values,
+      field_path,
+      new ArrayValue(updated_array)
+    );
+    let new_model = new FormModel(
+      model.schema,
+      model.resolved_schema,
+      new_values,
+      model.errors,
+      model.is_submitting,
+      true,
+      model.is_valid,
+      model.touched_fields,
+      model.disabled_fields,
+      model.submission_result,
+      model.submit_config,
+      model.show_readonly_fields,
+      model.upload_base_url,
+      new_states
+    );
+    let validated_model = validate_all_fields(new_model);
+    return [validated_model, none()];
+  } else if (msg instanceof ImageUploadFailed) {
+    let field_path = msg.path;
+    let temp_id = msg.temp_id;
+    let error = msg.error;
+    let path_key = to_string5(field_path);
+    let preview_url = get_preview_url(model.upload_states, path_key, temp_id);
+    let _block;
+    if (preview_url instanceof Some) {
+      let url = preview_url[0];
+      _block = revokeObjectUrl(url);
+    } else {
+      _block = void 0;
+    }
+    let $ = _block;
+    let _block$1;
+    let _pipe = map_get(model.upload_states, path_key);
+    let _pipe$1 = from_result(_pipe);
+    _block$1 = unwrap(_pipe$1, toList([]));
+    let current = _block$1;
+    let updated = map(
+      current,
+      (state) => {
+        if (state instanceof FileUploading) {
+          let id2 = state.temp_id;
+          if (id2 === temp_id) {
+            return new FileUploadError(temp_id, error);
+          } else {
+            return state;
+          }
+        } else {
+          return state;
+        }
+      }
+    );
+    let new_states = insert(model.upload_states, path_key, updated);
+    return [
+      new FormModel(
+        model.schema,
+        model.resolved_schema,
+        model.values,
+        model.errors,
+        model.is_submitting,
+        model.is_dirty,
+        model.is_valid,
+        model.touched_fields,
+        model.disabled_fields,
+        model.submission_result,
+        model.submit_config,
+        model.show_readonly_fields,
+        model.upload_base_url,
+        new_states
+      ),
+      none()
+    ];
+  } else {
+    let field_path = msg.path;
+    let server_url = msg.server_url;
+    let _block;
+    let $ = get_at_path(model.values, field_path);
+    if ($ instanceof Some) {
+      let $12 = $[0];
+      if ($12 instanceof ArrayValue) {
+        let items = $12[0];
+        _block = items;
+      } else {
+        _block = toList([]);
+      }
+    } else {
+      _block = toList([]);
+    }
+    let current_array = _block;
+    let updated_array = filter(
+      current_array,
+      (item) => {
+        return !isEqual(item, new StringValue(server_url));
+      }
+    );
+    let new_values = set_at_path(
+      model.values,
+      field_path,
+      new ArrayValue(updated_array)
+    );
+    let _block$1;
+    let $1 = model.upload_base_url;
+    if ($1 instanceof Some) {
+      let base_url = $1[0];
+      let filename = extract_filename(server_url);
+      _block$1 = from(
+        (_) => {
+          return deleteFile(base_url, filename);
+        }
+      );
+    } else {
+      _block$1 = none();
+    }
+    let delete_effect = _block$1;
+    let new_model = new FormModel(
+      model.schema,
+      model.resolved_schema,
+      new_values,
+      model.errors,
+      model.is_submitting,
+      true,
+      model.is_valid,
+      model.touched_fields,
+      model.disabled_fields,
+      model.submission_result,
+      model.submit_config,
+      model.show_readonly_fields,
+      model.upload_base_url,
+      model.upload_states
+    );
+    let validated_model = validate_all_fields(new_model);
+    return [validated_model, delete_effect];
   }
 }
 
@@ -8863,7 +11570,7 @@ function formdata_decoder() {
           map2(string2, (var0) => {
             return new Ok(var0);
           }),
-          toList([success(new Error(void 0))])
+          toList([success(new Error2(void 0))])
         ),
         (value2) => {
           let _pipe2 = value2;
@@ -8898,8 +11605,183 @@ function on_submit(msg) {
   return prevent_default(_pipe);
 }
 
-// build/dev/javascript/formosh/fields/field_common.mjs
-function render_label(field_name, property3, is_required2) {
+// build/dev/javascript/formosh/formosh/fields/array_field.mjs
+function render_item_fields(array_path, item_schema, item, index5, model, is_disabled, is_readonly, render_child) {
+  let resolved = resolve_conditional_property(
+    item_schema,
+    item
+  );
+  let item_path = append(
+    array_path,
+    toList([new ArraySegment(index5)])
+  );
+  let $ = resolved.properties;
+  if ($ instanceof Some) {
+    let props = $[0];
+    return map(
+      props,
+      (entry) => {
+        let child_name;
+        let child_prop;
+        child_name = entry[0];
+        child_prop = entry[1];
+        let child_path = append(
+          item_path,
+          toList([new PropertySegment(child_name)])
+        );
+        let child_required = contains(resolved.required, child_name);
+        let child_readonly = is_readonly || child_prop.read_only;
+        return render_child(
+          child_path,
+          child_prop,
+          model,
+          child_required,
+          is_disabled,
+          child_readonly
+        );
+      }
+    );
+  } else {
+    return toList([]);
+  }
+}
+function render_array_item(array_path, property3, item, index5, model, is_disabled, is_readonly, render_child) {
+  let $ = property3.items;
+  if ($ instanceof Some) {
+    let item_schema = $[0];
+    return div(
+      toList([class$("array-item")]),
+      toList([
+        div(
+          toList([class$("array-item-header")]),
+          toList([
+            span(
+              toList([class$("array-item-index")]),
+              toList([text3("\u2116 " + to_string(index5 + 1))])
+            ),
+            (() => {
+              let $1 = is_readonly || !property3.removable;
+              if ($1) {
+                return none2();
+              } else {
+                return button(
+                  toList([
+                    type_("button"),
+                    class$("remove-array-item"),
+                    on_click(new RemoveArrayItemPath(array_path, index5))
+                  ]),
+                  toList([text3("\u0423\u0434\u0430\u043B\u0438\u0442\u044C")])
+                );
+              }
+            })()
+          ])
+        ),
+        div(
+          toList([class$("array-item-fields")]),
+          render_item_fields(
+            array_path,
+            item_schema,
+            item,
+            index5,
+            model,
+            is_disabled,
+            is_readonly,
+            render_child
+          )
+        )
+      ])
+    );
+  } else {
+    return none2();
+  }
+}
+function render_container(field_path, property3, model, is_required, is_disabled, is_readonly, render_child) {
+  let array_name = get_field_name(field_path);
+  let title = unwrap(property3.title, array_name);
+  let description = property3.description;
+  let _block;
+  let $ = get_value_at_path(model, field_path);
+  if ($ instanceof Some) {
+    let $1 = $[0];
+    if ($1 instanceof ArrayValue) {
+      let xs = $1[0];
+      _block = xs;
+    } else {
+      _block = toList([]);
+    }
+  } else {
+    _block = toList([]);
+  }
+  let items = _block;
+  return div(
+    toList([class$("array-field")]),
+    toList([
+      label(
+        toList([class$("array-label")]),
+        toList([
+          text3(title),
+          (() => {
+            if (is_required) {
+              return span(
+                toList([class$("required")]),
+                toList([text3(" *")])
+              );
+            } else {
+              return none2();
+            }
+          })()
+        ])
+      ),
+      (() => {
+        if (description instanceof Some) {
+          let desc = description[0];
+          return p(
+            toList([class$("field-description")]),
+            toList([text3(desc)])
+          );
+        } else {
+          return none2();
+        }
+      })(),
+      div(
+        toList([class$("array-items")]),
+        index_map(
+          items,
+          (item, index5) => {
+            return render_array_item(
+              field_path,
+              property3,
+              item,
+              index5,
+              model,
+              is_disabled,
+              is_readonly,
+              render_child
+            );
+          }
+        )
+      ),
+      (() => {
+        let $1 = is_readonly || !property3.addable;
+        if ($1) {
+          return none2();
+        } else {
+          return button(
+            toList([
+              type_("button"),
+              class$("add-array-item"),
+              on_click(new AddArrayItemPath(field_path))
+            ]),
+            toList([text3("\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u044D\u043B\u0435\u043C\u0435\u043D\u0442")])
+          );
+        }
+      })()
+    ])
+  );
+}
+
+// build/dev/javascript/formosh/formosh/fields/field_common.mjs
+function render_label(field_name, property3, is_required) {
   let _block;
   let $ = property3.title;
   if ($ instanceof Some) {
@@ -8916,21 +11798,21 @@ function render_label(field_name, property3, is_required2) {
     toList([
       text3(label_text),
       (() => {
-        if (is_required2) {
+        if (is_required) {
           return span(
             toList([class$("formosh-required")]),
             toList([text3(" *")])
           );
         } else {
-          return text3("");
+          return none2();
         }
       })()
     ])
   );
 }
-function create_field_label(field_path, property3, is_required2) {
+function create_field_label(field_path, property3, is_required) {
   let field_name = get_field_name(field_path);
-  return render_label(field_name, property3, is_required2);
+  return render_label(field_name, property3, is_required);
 }
 function render_help_text(property3) {
   let $ = property3.description;
@@ -8941,20 +11823,20 @@ function render_help_text(property3) {
       toList([text3(desc)])
     );
   } else {
-    return text3("");
+    return none2();
   }
 }
-function field_wrapper_with_path(field_path, property3, is_required2, field_element) {
+function field_wrapper_with_path(field_path, property3, is_required, field_element) {
   return div(
     toList([class$("formosh-field-wrapper")]),
     toList([
-      create_field_label(field_path, property3, is_required2),
+      create_field_label(field_path, property3, is_required),
       field_element,
       render_help_text(property3)
     ])
   );
 }
-function input_attributes(field_path, value2, is_required2, is_disabled, extra_attrs) {
+function input_attributes(field_path, value2, is_required, is_disabled, extra_attrs) {
   let field_name = get_field_name(field_path);
   return prepend(
     id(to_string5(field_path)),
@@ -8963,7 +11845,7 @@ function input_attributes(field_path, value2, is_required2, is_disabled, extra_a
       prepend(
         value(value2),
         prepend(
-          required(is_required2),
+          required(is_required),
           prepend(
             disabled(is_disabled),
             prepend(
@@ -9038,16 +11920,33 @@ function extract_boolean_value(value2) {
     return false;
   }
 }
+function render_field_errors(errors) {
+  return div(
+    toList([class$("formosh-errors")]),
+    map(
+      errors,
+      (error) => {
+        return div(
+          toList([class$("formosh-error")]),
+          toList([text3(error.message)])
+        );
+      }
+    )
+  );
+}
 
-// build/dev/javascript/formosh/fields/boolean_field.mjs
-function render_as_radio(field_path, property3, current_value, is_required2, is_disabled) {
+// build/dev/javascript/formosh/formosh/fields/boolean_field.mjs
+function render_as_radio(field_path, property3, value2, is_required, is_disabled) {
   let field_name = get_field_name(field_path);
-  let yes_id = field_name + "_yes";
-  let no_id = field_name + "_no";
+  let field_id = to_string5(field_path);
+  let yes_id = field_id + "_yes";
+  let no_id = field_id + "_no";
+  let is_true = extract_boolean_value(value2);
+  let has_value = is_some(value2);
   return div(
     toList([class$("formosh-field-wrapper")]),
     toList([
-      render_label(field_name, property3, is_required2),
+      render_label(field_name, property3, is_required),
       div(
         toList([class$("formosh-radio-group formosh-boolean")]),
         toList([
@@ -9058,10 +11957,10 @@ function render_as_radio(field_path, property3, current_value, is_required2, is_
                 toList([
                   type_("radio"),
                   id(yes_id),
-                  name(field_name),
+                  name(field_id),
                   value("true"),
-                  checked(current_value),
-                  required(is_required2),
+                  checked(has_value && is_true),
+                  required(is_required),
                   disabled(is_disabled),
                   on_click(
                     new UpdateFieldPath(
@@ -9084,10 +11983,10 @@ function render_as_radio(field_path, property3, current_value, is_required2, is_
                 toList([
                   type_("radio"),
                   id(no_id),
-                  name(field_name),
+                  name(field_id),
                   value("false"),
-                  checked(!current_value),
-                  required(is_required2),
+                  checked(has_value && !is_true),
+                  required(is_required),
                   disabled(is_disabled),
                   on_click(
                     new UpdateFieldPath(
@@ -9109,18 +12008,168 @@ function render_as_radio(field_path, property3, current_value, is_required2, is_
     ])
   );
 }
-function render(field_path, property3, value2, is_required2, is_disabled) {
-  let current_value = extract_boolean_value(value2);
+function render(field_path, property3, value2, is_required, is_disabled, is_readonly) {
+  let effective_disabled = is_disabled || is_readonly;
   return render_as_radio(
     field_path,
     property3,
-    current_value,
-    is_required2,
-    is_disabled
+    value2,
+    is_required,
+    effective_disabled
   );
 }
 
-// build/dev/javascript/formosh/fields/number_field.mjs
+// build/dev/javascript/formosh/formosh/fields/image_field.mjs
+function render_uploaded_image(field_path, url, is_disabled) {
+  return div(
+    toList([class$("formosh-image-card")]),
+    toList([
+      img(
+        toList([
+          src(url),
+          class$("formosh-image-preview"),
+          alt("Uploaded image")
+        ])
+      ),
+      (() => {
+        if (is_disabled) {
+          return none2();
+        } else {
+          return button(
+            toList([
+              type_("button"),
+              class$("formosh-image-remove"),
+              on_click(new ImageRemoved(field_path, url))
+            ]),
+            toList([text3("\xD7")])
+          );
+        }
+      })()
+    ])
+  );
+}
+function render_uploading_image(preview_url) {
+  return div(
+    toList([class$("formosh-image-card formosh-image-uploading")]),
+    toList([
+      img(
+        toList([
+          src(preview_url),
+          class$("formosh-image-preview"),
+          alt("Uploading...")
+        ])
+      ),
+      div(
+        toList([class$("formosh-image-spinner")]),
+        toList([])
+      )
+    ])
+  );
+}
+function render_upload_error(error) {
+  return div(
+    toList([class$("formosh-image-card formosh-image-error")]),
+    toList([
+      div(
+        toList([class$("formosh-image-error-text")]),
+        toList([text3(error)])
+      )
+    ])
+  );
+}
+function render2(field_path, property3, value2, is_required, is_disabled, is_readonly, upload_states, upload_base_url) {
+  let _block;
+  if (value2 instanceof Some) {
+    let $ = value2[0];
+    if ($ instanceof ArrayValue) {
+      let items = $[0];
+      _block = filter_map(
+        items,
+        (item) => {
+          if (item instanceof StringValue) {
+            let url = item[0];
+            return new Ok(url);
+          } else {
+            return new Error2(void 0);
+          }
+        }
+      );
+    } else {
+      _block = toList([]);
+    }
+  } else {
+    _block = toList([]);
+  }
+  let uploaded_urls = _block;
+  let effective_disabled = is_disabled || is_readonly;
+  let content = div(
+    toList([class$("formosh-image-upload")]),
+    toList([
+      div(
+        toList([class$("formosh-image-grid")]),
+        append(
+          append(
+            map(
+              uploaded_urls,
+              (url) => {
+                return render_uploaded_image(
+                  field_path,
+                  url,
+                  effective_disabled
+                );
+              }
+            ),
+            filter_map(
+              upload_states,
+              (state) => {
+                if (state instanceof FileUploading) {
+                  let preview_url = state.preview_url;
+                  return new Ok(render_uploading_image(preview_url));
+                } else {
+                  return new Error2(void 0);
+                }
+              }
+            )
+          ),
+          filter_map(
+            upload_states,
+            (state) => {
+              if (state instanceof FileUploadError) {
+                let error = state.error;
+                return new Ok(render_upload_error(error));
+              } else {
+                return new Error2(void 0);
+              }
+            }
+          )
+        )
+      ),
+      (() => {
+        let $ = effective_disabled || is_none(upload_base_url);
+        if ($) {
+          return none2();
+        } else {
+          return button(
+            toList([
+              type_("button"),
+              class$("formosh-image-add"),
+              on_click(new ImageUploadRequested(field_path))
+            ]),
+            toList([text3("Add photo")])
+          );
+        }
+      })()
+    ])
+  );
+  return field_wrapper_with_path(
+    field_path,
+    property3,
+    is_required,
+    content
+  );
+}
+
+// build/dev/javascript/formosh/formosh/fields/number_field.mjs
 function handle_number_input(field_path, value2, is_integer) {
   if (value2 === "") {
     return new UpdateFieldPath(field_path, new NullValue());
@@ -9226,7 +12275,7 @@ function get_number_constraints_attributes(property3) {
     return toList([]);
   }
 }
-function render2(field_path, property3, value2, is_required2, is_disabled) {
+function render3(field_path, property3, value2, is_required, is_disabled, is_readonly) {
   let _block;
   let $ = property3.field_type;
   if ($ instanceof Some) {
@@ -9242,52 +12291,45 @@ function render2(field_path, property3, value2, is_required2, is_disabled) {
   let is_integer = _block;
   let current_value = extract_number_value(value2);
   let field_name = get_field_name(field_path);
+  let constraint_attrs = get_number_constraints_attributes(property3);
+  let _block$1;
+  if (is_readonly) {
+    _block$1 = toList([attribute2("readonly", "readonly")]);
+  } else {
+    _block$1 = toList([]);
+  }
+  let readonly_attrs = _block$1;
   return div(
     toList([class$("formosh-field-wrapper")]),
     toList([
-      render_label(field_name, property3, is_required2),
+      render_label(field_name, property3, is_required),
       input(
-        prepend(
-          id(to_string5(field_path)),
-          prepend(
-            name(field_name),
-            prepend(
+        flatten(
+          toList([
+            toList([
+              id(to_string5(field_path)),
+              name(field_name),
               type_("number"),
-              prepend(
-                value(current_value),
-                prepend(
-                  class$("formosh-input formosh-number"),
-                  prepend(
-                    required(is_required2),
-                    prepend(
-                      disabled(is_disabled),
-                      prepend(
-                        (() => {
-                          if (is_integer) {
-                            return step("1");
-                          } else {
-                            return step("any");
-                          }
-                        })(),
-                        prepend(
-                          on_change(
-                            (val) => {
-                              return handle_number_input(
-                                field_path,
-                                val,
-                                is_integer
-                              );
-                            }
-                          ),
-                          get_number_constraints_attributes(property3)
-                        )
-                      )
-                    )
-                  )
-                )
+              value(current_value),
+              class$("formosh-input formosh-number"),
+              required(is_required),
+              disabled(is_disabled),
+              (() => {
+                if (is_integer) {
+                  return step("1");
+                } else {
+                  return step("any");
+                }
+              })(),
+              on_change(
+                (val) => {
+                  return handle_number_input(field_path, val, is_integer);
+                }
               )
-            )
-          )
+            ]),
+            constraint_attrs,
+            readonly_attrs
+          ])
         )
       ),
       render_help_text(property3)
@@ -9295,7 +12337,88 @@ function render2(field_path, property3, value2, is_required2, is_disabled) {
   );
 }
 
-// build/dev/javascript/formosh/fields/string_field.mjs
+// build/dev/javascript/formosh/formosh/fields/object_field.mjs
+function render_nested_fields(parent_path, property3, model, is_disabled, is_readonly, render_child) {
+  let $ = property3.properties;
+  if ($ instanceof Some) {
+    let props = $[0];
+    return map(
+      props,
+      (entry) => {
+        let child_name;
+        let child_prop;
+        child_name = entry[0];
+        child_prop = entry[1];
+        let child_path = append(
+          parent_path,
+          toList([new PropertySegment(child_name)])
+        );
+        let child_required = contains(property3.required, child_name);
+        let child_readonly = is_readonly || child_prop.read_only;
+        return render_child(
+          child_path,
+          child_prop,
+          model,
+          child_required,
+          is_disabled,
+          child_readonly
+        );
+      }
+    );
+  } else {
+    return toList([]);
+  }
+}
+function render_container2(field_path, property3, model, is_required, is_disabled, is_readonly, render_child) {
+  let object_name = get_field_name(field_path);
+  let title = unwrap(property3.title, object_name);
+  let description = property3.description;
+  return div(
+    toList([class$("object-field")]),
+    toList([
+      label(
+        toList([class$("object-label")]),
+        toList([
+          text3(title),
+          (() => {
+            if (is_required) {
+              return span(
+                toList([class$("required")]),
+                toList([text3(" *")])
+              );
+            } else {
+              return none2();
+            }
+          })()
+        ])
+      ),
+      (() => {
+        if (description instanceof Some) {
+          let desc = description[0];
+          return p(
+            toList([class$("field-description")]),
+            toList([text3(desc)])
+          );
+        } else {
+          return none2();
+        }
+      })(),
+      div(
+        toList([class$("object-fields")]),
+        render_nested_fields(
+          field_path,
+          property3,
+          model,
+          is_disabled,
+          is_readonly,
+          render_child
+        )
+      )
+    ])
+  );
+}
+
+// build/dev/javascript/formosh/formosh/fields/string_field.mjs
 function get_input_type(property3) {
   let $ = property3.string_constraints;
   if ($ instanceof Some) {
@@ -9369,7 +12492,7 @@ function get_string_constraints_attributes(property3) {
     return toList([]);
   }
 }
-function render_input(field_path, property3, value2, is_required2, is_disabled) {
+function render_input(field_path, property3, value2, is_required, is_disabled, is_readonly) {
   let current_value = extract_string_value(value2);
   let input_type = get_input_type(property3);
   let extra_attrs = prepend(
@@ -9379,44 +12502,178 @@ function render_input(field_path, property3, value2, is_required2, is_disabled) 
       get_string_constraints_attributes(property3)
     )
   );
+  let _block;
+  if (is_readonly) {
+    _block = prepend(
+      attribute2("readonly", "readonly"),
+      extra_attrs
+    );
+  } else {
+    _block = extra_attrs;
+  }
+  let extra_attrs$1 = _block;
   let input_elem = input(
     input_attributes(
       field_path,
       current_value,
-      is_required2,
+      is_required,
       is_disabled,
-      extra_attrs
+      extra_attrs$1
     )
   );
   return field_wrapper_with_path(
     field_path,
     property3,
-    is_required2,
+    is_required,
     input_elem
   );
 }
-function render_textarea(field_path, property3, value2, is_required2, is_disabled) {
+function render_textarea(field_path, property3, value2, is_required, is_disabled, is_readonly) {
   let current_value = extract_string_value(value2);
   let extra_attrs = prepend(
     class$("formosh-textarea"),
     get_string_constraints_attributes(property3)
   );
+  let _block;
+  if (is_readonly) {
+    _block = prepend(
+      attribute2("readonly", "readonly"),
+      extra_attrs
+    );
+  } else {
+    _block = extra_attrs;
+  }
+  let extra_attrs$1 = _block;
   let textarea_elem = textarea(
     input_attributes(
       field_path,
       current_value,
-      is_required2,
+      is_required,
       is_disabled,
-      extra_attrs
+      extra_attrs$1
     ),
     current_value
   );
   return field_wrapper_with_path(
     field_path,
     property3,
-    is_required2,
+    is_required,
     textarea_elem
   );
+}
+function render_one_of_radio_group(field_path, property3, options, current_value, is_required, is_disabled, is_readonly) {
+  let field_id = to_string5(field_path);
+  let effective_disabled = is_disabled || is_readonly;
+  let radio_group = div(
+    toList([class$("formosh-radio-group")]),
+    map(
+      options,
+      (option2) => {
+        let value2;
+        let label2;
+        value2 = option2[0];
+        label2 = option2[1];
+        let radio_id = field_id + "_" + value2;
+        return div(
+          toList([class$("formosh-radio-item")]),
+          toList([
+            input(
+              toList([
+                type_("radio"),
+                id(radio_id),
+                name(field_id),
+                value(value2),
+                checked(value2 === current_value),
+                required(is_required),
+                disabled(effective_disabled),
+                on_click(
+                  new UpdateFieldPath(field_path, new StringValue(value2))
+                )
+              ])
+            ),
+            label(
+              toList([for$(radio_id)]),
+              toList([text3(label2)])
+            )
+          ])
+        );
+      }
+    )
+  );
+  return field_wrapper_with_path(
+    field_path,
+    property3,
+    is_required,
+    radio_group
+  );
+}
+function render_one_of_select(field_path, property3, options, current_value, is_required, is_disabled, is_readonly) {
+  let field_id = to_string5(field_path);
+  let effective_disabled = is_disabled || is_readonly;
+  let select_elem = select(
+    toList([
+      id(field_id),
+      name(field_id),
+      class$("formosh-select"),
+      required(is_required),
+      disabled(effective_disabled),
+      on_change(
+        (val) => {
+          return new UpdateFieldPath(field_path, new StringValue(val));
+        }
+      )
+    ]),
+    prepend(
+      option(toList([value("")]), "Select an option..."),
+      map(
+        options,
+        (option2) => {
+          let value2;
+          let label2;
+          value2 = option2[0];
+          label2 = option2[1];
+          return option(
+            toList([
+              value(value2),
+              selected(value2 === current_value)
+            ]),
+            label2
+          );
+        }
+      )
+    )
+  );
+  return field_wrapper_with_path(
+    field_path,
+    property3,
+    is_required,
+    select_elem
+  );
+}
+function render_one_of_enum(field_path, property3, options, value2, is_required, is_disabled, is_readonly) {
+  let current_value = extract_string_value(value2);
+  let $ = length(options) <= 5;
+  if ($) {
+    return render_one_of_radio_group(
+      field_path,
+      property3,
+      options,
+      current_value,
+      is_required,
+      is_disabled,
+      is_readonly
+    );
+  } else {
+    return render_one_of_select(
+      field_path,
+      property3,
+      options,
+      current_value,
+      is_required,
+      is_disabled,
+      is_readonly
+    );
+  }
 }
 function value_to_string(val) {
   if (val instanceof StringValue) {
@@ -9441,15 +12698,16 @@ function value_to_string(val) {
     return "";
   }
 }
-function render_radio_group(field_path, property3, enum_vals, current_value, is_required2, is_disabled) {
-  let field_name = get_field_name(field_path);
+function render_radio_group(field_path, property3, enum_vals, current_value, is_required, is_disabled, is_readonly) {
+  let field_id = to_string5(field_path);
+  let effective_disabled = is_disabled || is_readonly;
   let radio_group = div(
     toList([class$("formosh-radio-group")]),
     map(
       enum_vals,
       (val) => {
         let str_val = value_to_string(val);
-        let radio_id = field_name + "_" + str_val;
+        let radio_id = field_id + "_" + str_val;
         return div(
           toList([class$("formosh-radio-item")]),
           toList([
@@ -9457,11 +12715,11 @@ function render_radio_group(field_path, property3, enum_vals, current_value, is_
               toList([
                 type_("radio"),
                 id(radio_id),
-                name(field_name),
+                name(field_id),
                 value(str_val),
                 checked(str_val === current_value),
-                required(is_required2),
-                disabled(is_disabled),
+                required(is_required),
+                disabled(effective_disabled),
                 on_click(
                   new UpdateFieldPath(
                     field_path,
@@ -9482,19 +12740,20 @@ function render_radio_group(field_path, property3, enum_vals, current_value, is_
   return field_wrapper_with_path(
     field_path,
     property3,
-    is_required2,
+    is_required,
     radio_group
   );
 }
-function render_select(field_path, property3, enum_vals, current_value, is_required2, is_disabled) {
-  let field_name = get_field_name(field_path);
+function render_select(field_path, property3, enum_vals, current_value, is_required, is_disabled, is_readonly) {
+  let field_id = to_string5(field_path);
+  let effective_disabled = is_disabled || is_readonly;
   let select_elem = select(
     toList([
-      id(field_name),
-      name(field_name),
+      id(field_id),
+      name(field_id),
       class$("formosh-select"),
-      required(is_required2),
-      disabled(is_disabled),
+      required(is_required),
+      disabled(effective_disabled),
       on_change(
         (val) => {
           return new UpdateFieldPath(field_path, new StringValue(val));
@@ -9521,11 +12780,11 @@ function render_select(field_path, property3, enum_vals, current_value, is_requi
   return field_wrapper_with_path(
     field_path,
     property3,
-    is_required2,
+    is_required,
     select_elem
   );
 }
-function render_enum(field_path, property3, value2, is_required2, is_disabled) {
+function render_regular_enum(field_path, property3, value2, is_required, is_disabled, is_readonly) {
   let $ = property3.enum_values;
   if ($ instanceof Some) {
     let enum_vals = $[0];
@@ -9537,8 +12796,9 @@ function render_enum(field_path, property3, value2, is_required2, is_disabled) {
         property3,
         enum_vals,
         current_value,
-        is_required2,
-        is_disabled
+        is_required,
+        is_disabled,
+        is_readonly
       );
     } else {
       return render_select(
@@ -9546,18 +12806,89 @@ function render_enum(field_path, property3, value2, is_required2, is_disabled) {
         property3,
         enum_vals,
         current_value,
-        is_required2,
-        is_disabled
+        is_required,
+        is_disabled,
+        is_readonly
       );
     }
   } else {
-    return text3("");
+    return none2();
   }
 }
-function render3(field_path, property3, value2, is_required2, is_disabled) {
+function extract_one_of_options(one_of2) {
+  return filter_map(
+    one_of2,
+    (schema) => {
+      return try$(
+        to_result(schema.enum_values, void 0),
+        (vals) => {
+          return try$(
+            (() => {
+              if (vals instanceof Empty) {
+                return new Error2(void 0);
+              } else {
+                let $ = vals.tail;
+                if ($ instanceof Empty) {
+                  let val = vals.head;
+                  return new Ok(val);
+                } else {
+                  return new Error2(void 0);
+                }
+              }
+            })(),
+            (const_val) => {
+              let value2 = value_to_string(const_val);
+              let label2 = unwrap(schema.title, value2);
+              return new Ok([value2, label2]);
+            }
+          );
+        }
+      );
+    }
+  );
+}
+function render_enum(field_path, property3, value2, is_required, is_disabled, is_readonly) {
+  let _block;
+  let $ = property3.one_of;
+  if ($ instanceof Some) {
+    let schemas = $[0];
+    _block = extract_one_of_options(schemas);
+  } else {
+    _block = toList([]);
+  }
+  let one_of_options = _block;
+  if (one_of_options instanceof Empty) {
+    return render_regular_enum(
+      field_path,
+      property3,
+      value2,
+      is_required,
+      is_disabled,
+      is_readonly
+    );
+  } else {
+    return render_one_of_enum(
+      field_path,
+      property3,
+      one_of_options,
+      value2,
+      is_required,
+      is_disabled,
+      is_readonly
+    );
+  }
+}
+function render_string_or_enum(field_path, property3, value2, is_required, is_disabled, is_readonly) {
   let $ = property3.enum_values;
   if ($ instanceof Some) {
-    return render_enum(field_path, property3, value2, is_required2, is_disabled);
+    return render_enum(
+      field_path,
+      property3,
+      value2,
+      is_required,
+      is_disabled,
+      is_readonly
+    );
   } else {
     let $1 = property3.string_constraints;
     if ($1 instanceof Some) {
@@ -9570,16 +12901,18 @@ function render3(field_path, property3, value2, is_required2, is_disabled) {
             field_path,
             property3,
             value2,
-            is_required2,
-            is_disabled
+            is_required,
+            is_disabled,
+            is_readonly
           );
         } else {
           return render_input(
             field_path,
             property3,
             value2,
-            is_required2,
-            is_disabled
+            is_required,
+            is_disabled,
+            is_readonly
           );
         }
       } else {
@@ -9587,398 +12920,391 @@ function render3(field_path, property3, value2, is_required2, is_disabled) {
           field_path,
           property3,
           value2,
-          is_required2,
-          is_disabled
+          is_required,
+          is_disabled,
+          is_readonly
         );
       }
     } else {
-      return render_input(field_path, property3, value2, is_required2, is_disabled);
+      return render_input(
+        field_path,
+        property3,
+        value2,
+        is_required,
+        is_disabled,
+        is_readonly
+      );
     }
+  }
+}
+function render4(field_path, property3, value2, is_required, is_disabled, is_readonly) {
+  let _block;
+  let $ = property3.one_of;
+  if ($ instanceof Some) {
+    let schemas = $[0];
+    _block = extract_one_of_options(schemas);
+  } else {
+    _block = toList([]);
+  }
+  let one_of_options = _block;
+  if (one_of_options instanceof Empty) {
+    return render_string_or_enum(
+      field_path,
+      property3,
+      value2,
+      is_required,
+      is_disabled,
+      is_readonly
+    );
+  } else {
+    return render_one_of_enum(
+      field_path,
+      property3,
+      one_of_options,
+      value2,
+      is_required,
+      is_disabled,
+      is_readonly
+    );
   }
 }
 
-// build/dev/javascript/formosh/fields/array_field.mjs
-function render_field(array_name, index5, field_name, property3, value2, required2) {
-  let field_path = to_array_item_field(array_name, index5, field_name);
+// build/dev/javascript/formosh/formosh/fields/field_dispatcher.mjs
+function wrap_with_errors(field_element, errors, is_touched, has_errors, is_readonly) {
   let _block;
-  let $ = property3.field_type;
-  if ($ instanceof Some) {
-    let $1 = $[0];
-    if ($1 instanceof StringType) {
-      _block = render3(
-        field_path,
-        property3,
-        new Some(value2),
-        required2,
-        false
-      );
-    } else if ($1 instanceof NumberType) {
-      _block = render2(
-        field_path,
-        property3,
-        new Some(value2),
-        required2,
-        false
-      );
-    } else if ($1 instanceof IntegerType) {
-      _block = render2(
-        field_path,
-        property3,
-        new Some(value2),
-        required2,
-        false
-      );
-    } else if ($1 instanceof BooleanType) {
-      _block = render(
-        field_path,
-        property3,
-        new Some(value2),
-        required2,
-        false
-      );
-    } else {
-      _block = div(
-        toList([class$("unsupported-field")]),
-        toList([text3("Unsupported field type")])
-      );
-    }
+  let $ = has_errors && is_touched;
+  if ($) {
+    _block = " formosh-field-error";
   } else {
-    _block = div(
-      toList([class$("unsupported-field")]),
-      toList([text3("Unsupported field type")])
-    );
+    _block = "";
   }
-  let field_element = _block;
+  let error_class = _block;
+  let _block$1;
+  if (is_readonly) {
+    _block$1 = " formosh-field-readonly";
+  } else {
+    _block$1 = "";
+  }
+  let readonly_class = _block$1;
+  let class_str = "formosh-field" + error_class + readonly_class;
   return div(
-    toList([class$("array-item-field")]),
-    toList([field_element])
-  );
-}
-function render_item_fields(array_name, item_schema, item_values, index5) {
-  let $ = item_schema.properties;
-  if ($ instanceof Some) {
-    let props = $[0];
-    let _pipe = map_to_list(props);
-    return map(
-      _pipe,
-      (entry) => {
-        let field_name;
-        let field_prop;
-        field_name = entry[0];
-        field_prop = entry[1];
-        let _block;
-        let _pipe$1 = map_get(item_values, field_name);
-        _block = unwrap2(_pipe$1, new NullValue());
-        let value2 = _block;
-        return render_field(
-          array_name,
-          index5,
-          field_name,
-          field_prop,
-          value2,
-          contains(item_schema.required, field_name)
-        );
-      }
-    );
-  } else {
-    return toList([]);
-  }
-}
-function render_array_item(array_name, property3, item_values, index5) {
-  let $ = property3.items;
-  if ($ instanceof Some) {
-    let item_schema = $[0];
-    return div(
-      toList([class$("array-item")]),
-      toList([
-        div(
-          toList([class$("array-item-header")]),
-          toList([
-            span(
-              toList([class$("array-item-index")]),
-              toList([text3("\u2116 " + to_string(index5 + 1))])
-            ),
-            button(
-              toList([
-                type_("button"),
-                class$("remove-array-item"),
-                on_click(
-                  new RemoveArrayItemPath(
-                    from_field_name(array_name),
-                    index5
-                  )
-                )
-              ]),
-              toList([text3("\u0423\u0434\u0430\u043B\u0438\u0442\u044C")])
-            )
-          ])
-        ),
-        div(
-          toList([class$("array-item-fields")]),
-          render_item_fields(array_name, item_schema, item_values, index5)
-        )
-      ])
-    );
-  } else {
-    return none2();
-  }
-}
-function view(name2, property3, values3, errors, required2) {
-  let title = unwrap(property3.title, name2);
-  let description = property3.description;
-  return div(
-    toList([class$("array-field")]),
+    toList([class$(class_str)]),
     toList([
-      label(
-        toList([class$("array-label")]),
-        toList([
-          text3(title),
-          (() => {
-            if (required2) {
-              return span(
-                toList([class$("required")]),
-                toList([text3(" *")])
-              );
-            } else {
-              return none2();
-            }
-          })()
-        ])
-      ),
+      field_element,
       (() => {
-        if (description instanceof Some) {
-          let desc = description[0];
-          return p(
-            toList([class$("field-description")]),
-            toList([text3(desc)])
-          );
+        let $1 = has_errors && is_touched;
+        if ($1) {
+          return render_field_errors(errors);
         } else {
           return none2();
-        }
-      })(),
-      div(
-        toList([class$("array-items")]),
-        index_map(
-          values3,
-          (item_values, index5) => {
-            return render_array_item(name2, property3, item_values, index5);
-          }
-        )
-      ),
-      button(
-        toList([
-          type_("button"),
-          class$("add-array-item"),
-          on_click(new AddArrayItemPath(from_field_name(name2)))
-        ]),
-        toList([text3("\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u044D\u043B\u0435\u043C\u0435\u043D\u0442")])
-      ),
-      (() => {
-        if (errors instanceof Empty) {
-          return none2();
-        } else {
-          let errs = errors;
-          return div(
-            toList([class$("field-errors")]),
-            map(
-              errs,
-              (err) => {
-                return span(
-                  toList([class$("error-message")]),
-                  toList([text3(err)])
-                );
-              }
-            )
-          );
         }
       })()
     ])
   );
 }
-
-// build/dev/javascript/formosh/fields/object_field.mjs
-function render_nested_field(field_path, property3, value2, is_required2, is_disabled) {
-  let _block;
-  let $ = property3.field_type;
+function render_widget(field_path, property3, value2, model, is_required, is_disabled, is_readonly) {
+  let $ = property3.widget;
   if ($ instanceof Some) {
     let $1 = $[0];
-    if ($1 instanceof StringType) {
-      _block = render3(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else if ($1 instanceof NumberType) {
-      _block = render2(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else if ($1 instanceof IntegerType) {
-      _block = render2(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else if ($1 instanceof BooleanType) {
-      _block = render(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else if ($1 instanceof ArrayType) {
-      _block = div(
-        toList([class$("unsupported-field")]),
-        toList([text3("Nested array fields not yet supported")])
-      );
-    } else if ($1 instanceof ObjectType) {
-      _block = render4(field_path, property3, value2, is_required2, is_disabled);
-    } else {
-      let $2 = property3.enum_values;
-      if ($2 instanceof Some) {
-        _block = render_enum(
-          field_path,
-          property3,
-          value2,
-          is_required2,
-          is_disabled
-        );
+    if ($1 === "image-upload") {
+      let path_key = to_string5(field_path);
+      let _block;
+      let $2 = map_get(model.upload_states, path_key);
+      if ($2 instanceof Ok) {
+        let states = $2[0];
+        _block = states;
       } else {
-        _block = div(
-          toList([class$("unsupported-field")]),
-          toList([text3("Unsupported field type")])
-        );
+        _block = toList([]);
+      }
+      let upload_states = _block;
+      return render2(
+        field_path,
+        property3,
+        value2,
+        is_required,
+        is_disabled,
+        is_readonly,
+        upload_states,
+        model.upload_base_url
+      );
+    } else {
+      let $2 = property3.field_type;
+      if ($2 instanceof Some) {
+        let $3 = $2[0];
+        if ($3 instanceof StringType) {
+          return render4(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled,
+            is_readonly
+          );
+        } else if ($3 instanceof NumberType) {
+          return render3(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled,
+            is_readonly
+          );
+        } else if ($3 instanceof IntegerType) {
+          return render3(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled,
+            is_readonly
+          );
+        } else if ($3 instanceof BooleanType) {
+          return render(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled,
+            is_readonly
+          );
+        } else if ($3 instanceof ArrayType) {
+          return render_container(
+            field_path,
+            property3,
+            model,
+            is_required,
+            is_disabled,
+            is_readonly,
+            render_field_at_path
+          );
+        } else if ($3 instanceof ObjectType) {
+          return render_container2(
+            field_path,
+            property3,
+            model,
+            is_required,
+            is_disabled,
+            is_readonly,
+            render_field_at_path
+          );
+        } else {
+          let $4 = property3.enum_values;
+          let $5 = property3.one_of;
+          if ($4 instanceof Some) {
+            return render_enum(
+              field_path,
+              property3,
+              value2,
+              is_required,
+              is_disabled,
+              is_readonly
+            );
+          } else if ($5 instanceof Some) {
+            return render_enum(
+              field_path,
+              property3,
+              value2,
+              is_required,
+              is_disabled,
+              is_readonly
+            );
+          } else {
+            return none2();
+          }
+        }
+      } else {
+        let $3 = property3.enum_values;
+        let $4 = property3.one_of;
+        if ($3 instanceof Some) {
+          return render_enum(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled,
+            is_readonly
+          );
+        } else if ($4 instanceof Some) {
+          return render_enum(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled,
+            is_readonly
+          );
+        } else {
+          return none2();
+        }
       }
     }
   } else {
-    let $1 = property3.enum_values;
+    let $1 = property3.field_type;
     if ($1 instanceof Some) {
-      _block = render_enum(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
+      let $2 = $1[0];
+      if ($2 instanceof StringType) {
+        return render4(
+          field_path,
+          property3,
+          value2,
+          is_required,
+          is_disabled,
+          is_readonly
+        );
+      } else if ($2 instanceof NumberType) {
+        return render3(
+          field_path,
+          property3,
+          value2,
+          is_required,
+          is_disabled,
+          is_readonly
+        );
+      } else if ($2 instanceof IntegerType) {
+        return render3(
+          field_path,
+          property3,
+          value2,
+          is_required,
+          is_disabled,
+          is_readonly
+        );
+      } else if ($2 instanceof BooleanType) {
+        return render(
+          field_path,
+          property3,
+          value2,
+          is_required,
+          is_disabled,
+          is_readonly
+        );
+      } else if ($2 instanceof ArrayType) {
+        return render_container(
+          field_path,
+          property3,
+          model,
+          is_required,
+          is_disabled,
+          is_readonly,
+          render_field_at_path
+        );
+      } else if ($2 instanceof ObjectType) {
+        return render_container2(
+          field_path,
+          property3,
+          model,
+          is_required,
+          is_disabled,
+          is_readonly,
+          render_field_at_path
+        );
+      } else {
+        let $3 = property3.enum_values;
+        let $4 = property3.one_of;
+        if ($3 instanceof Some) {
+          return render_enum(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled,
+            is_readonly
+          );
+        } else if ($4 instanceof Some) {
+          return render_enum(
+            field_path,
+            property3,
+            value2,
+            is_required,
+            is_disabled,
+            is_readonly
+          );
+        } else {
+          return none2();
+        }
+      }
     } else {
-      _block = div(
-        toList([class$("unsupported-field")]),
-        toList([text3("Unsupported field type")])
-      );
+      let $2 = property3.enum_values;
+      let $3 = property3.one_of;
+      if ($2 instanceof Some) {
+        return render_enum(
+          field_path,
+          property3,
+          value2,
+          is_required,
+          is_disabled,
+          is_readonly
+        );
+      } else if ($3 instanceof Some) {
+        return render_enum(
+          field_path,
+          property3,
+          value2,
+          is_required,
+          is_disabled,
+          is_readonly
+        );
+      } else {
+        return none2();
+      }
     }
   }
-  let field_element = _block;
-  return div(
-    toList([class$("object-field-item")]),
-    toList([field_element])
+}
+function render_field_at_path(field_path, property3, model, is_required, is_disabled, is_readonly) {
+  let $ = is_readonly && !model.show_readonly_fields;
+  if ($) {
+    return none2();
+  } else {
+    return render_visible(
+      field_path,
+      property3,
+      model,
+      is_required,
+      is_disabled,
+      is_readonly
+    );
+  }
+}
+function render_visible(field_path, property3, model, is_required, is_disabled, is_readonly) {
+  let value2 = get_value_at_path(model, field_path);
+  let is_touched = is_field_touched(model, field_path);
+  let errors = get_errors_at_path(model, field_path);
+  let has_errors = !isEqual(errors, toList([]));
+  let field_element = render_widget(
+    field_path,
+    property3,
+    value2,
+    model,
+    is_required,
+    is_disabled,
+    is_readonly
+  );
+  return wrap_with_errors(
+    field_element,
+    errors,
+    is_touched,
+    has_errors,
+    is_readonly
   );
 }
-function render4(field_path, property3, value2, is_required2, is_disabled) {
-  let field_name = to_string5(field_path);
-  let title = unwrap(property3.title, field_name);
-  let description = property3.description;
-  let _block;
-  if (value2 instanceof Some) {
-    let $ = value2[0];
-    if ($ instanceof ObjectValue) {
-      let fields = $[0];
-      _block = from_list(fields);
-    } else {
-      _block = new_map();
-    }
-  } else {
-    _block = new_map();
-  }
-  let nested_values = _block;
+
+// build/dev/javascript/formosh/formosh/form/view.mjs
+function render_form_header(model) {
   return div(
-    toList([class$("object-field")]),
+    toList([class$("formosh-header")]),
     toList([
-      label(
-        toList([class$("object-label")]),
-        toList([
-          text3(title),
-          (() => {
-            if (is_required2) {
-              return span(
-                toList([class$("required")]),
-                toList([text3(" *")])
-              );
-            } else {
-              return none2();
-            }
-          })()
-        ])
-      ),
       (() => {
-        if (description instanceof Some) {
-          let desc = description[0];
-          return p(
-            toList([class$("field-description")]),
-            toList([text3(desc)])
+        let $ = model.schema.title;
+        if ($ instanceof Some) {
+          let title = $[0];
+          return h2(
+            toList([class$("formosh-title")]),
+            toList([text3(title)])
           );
         } else {
           return none2();
         }
       })(),
-      div(
-        toList([class$("object-fields")]),
-        render_nested_fields(field_path, property3, nested_values, is_disabled)
-      )
-    ])
-  );
-}
-function render_nested_fields(parent_path, property3, values3, is_disabled) {
-  let $ = property3.properties;
-  if ($ instanceof Some) {
-    let props = $[0];
-    let _pipe = map_to_list(props);
-    return map(
-      _pipe,
-      (entry) => {
-        let nested_field_name;
-        let nested_property;
-        nested_field_name = entry[0];
-        nested_property = entry[1];
-        let _block;
-        let _pipe$1 = map_get(values3, nested_field_name);
-        _block = from_result(_pipe$1);
-        let nested_value = _block;
-        let is_required2 = contains(property3.required, nested_field_name);
-        let nested_path = append(
-          parent_path,
-          toList([new PropertySegment(nested_field_name)])
-        );
-        return render_nested_field(
-          nested_path,
-          nested_property,
-          nested_value,
-          is_required2,
-          is_disabled
-        );
-      }
-    );
-  } else {
-    return toList([]);
-  }
-}
-
-// build/dev/javascript/formosh/form/view.mjs
-function render_form_header(model) {
-  return div(
-    toList([class$("formosh-header")]),
-    toList([
-      h2(
-        toList([class$("formosh-title")]),
-        toList([text3(model.schema.title)])
-      ),
       (() => {
         let $ = model.schema.description;
         if ($ instanceof Some) {
@@ -9988,164 +13314,24 @@ function render_form_header(model) {
             toList([text3(desc)])
           );
         } else {
-          return text3("");
+          return none2();
         }
       })()
     ])
   );
 }
-function render_field_errors(errors) {
-  return div(
-    toList([class$("formosh-errors")]),
-    map(
-      errors,
-      (error) => {
-        return div(
-          toList([class$("formosh-error")]),
-          toList([text3(error.message)])
-        );
-      }
-    )
-  );
-}
-function render_field2(model, field_name, property3) {
-  let is_required2 = is_required(model.schema, field_name);
-  let is_disabled = is_field_disabled(model, field_name);
-  let is_touched = is_field_touched(model, field_name);
-  let has_errors = field_has_errors(model, field_name);
-  let errors = get_field_errors(model, field_name);
-  let value2 = get_field_value2(model, field_name);
+function render_field(model, field_name, property3) {
   let field_path = from_field_name(field_name);
-  let _block;
-  let $ = property3.field_type;
-  if ($ instanceof Some) {
-    let $1 = $[0];
-    if ($1 instanceof StringType) {
-      _block = render3(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else if ($1 instanceof NumberType) {
-      _block = render2(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else if ($1 instanceof IntegerType) {
-      _block = render2(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else if ($1 instanceof BooleanType) {
-      _block = render(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else if ($1 instanceof ArrayType) {
-      let _block$1;
-      if (value2 instanceof Some) {
-        let $2 = value2[0];
-        if ($2 instanceof ArrayValue) {
-          let items = $2[0];
-          _block$1 = map(
-            items,
-            (item) => {
-              if (item instanceof ObjectValue) {
-                let fields = item[0];
-                return from_list(fields);
-              } else {
-                return new_map();
-              }
-            }
-          );
-        } else {
-          _block$1 = toList([]);
-        }
-      } else {
-        _block$1 = toList([]);
-      }
-      let array_items = _block$1;
-      _block = view(
-        field_name,
-        property3,
-        array_items,
-        map(errors, (e) => {
-          return e.message;
-        }),
-        is_required2
-      );
-    } else if ($1 instanceof ObjectType) {
-      _block = render4(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else {
-      let $2 = property3.enum_values;
-      if ($2 instanceof Some) {
-        _block = render_enum(
-          field_path,
-          property3,
-          value2,
-          is_required2,
-          is_disabled
-        );
-      } else {
-        _block = div(toList([]), toList([]));
-      }
-    }
-  } else {
-    let $1 = property3.enum_values;
-    if ($1 instanceof Some) {
-      _block = render_enum(
-        field_path,
-        property3,
-        value2,
-        is_required2,
-        is_disabled
-      );
-    } else {
-      _block = div(toList([]), toList([]));
-    }
-  }
-  let field_element = _block;
-  return div(
-    toList([
-      class$(
-        "formosh-field" + (() => {
-          let $1 = has_errors && is_touched;
-          if ($1) {
-            return " formosh-field-error";
-          } else {
-            return "";
-          }
-        })()
-      )
-    ]),
-    toList([
-      field_element,
-      (() => {
-        let $1 = has_errors && is_touched;
-        if ($1) {
-          return render_field_errors(errors);
-        } else {
-          return text3("");
-        }
-      })()
-    ])
+  let is_required = is_required_at_path(model, field_path);
+  let is_disabled = is_field_disabled(model, field_path);
+  let is_readonly = property3.read_only;
+  return render_field_at_path(
+    field_path,
+    property3,
+    model,
+    is_required,
+    is_disabled,
+    is_readonly
   );
 }
 function render_form_footer_content(model) {
@@ -10184,19 +13370,16 @@ function render_form_footer_content(model) {
   );
 }
 function render_form_body(model) {
-  let _block;
-  let _pipe = map_to_list(model.resolved_schema.properties);
-  _block = map(
-    _pipe,
+  let fields = map(
+    model.resolved_schema.properties,
     (pair) => {
       let field_name;
       let property3;
       field_name = pair[0];
       property3 = pair[1];
-      return render_field2(model, field_name, property3);
+      return render_field(model, field_name, property3);
     }
   );
-  let fields = _block;
   return form(
     toList([
       class$("formosh-form"),
@@ -10225,10 +13408,10 @@ function render_submission_result(model) {
       );
     }
   } else {
-    return text3("");
+    return none2();
   }
 }
-function view2(model) {
+function view(model) {
   return div(
     toList([class$("formosh-container")]),
     toList([
@@ -10239,816 +13422,43 @@ function view2(model) {
   );
 }
 
-// build/dev/javascript/formosh/schema/resolver.mjs
-var ReferenceNotFound = class extends CustomType {
-  constructor($0) {
-    super();
-    this[0] = $0;
-  }
-};
-var CircularReference = class extends CustomType {
-  constructor($0) {
-    super();
-    this[0] = $0;
-  }
-};
-var InvalidReference = class extends CustomType {
-  constructor($0) {
-    super();
-    this[0] = $0;
-  }
-};
-function parse_ref_path(ref_path) {
-  let $ = starts_with(ref_path, "#/$defs/");
-  if ($) {
-    let _block;
-    let _pipe = ref_path;
-    _block = drop_start(_pipe, 8);
-    let definition_name = _block;
-    let $1 = string_length(definition_name) > 0;
-    if ($1) {
-      return new Ok(definition_name);
-    } else {
-      return new Error(new InvalidReference(ref_path));
-    }
-  } else {
-    let $1 = starts_with(ref_path, "#/definitions/");
-    if ($1) {
-      let _block;
-      let _pipe = ref_path;
-      _block = drop_start(_pipe, 14);
-      let definition_name = _block;
-      let $2 = string_length(definition_name) > 0;
-      if ($2) {
-        return new Ok(definition_name);
-      } else {
-        return new Error(new InvalidReference(ref_path));
-      }
-    } else {
-      return new Error(new InvalidReference(ref_path));
-    }
-  }
-}
-function merge_properties(referencing, referenced) {
-  return new SchemaProperty(
-    or(referencing.field_type, referenced.field_type),
-    or(referencing.title, referenced.title),
-    or(referencing.description, referenced.description),
-    or(referencing.default, referenced.default),
-    or(referencing.enum_values, referenced.enum_values),
-    new None(),
-    or(referencing.string_constraints, referenced.string_constraints),
-    or(referencing.number_constraints, referenced.number_constraints),
-    or(referencing.items, referenced.items),
-    or(referencing.properties, referenced.properties),
-    (() => {
-      let $ = length(referencing.required) > 0;
-      if ($) {
-        return referencing.required;
-      } else {
-        return referenced.required;
-      }
-    })()
-  );
-}
-function resolve_nested_refs(property3, context, visited) {
-  return try$(
-    (() => {
-      let $ = property3.properties;
-      if ($ instanceof Some) {
-        let props = $[0];
-        return map3(
-          resolve_properties_refs(props, context, visited),
-          (resolved) => {
-            return new Some(resolved);
-          }
-        );
-      } else {
-        return new Ok(new None());
-      }
-    })(),
-    (resolved_properties) => {
-      return try$(
-        (() => {
-          let $ = property3.items;
-          if ($ instanceof Some) {
-            let items = $[0];
-            return map3(
-              resolve_property_ref(items, context, visited),
-              (resolved) => {
-                return new Some(resolved);
-              }
-            );
-          } else {
-            return new Ok(new None());
-          }
-        })(),
-        (resolved_items) => {
-          return new Ok(
-            new SchemaProperty(
-              property3.field_type,
-              property3.title,
-              property3.description,
-              property3.default,
-              property3.enum_values,
-              property3.ref,
-              property3.string_constraints,
-              property3.number_constraints,
-              resolved_items,
-              resolved_properties,
-              property3.required
-            )
-          );
-        }
-      );
-    }
-  );
-}
-function resolve_property_ref(property3, context, visited) {
-  let $ = property3.ref;
-  if ($ instanceof Some) {
-    let ref_path = $[0];
-    let $1 = contains(visited, ref_path);
-    if ($1) {
-      return new Error(new CircularReference(ref_path));
-    } else {
-      return try$(
-        parse_ref_path(ref_path),
-        (definition_name) => {
-          let $2 = map_get(context, definition_name);
-          if ($2 instanceof Ok) {
-            let referenced_property = $2[0];
-            let new_visited = prepend(ref_path, visited);
-            return try$(
-              resolve_property_ref(referenced_property, context, new_visited),
-              (resolved) => {
-                return new Ok(merge_properties(property3, resolved));
-              }
-            );
-          } else {
-            return new Error(new ReferenceNotFound(ref_path));
-          }
-        }
-      );
-    }
-  } else {
-    return resolve_nested_refs(property3, context, visited);
-  }
-}
-function resolve_properties_refs(properties, context, visited) {
-  let _pipe = properties;
-  let _pipe$1 = map_to_list(_pipe);
-  let _pipe$2 = try_map(
-    _pipe$1,
-    (entry) => {
-      let key;
-      let prop;
-      key = entry[0];
-      prop = entry[1];
-      return try$(
-        resolve_property_ref(prop, context, visited),
-        (resolved_prop) => {
-          return new Ok([key, resolved_prop]);
-        }
-      );
-    }
-  );
-  return map3(_pipe$2, from_list);
-}
-function resolve_refs(schema) {
-  let _block;
-  let $ = schema.defs;
-  if ($ instanceof Some) {
-    let defs = $[0];
-    _block = defs;
-  } else {
-    _block = new_map();
-  }
-  let context = _block;
-  return try$(
-    resolve_properties_refs(schema.properties, context, toList([])),
-    (resolved_properties) => {
-      return new Ok(
-        new JsonSchema(
-          schema.title,
-          schema.description,
-          schema.field_type,
-          resolved_properties,
-          schema.required,
-          schema.defs,
-          schema.conditionals,
-          schema.string_constraints,
-          schema.number_constraints
-        )
-      );
-    }
-  );
-}
-
-// build/dev/javascript/formosh/schema/parser.mjs
-var InvalidJson = class extends CustomType {
-  constructor($0) {
-    super();
-    this[0] = $0;
-  }
-};
-var UnexpectedValue = class extends CustomType {
-  constructor($0) {
-    super();
-    this[0] = $0;
-  }
-};
-var DecodingError = class extends CustomType {
-  constructor($0) {
-    super();
-    this[0] = $0;
-  }
-};
-function field_type_decoder() {
-  let _pipe = string2;
-  return then$(
-    _pipe,
-    (type_str) => {
-      if (type_str === "string") {
-        return success(new StringType());
-      } else if (type_str === "number") {
-        return success(new NumberType());
-      } else if (type_str === "integer") {
-        return success(new IntegerType());
-      } else if (type_str === "boolean") {
-        return success(new BooleanType());
-      } else if (type_str === "null") {
-        return success(new NullType());
-      } else if (type_str === "array") {
-        return success(new ArrayType());
-      } else if (type_str === "object") {
-        return success(new ObjectType());
-      } else {
-        return failure(
-          new StringType(),
-          "Unknown field type: " + type_str
-        );
-      }
-    }
-  );
-}
-function extract_number_constraints(data) {
-  let _block;
-  let _pipe = run(data, at(toList(["minimum"]), float2));
-  _block = from_result(_pipe);
-  let minimum = _block;
-  let _block$1;
-  let _pipe$1 = run(
-    data,
-    at(toList(["maximum"]), float2)
-  );
-  _block$1 = from_result(_pipe$1);
-  let maximum = _block$1;
-  let _block$2;
-  let _pipe$2 = run(
-    data,
-    at(toList(["exclusiveMinimum"]), float2)
-  );
-  _block$2 = from_result(_pipe$2);
-  let exclusive_minimum = _block$2;
-  let _block$3;
-  let _pipe$3 = run(
-    data,
-    at(toList(["exclusiveMaximum"]), float2)
-  );
-  _block$3 = from_result(_pipe$3);
-  let exclusive_maximum = _block$3;
-  let _block$4;
-  let _pipe$4 = run(
-    data,
-    at(toList(["multipleOf"]), float2)
-  );
-  _block$4 = from_result(_pipe$4);
-  let multiple_of = _block$4;
-  if (minimum instanceof None && maximum instanceof None && exclusive_minimum instanceof None && exclusive_maximum instanceof None && multiple_of instanceof None) {
-    return minimum;
-  } else {
-    return new Some(
-      new NumberConstraints(
-        minimum,
-        maximum,
-        exclusive_minimum,
-        exclusive_maximum,
-        multiple_of
-      )
-    );
-  }
-}
-function format_decoder() {
-  let _pipe = string2;
-  return then$(
-    _pipe,
-    (format_str) => {
-      if (format_str === "email") {
-        return success(new EmailFormat());
-      } else if (format_str === "url") {
-        return success(new UrlFormat());
-      } else if (format_str === "uri") {
-        return success(new UrlFormat());
-      } else if (format_str === "uuid") {
-        return success(new UuidFormat());
-      } else {
-        return success(new CustomFormat(format_str));
-      }
-    }
-  );
-}
-function extract_string_constraints(data) {
-  let _block;
-  let _pipe = run(data, at(toList(["minLength"]), int2));
-  _block = from_result(_pipe);
-  let min_length = _block;
-  let _block$1;
-  let _pipe$1 = run(
-    data,
-    at(toList(["maxLength"]), int2)
-  );
-  _block$1 = from_result(_pipe$1);
-  let max_length = _block$1;
-  let _block$2;
-  let _pipe$2 = run(
-    data,
-    at(toList(["pattern"]), string2)
-  );
-  _block$2 = from_result(_pipe$2);
-  let pattern = _block$2;
-  let _block$3;
-  let _pipe$3 = run(
-    data,
-    at(toList(["format"]), format_decoder())
-  );
-  _block$3 = from_result(_pipe$3);
-  let format = _block$3;
-  if (min_length instanceof None && max_length instanceof None && pattern instanceof None && format instanceof None) {
-    return min_length;
-  } else {
-    return new Some(
-      new StringConstraints(min_length, max_length, pattern, format)
-    );
-  }
-}
-function value_decoder() {
-  return then$(
-    dynamic,
-    (dynamic_value) => {
-      let $ = run(dynamic_value, string2);
-      if ($ instanceof Ok) {
-        let s = $[0];
-        return success(new StringValue(s));
-      } else {
-        let $1 = run(dynamic_value, int2);
-        if ($1 instanceof Ok) {
-          let i = $1[0];
-          return success(new IntegerValue(i));
-        } else {
-          let $2 = run(dynamic_value, float2);
-          if ($2 instanceof Ok) {
-            let f = $2[0];
-            return success(new NumberValue(f));
-          } else {
-            let $3 = run(dynamic_value, bool);
-            if ($3 instanceof Ok) {
-              let b = $3[0];
-              return success(new BooleanValue(b));
-            } else {
-              let $4 = run(dynamic_value, list2(dynamic));
-              if ($4 instanceof Ok) {
-                let arr = $4[0];
-                let _block;
-                let _pipe = arr;
-                _block = filter_map(
-                  _pipe,
-                  (item) => {
-                    let $5 = run(item, value_decoder());
-                    if ($5 instanceof Ok) {
-                      return $5;
-                    } else {
-                      return new Error(void 0);
-                    }
-                  }
-                );
-                let decoded_items = _block;
-                return success(new ArrayValue(decoded_items));
-              } else {
-                let $5 = run(
-                  dynamic_value,
-                  dict2(string2, dynamic)
-                );
-                if ($5 instanceof Ok) {
-                  let obj = $5[0];
-                  let _block;
-                  let _pipe = map_to_list(obj);
-                  _block = filter_map(
-                    _pipe,
-                    (pair) => {
-                      let key;
-                      let value2;
-                      key = pair[0];
-                      value2 = pair[1];
-                      let $6 = run(value2, value_decoder());
-                      if ($6 instanceof Ok) {
-                        let decoded_value = $6[0];
-                        return new Ok([key, decoded_value]);
-                      } else {
-                        return new Error(void 0);
-                      }
-                    }
-                  );
-                  let decoded_list = _block;
-                  return success(new ObjectValue(decoded_list));
-                } else {
-                  return success(new NullValue());
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  );
-}
-function extract_const_value(data) {
-  let _pipe = run(data, at(toList(["const"]), value_decoder()));
-  let _pipe$1 = map3(
-    _pipe,
-    (const_value) => {
-      return toList([const_value]);
-    }
-  );
-  return from_result(_pipe$1);
-}
-function full_property_decoder() {
-  return then$(
-    dynamic,
-    (dynamic_data) => {
-      return optional_field(
-        "type",
-        new None(),
-        optional(field_type_decoder()),
-        (field_type) => {
-          return optional_field(
-            "title",
-            new None(),
-            optional(string2),
-            (title) => {
-              return optional_field(
-                "description",
-                new None(),
-                optional(string2),
-                (description) => {
-                  return optional_field(
-                    "default",
-                    new None(),
-                    optional(value_decoder()),
-                    (default$) => {
-                      return optional_field(
-                        "enum",
-                        new None(),
-                        optional(list2(value_decoder())),
-                        (enum_values) => {
-                          return optional_field(
-                            "$ref",
-                            new None(),
-                            optional(string2),
-                            (ref) => {
-                              return optional_field(
-                                "items",
-                                new None(),
-                                optional(property_decoder()),
-                                (items) => {
-                                  return optional_field(
-                                    "properties",
-                                    new None(),
-                                    optional(properties_decoder()),
-                                    (properties) => {
-                                      return optional_field(
-                                        "required",
-                                        toList([]),
-                                        list2(string2),
-                                        (required2) => {
-                                          let string_constraints = extract_string_constraints(
-                                            dynamic_data
-                                          );
-                                          let number_constraints = extract_number_constraints(
-                                            dynamic_data
-                                          );
-                                          let _block;
-                                          if (enum_values instanceof Some) {
-                                            _block = enum_values;
-                                          } else {
-                                            _block = extract_const_value(
-                                              dynamic_data
-                                            );
-                                          }
-                                          let enum_values_with_const = _block;
-                                          return success(
-                                            new SchemaProperty(
-                                              field_type,
-                                              title,
-                                              description,
-                                              default$,
-                                              enum_values_with_const,
-                                              ref,
-                                              string_constraints,
-                                              number_constraints,
-                                              items,
-                                              properties,
-                                              required2
-                                            )
-                                          );
-                                        }
-                                      );
-                                    }
-                                  );
-                                }
-                              );
-                            }
-                          );
-                        }
-                      );
-                    }
-                  );
-                }
-              );
-            }
-          );
-        }
-      );
-    }
-  );
-}
-function property_decoder() {
-  return one_of(
-    full_property_decoder(),
-    toList([
-      (() => {
-        let _pipe = string2;
-        return map2(
-          _pipe,
-          (type_str) => {
-            return new SchemaProperty(
-              (() => {
-                if (type_str === "string") {
-                  return new Some(new StringType());
-                } else if (type_str === "number") {
-                  return new Some(new NumberType());
-                } else if (type_str === "integer") {
-                  return new Some(new IntegerType());
-                } else if (type_str === "boolean") {
-                  return new Some(new BooleanType());
-                } else if (type_str === "null") {
-                  return new Some(new NullType());
-                } else if (type_str === "array") {
-                  return new Some(new ArrayType());
-                } else if (type_str === "object") {
-                  return new Some(new ObjectType());
-                } else {
-                  return new None();
-                }
-              })(),
-              new None(),
-              new None(),
-              new None(),
-              new None(),
-              new None(),
-              new None(),
-              new None(),
-              new None(),
-              new None(),
-              toList([])
-            );
-          }
-        );
-      })()
-    ])
-  );
-}
-function properties_decoder() {
-  return dict2(string2, property_decoder());
-}
-function definitions_decoder() {
-  return dict2(string2, property_decoder());
-}
-function extract_single_conditional(data) {
-  let if_result = run(data, at(toList(["if"]), dynamic));
-  if (if_result instanceof Ok) {
-    let if_data = if_result[0];
-    let _block;
-    let _pipe = run(data, at(toList(["then"]), dynamic));
-    let _pipe$1 = map3(
-      _pipe,
-      (dyn) => {
-        let _pipe$12 = run(dyn, property_decoder());
-        return from_result(_pipe$12);
-      }
-    );
-    _block = unwrap2(_pipe$1, new None());
-    let then_result = _block;
-    let _block$1;
-    let _pipe$2 = run(
-      data,
-      at(toList(["else"]), dynamic)
-    );
-    let _pipe$3 = map3(
-      _pipe$2,
-      (dyn) => {
-        let _pipe$32 = run(dyn, property_decoder());
-        return from_result(_pipe$32);
-      }
-    );
-    _block$1 = unwrap2(_pipe$3, new None());
-    let else_result = _block$1;
-    let $ = run(if_data, property_decoder());
-    if ($ instanceof Ok) {
-      let if_schema = $[0];
-      return toList([new ConditionalRule(if_schema, then_result, else_result)]);
-    } else {
-      return toList([]);
-    }
-  } else {
-    return toList([]);
-  }
-}
-function extract_single_conditional_result(data) {
-  let $ = extract_single_conditional(data);
-  if ($ instanceof Empty) {
-    return new Error(void 0);
-  } else {
-    let $1 = $.tail;
-    if ($1 instanceof Empty) {
-      let rule = $.head;
-      return new Ok(rule);
-    } else {
-      return new Error(void 0);
-    }
-  }
-}
-function extract_allof_conditionals(items) {
-  return filter_map(
-    items,
-    (item) => {
-      return extract_single_conditional_result(item);
-    }
-  );
-}
-function extract_conditionals(data) {
-  let $ = run(
-    data,
-    at(toList(["allOf"]), list2(dynamic))
-  );
-  if ($ instanceof Ok) {
-    let allof_items = $[0];
-    return extract_allof_conditionals(allof_items);
-  } else {
-    return extract_single_conditional(data);
-  }
-}
-function schema_decoder() {
-  return field(
-    "title",
-    string2,
-    (title) => {
-      return optional_field(
-        "description",
-        new None(),
-        optional(string2),
-        (description) => {
-          return optional_field(
-            "type",
-            new ObjectType(),
-            field_type_decoder(),
-            (field_type) => {
-              return optional_field(
-                "properties",
-                new_map(),
-                properties_decoder(),
-                (properties) => {
-                  return optional_field(
-                    "required",
-                    toList([]),
-                    list2(string2),
-                    (required2) => {
-                      return optional_field(
-                        "$defs",
-                        new None(),
-                        optional(definitions_decoder()),
-                        (defs) => {
-                          return then$(
-                            dynamic,
-                            (dynamic_data) => {
-                              let string_constraints = extract_string_constraints(
-                                dynamic_data
-                              );
-                              let number_constraints = extract_number_constraints(
-                                dynamic_data
-                              );
-                              let conditionals = extract_conditionals(
-                                dynamic_data
-                              );
-                              return success(
-                                new JsonSchema(
-                                  title,
-                                  description,
-                                  field_type,
-                                  properties,
-                                  required2,
-                                  defs,
-                                  conditionals,
-                                  string_constraints,
-                                  number_constraints
-                                )
-                              );
-                            }
-                          );
-                        }
-                      );
-                    }
-                  );
-                }
-              );
-            }
-          );
-        }
-      );
-    }
-  );
-}
-function parse_schema(json_string) {
-  return try$(
-    (() => {
-      let _pipe = json_string;
-      let _pipe$1 = parse(_pipe, schema_decoder());
-      return map_error(
-        _pipe$1,
-        (error) => {
-          if (error instanceof UnexpectedEndOfInput) {
-            return new InvalidJson("Unexpected end of input");
-          } else if (error instanceof UnexpectedByte) {
-            let byte = error[0];
-            return new InvalidJson("Unexpected byte: " + byte);
-          } else if (error instanceof UnexpectedSequence) {
-            let seq = error[0];
-            return new InvalidJson("Unexpected sequence: " + seq);
-          } else {
-            let errors = error[0];
-            return new DecodingError(errors);
-          }
-        }
-      );
-    })(),
-    (parsed_schema) => {
-      let _pipe = parsed_schema;
-      let _pipe$1 = resolve_refs(_pipe);
-      return map_error(
-        _pipe$1,
-        (error) => {
-          if (error instanceof ReferenceNotFound) {
-            let ref = error[0];
-            return new UnexpectedValue("Reference not found: " + ref);
-          } else if (error instanceof CircularReference) {
-            let ref = error[0];
-            return new UnexpectedValue("Circular reference detected: " + ref);
-          } else {
-            let ref = error[0];
-            return new UnexpectedValue("Invalid reference format: " + ref);
-          }
-        }
-      );
-    }
-  );
-}
-
 // build/dev/javascript/formosh/formosh.mjs
 var FormConfig = class extends CustomType {
-  constructor(schema, submit_config, css_prefix, show_errors_on_change) {
+  constructor(schema, submit_config, css_prefix, show_errors_on_change, show_readonly_fields, initial_values) {
     super();
     this.schema = schema;
     this.submit_config = submit_config;
     this.css_prefix = css_prefix;
     this.show_errors_on_change = show_errors_on_change;
+    this.show_readonly_fields = show_readonly_fields;
+    this.initial_values = initial_values;
   }
 };
 function config(schema) {
-  return new FormConfig(schema, new NoSubmit(), "formosh", false);
+  return new FormConfig(
+    schema,
+    new NoSubmit(),
+    "formosh",
+    false,
+    false,
+    new_map()
+  );
 }
 function create_form_with_config(config2) {
   return application(
     (_) => {
       return [
-        init_with_config(
+        init_with_full_config(
           config2.schema,
-          new Some(config2.submit_config)
+          new Some(config2.submit_config),
+          config2.show_readonly_fields,
+          config2.initial_values
         ),
         none()
       ];
     },
     update2,
-    view2
+    view
   );
 }
 function from_config(config2) {
@@ -11070,12 +13480,15 @@ function from_json_string(json_string) {
 
 // build/dev/javascript/formosh/formosh/component.mjs
 var Model = class extends CustomType {
-  constructor(form_model, submit_url, submit_method, css_prefix) {
+  constructor(form_model, submit_url, submit_method, css_prefix, initial_values, show_readonly_fields, upload_base_url) {
     super();
     this.form_model = form_model;
     this.submit_url = submit_url;
     this.submit_method = submit_method;
     this.css_prefix = css_prefix;
+    this.initial_values = initial_values;
+    this.show_readonly_fields = show_readonly_fields;
+    this.upload_base_url = upload_base_url;
   }
 };
 var SchemaChanged = class extends CustomType {
@@ -11102,6 +13515,24 @@ var CssPrefixChanged = class extends CustomType {
     this[0] = $0;
   }
 };
+var InitialValuesChanged = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var ShowReadonlyFieldsChanged = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
+var UploadBaseUrlChanged = class extends CustomType {
+  constructor($0) {
+    super();
+    this[0] = $0;
+  }
+};
 var FormMessage = class extends CustomType {
   constructor($0) {
     super();
@@ -11109,7 +13540,18 @@ var FormMessage = class extends CustomType {
   }
 };
 function init(_) {
-  return [new Model(new None(), new None(), "POST", "formosh"), none()];
+  return [
+    new Model(
+      new None(),
+      new None(),
+      "POST",
+      "formosh",
+      new_map(),
+      true,
+      new None()
+    ),
+    none()
+  ];
 }
 function reinitialize_form_with_schema(model, schema) {
   let _block;
@@ -11127,20 +13569,48 @@ function reinitialize_form_with_schema(model, schema) {
     _block = $;
   }
   let submit_config = _block;
-  let form_model = init_with_config(schema, submit_config);
-  let validated_form = validate_all_fields(form_model);
+  let form_model = init_with_full_config(
+    schema,
+    submit_config,
+    model.show_readonly_fields,
+    model.initial_values
+  );
+  let resolved_schema = resolve_recursive(
+    schema,
+    form_model.values
+  );
+  let form_model_resolved = new FormModel(
+    form_model.schema,
+    resolved_schema,
+    form_model.values,
+    form_model.errors,
+    form_model.is_submitting,
+    form_model.is_dirty,
+    form_model.is_valid,
+    form_model.touched_fields,
+    form_model.disabled_fields,
+    form_model.submission_result,
+    form_model.submit_config,
+    form_model.show_readonly_fields,
+    model.upload_base_url,
+    form_model.upload_states
+  );
+  let validated_form = validate_all_fields(form_model_resolved);
   return new Model(
     new Some(validated_form),
     model.submit_url,
     model.submit_method,
-    model.css_prefix
+    model.css_prefix,
+    model.initial_values,
+    model.show_readonly_fields,
+    model.upload_base_url
   );
 }
-function view3(model) {
+function view2(model) {
   let $ = model.form_model;
   if ($ instanceof Some) {
     let form_model = $[0];
-    let _pipe = view2(form_model);
+    let _pipe = view(form_model);
     return map5(_pipe, (var0) => {
       return new FormMessage(var0);
     });
@@ -11153,19 +13623,7 @@ function view3(model) {
   }
 }
 function values_to_json2(values3) {
-  let _pipe = values3;
-  let _pipe$1 = map_to_list(_pipe);
-  let _pipe$2 = map(
-    _pipe$1,
-    (pair) => {
-      let key;
-      let val;
-      key = pair[0];
-      val = pair[1];
-      return [key, value_to_json(val)];
-    }
-  );
-  return object2(_pipe$2);
+  return value_to_json(values3);
 }
 function emit_submit_result(result) {
   let _block;
@@ -11191,7 +13649,7 @@ function emit_change_event(form_model) {
     "formosh-change",
     object2(
       toList([
-        ["values", values_to_json2(form_model.values)],
+        ["values", values_to_json2(get_resolved_values(form_model))],
         ["isValid", bool2(form_model.is_valid)],
         ["isDirty", bool2(form_model.is_dirty)]
       ])
@@ -11215,7 +13673,10 @@ function update3(model, msg) {
       model.form_model,
       new Some(url),
       model.submit_method,
-      model.css_prefix
+      model.css_prefix,
+      model.initial_values,
+      model.show_readonly_fields,
+      model.upload_base_url
     );
     let _block;
     let $ = new_model.form_model;
@@ -11235,7 +13696,10 @@ function update3(model, msg) {
       model.form_model,
       model.submit_url,
       method,
-      model.css_prefix
+      model.css_prefix,
+      model.initial_values,
+      model.show_readonly_fields,
+      model.upload_base_url
     );
     let _block;
     let $ = new_model.form_model;
@@ -11255,9 +13719,105 @@ function update3(model, msg) {
   } else if (msg instanceof CssPrefixChanged) {
     let prefix = msg[0];
     return [
-      new Model(model.form_model, model.submit_url, model.submit_method, prefix),
+      new Model(
+        model.form_model,
+        model.submit_url,
+        model.submit_method,
+        prefix,
+        model.initial_values,
+        model.show_readonly_fields,
+        model.upload_base_url
+      ),
       none()
     ];
+  } else if (msg instanceof InitialValuesChanged) {
+    let values3 = msg[0];
+    let new_model = new Model(
+      model.form_model,
+      model.submit_url,
+      model.submit_method,
+      model.css_prefix,
+      values3,
+      model.show_readonly_fields,
+      model.upload_base_url
+    );
+    let _block;
+    let $ = new_model.form_model;
+    if ($ instanceof Some) {
+      let form_model = $[0];
+      _block = reinitialize_form_with_schema(new_model, form_model.schema);
+    } else {
+      _block = new_model;
+    }
+    let final_model = _block;
+    return [final_model, none()];
+  } else if (msg instanceof ShowReadonlyFieldsChanged) {
+    let show = msg[0];
+    let new_model = new Model(
+      model.form_model,
+      model.submit_url,
+      model.submit_method,
+      model.css_prefix,
+      model.initial_values,
+      show,
+      model.upload_base_url
+    );
+    let _block;
+    let $ = new_model.form_model;
+    if ($ instanceof Some) {
+      let form_model = $[0];
+      _block = reinitialize_form_with_schema(new_model, form_model.schema);
+    } else {
+      _block = new_model;
+    }
+    let final_model = _block;
+    return [final_model, none()];
+  } else if (msg instanceof UploadBaseUrlChanged) {
+    let url = msg[0];
+    let new_model = new Model(
+      model.form_model,
+      model.submit_url,
+      model.submit_method,
+      model.css_prefix,
+      model.initial_values,
+      model.show_readonly_fields,
+      new Some(url)
+    );
+    let _block;
+    let $ = new_model.form_model;
+    if ($ instanceof Some) {
+      let form_model = $[0];
+      _block = new Model(
+        new Some(
+          new FormModel(
+            form_model.schema,
+            form_model.resolved_schema,
+            form_model.values,
+            form_model.errors,
+            form_model.is_submitting,
+            form_model.is_dirty,
+            form_model.is_valid,
+            form_model.touched_fields,
+            form_model.disabled_fields,
+            form_model.submission_result,
+            form_model.submit_config,
+            form_model.show_readonly_fields,
+            new Some(url),
+            form_model.upload_states
+          )
+        ),
+        new_model.submit_url,
+        new_model.submit_method,
+        new_model.css_prefix,
+        new_model.initial_values,
+        new_model.show_readonly_fields,
+        new_model.upload_base_url
+      );
+    } else {
+      _block = new_model;
+    }
+    let final_model = _block;
+    return [final_model, none()];
   } else if (msg instanceof FormMessage) {
     let form_msg = msg[0];
     let $ = model.form_model;
@@ -11281,18 +13841,43 @@ function update3(model, msg) {
           _block = emit_submit_result(new Ok(message2));
         } else {
           let error = result[0];
-          _block = emit_submit_result(new Error(error));
+          _block = emit_submit_result(new Error2(error));
         }
       } else {
         _block = emit_change_event(updated_form);
       }
       let event_effect = _block;
+      let _block$1;
+      if (form_msg instanceof FormSubmitted) {
+        _block$1 = new FormModel(
+          updated_form.schema,
+          updated_form.resolved_schema,
+          updated_form.values,
+          updated_form.errors,
+          updated_form.is_submitting,
+          updated_form.is_dirty,
+          updated_form.is_valid,
+          updated_form.touched_fields,
+          updated_form.disabled_fields,
+          new None(),
+          updated_form.submit_config,
+          updated_form.show_readonly_fields,
+          updated_form.upload_base_url,
+          updated_form.upload_states
+        );
+      } else {
+        _block$1 = updated_form;
+      }
+      let final_form = _block$1;
       return [
         new Model(
-          new Some(updated_form),
+          new Some(final_form),
           model.submit_url,
           model.submit_method,
-          model.css_prefix
+          model.css_prefix,
+          model.initial_values,
+          model.show_readonly_fields,
+          model.upload_base_url
         ),
         batch(
           toList([
@@ -11321,7 +13906,7 @@ function register() {
   let component2 = component(
     init,
     update3,
-    view3,
+    view2,
     toList([
       on_attribute_change(
         "schema",
@@ -11331,7 +13916,11 @@ function register() {
             let schema$1 = $[0];
             return new Ok(new SchemaChanged(schema$1));
           } else {
-            return new Error(void 0);
+            let error = $[0];
+            console_error(
+              "formosh: schema parse error: " + inspect2(error)
+            );
+            return new Error2(void 0);
           }
         }
       ),
@@ -11352,6 +13941,31 @@ function register() {
         (value2) => {
           return new Ok(new CssPrefixChanged(value2));
         }
+      ),
+      on_attribute_change(
+        "initial-values",
+        (value2) => {
+          let $ = json_string_to_values(value2);
+          if ($ instanceof Ok) {
+            let values3 = $[0];
+            return new Ok(new InitialValuesChanged(values3));
+          } else {
+            console_error("formosh: initial-values parse error");
+            return new Error2(void 0);
+          }
+        }
+      ),
+      on_attribute_change(
+        "show-readonly-fields",
+        (value2) => {
+          return new Ok(new ShowReadonlyFieldsChanged(value2 === "true"));
+        }
+      ),
+      on_attribute_change(
+        "upload-base-url",
+        (value2) => {
+          return new Ok(new UploadBaseUrlChanged(value2));
+        }
       )
     ])
   );
@@ -11359,7 +13973,7 @@ function register() {
 }
 
 // build/dev/javascript/file_schema_loader/file_schema_loader.mjs
-var FILEPATH = "src/file_schema_loader.gleam";
+var FILEPATH2 = "src/file_schema_loader.gleam";
 var Model2 = class extends CustomType {
   constructor(selected_schema, schema_content, available_schemas, error, submission_result) {
     super();
@@ -11401,7 +14015,10 @@ function init2(_) {
     "contact_form.json",
     "survey_form.json",
     "user_registration.json",
-    "basic_leak_signs.json"
+    "basic_leak_signs.json",
+    "array_editable_test.json",
+    "array_readonly_test.json",
+    "array_readonly_test_full.json"
   ]);
   return [
     new Model2(
@@ -11431,17 +14048,17 @@ function fetch_schema(filename) {
       } else {
         let error = fetch_result[0];
         if (error instanceof BadBody) {
-          return new SchemaFetched(new Error("Bad body"));
+          return new SchemaFetched(new Error2("Bad body"));
         } else if (error instanceof BadUrl) {
           let u = error[0];
-          return new SchemaFetched(new Error("BAD url " + u));
+          return new SchemaFetched(new Error2("BAD url " + u));
         } else if (error instanceof HttpError) {
           let resp = error[0];
-          return new SchemaFetched(new Error(resp.body));
+          return new SchemaFetched(new Error2(resp.body));
         } else if (error instanceof NetworkError2) {
-          return new SchemaFetched(new Error("Network error"));
+          return new SchemaFetched(new Error2("Network error"));
         } else {
-          return new SchemaFetched(new Error("Can't fetch schema at " + url));
+          return new SchemaFetched(new Error2("Can't fetch schema at " + url));
         }
       }
     }
@@ -11595,7 +14212,7 @@ function decode_form_change() {
     return new FormChanged(new_map());
   });
 }
-function view4(model) {
+function view3(model) {
   return div(
     toList([class$("container")]),
     toList([
@@ -11765,12 +14382,12 @@ function view4(model) {
 }
 function main() {
   let $ = register();
-  let app = application(init2, update4, view4);
+  let app = application(init2, update4, view3);
   let $1 = start3(app, "#app", void 0);
   if (!($1 instanceof Ok)) {
     throw makeError(
       "let_assert",
-      FILEPATH,
+      FILEPATH2,
       "file_schema_loader",
       40,
       "main",

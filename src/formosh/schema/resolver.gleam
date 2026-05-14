@@ -224,6 +224,9 @@ fn merge_properties(
     },
     // readOnly is true if either property has it set
     read_only: referencing.read_only || referenced.read_only,
+    // x-addable / x-removable: AND-merge — most restrictive wins
+    addable: referencing.addable && referenced.addable,
+    removable: referencing.removable && referenced.removable,
     widget: option.or(referencing.widget, referenced.widget),
     upload_config: option.or(
       referencing.upload_config,

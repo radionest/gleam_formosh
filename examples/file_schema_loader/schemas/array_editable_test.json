@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/array_editable_test.schema.json",
+  "title": "Array editable (baseline)",
+  "description": "Базовый редактируемый массив: кнопки Добавить/Удалить присутствуют, все поля редактируются. Контрольная точка для сравнения с array_readonly_test (структура заморожена) и array_readonly_test_full (всё заморожено).",
+  "type": "object",
+  "properties": {
+    "lesions": {
+      "type": "array",
+      "title": "Очаги (полностью редактируемые)",
+      "description": "Без readOnly и без x-addable/x-removable — стандартное поведение",
+      "default": [
+        {
+          "lesion_num": 1,
+          "is_resected": false
+        },
+        {
+          "lesion_num": 2,
+          "is_resected": true,
+          "visible": true,
+          "tumor_cells": false,
+          "conclusion": "Резидуальная опухоль не выявлена"
+        }
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "lesion_num": {
+            "type": "integer",
+            "title": "Номер очага"
+          },
+          "is_resected": {
+            "type": "boolean",
+            "title": "Очаг резецирован"
+          }
+        },
+        "required": ["lesion_num", "is_resected"],
+        "allOf": [
+          {
+            "if": {
+              "properties": { "is_resected": { "const": true } }
+            },
+            "then": {
+              "properties": {
+                "visible": {
+                  "type": "boolean",
+                  "title": "Очаг визуализируется на препарате"
+                },
+                "tumor_cells": {
+                  "type": "boolean",
+                  "title": "Опухолевые клетки в препарате"
+                },
+                "conclusion": {
+                  "type": "string",
+                  "title": "Заключение"
+                }
+              },
+              "required": ["visible", "tumor_cells", "conclusion"]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
