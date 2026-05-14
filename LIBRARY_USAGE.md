@@ -240,6 +240,20 @@ When using Formosh as a plain Lustre application (no web component, no shadow
 DOM), only the class selectors work — `::part()` and shadow-internal
 behaviour do not apply.
 
+### Cascade & limitations
+
+- **Cascade order**: rules from adopted parent stylesheets and `::part()`
+  rules from the host document apply in normal CSS specificity order. To
+  override a class-based rule, give your `::part()` selector higher
+  specificity (e.g. `formosh-form::part(input):not(:disabled)`) or use
+  `!important` sparingly.
+- **Compound parts**: elements with multiple parts (e.g.
+  `part="radio-group boolean"`) are addressable by either token. There is
+  no descendant combinator support inside `::part()`, so you cannot write
+  `formosh-form::part(boolean) ::part(radio-item)` — to style radio items
+  *inside* a boolean group differently from string-enum radios, add a
+  marker class on the host or restructure the schema.
+
 ## Error Handling
 
 Always handle potential errors when creating forms:
