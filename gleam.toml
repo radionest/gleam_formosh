@@ -1,5 +1,5 @@
 name = "formosh"
-version = "0.4.0"
+version = "0.4.1"
 description = "Type-safe JSON Schema form generator for Gleam/Lustre"
 licences = ["MIT"]
 repository = { type = "github", user = "youruser", repo = "formosh" }
