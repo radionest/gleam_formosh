@@ -36,17 +36,32 @@ pub fn create_field_label(
   render_label(field_name, property, is_required)
 }
 
+/// Render the required indicator (` *` span with `formosh-required` class)
+/// or an empty element when not required.
+///
+/// Use this everywhere a required marker is shown so the visual cue and
+/// CSS hook stay in sync between scalar fields, array containers, and
+/// object containers. Inlining the `case is_required { ... }` is what
+/// caused the marker to disappear from container labels during the
+/// dispatcher unification refactor.
+pub fn render_required_marker(is_required: Bool) -> Element(FormMsg) {
+  case is_required {
+    True -> html.span([attribute.class("formosh-required")], [html.text(" *")])
+    False -> element.none()
+  }
+}
+
 /// Render a field label with optional required indicator.
-/// 
+///
 /// Creates a properly associated label element for a form field, using either
 /// the schema's title property or a formatted version of the field name.
 /// Required fields get a visual indicator (typically an asterisk).
-/// 
+///
 /// ## Parameters
 /// - `field_name`: The field name, used as fallback for label text and for association
 /// - `property`: The schema property that may contain a custom title
 /// - `is_required`: Whether to show the required indicator
-/// 
+///
 /// ## Returns
 /// A Lustre Element representing the field label
 pub fn render_label(
@@ -66,11 +81,7 @@ pub fn render_label(
     ],
     [
       html.text(label_text),
-      case is_required {
-        True ->
-          html.span([attribute.class("formosh-required")], [html.text(" *")])
-        False -> element.none()
-      },
+      render_required_marker(is_required),
     ],
   )
 }

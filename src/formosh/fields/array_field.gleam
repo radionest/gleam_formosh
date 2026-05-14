@@ -4,6 +4,7 @@
 /// and the add-item button. Child field rendering is delegated back to
 /// the caller via `render_child` — this keeps a single source of truth
 /// for widget dispatch (see `field_dispatcher.render_field_at_path`).
+import formosh/fields/field_common
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, RemoveArrayItemPath,
 }
@@ -49,10 +50,7 @@ pub fn render_container(
   html.div([class("array-field")], [
     html.label([class("array-label")], [
       html.text(title),
-      case is_required {
-        True -> html.span([class("required")], [html.text(" *")])
-        False -> element.none()
-      },
+      field_common.render_required_marker(is_required),
     ]),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])

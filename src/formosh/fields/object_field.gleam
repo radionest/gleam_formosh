@@ -5,6 +5,7 @@
 /// `field_dispatcher.render_field_at_path`), so any child — string,
 /// number, nested object, array, image-upload widget — goes through the
 /// same selection logic as top-level fields.
+import formosh/fields/field_common
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path.{type FieldPath, PropertySegment}
 import formosh/schema/types.{type SchemaProperty}
@@ -36,10 +37,7 @@ pub fn render_container(
   html.div([class("object-field")], [
     html.label([class("object-label")], [
       html.text(title),
-      case is_required {
-        True -> html.span([class("required")], [html.text(" *")])
-        False -> element.none()
-      },
+      field_common.render_required_marker(is_required),
     ]),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
