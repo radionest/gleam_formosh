@@ -275,6 +275,10 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // Extract readOnly annotation
   let read_only = extract_read_only(dynamic_data)
 
+  // Extract x-addable / x-removable (default True: structure-mutation allowed)
+  let addable = extract_addable(dynamic_data)
+  let removable = extract_removable(dynamic_data)
+
   // Handle 'const' keyword - convert to enum with single value
   let enum_values_with_const = case enum_values {
     Some(_) -> enum_values
@@ -305,6 +309,8 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     properties: properties,
     required: required,
     read_only: read_only,
+    addable: addable,
+    removable: removable,
     widget: widget,
     upload_config: upload_config,
     conditionals: conditionals,
@@ -533,6 +539,20 @@ fn extract_single_conditional(data: Dynamic) -> List(ConditionalRule) {
 fn extract_read_only(data: Dynamic) -> Bool {
   decode.run(data, decode.at(["readOnly"], decode.bool))
   |> result.unwrap(False)
+}
+
+/// Extract x-addable structural flag for arrays.
+/// Absent or non-bool -> True (default: add control shown).
+fn extract_addable(data: Dynamic) -> Bool {
+  decode.run(data, decode.at(["x-addable"], decode.bool))
+  |> result.unwrap(True)
+}
+
+/// Extract x-removable structural flag for arrays.
+/// Absent or non-bool -> True (default: remove control shown).
+fn extract_removable(data: Dynamic) -> Bool {
+  decode.run(data, decode.at(["x-removable"], decode.bool))
+  |> result.unwrap(True)
 }
 
 /// Extract x-widget custom widget override from dynamic JSON data.

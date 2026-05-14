@@ -111,6 +111,10 @@ pub type SchemaProperty {
     required: List(String),
     // JSON Schema readOnly annotation
     read_only: Bool,
+    // x-addable: whether the "add item" control is shown for an array (default True)
+    addable: Bool,
+    // x-removable: whether the "remove item" control is shown for an array (default True)
+    removable: Bool,
     // x-widget: custom widget override (e.g. "image-upload")
     widget: Option(String),
     // Upload configuration from x- extensions
@@ -246,6 +250,8 @@ pub fn empty_property() -> SchemaProperty {
     properties: None,
     required: [],
     read_only: False,
+    addable: True,
+    removable: True,
     widget: None,
     upload_config: None,
     conditionals: [],

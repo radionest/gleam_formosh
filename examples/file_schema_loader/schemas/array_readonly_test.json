@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/array_readonly_test.schema.json",
+  "title": "Array structurally frozen (x-addable / x-removable)",
+  "description": "Массив lesions: структура зафиксирована через x-addable:false / x-removable:false (без readOnly). Поля is_resected/visible/tumor_cells/conclusion должны быть редактируемыми, lesion_num — серый (свой readOnly:true).",
+  "type": "object",
+  "properties": {
+    "lesions": {
+      "type": "array",
+      "x-addable": false,
+      "x-removable": false,
+      "title": "Очаги (префилл из мастер-модели)",
+      "description": "Структурно зафиксирован: add/remove отключены через x-addable/x-removable. Поля редактируются по своим schemas.",
+      "default": [
+        {
+          "lesion_num": 1,
+          "is_resected": false
+        },
+        {
+          "lesion_num": 2,
+          "is_resected": true,
+          "visible": true,
+          "tumor_cells": false,
+          "conclusion": "Резидуальная опухоль не выявлена"
+        }
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "lesion_num": {
+            "type": "integer",
+            "readOnly": true,
+            "title": "Номер очага"
+          },
+          "is_resected": {
+            "type": "boolean",
+            "title": "Очаг резецирован"
+          }
+        },
+        "required": ["lesion_num", "is_resected"],
+        "allOf": [
+          {
+            "if": {
+              "properties": { "is_resected": { "const": true } }
+            },
+            "then": {
+              "properties": {
+                "visible": {
+                  "type": "boolean",
+                  "title": "Очаг визуализируется на препарате"
+                },
+                "tumor_cells": {
+                  "type": "boolean",
+                  "title": "Опухолевые клетки в препарате"
+                },
+                "conclusion": {
+                  "type": "string",
+                  "title": "Заключение"
+                }
+              },
+              "required": ["visible", "tumor_cells", "conclusion"]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
