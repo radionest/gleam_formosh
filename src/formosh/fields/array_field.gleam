@@ -48,10 +48,10 @@ pub fn render_container(
 
   html.div([class("array-field")], [
     field_common.render_container_label(
-      array_name,
-      property,
-      is_required,
-      "array-label",
+      field_name: array_name,
+      property: property,
+      is_required: is_required,
+      css_class: "array-label",
     ),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])

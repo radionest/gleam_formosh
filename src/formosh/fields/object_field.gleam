@@ -35,10 +35,10 @@ pub fn render_container(
 
   html.div([class("object-field")], [
     field_common.render_container_label(
-      object_name,
-      property,
-      is_required,
-      "object-label",
+      field_name: object_name,
+      property: property,
+      is_required: is_required,
+      css_class: "object-label",
     ),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])

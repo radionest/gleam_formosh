@@ -106,14 +106,14 @@ pub fn render_label(
 /// ## Returns
 /// A Lustre Element representing the container field label
 pub fn render_container_label(
-  field_name: String,
-  property: types.SchemaProperty,
-  is_required: Bool,
-  css_class: String,
+  field_name name: String,
+  property prop: types.SchemaProperty,
+  is_required required: Bool,
+  css_class class: String,
 ) -> Element(FormMsg) {
-  html.label([attribute.class(css_class)], [
-    html.text(label_text(field_name, property)),
-    render_required_marker(is_required),
+  html.label([attribute.class(class)], [
+    html.text(label_text(name, prop)),
+    render_required_marker(required),
   ])
 }
 
