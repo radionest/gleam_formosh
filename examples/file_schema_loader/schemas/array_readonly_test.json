@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/array_readonly_test.schema.json",
-  "title": "Array readOnly cascade test",
-  "description": "Массив lesions с readOnly:true. Поля is_resected/visible/tumor_cells/conclusion НЕ помечены readOnly. Проверяем, каскадирует ли readOnly с массива на дочерние поля.",
+  "title": "Array structurally frozen (x-addable / x-removable)",
+  "description": "Массив lesions: структура зафиксирована через x-addable:false / x-removable:false (без readOnly). Поля is_resected/visible/tumor_cells/conclusion должны быть редактируемыми, lesion_num — серый (свой readOnly:true).",
   "type": "object",
   "properties": {
     "lesions": {
