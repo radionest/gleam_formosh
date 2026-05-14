@@ -9,9 +9,11 @@ Formosh is a JSON Schema-based form generator library for Gleam/Lustre that crea
 ## Worktree Workflow
 
 - Feature development: always enter a worktree via `EnterWorktree` before making changes. Never `git checkout -b` on main — `block-branch-switch.sh` blocks it
+- Code-architect / code-explorer / code-reviewer agents also require a worktree — `require-worktree-agent.sh` blocks them on main. Enter the worktree before Phase 2 of feature-dev, not after the architect agents fail
 - If unstaged changes are already on main: `git stash` → `EnterWorktree` → `git stash pop`
 - Edits under `.claude/` (hooks, settings, agents) — allowed directly on main; `require-worktree.sh` whitelists `.claude/*` and blocks `Edit`/`Write` elsewhere
 - Worktrees contain only git-tracked files. `hooks/`, `settings.json`, `settings.local.json` live in `$CLAUDE_PROJECT_DIR/.claude/` and are shared
+- Before `gh pr create`: `git fetch origin main` and check `git log --oneline main..origin/main` — if origin moved while the worktree was alive, rebase first or the diff will include unrelated reverts (`git-squash-sync.md` has the recipe)
 - Before `gh pr create`: always run `Agent(subagent_type="pr-diff-reviewer", ...)` first. This is an advisory rule — no hook enforces it; the reviewer's report is the gate
 - After `gh pr create` succeeds: `pr-monitor.sh` (PostToolUse Bash) auto-spawns `pr-watch.sh` in the background. CI report lands at `/tmp/pr-<N>-report.md` — read that file when the user asks about CI status, do not re-poll `gh pr checks`
 - After `gh pr create` succeeds: default to `ExitWorktree(keep)` silently — do not ask. Worktree stays until PR merges
@@ -77,6 +79,7 @@ Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segme
 - **Validation timing**: Check `touched_fields` before displaying errors
 - **Array indexing**: Reindex array fields after any add/remove operation
 - **Circular $refs**: Resolver maintains visited set — do not bypass it
+- **View refactors**: Required-asterisk (` *` with `class="required"`) and error wrappers are easy to drop when unifying renderers. Use `field_common.render_required_marker` and let the field dispatcher own error display — re-render the marker explicitly per container, not «implicitly via the parent»
 
 ## Web Component
 
