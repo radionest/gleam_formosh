@@ -39,7 +39,6 @@ pub fn render_container(
     Element(FormMsg),
 ) -> Element(FormMsg) {
   let array_name = path.get_field_name(field_path)
-  let title = option.unwrap(property.title, array_name)
   let description = property.description
 
   let items = case model.get_value_at_path(model, field_path) {
@@ -48,10 +47,12 @@ pub fn render_container(
   }
 
   html.div([class("array-field")], [
-    html.label([class("array-label")], [
-      html.text(title),
-      field_common.render_required_marker(is_required),
-    ]),
+    field_common.render_container_label(
+      array_name,
+      property,
+      is_required,
+      "array-label",
+    ),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
       None -> element.none()
