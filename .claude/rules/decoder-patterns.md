@@ -48,3 +48,16 @@ decode.optional_field("items", None, property_decoder())
 - `const` is represented as single-element `enum_values`
 - Arrays use `items` field for element schema
 - Enums are arrays of possible values
+
+## `SchemaProperty.properties` is a List, not a Dict
+
+Type: `List(#(String, SchemaProperty))` (order-preserving — PR #7).
+Lookup helper already in `types.gleam`:
+
+```gleam
+list.key_find(properties, key) -> Result(SchemaProperty, Nil)
+has_property_key(properties, key) -> Bool
+```
+
+Never `dict.from_list(properties)` — that loses the schema author's
+declared field order, which `view.gleam` relies on for rendering.
