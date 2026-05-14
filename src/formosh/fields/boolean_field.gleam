@@ -76,42 +76,68 @@ fn render_as_radio(
   let is_true = field_common.extract_boolean_value(value)
   let has_value = option.is_some(value)
 
-  html.div([attribute.class("formosh-field-wrapper")], [
-    field_common.render_label(field_name, property, is_required),
-    html.div([attribute.class("formosh-radio-group formosh-boolean")], [
-      html.div([attribute.class("formosh-radio-item")], [
-        html.input([
-          attribute.type_("radio"),
-          attribute.id(yes_id),
-          attribute.name(field_id),
-          attribute.value("true"),
-          attribute.checked(has_value && is_true),
-          attribute.required(is_required),
-          attribute.disabled(is_disabled),
-          event.on_click(UpdateFieldPath(field_path, types.BooleanValue(True))),
-        ]),
-        html.label([attribute.for(yes_id)], [
-          html.text("Yes"),
-        ]),
-      ]),
-      html.div([attribute.class("formosh-radio-item")], [
-        html.input([
-          attribute.type_("radio"),
-          attribute.id(no_id),
-          attribute.name(field_id),
-          attribute.value("false"),
-          attribute.checked(has_value && !is_true),
-          attribute.required(is_required),
-          attribute.disabled(is_disabled),
-          event.on_click(UpdateFieldPath(field_path, types.BooleanValue(False))),
-        ]),
-        html.label([attribute.for(no_id)], [
-          html.text("No"),
-        ]),
-      ]),
-    ]),
-    field_common.render_help_text(property),
-  ])
+  html.div(
+    [
+      attribute.class("formosh-field-wrapper"),
+      attribute.attribute("part", "field-wrapper"),
+    ],
+    [
+      field_common.render_label(field_name, property, is_required),
+      html.div(
+        [
+          attribute.class("formosh-radio-group formosh-boolean"),
+          attribute.attribute("part", "radio-group boolean"),
+        ],
+        [
+          html.div(
+            [
+              attribute.class("formosh-radio-item"),
+              attribute.attribute("part", "radio-item"),
+            ],
+            [
+              html.input([
+                attribute.type_("radio"),
+                attribute.id(yes_id),
+                attribute.name(field_id),
+                attribute.value("true"),
+                attribute.checked(has_value && is_true),
+                attribute.required(is_required),
+                attribute.disabled(is_disabled),
+                event.on_click(UpdateFieldPath(
+                  field_path,
+                  types.BooleanValue(True),
+                )),
+              ]),
+              html.label([attribute.for(yes_id)], [html.text("Yes")]),
+            ],
+          ),
+          html.div(
+            [
+              attribute.class("formosh-radio-item"),
+              attribute.attribute("part", "radio-item"),
+            ],
+            [
+              html.input([
+                attribute.type_("radio"),
+                attribute.id(no_id),
+                attribute.name(field_id),
+                attribute.value("false"),
+                attribute.checked(has_value && !is_true),
+                attribute.required(is_required),
+                attribute.disabled(is_disabled),
+                event.on_click(UpdateFieldPath(
+                  field_path,
+                  types.BooleanValue(False),
+                )),
+              ]),
+              html.label([attribute.for(no_id)], [html.text("No")]),
+            ],
+          ),
+        ],
+      ),
+      field_common.render_help_text(property),
+    ],
+  )
 }
 
 /// Render boolean field as a single checkbox.
@@ -144,24 +170,36 @@ pub fn render_as_checkbox(
   let field_name = path.get_field_name(field_path)
   let field_id = path.to_string(field_path)
 
-  html.div([attribute.class("formosh-field-wrapper formosh-checkbox-wrapper")], [
-    html.div([attribute.class("formosh-checkbox-group")], [
-      html.input([
-        attribute.type_("checkbox"),
-        attribute.id(field_id),
-        attribute.name(field_id),
-        attribute.checked(current_value),
-        attribute.required(is_required),
-        attribute.disabled(is_disabled),
-        event.on_click(UpdateFieldPath(
-          field_path,
-          types.BooleanValue(!current_value),
-        )),
-      ]),
-      field_common.render_label(field_name, property, is_required),
-    ]),
-    field_common.render_help_text(property),
-  ])
+  html.div(
+    [
+      attribute.class("formosh-field-wrapper formosh-checkbox-wrapper"),
+      attribute.attribute("part", "field-wrapper checkbox-wrapper"),
+    ],
+    [
+      html.div(
+        [
+          attribute.class("formosh-checkbox-group"),
+          attribute.attribute("part", "checkbox-group"),
+        ],
+        [
+          html.input([
+            attribute.type_("checkbox"),
+            attribute.id(field_id),
+            attribute.name(field_id),
+            attribute.checked(current_value),
+            attribute.required(is_required),
+            attribute.disabled(is_disabled),
+            event.on_click(UpdateFieldPath(
+              field_path,
+              types.BooleanValue(!current_value),
+            )),
+          ]),
+          field_common.render_label(field_name, property, is_required),
+        ],
+      ),
+      field_common.render_help_text(property),
+    ],
+  )
 }
 
 /// Render boolean field as a toggle switch.
@@ -198,41 +236,66 @@ pub fn render_as_toggle(
 
   let field_name = path.get_field_name(field_path)
 
-  html.div([attribute.class("formosh-field-wrapper")], [
-    field_common.render_label(field_name, property, is_required),
-    html.div([attribute.class("formosh-toggle-wrapper")], [
-      html.button(
+  let state_string = case current_value {
+    True -> "on"
+    False -> "off"
+  }
+
+  html.div(
+    [
+      attribute.class("formosh-field-wrapper"),
+      attribute.attribute("part", "field-wrapper"),
+    ],
+    [
+      field_common.render_label(field_name, property, is_required),
+      html.div(
         [
-          attribute.type_("button"),
-          attribute.class(
-            "formosh-toggle"
-            <> case current_value {
-              True -> " formosh-toggle-on"
-              False -> " formosh-toggle-off"
-            },
-          ),
-          attribute.disabled(is_disabled),
-          attribute.attribute("role", "switch"),
-          attribute.attribute("aria-checked", case current_value {
-            True -> "true"
-            False -> "false"
-          }),
-          event.on_click(UpdateFieldPath(
-            field_path,
-            types.BooleanValue(!current_value),
-          )),
+          attribute.class("formosh-toggle-wrapper"),
+          attribute.attribute("part", "toggle-wrapper"),
         ],
         [
-          html.span([attribute.class("formosh-toggle-slider")], []),
-          html.span([attribute.class("formosh-toggle-text")], [
-            html.text(case current_value {
-              True -> "ON"
-              False -> "OFF"
-            }),
-          ]),
+          html.button(
+            [
+              attribute.type_("button"),
+              attribute.class("formosh-toggle"),
+              attribute.attribute("part", "toggle"),
+              attribute.attribute("data-state", state_string),
+              attribute.disabled(is_disabled),
+              attribute.attribute("role", "switch"),
+              attribute.attribute("aria-checked", case current_value {
+                True -> "true"
+                False -> "false"
+              }),
+              event.on_click(UpdateFieldPath(
+                field_path,
+                types.BooleanValue(!current_value),
+              )),
+            ],
+            [
+              html.span(
+                [
+                  attribute.class("formosh-toggle-slider"),
+                  attribute.attribute("part", "toggle-slider"),
+                ],
+                [],
+              ),
+              html.span(
+                [
+                  attribute.class("formosh-toggle-text"),
+                  attribute.attribute("part", "toggle-text"),
+                ],
+                [
+                  html.text(case current_value {
+                    True -> "ON"
+                    False -> "OFF"
+                  }),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
-    ]),
-    field_common.render_help_text(property),
-  ])
+      field_common.render_help_text(property),
+    ],
+  )
 }

@@ -46,7 +46,14 @@ pub fn create_field_label(
 /// dispatcher unification refactor.
 pub fn render_required_marker(is_required: Bool) -> Element(FormMsg) {
   case is_required {
-    True -> html.span([attribute.class("formosh-required")], [html.text(" *")])
+    True ->
+      html.span(
+        [
+          attribute.class("formosh-required"),
+          attribute.attribute("part", "required"),
+        ],
+        [html.text(" *")],
+      )
     False -> element.none()
   }
 }
@@ -83,6 +90,7 @@ pub fn render_label(
     [
       attribute.for(field_name),
       attribute.class("formosh-label"),
+      attribute.attribute("part", "label"),
     ],
     [
       html.text(label_text(field_name, property)),
@@ -131,9 +139,13 @@ pub fn render_container_label(
 pub fn render_help_text(property: types.SchemaProperty) -> Element(FormMsg) {
   case property.description {
     Some(desc) ->
-      html.div([attribute.class("formosh-help")], [
-        html.text(desc),
-      ])
+      html.div(
+        [
+          attribute.class("formosh-help"),
+          attribute.attribute("part", "help"),
+        ],
+        [html.text(desc)],
+      )
     None -> element.none()
   }
 }
@@ -158,11 +170,17 @@ pub fn field_wrapper_with_path(
   is_required: Bool,
   field_element: Element(FormMsg),
 ) -> Element(FormMsg) {
-  html.div([attribute.class("formosh-field-wrapper")], [
-    create_field_label(field_path, property, is_required),
-    field_element,
-    render_help_text(property),
-  ])
+  html.div(
+    [
+      attribute.class("formosh-field-wrapper"),
+      attribute.attribute("part", "field-wrapper"),
+    ],
+    [
+      create_field_label(field_path, property, is_required),
+      field_element,
+      render_help_text(property),
+    ],
+  )
 }
 
 /// Generate common input attributes for form fields.
@@ -291,11 +309,18 @@ pub fn extract_boolean_value(value: Option(types.Value)) -> Bool {
 /// `array_field.gleam` for item-level fields inside arrays.
 pub fn render_field_errors(errors: List(ValidationError)) -> Element(FormMsg) {
   html.div(
-    [attribute.class("formosh-errors")],
+    [
+      attribute.class("formosh-errors"),
+      attribute.attribute("part", "errors"),
+    ],
     list.map(errors, fn(error) {
-      html.div([attribute.class("formosh-error")], [
-        html.text(error.message),
-      ])
+      html.div(
+        [
+          attribute.class("formosh-error"),
+          attribute.attribute("part", "error"),
+        ],
+        [html.text(error.message)],
+      )
     }),
   )
 }

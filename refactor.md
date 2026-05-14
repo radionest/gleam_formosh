@@ -57,8 +57,8 @@
 #### 1.1 Упростить FormConfig
 **Файл:** `src/formosh.gleam`
 **Действия:**
-- Удалить функции `with_css_prefix`, `with_show_errors_on_change`
-- Удалить соответствующие поля из FormConfig
+- ✅ `with_css_prefix` удалена; CSS-кастомизация перенесена на `::part()` / `data-*` / adopt_styles
+- Удалить функцию `with_show_errors_on_change` (поле остаётся неиспользуемым)
 - Оставить только `with_submit_url` как основной способ конфигурации
 
 #### 1.2 Удалить CustomSubmit
