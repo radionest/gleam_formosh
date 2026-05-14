@@ -1,11 +1,11 @@
 name = "formosh"
-version = "0.4.0"
+version = "0.5.0"
 description = "Type-safe JSON Schema form generator for Gleam/Lustre"
 licences = ["MIT"]
-repository = { type = "github", user = "youruser", repo = "formosh" }
+repository = { type = "github", user = "radionest", repo = "gleam_formosh" }
 links = [
   { title = "Documentation", href = "https://hexdocs.pm/formosh" },
-  { title = "GitHub", href = "https://github.com/youruser/formosh" }
+  { title = "GitHub", href = "https://github.com/radionest/gleam_formosh" }
 ]
 target = "javascript"
 
