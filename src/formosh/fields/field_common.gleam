@@ -51,6 +51,16 @@ pub fn render_required_marker(is_required: Bool) -> Element(FormMsg) {
   }
 }
 
+/// Visible text for a field label: the schema's `title` if set,
+/// otherwise the field name with underscores replaced by spaces and
+/// capitalised. Shared by `render_label` and `render_container_label`.
+fn label_text(field_name: String, property: types.SchemaProperty) -> String {
+  case property.title {
+    Some(title) -> title
+    None -> field_name |> string.replace("_", " ") |> string.capitalise()
+  }
+}
+
 /// Render a field label with optional required indicator.
 ///
 /// Creates a properly associated label element for a form field, using either
@@ -69,21 +79,42 @@ pub fn render_label(
   property: types.SchemaProperty,
   is_required: Bool,
 ) -> Element(FormMsg) {
-  let label_text = case property.title {
-    Some(title) -> title
-    None -> field_name |> string.replace("_", " ") |> string.capitalise()
-  }
-
   html.label(
     [
       attribute.for(field_name),
       attribute.class("formosh-label"),
     ],
     [
-      html.text(label_text),
+      html.text(label_text(field_name, property)),
       render_required_marker(is_required),
     ],
   )
+}
+
+/// Render a container field label (object/array) without a `for=` association.
+///
+/// Containers have no single input to point to; the label is a section
+/// heading. `css_class` keeps the existing styling hook
+/// (`array-label`, `object-label`).
+///
+/// ## Parameters
+/// - `field_name`: The field name, used as fallback for label text
+/// - `property`: The schema property that may contain a custom title
+/// - `is_required`: Whether to show the required indicator
+/// - `css_class`: CSS class to apply to the `<label>` element
+///
+/// ## Returns
+/// A Lustre Element representing the container field label
+pub fn render_container_label(
+  field_name name: String,
+  property prop: types.SchemaProperty,
+  is_required required: Bool,
+  css_class class: String,
+) -> Element(FormMsg) {
+  html.label([attribute.class(class)], [
+    html.text(label_text(name, prop)),
+    render_required_marker(required),
+  ])
 }
 
 /// Render help text for a field based on its schema description.

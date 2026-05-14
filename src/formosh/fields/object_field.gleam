@@ -31,14 +31,15 @@ pub fn render_container(
     Element(FormMsg),
 ) -> Element(FormMsg) {
   let object_name = path.get_field_name(field_path)
-  let title = option.unwrap(property.title, object_name)
   let description = property.description
 
   html.div([class("object-field")], [
-    html.label([class("object-label")], [
-      html.text(title),
-      field_common.render_required_marker(is_required),
-    ]),
+    field_common.render_container_label(
+      field_name: object_name,
+      property: property,
+      is_required: is_required,
+      css_class: "object-label",
+    ),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
       None -> element.none()
