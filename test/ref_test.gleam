@@ -154,6 +154,59 @@ pub fn ref_with_override_test() {
   }
 }
 
+/// Referencing `x-widget` overrides the one from `$defs` — per-field
+/// `option.or` in `merge_render_hints` picks the referencing side.
+pub fn ref_widget_referencing_overrides_referenced_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"avatar\": {
+        \"$ref\": \"#/$defs/upload_field\",
+        \"x-widget\": \"hidden\"
+      }
+    },
+    \"$defs\": {
+      \"upload_field\": {
+        \"type\": \"array\",
+        \"x-widget\": \"image-upload\"
+      }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(avatar) = list.key_find(schema.properties, "avatar")
+  avatar.render_hints.widget |> should.equal(Some(types.HiddenWidget))
+}
+
+/// When the referencing side carries no `x-` extensions, hints from
+/// `$defs` pass through untouched (widget AND `upload_config`).
+pub fn ref_upload_config_passes_through_from_defs_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"avatar\": {
+        \"$ref\": \"#/$defs/upload_field\"
+      }
+    },
+    \"$defs\": {
+      \"upload_field\": {
+        \"type\": \"array\",
+        \"x-widget\": \"image-upload\",
+        \"x-accept\": \"image/png\",
+        \"x-max-file-size\": 2048
+      }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(avatar) = list.key_find(schema.properties, "avatar")
+  avatar.render_hints.widget |> should.equal(Some(types.ImageUploadWidget))
+  avatar.render_hints.upload_config
+  |> should.equal(Some(types.UploadConfig("image/png", Some(2048))))
+}
+
 /// Test nested $ref in array items
 pub fn ref_in_array_items_test() {
   let json =

@@ -756,11 +756,13 @@ pub fn image_upload_serialization_test() {
             items: Some(
               SchemaProperty(..empty_property(), field_type: Some(StringType)),
             ),
-            widget: Some(types.ImageUploadWidget),
-            upload_config: Some(UploadConfig(
-              accept: "image/*",
-              max_file_size: Some(10_485_760),
-            )),
+            render_hints: types.RenderHints(
+              widget: Some(types.ImageUploadWidget),
+              upload_config: Some(UploadConfig(
+                accept: "image/*",
+                max_file_size: Some(10_485_760),
+              )),
+            ),
           ),
         ),
       ],
@@ -807,8 +809,8 @@ pub fn image_upload_roundtrip_test() {
   let assert Ok(schema) = parser.parse_schema(json)
   let assert Ok(prop) = list.key_find(schema.properties, "photos")
 
-  should.equal(prop.widget, Some(types.ImageUploadWidget))
-  case prop.upload_config {
+  should.equal(prop.render_hints.widget, Some(types.ImageUploadWidget))
+  case prop.render_hints.upload_config {
     Some(config) -> {
       should.equal(config.accept, "image/jpeg")
       should.equal(config.max_file_size, Some(5_242_880))
@@ -836,8 +838,8 @@ pub fn image_upload_roundtrip_test() {
   let assert Ok(reparsed) = parser.parse_schema(serialized_string)
   let assert Ok(reparsed_prop) = list.key_find(reparsed.properties, "photos")
 
-  should.equal(reparsed_prop.widget, Some(types.ImageUploadWidget))
-  case reparsed_prop.upload_config {
+  should.equal(reparsed_prop.render_hints.widget, Some(types.ImageUploadWidget))
+  case reparsed_prop.render_hints.upload_config {
     Some(config) -> {
       should.equal(config.accept, "image/jpeg")
       should.equal(config.max_file_size, Some(5_242_880))

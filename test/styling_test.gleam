@@ -115,6 +115,7 @@ fn toggle_ctx(value: types.Value) -> field_common.FieldRenderCtx {
     is_required: False,
     is_disabled: False,
     is_readonly: False,
+    hints: types.empty_hints(),
   )
 }
 

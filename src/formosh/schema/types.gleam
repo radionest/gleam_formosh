@@ -90,6 +90,17 @@ pub type Widget {
   CustomWidget(String)
 }
 
+/// Presentation hints separate from JSON Schema data definitions.
+///
+/// `SchemaProperty` describes the *data*; `RenderHints` describes how it
+/// should appear. Today the hints come from `x-widget` / `x-accept` /
+/// `x-max-file-size` extensions on the same JSON Schema node — in v0.7 the
+/// same record will be filled from a parallel `UiSchema`, so renderers
+/// already read through this seam.
+pub type RenderHints {
+  RenderHints(widget: Option(Widget), upload_config: Option(UploadConfig))
+}
+
 /// A single property definition within a JSON Schema.
 ///
 /// This type represents a complete field definition including its type,
@@ -126,10 +137,9 @@ pub type SchemaProperty {
     addable: Bool,
     // x-removable: whether the "remove item" control is shown for an array (default True)
     removable: Bool,
-    // x-widget: custom widget override (e.g. ImageUploadWidget, HiddenWidget)
-    widget: Option(Widget),
-    // Upload configuration from x- extensions
-    upload_config: Option(UploadConfig),
+    // Presentation hints (widget override, upload config) — slot fed by the
+    // `x-widget` family today, by `UiSchema` from v0.7 onwards.
+    render_hints: RenderHints,
     // Conditional rules (if/then/else, allOf) scoped to this property.
     // Used for item-level conditionals inside array `items`.
     conditionals: List(ConditionalRule),
@@ -257,8 +267,15 @@ pub fn empty_property() -> SchemaProperty {
     read_only: False,
     addable: True,
     removable: True,
-    widget: None,
-    upload_config: None,
+    render_hints: empty_hints(),
     conditionals: [],
   )
+}
+
+/// Create an empty `RenderHints` record (no widget override, no upload config).
+///
+/// Use as the default value for properties without `x-widget` extensions and
+/// as the base for `FieldRenderCtx.hints` when no hints apply.
+pub fn empty_hints() -> RenderHints {
+  RenderHints(widget: None, upload_config: None)
 }

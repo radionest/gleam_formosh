@@ -288,9 +288,8 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // Extract oneOf composition keyword
   let one_of = extract_one_of(dynamic_data)
 
-  // Extract x-widget and upload config
-  let widget = extract_widget(dynamic_data)
-  let upload_config = extract_upload_config(dynamic_data)
+  // Extract presentation hints from x- extensions
+  let render_hints = extract_render_hints(dynamic_data)
 
   // Extract property-level conditional rules (if/then/else, allOf)
   let conditionals = extract_conditionals(dynamic_data)
@@ -311,8 +310,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     read_only: read_only,
     addable: addable,
     removable: removable,
-    widget: widget,
-    upload_config: upload_config,
+    render_hints: render_hints,
     conditionals: conditionals,
   ))
 }
@@ -575,9 +573,12 @@ fn extract_widget(data: Dynamic) -> Option(types.Widget) {
 }
 
 /// Extract upload configuration from x- extension fields.
-/// Only emits config when x-widget is ImageUploadWidget.
-fn extract_upload_config(data: Dynamic) -> Option(types.UploadConfig) {
-  case extract_widget(data) {
+/// Only emits config when widget is ImageUploadWidget.
+fn extract_upload_config(
+  data: Dynamic,
+  widget: Option(types.Widget),
+) -> Option(types.UploadConfig) {
+  case widget {
     Some(types.ImageUploadWidget) -> {
       let accept =
         decode.run(data, decode.at(["x-accept"], decode.string))
@@ -592,6 +593,15 @@ fn extract_upload_config(data: Dynamic) -> Option(types.UploadConfig) {
     }
     _ -> None
   }
+}
+
+/// Build a `RenderHints` from the JSON Schema node's `x-` extensions.
+/// In v0.7 this is the single seam that switches from `x-widget` to
+/// `UiSchema` lookup — `SchemaProperty` itself stays out of UI concerns.
+fn extract_render_hints(data: Dynamic) -> types.RenderHints {
+  let widget = extract_widget(data)
+  let upload_config = extract_upload_config(data, widget)
+  types.RenderHints(widget: widget, upload_config: upload_config)
 }
 
 /// Decode a string format specifier into a StringFormat.

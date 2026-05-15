@@ -227,11 +227,24 @@ fn merge_properties(
     // x-addable / x-removable: AND-merge — most restrictive wins
     addable: referencing.addable && referenced.addable,
     removable: referencing.removable && referenced.removable,
+    render_hints: merge_render_hints(
+      referencing.render_hints,
+      referenced.render_hints,
+    ),
+    conditionals: list.append(referencing.conditionals, referenced.conditionals),
+  )
+}
+
+/// Merge two `RenderHints`, with the referencing side winning per-field.
+fn merge_render_hints(
+  referencing: types.RenderHints,
+  referenced: types.RenderHints,
+) -> types.RenderHints {
+  types.RenderHints(
     widget: option.or(referencing.widget, referenced.widget),
     upload_config: option.or(
       referencing.upload_config,
       referenced.upload_config,
     ),
-    conditionals: list.append(referencing.conditionals, referenced.conditionals),
   )
 }

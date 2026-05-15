@@ -214,10 +214,10 @@ fn property_to_json(prop: SchemaProperty) -> json.Json {
   |> add_read_only(prop.read_only)
   |> add_optional_json_field(
     "x-widget",
-    option.map(prop.widget, widget_to_string),
+    option.map(prop.render_hints.widget, widget_to_string),
     json.string,
   )
-  |> add_optional_upload_config(prop.upload_config)
+  |> add_optional_upload_config(prop.render_hints.upload_config)
   |> json.object()
 }
 
