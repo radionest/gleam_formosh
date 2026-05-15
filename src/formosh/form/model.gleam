@@ -2,6 +2,7 @@
 
 import formosh/form/defaults
 import formosh/form/path.{type FieldPath}
+import formosh/form/widget_msg.{type WidgetMsg}
 import formosh/schema/properties
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ObjectValue,
@@ -99,12 +100,8 @@ pub type FormMsg {
   // Reset form
   ResetForm
 
-  // Image upload lifecycle
-  ImageUploadRequested(path: FieldPath)
-  ImageUploadStarted(path: FieldPath, temp_id: String, preview_url: String)
-  ImageUploadCompleted(path: FieldPath, temp_id: String, server_url: String)
-  ImageUploadFailed(path: FieldPath, temp_id: String, error: String)
-  ImageRemoved(path: FieldPath, server_url: String)
+  // Widget-specific events (image-upload today; more in v0.8 widget registry)
+  WidgetEvent(WidgetMsg)
 }
 
 /// Initialize a new form model from a JSON Schema.
