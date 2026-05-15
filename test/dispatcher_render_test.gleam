@@ -33,7 +33,10 @@ fn hidden_string_property() -> types.SchemaProperty {
   types.SchemaProperty(
     ..types.empty_property(),
     field_type: Some(types.StringType),
-    widget: Some(types.HiddenWidget),
+    render_hints: types.RenderHints(
+      widget: Some(types.HiddenWidget),
+      upload_config: None,
+    ),
   )
 }
 

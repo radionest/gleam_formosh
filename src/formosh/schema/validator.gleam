@@ -25,7 +25,7 @@ pub fn validate_field(
   property: SchemaProperty,
   is_required: Bool,
 ) -> List(ValidationError) {
-  case property.widget {
+  case property.render_hints.widget {
     Some(types.ImageUploadWidget) ->
       validate_image_upload(field_path, value, is_required)
     _ -> validate_standard_field(field_path, value, property, is_required)

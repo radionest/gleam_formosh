@@ -464,7 +464,7 @@ fn create_upload_effect(
     None -> effect.none()
     Some(upload_url) -> {
       let config = case model.find_property_at_path(model, field_path) {
-        Ok(prop) -> prop.upload_config
+        Ok(prop) -> prop.render_hints.upload_config
         Error(_) -> None
       }
       let accept = case config {

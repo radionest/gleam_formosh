@@ -125,6 +125,7 @@ fn parent_ctx_with(
     is_required: is_required,
     is_disabled: is_disabled,
     is_readonly: is_readonly,
+    hints: types.empty_hints(),
   )
 }
 
@@ -198,6 +199,7 @@ pub fn make_child_ctx_value_extracted_from_child_path_test() {
       is_required: False,
       is_disabled: False,
       is_readonly: False,
+      hints: types.empty_hints(),
     )
   let child =
     field_common.make_child_ctx(

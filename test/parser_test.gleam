@@ -327,10 +327,10 @@ pub fn image_upload_widget_test() {
   let assert Ok(prop) = list.key_find(schema.properties, "photos")
 
   should.equal(prop.field_type, Some(types.ArrayType))
-  should.equal(prop.widget, Some(types.ImageUploadWidget))
+  should.equal(prop.render_hints.widget, Some(types.ImageUploadWidget))
   should.equal(prop.title, Some("Photos"))
 
-  case prop.upload_config {
+  case prop.render_hints.upload_config {
     Some(config) -> {
       should.equal(config.accept, "image/*")
       should.equal(config.max_file_size, Some(10_485_760))
@@ -365,10 +365,10 @@ pub fn image_upload_defaults_test() {
   let assert Ok(schema) = result
   let assert Ok(prop) = list.key_find(schema.properties, "photos")
 
-  should.equal(prop.widget, Some(types.ImageUploadWidget))
+  should.equal(prop.render_hints.widget, Some(types.ImageUploadWidget))
 
   // upload_config should have default accept and no max_file_size
-  case prop.upload_config {
+  case prop.render_hints.upload_config {
     Some(config) -> {
       should.equal(config.accept, "image/*")
       should.equal(config.max_file_size, None)
@@ -392,8 +392,8 @@ pub fn no_widget_property_test() {
   let assert Ok(schema) = result
   let assert Ok(prop) = list.key_find(schema.properties, "name")
 
-  should.equal(prop.widget, None)
-  should.equal(prop.upload_config, None)
+  should.equal(prop.render_hints.widget, None)
+  should.equal(prop.render_hints.upload_config, None)
 }
 
 pub fn image_upload_custom_accept_test() {
@@ -416,8 +416,8 @@ pub fn image_upload_custom_accept_test() {
   let assert Ok(schema) = result
   let assert Ok(prop) = list.key_find(schema.properties, "documents")
 
-  should.equal(prop.widget, Some(types.ImageUploadWidget))
-  case prop.upload_config {
+  should.equal(prop.render_hints.widget, Some(types.ImageUploadWidget))
+  case prop.render_hints.upload_config {
     Some(config) -> {
       should.equal(config.accept, "application/pdf")
       should.equal(config.max_file_size, Some(5_242_880))
@@ -515,6 +515,6 @@ pub fn hidden_widget_test() {
   let assert Ok(schema) = result
   let assert Ok(prop) = list.key_find(schema.properties, "tenant_id")
 
-  should.equal(prop.widget, Some(types.HiddenWidget))
+  should.equal(prop.render_hints.widget, Some(types.HiddenWidget))
   should.equal(prop.default, Some(types.StringValue("acme")))
 }

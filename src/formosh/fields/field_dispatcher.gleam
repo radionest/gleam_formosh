@@ -39,7 +39,7 @@ pub fn render_field_at_path(
   ctx: FieldRenderCtx,
   model: FormModel,
 ) -> Element(FormMsg) {
-  let is_hidden = ctx.property.widget == Some(types.HiddenWidget)
+  let is_hidden = ctx.hints.widget == Some(types.HiddenWidget)
   let is_readonly_suppressed = ctx.is_readonly && !model.show_readonly_fields
   case is_hidden || is_readonly_suppressed {
     True -> element.none()
@@ -64,7 +64,7 @@ fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
 }
 
 fn render_widget(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
-  case ctx.property.widget {
+  case ctx.hints.widget {
     Some(types.ImageUploadWidget) -> {
       let path_key = path.to_string(ctx.path)
       let upload_states = case dict.get(model.upload_states, path_key) {

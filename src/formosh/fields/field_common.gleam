@@ -304,16 +304,18 @@ pub fn extract_boolean_value(value: Option(types.Value)) -> Bool {
 
 /// Shared per-field rendering context.
 ///
-/// Bundles the six values every field renderer needs: where the field lives
-/// (`path`), what schema describes it (`property`), its current value, and
-/// the three behavioural flags the parent decides (`is_required`,
-/// `is_disabled`, `is_readonly`). Children build their own ctx via
-/// `make_field_ctx` (extracts value from the model) and a record update for
-/// inheritance (`FieldRenderCtx(..parent, path: child_path, ...)`).
+/// Bundles the values every field renderer needs: where the field lives
+/// (`path`), what schema describes it (`property`), its current value, the
+/// three behavioural flags the parent decides (`is_required`, `is_disabled`,
+/// `is_readonly`), and the presentation hints (`hints`) that pick a widget
+/// and feed widget-specific options. Children build their own ctx via
+/// `make_field_ctx` / `make_child_ctx` and a record update for inheritance
+/// (`FieldRenderCtx(..parent, path: child_path, ...)`).
 ///
-/// Adding a new piece of contextual data — e.g. `ui_options` in v0.7 — only
-/// requires extending this record and the builder; no signature changes
-/// propagate to leaf renderers.
+/// `hints` is the seam where v0.7's `UiSchema` will plug in: today the
+/// builder reads `property.render_hints` (parsed from `x-widget` family),
+/// in v0.7 the same field will be filled from a path-based `UiSchema`
+/// lookup without any change to leaf renderers.
 pub type FieldRenderCtx {
   FieldRenderCtx(
     path: path.FieldPath,
@@ -322,6 +324,7 @@ pub type FieldRenderCtx {
     is_required: Bool,
     is_disabled: Bool,
     is_readonly: Bool,
+    hints: types.RenderHints,
   )
 }
 
@@ -350,6 +353,7 @@ pub fn make_field_ctx(
     is_required: is_required,
     is_disabled: is_disabled,
     is_readonly: is_readonly,
+    hints: property.render_hints,
   )
 }
 
@@ -382,6 +386,7 @@ pub fn make_child_ctx(
     value: model.get_value_at_path(model, child_path),
     is_required: child_required,
     is_readonly: parent.is_readonly || child_prop.read_only,
+    hints: child_prop.render_hints,
   )
 }
 
