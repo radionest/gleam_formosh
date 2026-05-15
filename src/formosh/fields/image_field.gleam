@@ -2,11 +2,10 @@
 
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{
-  type FileUploadState, type FormMsg, FileUploadError, FileUploading,
-  WidgetEvent,
+  type FileUploadState, type FormMsg, FileUploadError, FileUploading, image_msg,
 }
 import formosh/form/path
-import formosh/form/widget_msg.{ImageUpload, Removed, Requested}
+import formosh/form/widget_msg.{ImageRemoved, ImageRequested}
 import formosh/schema/types
 import gleam/list
 import gleam/option.{type Option, Some}
@@ -86,7 +85,7 @@ pub fn render(
                 attribute.type_("button"),
                 attribute.class("formosh-image-add"),
                 attribute.attribute("part", "image-add"),
-                event.on_click(WidgetEvent(ImageUpload(Requested(ctx.path)))),
+                event.on_click(image_msg(ImageRequested(ctx.path))),
               ],
               [html.text("Add photo")],
             )
@@ -128,7 +127,7 @@ fn render_uploaded_image(
               attribute.type_("button"),
               attribute.class("formosh-image-remove"),
               attribute.attribute("part", "image-remove"),
-              event.on_click(WidgetEvent(ImageUpload(Removed(field_path, url)))),
+              event.on_click(image_msg(ImageRemoved(field_path, url))),
             ],
             [html.text("×")],
           )

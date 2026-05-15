@@ -8,9 +8,9 @@ pub type WidgetMsg {
 }
 
 pub type ImageUploadEvent {
-  Requested(path: FieldPath)
-  Started(path: FieldPath, temp_id: String, preview_url: String)
-  Completed(path: FieldPath, temp_id: String, server_url: String)
-  Failed(path: FieldPath, temp_id: String, error: String)
-  Removed(path: FieldPath, server_url: String)
+  ImageRequested(path: FieldPath)
+  ImageStarted(path: FieldPath, temp_id: String, preview_url: String)
+  ImageCompleted(path: FieldPath, temp_id: String, server_url: String)
+  ImageFailed(path: FieldPath, temp_id: String, error: String)
+  ImageRemoved(path: FieldPath, server_url: String)
 }

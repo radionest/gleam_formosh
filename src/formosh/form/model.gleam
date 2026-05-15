@@ -2,7 +2,7 @@
 
 import formosh/form/defaults
 import formosh/form/path.{type FieldPath}
-import formosh/form/widget_msg.{type WidgetMsg}
+import formosh/form/widget_msg.{type ImageUploadEvent, type WidgetMsg}
 import formosh/schema/properties
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ObjectValue,
@@ -102,6 +102,12 @@ pub type FormMsg {
 
   // Widget-specific events (image-upload today; more in v0.8 widget registry)
   WidgetEvent(WidgetMsg)
+}
+
+/// Build a `FormMsg` from an `ImageUploadEvent` — collapses the
+/// `WidgetEvent(ImageUpload(...))` wrapper at emission sites.
+pub fn image_msg(event: ImageUploadEvent) -> FormMsg {
+  WidgetEvent(widget_msg.ImageUpload(event))
 }
 
 /// Initialize a new form model from a JSON Schema.

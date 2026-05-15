@@ -6,11 +6,12 @@ import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit, FileUploadError,
   FileUploading, FormSubmit, FormSubmitted, HttpSubmit, NoSubmit,
   RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
-  UpdateFieldPath, ValidateForm, WidgetEvent,
+  UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
 }
 import formosh/form/path
 import formosh/form/widget_msg.{
-  Completed, Failed, ImageUpload, Removed, Requested, Started,
+  ImageCompleted, ImageFailed, ImageRemoved, ImageRequested, ImageStarted,
+  ImageUpload,
 }
 import formosh/schema/conditional_resolver
 import formosh/schema/properties
@@ -165,12 +166,12 @@ fn handle_image_upload_event(
   event: widget_msg.ImageUploadEvent,
 ) -> #(FormModel, Effect(FormMsg)) {
   case event {
-    Requested(field_path) -> {
+    ImageRequested(field_path) -> {
       let upload_effect = create_upload_effect(model, field_path)
       #(model, upload_effect)
     }
 
-    Started(field_path, temp_id, preview_url) -> {
+    ImageStarted(field_path, temp_id, preview_url) -> {
       let path_key = path.to_string(field_path)
       let current =
         dict.get(model.upload_states, path_key)
@@ -185,7 +186,7 @@ fn handle_image_upload_event(
       #(model.FormModel(..model, upload_states: new_states), effect.none())
     }
 
-    Completed(field_path, temp_id, server_url) -> {
+    ImageCompleted(field_path, temp_id, server_url) -> {
       // Remove from upload_states
       let path_key = path.to_string(field_path)
       let new_states =
@@ -223,7 +224,7 @@ fn handle_image_upload_event(
       #(validated_model, effect.none())
     }
 
-    Failed(field_path, temp_id, error) -> {
+    ImageFailed(field_path, temp_id, error) -> {
       let path_key = path.to_string(field_path)
 
       // Revoke the blob preview URL if it exists
@@ -250,7 +251,7 @@ fn handle_image_upload_event(
       #(model.FormModel(..model, upload_states: new_states), effect.none())
     }
 
-    Removed(field_path, server_url) -> {
+    ImageRemoved(field_path, server_url) -> {
       // Remove URL from array value
       let current_array = case path.get_at_path(model.values, field_path) {
         Some(types.ArrayValue(items)) -> items
@@ -494,25 +495,15 @@ fn create_upload_effect(
           max_file_size,
           upload_url,
           fn(temp_id, preview_url) {
-            dispatch(
-              WidgetEvent(
-                ImageUpload(Started(field_path, temp_id, preview_url)),
-              ),
-            )
+            dispatch(image_msg(ImageStarted(field_path, temp_id, preview_url)))
             Nil
           },
           fn(temp_id, server_url) {
-            dispatch(
-              WidgetEvent(
-                ImageUpload(Completed(field_path, temp_id, server_url)),
-              ),
-            )
+            dispatch(image_msg(ImageCompleted(field_path, temp_id, server_url)))
             Nil
           },
           fn(temp_id, error) {
-            dispatch(
-              WidgetEvent(ImageUpload(Failed(field_path, temp_id, error))),
-            )
+            dispatch(image_msg(ImageFailed(field_path, temp_id, error)))
             Nil
           },
         )
