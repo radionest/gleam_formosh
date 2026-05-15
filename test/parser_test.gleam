@@ -495,3 +495,26 @@ pub fn array_addable_removable_independent_test() {
   should.be_true(prop.addable)
   should.be_false(prop.removable)
 }
+
+pub fn hidden_widget_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"tenant_id\": {
+        \"type\": \"string\",
+        \"x-widget\": \"hidden\",
+        \"default\": \"acme\"
+      }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = list.key_find(schema.properties, "tenant_id")
+
+  should.equal(prop.widget, Some("hidden"))
+  should.equal(prop.default, Some(types.StringValue("acme")))
+}

@@ -43,7 +43,9 @@ pub fn render_field_at_path(
   is_disabled: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  case is_readonly && !model.show_readonly_fields {
+  let is_hidden = property.widget == Some("hidden")
+  let is_readonly_suppressed = is_readonly && !model.show_readonly_fields
+  case is_hidden || is_readonly_suppressed {
     True -> element.none()
     False ->
       render_visible(

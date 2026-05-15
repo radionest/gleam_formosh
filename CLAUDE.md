@@ -92,4 +92,5 @@ Styling: the component runs in open Shadow DOM, so target it via `::part()` sele
 - All `.mjs` files are auto-generated — do not read or edit them (except `src/formosh/ffi/*_ffi.mjs` which are hand-written FFI)
 - `oneOf`/`anyOf` composition keywords are not yet implemented
 - `x-widget: "image-upload"` works only on top-level properties; nested image-upload fields (inside objects/arrays) are not yet supported
+- `x-widget: "hidden"` suppresses rendering at any depth; the field still validates and submits. Combine with JSON Schema `default` for `<input type="hidden">`-like behaviour. A required hidden field without `default` will block submit — validation runs as for any other field
 - HTTP submissions use the `rsvp` library for effect management
