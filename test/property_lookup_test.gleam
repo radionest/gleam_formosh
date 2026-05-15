@@ -81,7 +81,7 @@ pub fn array_item_field_resolves_with_upload_config_test() {
     ])
   should.be_ok(result)
   let assert Ok(prop) = result
-  prop.widget |> should.equal(Some("image-upload"))
+  prop.widget |> should.equal(Some(types.ImageUploadWidget))
   prop.upload_config
   |> should.equal(Some(types.UploadConfig("image/png", Some(1024))))
 }

@@ -82,6 +82,16 @@ pub type UploadConfig {
   UploadConfig(accept: String, max_file_size: Option(Int))
 }
 
+/// Widget override for a property's render strategy, driven by the `x-widget`
+/// JSON Schema vendor extension. Known values map to first-class variants;
+/// anything else falls back to `CustomWidget(raw)` so authors can prototype
+/// new widgets without a parser change (mirrors `StringFormat.CustomFormat`).
+pub type Widget {
+  ImageUploadWidget
+  HiddenWidget
+  CustomWidget(String)
+}
+
 /// A single property definition within a JSON Schema.
 ///
 /// This type represents a complete field definition including its type,
@@ -118,8 +128,8 @@ pub type SchemaProperty {
     addable: Bool,
     // x-removable: whether the "remove item" control is shown for an array (default True)
     removable: Bool,
-    // x-widget: custom widget override (e.g. "image-upload")
-    widget: Option(String),
+    // x-widget: custom widget override (e.g. ImageUploadWidget, HiddenWidget)
+    widget: Option(Widget),
     // Upload configuration from x- extensions
     upload_config: Option(UploadConfig),
     // Conditional rules (if/then/else, allOf) scoped to this property.

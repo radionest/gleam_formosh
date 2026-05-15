@@ -13,7 +13,7 @@ fn photos_path() -> path.FieldPath {
 
 pub fn image_upload_required_empty_test() {
   let property =
-    SchemaProperty(..empty_property(), widget: Some("image-upload"))
+    SchemaProperty(..empty_property(), widget: Some(types.ImageUploadWidget))
 
   let errors =
     validator.validate_field(
@@ -28,7 +28,7 @@ pub fn image_upload_required_empty_test() {
 
 pub fn image_upload_required_with_values_test() {
   let property =
-    SchemaProperty(..empty_property(), widget: Some("image-upload"))
+    SchemaProperty(..empty_property(), widget: Some(types.ImageUploadWidget))
 
   let value =
     Some(
@@ -42,7 +42,7 @@ pub fn image_upload_required_with_values_test() {
 
 pub fn image_upload_not_required_empty_test() {
   let property =
-    SchemaProperty(..empty_property(), widget: Some("image-upload"))
+    SchemaProperty(..empty_property(), widget: Some(types.ImageUploadWidget))
 
   let errors =
     validator.validate_field(
@@ -57,7 +57,7 @@ pub fn image_upload_not_required_empty_test() {
 
 pub fn image_upload_required_none_value_test() {
   let property =
-    SchemaProperty(..empty_property(), widget: Some("image-upload"))
+    SchemaProperty(..empty_property(), widget: Some(types.ImageUploadWidget))
 
   let errors = validator.validate_field(photos_path(), None, property, True)
 
@@ -66,7 +66,7 @@ pub fn image_upload_required_none_value_test() {
 
 pub fn image_upload_not_required_none_value_test() {
   let property =
-    SchemaProperty(..empty_property(), widget: Some("image-upload"))
+    SchemaProperty(..empty_property(), widget: Some(types.ImageUploadWidget))
 
   let errors = validator.validate_field(photos_path(), None, property, False)
 
@@ -113,4 +113,56 @@ pub fn validate_enum_accepts_value_in_set_test() {
 
   list.any(errors, fn(e) { e.rule == "enum" })
   |> should.be_false()
+}
+
+fn tenant_id_path() -> path.FieldPath {
+  path.from_field_name("tenant_id")
+}
+
+fn hidden_string_property() -> SchemaProperty {
+  SchemaProperty(
+    ..empty_property(),
+    field_type: Some(types.StringType),
+    widget: Some(types.HiddenWidget),
+  )
+}
+
+// Hidden fields participate in validation: a required hidden field without a
+// value must surface a required-rule error, otherwise schemas relying on
+// default-injected hidden values can silently submit empty payloads.
+pub fn hidden_widget_required_missing_value_test() {
+  let errors =
+    validator.validate_field(
+      tenant_id_path(),
+      None,
+      hidden_string_property(),
+      True,
+    )
+
+  list.any(errors, fn(e) { e.rule == "required" })
+  |> should.be_true()
+}
+
+pub fn hidden_widget_required_with_value_test() {
+  let errors =
+    validator.validate_field(
+      tenant_id_path(),
+      Some(StringValue("acme")),
+      hidden_string_property(),
+      True,
+    )
+
+  should.equal(errors, [])
+}
+
+pub fn hidden_widget_not_required_missing_value_test() {
+  let errors =
+    validator.validate_field(
+      tenant_id_path(),
+      None,
+      hidden_string_property(),
+      False,
+    )
+
+  should.equal(errors, [])
 }

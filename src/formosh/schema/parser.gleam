@@ -555,17 +555,30 @@ fn extract_removable(data: Dynamic) -> Bool {
   |> result.unwrap(True)
 }
 
+/// Decode an `x-widget` string into a typed Widget variant.
+/// Falls back to `CustomWidget(raw)` so unknown widgets parse round-trip.
+fn widget_decoder() -> Decoder(types.Widget) {
+  decode.string
+  |> decode.then(fn(raw) {
+    case raw {
+      "image-upload" -> decode.success(types.ImageUploadWidget)
+      "hidden" -> decode.success(types.HiddenWidget)
+      _ -> decode.success(types.CustomWidget(raw))
+    }
+  })
+}
+
 /// Extract x-widget custom widget override from dynamic JSON data.
-fn extract_widget(data: Dynamic) -> Option(String) {
-  decode.run(data, decode.at(["x-widget"], decode.string))
+fn extract_widget(data: Dynamic) -> Option(types.Widget) {
+  decode.run(data, decode.at(["x-widget"], widget_decoder()))
   |> option.from_result()
 }
 
 /// Extract upload configuration from x- extension fields.
-/// Only emits config when x-widget is "image-upload".
+/// Only emits config when x-widget is ImageUploadWidget.
 fn extract_upload_config(data: Dynamic) -> Option(types.UploadConfig) {
   case extract_widget(data) {
-    Some("image-upload") -> {
+    Some(types.ImageUploadWidget) -> {
       let accept =
         decode.run(data, decode.at(["x-accept"], decode.string))
         |> option.from_result()
