@@ -4,7 +4,7 @@
 import gleam/float
 import gleam/int
 
-pub type MessageParams {
+pub type ValidationFailure {
   Required
   ImageRequired
   InvalidImageUpload
@@ -22,8 +22,8 @@ pub type MessageParams {
 }
 
 /// Render the message text for a validation failure.
-pub fn format(params: MessageParams) -> String {
-  case params {
+pub fn format(failure: ValidationFailure) -> String {
+  case failure {
     Required -> "This field is required"
     ImageRequired -> "At least one image is required"
     InvalidImageUpload -> "Invalid image upload value"
@@ -41,9 +41,9 @@ pub fn format(params: MessageParams) -> String {
   }
 }
 
-/// JSON Schema keyword (rule name) for the given params variant.
-pub fn rule_of(params: MessageParams) -> String {
-  case params {
+/// JSON Schema keyword (rule name) for the given failure variant.
+pub fn rule_of(failure: ValidationFailure) -> String {
+  case failure {
     Required -> "required"
     ImageRequired -> "required"
     InvalidImageUpload -> "type"

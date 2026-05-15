@@ -5,7 +5,7 @@
 // `formosh/form/path`).
 
 import formosh/form/path.{type FieldPath}
-import formosh/validation/messages.{type MessageParams}
+import formosh/validation/messages.{type ValidationFailure}
 
 /// A validation error for a specific field.
 ///
@@ -16,17 +16,17 @@ pub type ValidationError {
   ValidationError(field: FieldPath, message: String, rule: String)
 }
 
-/// Build a `ValidationError` from message params.
+/// Build a `ValidationError` from a `ValidationFailure`.
 ///
-/// Derives both `message` and `rule` from the params, keeping the rendered
-/// text and JSON Schema keyword in sync by construction.
-pub fn from_params(
+/// Derives both `message` and `rule` from the failure variant, keeping the
+/// rendered text and JSON Schema keyword in sync by construction.
+pub fn from_failure(
   field_path: FieldPath,
-  params: MessageParams,
+  failure: ValidationFailure,
 ) -> ValidationError {
   ValidationError(
     field: field_path,
-    message: messages.format(params),
-    rule: messages.rule_of(params),
+    message: messages.format(failure),
+    rule: messages.rule_of(failure),
   )
 }

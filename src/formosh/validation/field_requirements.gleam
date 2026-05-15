@@ -65,9 +65,9 @@ pub fn check_required_value(
     True ->
       case value {
         None | Some(NullValue) ->
-          Error(error.from_params(field_path, messages.Required))
+          Error(error.from_failure(field_path, messages.Required))
         Some(StringValue("")) ->
-          Error(error.from_params(field_path, messages.Required))
+          Error(error.from_failure(field_path, messages.Required))
         _ -> Ok(Nil)
       }
   }

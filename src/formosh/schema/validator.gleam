@@ -42,7 +42,7 @@ fn validate_image_upload(
     None | Some(NullValue) | Some(ArrayValue([])) ->
       case is_required {
         True -> [
-          error.from_params(field_path, messages.ImageRequired),
+          error.from_failure(field_path, messages.ImageRequired),
         ]
         False -> []
       }
@@ -56,7 +56,7 @@ fn validate_image_upload(
         })
       case invalid {
         True -> [
-          error.from_params(field_path, messages.InvalidImageUpload),
+          error.from_failure(field_path, messages.InvalidImageUpload),
         ]
         False -> []
       }
@@ -118,7 +118,7 @@ fn validate_string(
               case string.length(str) < min {
                 True ->
                   list.append(errors, [
-                    error.from_params(field_path, messages.MinLength(min)),
+                    error.from_failure(field_path, messages.MinLength(min)),
                   ])
                 False -> errors
               }
@@ -131,7 +131,7 @@ fn validate_string(
               case string.length(str) > max {
                 True ->
                   list.append(errors, [
-                    error.from_params(field_path, messages.MaxLength(max)),
+                    error.from_failure(field_path, messages.MaxLength(max)),
                   ])
                 False -> errors
               }
@@ -144,7 +144,7 @@ fn validate_string(
               case validate_email(str) {
                 False ->
                   list.append(errors, [
-                    error.from_params(field_path, messages.InvalidEmail),
+                    error.from_failure(field_path, messages.InvalidEmail),
                   ])
                 True -> errors
               }
@@ -152,7 +152,7 @@ fn validate_string(
               case validate_url(str) {
                 False ->
                   list.append(errors, [
-                    error.from_params(field_path, messages.InvalidUrl),
+                    error.from_failure(field_path, messages.InvalidUrl),
                   ])
                 True -> errors
               }
@@ -164,7 +164,7 @@ fn validate_string(
       }
     }
     _ -> [
-      error.from_params(field_path, messages.InvalidType("string")),
+      error.from_failure(field_path, messages.InvalidType("string")),
     ]
   }
 }
@@ -180,7 +180,7 @@ fn validate_number(
     IntegerValue(num) ->
       validate_number_constraints(field_path, int.to_float(num), constraints)
     _ -> [
-      error.from_params(field_path, messages.InvalidType("number")),
+      error.from_failure(field_path, messages.InvalidType("number")),
     ]
   }
 }
@@ -200,7 +200,7 @@ fn validate_number_constraints(
           case value <. min {
             True ->
               list.append(errors, [
-                error.from_params(field_path, messages.Minimum(min)),
+                error.from_failure(field_path, messages.Minimum(min)),
               ])
             False -> errors
           }
@@ -213,7 +213,7 @@ fn validate_number_constraints(
           case value >. max {
             True ->
               list.append(errors, [
-                error.from_params(field_path, messages.Maximum(max)),
+                error.from_failure(field_path, messages.Maximum(max)),
               ])
             False -> errors
           }
@@ -226,7 +226,7 @@ fn validate_number_constraints(
           case value <=. min {
             True ->
               list.append(errors, [
-                error.from_params(field_path, messages.ExclusiveMinimum(min)),
+                error.from_failure(field_path, messages.ExclusiveMinimum(min)),
               ])
             False -> errors
           }
@@ -239,7 +239,7 @@ fn validate_number_constraints(
           case value >=. max {
             True ->
               list.append(errors, [
-                error.from_params(field_path, messages.ExclusiveMaximum(max)),
+                error.from_failure(field_path, messages.ExclusiveMaximum(max)),
               ])
             False -> errors
           }
@@ -259,7 +259,7 @@ fn validate_boolean(
   case value {
     BooleanValue(_) -> []
     _ -> [
-      error.from_params(field_path, messages.InvalidBoolean),
+      error.from_failure(field_path, messages.InvalidBoolean),
     ]
   }
 }
@@ -276,7 +276,7 @@ fn validate_enum(
   {
     True -> []
     False -> [
-      error.from_params(field_path, messages.InvalidEnum),
+      error.from_failure(field_path, messages.InvalidEnum),
     ]
   }
 }
