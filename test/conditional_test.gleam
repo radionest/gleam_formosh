@@ -697,7 +697,7 @@ pub fn conditional_appends_after_base_properties_test() {
 }
 
 /// Symmetric to `conditional_appends_after_base_properties_test` — the
-/// else-branch goes through the same `merge_property_lists` path and must
+/// else-branch goes through the same `properties.merge` path and must
 /// append its properties after the base ones in declared order.
 pub fn conditional_else_appends_after_base_properties_test() {
   let schema_json =
