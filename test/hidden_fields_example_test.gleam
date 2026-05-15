@@ -29,17 +29,17 @@ pub fn hidden_fields_example_schema_parses_test() {
 
   // Hidden scalar with default
   let tenant = find_prop(schema.properties, "tenant_id")
-  should.equal(tenant.widget, Some("hidden"))
+  should.equal(tenant.widget, Some(types.HiddenWidget))
   should.equal(tenant.default, Some(StringValue("acme-corp")))
 
   // Hidden integer with default
   let version = find_prop(schema.properties, "form_version")
-  should.equal(version.widget, Some("hidden"))
+  should.equal(version.widget, Some(types.HiddenWidget))
   should.equal(version.default, Some(IntegerValue(3)))
 
   // Hidden without default
   let source = find_prop(schema.properties, "source")
-  should.equal(source.widget, Some("hidden"))
+  should.equal(source.widget, Some(types.HiddenWidget))
   should.equal(source.default, option.None)
 
   // Visible field — widget unset
@@ -50,11 +50,11 @@ pub fn hidden_fields_example_schema_parses_test() {
   let prefs = find_prop(schema.properties, "preferences")
   let assert Some(sub) = prefs.properties
   let segment = find_prop(sub, "_internal_segment")
-  should.equal(segment.widget, Some("hidden"))
+  should.equal(segment.widget, Some(types.HiddenWidget))
 
   // Hidden array with default
   let tags = find_prop(schema.properties, "tags")
-  should.equal(tags.widget, Some("hidden"))
+  should.equal(tags.widget, Some(types.HiddenWidget))
 
   // tenant_id and email are in required
   list.contains(schema.required, "tenant_id") |> should.be_true()

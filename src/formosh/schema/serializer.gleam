@@ -3,11 +3,12 @@
 import formosh/schema/types.{
   type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
   type SchemaProperty, type StringConstraints, type StringFormat,
-  type UploadConfig, type Value, ArrayType, ArrayValue, BooleanType,
-  BooleanValue, CustomFormat, DateFormat, DateTimeFormat, EmailFormat,
-  IntegerType, IntegerValue, NullType, NullValue, NumberType, NumberValue,
-  ObjectType, ObjectValue, RegexFormat, StringType, StringValue, TimeFormat,
-  UploadConfig, UriFormat, UrlFormat, UuidFormat,
+  type UploadConfig, type Value, type Widget, ArrayType, ArrayValue, BooleanType,
+  BooleanValue, CustomFormat, CustomWidget, DateFormat, DateTimeFormat,
+  EmailFormat, HiddenWidget, ImageUploadWidget, IntegerType, IntegerValue,
+  NullType, NullValue, NumberType, NumberValue, ObjectType, ObjectValue,
+  RegexFormat, StringType, StringValue, TimeFormat, UploadConfig, UriFormat,
+  UrlFormat, UuidFormat,
 }
 import gleam/dict
 import gleam/json
@@ -211,7 +212,11 @@ fn property_to_json(prop: SchemaProperty) -> json.Json {
   |> add_optional_properties(prop.properties)
   |> add_required_array(prop.required)
   |> add_read_only(prop.read_only)
-  |> add_optional_json_field("x-widget", prop.widget, json.string)
+  |> add_optional_json_field(
+    "x-widget",
+    option.map(prop.widget, widget_to_string),
+    json.string,
+  )
   |> add_optional_upload_config(prop.upload_config)
   |> json.object()
 }
@@ -307,6 +312,15 @@ fn add_number_constraint_fields(
     json.float,
   )
   |> add_optional_json_field("multipleOf", constraints.multiple_of, json.float)
+}
+
+/// Convert a Widget variant back to its `x-widget` JSON Schema string.
+fn widget_to_string(widget: Widget) -> String {
+  case widget {
+    ImageUploadWidget -> "image-upload"
+    HiddenWidget -> "hidden"
+    CustomWidget(raw) -> raw
+  }
 }
 
 /// Convert a StringFormat to its JSON Schema string representation.

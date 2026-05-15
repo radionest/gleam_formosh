@@ -756,7 +756,7 @@ pub fn image_upload_serialization_test() {
             items: Some(
               SchemaProperty(..empty_property(), field_type: Some(StringType)),
             ),
-            widget: Some("image-upload"),
+            widget: Some(types.ImageUploadWidget),
             upload_config: Some(UploadConfig(
               accept: "image/*",
               max_file_size: Some(10_485_760),
@@ -807,7 +807,7 @@ pub fn image_upload_roundtrip_test() {
   let assert Ok(schema) = parser.parse_schema(json)
   let assert Ok(prop) = list.key_find(schema.properties, "photos")
 
-  should.equal(prop.widget, Some("image-upload"))
+  should.equal(prop.widget, Some(types.ImageUploadWidget))
   case prop.upload_config {
     Some(config) -> {
       should.equal(config.accept, "image/jpeg")
@@ -836,7 +836,7 @@ pub fn image_upload_roundtrip_test() {
   let assert Ok(reparsed) = parser.parse_schema(serialized_string)
   let assert Ok(reparsed_prop) = list.key_find(reparsed.properties, "photos")
 
-  should.equal(reparsed_prop.widget, Some("image-upload"))
+  should.equal(reparsed_prop.widget, Some(types.ImageUploadWidget))
   case reparsed_prop.upload_config {
     Some(config) -> {
       should.equal(config.accept, "image/jpeg")

@@ -43,7 +43,7 @@ pub fn render_field_at_path(
   is_disabled: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let is_hidden = property.widget == Some("hidden")
+  let is_hidden = property.widget == Some(types.HiddenWidget)
   let is_readonly_suppressed = is_readonly && !model.show_readonly_fields
   case is_hidden || is_readonly_suppressed {
     True -> element.none()
@@ -96,7 +96,7 @@ fn render_widget(
   is_readonly: Bool,
 ) -> Element(FormMsg) {
   case property.widget {
-    Some("image-upload") -> {
+    Some(types.ImageUploadWidget) -> {
       let path_key = path.to_string(field_path)
       let upload_states = case dict.get(model.upload_states, path_key) {
         Ok(states) -> states

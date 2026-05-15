@@ -327,7 +327,7 @@ pub fn image_upload_widget_test() {
   let assert Ok(prop) = list.key_find(schema.properties, "photos")
 
   should.equal(prop.field_type, Some(types.ArrayType))
-  should.equal(prop.widget, Some("image-upload"))
+  should.equal(prop.widget, Some(types.ImageUploadWidget))
   should.equal(prop.title, Some("Photos"))
 
   case prop.upload_config {
@@ -365,7 +365,7 @@ pub fn image_upload_defaults_test() {
   let assert Ok(schema) = result
   let assert Ok(prop) = list.key_find(schema.properties, "photos")
 
-  should.equal(prop.widget, Some("image-upload"))
+  should.equal(prop.widget, Some(types.ImageUploadWidget))
 
   // upload_config should have default accept and no max_file_size
   case prop.upload_config {
@@ -416,7 +416,7 @@ pub fn image_upload_custom_accept_test() {
   let assert Ok(schema) = result
   let assert Ok(prop) = list.key_find(schema.properties, "documents")
 
-  should.equal(prop.widget, Some("image-upload"))
+  should.equal(prop.widget, Some(types.ImageUploadWidget))
   case prop.upload_config {
     Some(config) -> {
       should.equal(config.accept, "application/pdf")
@@ -515,6 +515,6 @@ pub fn hidden_widget_test() {
   let assert Ok(schema) = result
   let assert Ok(prop) = list.key_find(schema.properties, "tenant_id")
 
-  should.equal(prop.widget, Some("hidden"))
+  should.equal(prop.widget, Some(types.HiddenWidget))
   should.equal(prop.default, Some(types.StringValue("acme")))
 }
