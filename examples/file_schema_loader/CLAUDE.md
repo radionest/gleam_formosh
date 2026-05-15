@@ -16,8 +16,13 @@ Uses the formosh Web Component (`<formosh-form>`) — not the direct Gleam API.
 ```bash
 cd examples/file_schema_loader
 gleam deps download
-gleam run -m lustre/dev start    # Dev server with hot reload
+gleam run -m lustre/dev start    # Dev server with hot reload (also rebuilds priv/static/*.mjs)
+gleam run -m lustre/dev build app  # Production build into priv/static/
 ```
+
+`priv/static/*.mjs` is the JS bundle produced by `lustre/dev`. It is gitignored
+(see root `.gitignore`) — rebuild it locally before serving the example, do not
+commit it.
 
 ## What It Demonstrates
 
