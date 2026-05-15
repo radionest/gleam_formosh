@@ -3,7 +3,7 @@
 /// This module provides different ways to render boolean fields including
 /// radio buttons (Yes/No), checkboxes, and toggle switches. The default
 /// render function uses radio buttons for better accessibility and clarity.
-import formosh/fields/field_common.{type FieldRenderCtx, FieldRenderCtx}
+import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{type FormMsg, UpdateFieldPath}
 import formosh/form/path
 import formosh/schema/types
@@ -15,18 +15,18 @@ import lustre/event
 
 /// Render a boolean field as radio buttons (Yes/No).
 ///
-/// Folds readonly into the effective disabled flag before delegating to
-/// `render_as_radio` so the radio group is non-interactive in readonly mode.
-///
 /// ## Alternative Renderers
 /// - `render_as_checkbox`: Single checkbox for true/false
 /// - `render_as_toggle`: Toggle switch interface
 pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
-  let effective_disabled = ctx.is_disabled || ctx.is_readonly
-  render_as_radio(FieldRenderCtx(..ctx, is_disabled: effective_disabled))
+  render_as_radio(ctx)
 }
 
 /// Render boolean field as Yes/No radio button group.
+///
+/// Readonly state has no native HTML mapping for radio inputs, so it is
+/// folded into the disabled attribute locally — same pattern as
+/// `string_field.render_radio_group` and `render_select`.
 fn render_as_radio(ctx: FieldRenderCtx) -> Element(FormMsg) {
   let field_name = path.get_field_name(ctx.path)
   let field_id = path.to_string(ctx.path)
@@ -34,6 +34,7 @@ fn render_as_radio(ctx: FieldRenderCtx) -> Element(FormMsg) {
   let no_id = field_id <> "_no"
   let is_true = field_common.extract_boolean_value(ctx.value)
   let has_value = option.is_some(ctx.value)
+  let effective_disabled = ctx.is_disabled || ctx.is_readonly
 
   html.div(
     [
@@ -61,7 +62,7 @@ fn render_as_radio(ctx: FieldRenderCtx) -> Element(FormMsg) {
                 attribute.value("true"),
                 attribute.checked(has_value && is_true),
                 attribute.required(ctx.is_required),
-                attribute.disabled(ctx.is_disabled),
+                attribute.disabled(effective_disabled),
                 event.on_click(UpdateFieldPath(
                   ctx.path,
                   types.BooleanValue(True),
@@ -83,7 +84,7 @@ fn render_as_radio(ctx: FieldRenderCtx) -> Element(FormMsg) {
                 attribute.value("false"),
                 attribute.checked(has_value && !is_true),
                 attribute.required(ctx.is_required),
-                attribute.disabled(ctx.is_disabled),
+                attribute.disabled(effective_disabled),
                 event.on_click(UpdateFieldPath(
                   ctx.path,
                   types.BooleanValue(False),

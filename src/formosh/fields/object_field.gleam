@@ -9,7 +9,7 @@ import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path.{PropertySegment}
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import lustre/attribute.{class}
 import lustre/element.{type Element}
 import lustre/element/html
@@ -36,7 +36,7 @@ pub fn render_container(
     ),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
-      _ -> element.none()
+      None -> element.none()
     },
     html.div(
       [class("object-fields")],
@@ -65,6 +65,6 @@ fn render_nested_fields(
           )
         render_child(child_ctx, model)
       })
-    _ -> []
+    None -> []
   }
 }

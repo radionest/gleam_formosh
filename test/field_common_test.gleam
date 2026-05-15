@@ -1,4 +1,6 @@
 import formosh/fields/field_common
+import formosh/form/model
+import formosh/form/path.{PropertySegment}
 import formosh/schema/types
 import formosh/validation/error
 import gleam/option.{None, Some}
@@ -93,4 +95,117 @@ pub fn render_container_label_shows_required_marker_test() {
     |> element.to_string
 
   html |> string.contains("formosh-required") |> should.be_true
+}
+
+// --- make_child_ctx fixtures and tests ---
+
+fn empty_schema() -> types.JsonSchema {
+  types.JsonSchema(
+    title: None,
+    description: None,
+    field_type: types.ObjectType,
+    properties: [],
+    required: [],
+    defs: None,
+    conditionals: [],
+    string_constraints: None,
+    number_constraints: None,
+  )
+}
+
+fn parent_ctx_with(
+  is_required: Bool,
+  is_disabled: Bool,
+  is_readonly: Bool,
+) -> field_common.FieldRenderCtx {
+  field_common.FieldRenderCtx(
+    path: path.from_field_name("parent"),
+    property: types.empty_property(),
+    value: None,
+    is_required: is_required,
+    is_disabled: is_disabled,
+    is_readonly: is_readonly,
+  )
+}
+
+fn child_prop_with_readonly(read_only: Bool) -> types.SchemaProperty {
+  types.SchemaProperty(..types.empty_property(), read_only: read_only)
+}
+
+// readonly parent → child readonly, even when child_prop.read_only=False.
+pub fn make_child_ctx_inherits_readonly_from_parent_test() {
+  let parent = parent_ctx_with(False, False, True)
+  let child_path = [PropertySegment("parent"), PropertySegment("child")]
+  let child =
+    field_common.make_child_ctx(
+      parent: parent,
+      model: model.init(empty_schema()),
+      path: child_path,
+      property: child_prop_with_readonly(False),
+      is_required: False,
+    )
+  child.is_readonly |> should.be_true
+}
+
+// disabled parent → child disabled (via ..parent record spread).
+pub fn make_child_ctx_inherits_disabled_from_parent_test() {
+  let parent = parent_ctx_with(False, True, False)
+  let child_path = [PropertySegment("parent"), PropertySegment("child")]
+  let child =
+    field_common.make_child_ctx(
+      parent: parent,
+      model: model.init(empty_schema()),
+      path: child_path,
+      property: types.empty_property(),
+      is_required: False,
+    )
+  child.is_disabled |> should.be_true
+}
+
+// is_required comes from the argument — parent.is_required is ignored.
+pub fn make_child_ctx_required_comes_from_argument_not_parent_test() {
+  let parent = parent_ctx_with(True, False, False)
+  let child_path = [PropertySegment("parent"), PropertySegment("child")]
+  let child =
+    field_common.make_child_ctx(
+      parent: parent,
+      model: model.init(empty_schema()),
+      path: child_path,
+      property: types.empty_property(),
+      is_required: False,
+    )
+  child.is_required |> should.be_false
+}
+
+// value is re-extracted from model by child_path — parent.value is dropped.
+pub fn make_child_ctx_value_extracted_from_child_path_test() {
+  let parent_path = path.from_field_name("parent")
+  let child_path = [PropertySegment("parent"), PropertySegment("child")]
+  let values =
+    types.ObjectValue([
+      #(
+        "parent",
+        types.ObjectValue([#("child", types.StringValue("child-value"))]),
+      ),
+    ])
+  let base = model.init(empty_schema())
+  let m = model.FormModel(..base, values: values)
+  let parent =
+    field_common.FieldRenderCtx(
+      path: parent_path,
+      property: types.empty_property(),
+      value: Some(types.StringValue("parent-value")),
+      is_required: False,
+      is_disabled: False,
+      is_readonly: False,
+    )
+  let child =
+    field_common.make_child_ctx(
+      parent: parent,
+      model: m,
+      path: child_path,
+      property: types.empty_property(),
+      is_required: False,
+    )
+  child.value |> should.equal(Some(types.StringValue("child-value")))
 }

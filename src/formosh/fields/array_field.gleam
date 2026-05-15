@@ -13,7 +13,7 @@ import formosh/schema/conditional_resolver
 import formosh/schema/types.{type SchemaProperty, type Value}
 import gleam/int
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import lustre/attribute.{class, type_}
 import lustre/element.{type Element}
 import lustre/element/html
@@ -38,7 +38,8 @@ pub fn render_container(
 
   let items = case ctx.value {
     Some(types.ArrayValue(xs)) -> xs
-    _ -> []
+    Some(_) -> []
+    None -> []
   }
 
   html.div([class("array-field")], [
@@ -50,7 +51,7 @@ pub fn render_container(
     ),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
-      _ -> element.none()
+      None -> element.none()
     },
     html.div(
       [class("array-items")],
@@ -106,7 +107,7 @@ fn render_array_item(
           render_item_fields(ctx, item_schema, item, index, model, render_child),
         ),
       ])
-    _ -> element.none()
+    None -> element.none()
   }
 }
 
@@ -145,6 +146,6 @@ fn render_item_fields(
           )
         render_child(child_ctx, model)
       })
-    _ -> []
+    None -> []
   }
 }
