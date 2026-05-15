@@ -1,7 +1,8 @@
 /// Test for parsing basic_leak_signs.json schema
 import formosh/schema/conditional_resolver
 import formosh/schema/parser
-import formosh/schema/types.{BooleanValue, ObjectValue, has_property_key}
+import formosh/schema/properties
+import formosh/schema/types.{BooleanValue, ObjectValue}
 import gleam/list
 import gleam/option.{Some}
 import gleeunit
@@ -31,7 +32,7 @@ pub fn parse_basic_leak_signs_schema_test() {
 
   // Should have base properties
   schema.properties
-  |> has_property_key("air_bubble")
+  |> properties.has_key("air_bubble")
   |> should.be_true()
 
   // Should have 4 conditional rules from allOf
@@ -49,7 +50,7 @@ pub fn conditional_fields_appear_test() {
 
   // Initially, no conditional fields should be present
   schema.properties
-  |> has_property_key("air_bubble_size")
+  |> properties.has_key("air_bubble_size")
   |> should.be_false()
 
   // When air_bubble is true, conditional fields should appear
@@ -60,19 +61,19 @@ pub fn conditional_fields_appear_test() {
 
   // Now air_bubble_size should be present
   resolved_schema.properties
-  |> has_property_key("air_bubble_size")
+  |> properties.has_key("air_bubble_size")
   |> should.be_true()
 
   resolved_schema.properties
-  |> has_property_key("air_bubble_number")
+  |> properties.has_key("air_bubble_number")
   |> should.be_true()
 
   resolved_schema.properties
-  |> has_property_key("air_bubble_distance")
+  |> properties.has_key("air_bubble_distance")
   |> should.be_true()
 
   resolved_schema.properties
-  |> has_property_key("air_bubble_location")
+  |> properties.has_key("air_bubble_location")
   |> should.be_true()
 }
 
@@ -95,19 +96,19 @@ pub fn multiple_conditionals_independent_test() {
 
   // Should have fields from both conditionals
   resolved_schema.properties
-  |> has_property_key("air_bubble_size")
+  |> properties.has_key("air_bubble_size")
   |> should.be_true()
 
   resolved_schema.properties
-  |> has_property_key("pneumoperitoneum_thickness")
+  |> properties.has_key("pneumoperitoneum_thickness")
   |> should.be_true()
 
   // Should NOT have fields from other conditionals
   resolved_schema.properties
-  |> has_property_key("ascites_type")
+  |> properties.has_key("ascites_type")
   |> should.be_false()
 
   resolved_schema.properties
-  |> has_property_key("ileus_diametr")
+  |> properties.has_key("ileus_diametr")
   |> should.be_false()
 }

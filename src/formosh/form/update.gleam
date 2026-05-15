@@ -11,6 +11,7 @@ import formosh/form/model.{
 }
 import formosh/form/path
 import formosh/schema/conditional_resolver
+import formosh/schema/properties
 import formosh/schema/types.{type Value}
 import formosh/schema/validator
 import gleam/dict
@@ -284,8 +285,8 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 /// ## Returns
 /// A new FormModel with updated validation errors for the field
 fn validate_field(model: FormModel, field_name: String) -> FormModel {
-  case list.key_find(model.resolved_schema.properties, field_name) {
-    Ok(property) -> {
+  case properties.get(model.resolved_schema.properties, field_name) {
+    Some(property) -> {
       let field_path = path.from_field_name(field_name)
       let value = model.get_value_at_path(model, field_path)
       let errors =
@@ -307,7 +308,7 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
         }
       }
     }
-    Error(_) -> model
+    None -> model
   }
 }
 

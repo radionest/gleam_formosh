@@ -3,10 +3,11 @@
 /// This module implements the logic for resolving JSON Schema conditional
 /// rules (if/then/else) based on runtime form values, enabling dynamic
 /// field visibility and validation.
+import formosh/schema/properties
 import formosh/schema/types.{
   type ConditionalRule, type JsonSchema, type SchemaProperty, type Value,
   ArrayType, BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue,
-  ObjectType, ObjectValue, SchemaProperty, StringValue, has_property_key,
+  ObjectType, ObjectValue, SchemaProperty, StringValue,
 }
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -287,7 +288,7 @@ fn merge_schema_properties(
   case conditional_props.properties {
     Some(new_props) -> {
       let merged_properties =
-        merge_property_lists(base_schema.properties, new_props)
+        properties.merge(base_schema.properties, new_props)
       let merged_required =
         list.append(base_schema.required, conditional_props.required)
         |> list.unique()
@@ -299,48 +300,6 @@ fn merge_schema_properties(
     }
     None -> base_schema
   }
-}
-
-/// Merge two ordered property lists.
-///
-/// Existing keys keep their position but receive the override value from
-/// `additions`. Keys only present in `additions` are appended at the end,
-/// preserving their relative order — and deduplicated so a key cannot
-/// surface twice in the rendered form. This matches the typical UX for
-/// conditional fields: static fields stay where authored, dynamic ones
-/// surface after them.
-fn merge_property_lists(
-  base: List(#(String, SchemaProperty)),
-  additions: List(#(String, SchemaProperty)),
-) -> List(#(String, SchemaProperty)) {
-  let deduped_additions = dedup_by_key(additions)
-  let #(base_keys, updated_base) =
-    list.map_fold(base, [], fn(seen, entry) {
-      let #(key, _) = entry
-      let merged = case list.key_find(deduped_additions, key) {
-        Ok(new_prop) -> #(key, new_prop)
-        Error(_) -> entry
-      }
-      #([key, ..seen], merged)
-    })
-  let new_only =
-    list.filter(deduped_additions, fn(entry) {
-      !list.contains(base_keys, entry.0)
-    })
-  list.append(updated_base, new_only)
-}
-
-/// Keep only the first occurrence of each key, preserving order.
-fn dedup_by_key(entries: List(#(String, a))) -> List(#(String, a)) {
-  let #(_, reversed) =
-    list.fold(entries, #([], []), fn(state, entry) {
-      let #(seen, acc) = state
-      case list.contains(seen, entry.0) {
-        True -> state
-        False -> #([entry.0, ..seen], [entry, ..acc])
-      }
-    })
-  list.reverse(reversed)
 }
 
 /// Property-level analogue of `apply_then_branch`.
@@ -375,7 +334,7 @@ fn merge_into_property(
   case conditional.properties {
     Some(new_props) -> {
       let merged_props = case base.properties {
-        Some(existing) -> merge_property_lists(existing, new_props)
+        Some(existing) -> properties.merge(existing, new_props)
         None -> new_props
       }
       let merged_required =
@@ -403,5 +362,5 @@ pub fn is_field_visible(
   form_values: Value,
 ) -> Bool {
   let resolved = resolve_conditional_schema(base_schema, form_values)
-  has_property_key(resolved.properties, field_name)
+  properties.has_key(resolved.properties, field_name)
 }

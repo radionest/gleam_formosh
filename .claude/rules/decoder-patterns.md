@@ -52,11 +52,13 @@ decode.optional_field("items", None, property_decoder())
 ## `SchemaProperty.properties` is a List, not a Dict
 
 Type: `List(#(String, SchemaProperty))` (order-preserving — PR #7).
-Lookup helper already in `types.gleam`:
+Operate via `formosh/schema/properties`:
 
 ```gleam
-list.key_find(properties, key) -> Result(SchemaProperty, Nil)
-has_property_key(properties, key) -> Bool
+properties.get(props, key)     -> Option(SchemaProperty)
+properties.has_key(props, key) -> Bool
+properties.keys(props)         -> List(String)
+properties.merge(base, adds)   -> PropertyList   // order-preserving merge
 ```
 
 Never `dict.from_list(properties)` — that loses the schema author's

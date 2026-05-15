@@ -4,10 +4,11 @@ import formosh/form/path
 import formosh/form/update
 import formosh/schema/conditional_resolver
 import formosh/schema/parser
+import formosh/schema/properties
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, BooleanValue, ConditionalRule,
   IntegerValue, JsonSchema, ObjectValue, SchemaProperty, StringValue,
-  empty_property, has_property_key,
+  empty_property,
 }
 import gleam/list
 import gleam/option.{None, Some}
@@ -88,7 +89,7 @@ pub fn conditional_field_appears_when_condition_met_test() {
 
   // Check that is_confidential field was added
   resolved_schema.properties
-  |> has_property_key("is_confidential")
+  |> properties.has_key("is_confidential")
   |> should.be_true()
 
   // Test when condition is not met
@@ -102,7 +103,7 @@ pub fn conditional_field_appears_when_condition_met_test() {
 
   // Check that is_confidential field was NOT added
   resolved_schema_no_match.properties
-  |> has_property_key("is_confidential")
+  |> properties.has_key("is_confidential")
   |> should.be_false()
 }
 
@@ -194,12 +195,12 @@ pub fn conditional_else_branch_test() {
 
   // Should have username field
   resolved_then.properties
-  |> has_property_key("username")
+  |> properties.has_key("username")
   |> should.be_true()
 
   // Should NOT have email/password fields
   resolved_then.properties
-  |> has_property_key("email")
+  |> properties.has_key("email")
   |> should.be_false()
 
   // Test when hasAccount is false (else branch)
@@ -213,16 +214,16 @@ pub fn conditional_else_branch_test() {
 
   // Should NOT have username field
   resolved_else.properties
-  |> has_property_key("username")
+  |> properties.has_key("username")
   |> should.be_false()
 
   // Should have email/password fields
   resolved_else.properties
-  |> has_property_key("email")
+  |> properties.has_key("email")
   |> should.be_true()
 
   resolved_else.properties
-  |> has_property_key("password")
+  |> properties.has_key("password")
   |> should.be_true()
 }
 
@@ -357,12 +358,12 @@ pub fn multiple_conditionals_allof_test() {
 
   // Should have air_bubble_size field
   resolved_air.properties
-  |> has_property_key("air_bubble_size")
+  |> properties.has_key("air_bubble_size")
   |> should.be_true()
 
   // Should NOT have pneumo_thickness field
   resolved_air.properties
-  |> has_property_key("pneumo_thickness")
+  |> properties.has_key("pneumo_thickness")
   |> should.be_false()
 
   // Test when pneumoperitoneum is true
@@ -377,12 +378,12 @@ pub fn multiple_conditionals_allof_test() {
 
   // Should have pneumo_thickness field
   resolved_pneumo.properties
-  |> has_property_key("pneumo_thickness")
+  |> properties.has_key("pneumo_thickness")
   |> should.be_true()
 
   // Should NOT have air_bubble_size field
   resolved_pneumo.properties
-  |> has_property_key("air_bubble_size")
+  |> properties.has_key("air_bubble_size")
   |> should.be_false()
 
   // Test when both are true
@@ -400,11 +401,11 @@ pub fn multiple_conditionals_allof_test() {
 
   // Should have both conditional fields
   resolved_both.properties
-  |> has_property_key("air_bubble_size")
+  |> properties.has_key("air_bubble_size")
   |> should.be_true()
 
   resolved_both.properties
-  |> has_property_key("pneumo_thickness")
+  |> properties.has_key("pneumo_thickness")
   |> should.be_true()
 }
 
@@ -437,7 +438,7 @@ pub fn const_keyword_parsing_test() {
     )
 
   resolved_true.properties
-  |> has_property_key("extra_field")
+  |> properties.has_key("extra_field")
   |> should.be_true()
 
   // Test that const: false doesn't match true
@@ -450,7 +451,7 @@ pub fn const_keyword_parsing_test() {
     )
 
   resolved_false.properties
-  |> has_property_key("extra_field")
+  |> properties.has_key("extra_field")
   |> should.be_false()
 }
 
@@ -696,7 +697,7 @@ pub fn conditional_appends_after_base_properties_test() {
 }
 
 /// Symmetric to `conditional_appends_after_base_properties_test` — the
-/// else-branch goes through the same `merge_property_lists` path and must
+/// else-branch goes through the same `properties.merge` path and must
 /// append its properties after the base ones in declared order.
 pub fn conditional_else_appends_after_base_properties_test() {
   let schema_json =
@@ -827,11 +828,11 @@ pub fn array_item_hides_conditional_fields_when_condition_false_test() {
     conditional_resolver.resolve_conditional_property(item_schema, values)
 
   let assert Some(props) = resolved.properties
-  has_property_key(props, "lesion_num") |> should.be_true()
-  has_property_key(props, "is_resected") |> should.be_true()
-  has_property_key(props, "visible") |> should.be_false()
-  has_property_key(props, "tumor_cells") |> should.be_false()
-  has_property_key(props, "conclusion") |> should.be_false()
+  properties.has_key(props, "lesion_num") |> should.be_true()
+  properties.has_key(props, "is_resected") |> should.be_true()
+  properties.has_key(props, "visible") |> should.be_false()
+  properties.has_key(props, "tumor_cells") |> should.be_false()
+  properties.has_key(props, "conclusion") |> should.be_false()
 }
 
 /// is_resected=true reveals visible/tumor_cells and makes visible required.
@@ -848,8 +849,8 @@ pub fn array_item_shows_and_requires_visible_when_resected_test() {
     conditional_resolver.resolve_conditional_property(item_schema, values)
 
   let assert Some(props) = resolved.properties
-  has_property_key(props, "visible") |> should.be_true()
-  has_property_key(props, "tumor_cells") |> should.be_true()
+  properties.has_key(props, "visible") |> should.be_true()
+  properties.has_key(props, "tumor_cells") |> should.be_true()
   list.contains(resolved.required, "visible") |> should.be_true()
 }
 
@@ -868,7 +869,7 @@ pub fn array_item_cascade_conclusion_required_test() {
     conditional_resolver.resolve_conditional_property(item_schema, values)
 
   let assert Some(props) = resolved.properties
-  has_property_key(props, "conclusion") |> should.be_true()
+  properties.has_key(props, "conclusion") |> should.be_true()
   list.contains(resolved.required, "conclusion") |> should.be_true()
 }
 
@@ -891,8 +892,8 @@ pub fn array_items_resolve_independently_per_row_test() {
   let assert Some(collapsed_props) = resolved_collapsed.properties
   let assert Some(expanded_props) = resolved_expanded.properties
 
-  has_property_key(collapsed_props, "visible") |> should.be_false()
-  has_property_key(expanded_props, "visible") |> should.be_true()
+  properties.has_key(collapsed_props, "visible") |> should.be_false()
+  properties.has_key(expanded_props, "visible") |> should.be_true()
 
   list.contains(resolved_collapsed.required, "visible") |> should.be_false()
   list.contains(resolved_expanded.required, "visible") |> should.be_true()
@@ -1043,8 +1044,8 @@ pub fn array_item_else_branch_applies_when_condition_false_test() {
     conditional_resolver.resolve_conditional_property(item_schema, movie_row)
 
   let assert Some(props) = resolved.properties
-  types.has_property_key(props, "runtime") |> should.be_true()
-  types.has_property_key(props, "pages") |> should.be_false()
+  properties.has_key(props, "runtime") |> should.be_true()
+  properties.has_key(props, "pages") |> should.be_false()
   list.contains(resolved.required, "runtime") |> should.be_true()
   list.contains(resolved.required, "pages") |> should.be_false()
 }
@@ -1059,8 +1060,8 @@ pub fn array_item_then_branch_applies_when_condition_true_test() {
     conditional_resolver.resolve_conditional_property(item_schema, book_row)
 
   let assert Some(props) = resolved.properties
-  types.has_property_key(props, "pages") |> should.be_true()
-  types.has_property_key(props, "runtime") |> should.be_false()
+  properties.has_key(props, "pages") |> should.be_true()
+  properties.has_key(props, "runtime") |> should.be_false()
   list.contains(resolved.required, "pages") |> should.be_true()
 }
 
@@ -1125,8 +1126,8 @@ pub fn array_item_missing_if_field_falls_through_test() {
 
   let assert Some(props) = resolved.properties
   // Without is_resected, the then-branch fields stay hidden.
-  types.has_property_key(props, "visible") |> should.be_false()
-  types.has_property_key(props, "tumor_cells") |> should.be_false()
+  properties.has_key(props, "visible") |> should.be_false()
+  properties.has_key(props, "tumor_cells") |> should.be_false()
 }
 
 /// Error keys in the model match `path.to_string` exactly, so any UI code
@@ -1503,7 +1504,7 @@ pub fn nested_object_conditional_applies_when_value_matches_test() {
   let resolved_match =
     conditional_resolver.resolve_recursive(schema, values_match)
   payment_props(resolved_match)
-  |> has_property_key("card_number")
+  |> properties.has_key("card_number")
   |> should.be_true()
 
   let values_other =
@@ -1514,7 +1515,7 @@ pub fn nested_object_conditional_applies_when_value_matches_test() {
   let resolved_other =
     conditional_resolver.resolve_recursive(schema, values_other)
   payment_props(resolved_other)
-  |> has_property_key("card_number")
+  |> properties.has_key("card_number")
   |> should.be_false()
 }
 
@@ -1525,12 +1526,12 @@ pub fn nested_conditional_with_missing_value_keeps_base_test() {
   let resolved = conditional_resolver.resolve_recursive(schema, ObjectValue([]))
 
   payment_props(resolved)
-  |> has_property_key("card_number")
+  |> properties.has_key("card_number")
   |> should.be_false()
 
   // The base `method` property must still be there.
   payment_props(resolved)
-  |> has_property_key("method")
+  |> properties.has_key("method")
   |> should.be_true()
 }
 
@@ -1635,12 +1636,12 @@ pub fn then_branch_introduces_nested_object_with_own_conditionals_test() {
   let resolved = conditional_resolver.resolve_recursive(schema, values)
 
   // `details` was revealed by the root rule.
-  has_property_key(resolved.properties, "details") |> should.be_true()
+  properties.has_key(resolved.properties, "details") |> should.be_true()
 
   // ...and its own conditional ran in the same pass.
   let assert Ok(details_entry) = list.key_find(resolved.properties, "details")
   let assert Some(details_props) = details_entry.properties
-  details_props |> has_property_key("secret") |> should.be_true()
+  details_props |> properties.has_key("secret") |> should.be_true()
 }
 
 /// resolve_recursive must descend into ArrayType `items` with `None`, so per-row
@@ -1717,8 +1718,8 @@ pub fn array_items_recursion_preserves_items_schema_test() {
 
   // No per-row resolve applied — `priority` is still in the base, `assignee`
   // is not pre-added because resolve_recursive passes None for array items.
-  item_props |> has_property_key("priority") |> should.be_true()
-  item_props |> has_property_key("assignee") |> should.be_false()
+  item_props |> properties.has_key("priority") |> should.be_true()
+  item_props |> properties.has_key("assignee") |> should.be_false()
 
   // Item-level conditionals are preserved so render-time per-row resolve
   // (array_field.render_item_fields) can still fire them.
@@ -1741,7 +1742,7 @@ pub fn update_dispatch_resolves_nested_conditional_test() {
     )
 
   payment_props(after.resolved_schema)
-  |> has_property_key("card_number")
+  |> properties.has_key("card_number")
   |> should.be_true()
 }
 
@@ -1800,14 +1801,14 @@ pub fn resolve_recursive_top_level_regression_test() {
   let values_met = ObjectValue([#("subject", StringValue("Общий вопрос"))])
   let resolved_met = conditional_resolver.resolve_recursive(schema, values_met)
   resolved_met.properties
-  |> has_property_key("is_confidential")
+  |> properties.has_key("is_confidential")
   |> should.be_true()
 
   let values_missed = ObjectValue([#("subject", StringValue("Other"))])
   let resolved_missed =
     conditional_resolver.resolve_recursive(schema, values_missed)
   resolved_missed.properties
-  |> has_property_key("is_confidential")
+  |> properties.has_key("is_confidential")
   |> should.be_false()
 }
 
@@ -1889,10 +1890,10 @@ pub fn nested_object_conditional_else_branch_test() {
   let resolved_else =
     conditional_resolver.resolve_recursive(schema, values_else)
   payment_props(resolved_else)
-  |> has_property_key("wallet_id")
+  |> properties.has_key("wallet_id")
   |> should.be_true()
   payment_props(resolved_else)
-  |> has_property_key("card_number")
+  |> properties.has_key("card_number")
   |> should.be_false()
 
   // method == "card" → then fires (mirror check)
@@ -1903,9 +1904,9 @@ pub fn nested_object_conditional_else_branch_test() {
   let resolved_then =
     conditional_resolver.resolve_recursive(schema, values_then)
   payment_props(resolved_then)
-  |> has_property_key("card_number")
+  |> properties.has_key("card_number")
   |> should.be_true()
   payment_props(resolved_then)
-  |> has_property_key("wallet_id")
+  |> properties.has_key("wallet_id")
   |> should.be_false()
 }
