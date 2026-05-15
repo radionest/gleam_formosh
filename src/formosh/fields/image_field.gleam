@@ -1,6 +1,6 @@
 // Image upload field renderer
 
-import formosh/fields/field_common
+import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{
   type FileUploadState, type FormMsg, FileUploadError, FileUploading,
   ImageRemoved, ImageUploadRequested,
@@ -18,17 +18,15 @@ import lustre/event
 ///
 /// Displays a grid of uploaded images with delete buttons,
 /// in-progress uploads with preview, error cards, and an add button.
+///
+/// `upload_states` and `upload_base_url` stay outside the ctx because they
+/// are image-specific runtime state pulled from the model by the dispatcher.
 pub fn render(
-  field_path: path.FieldPath,
-  property: types.SchemaProperty,
-  value: Option(types.Value),
-  is_required: Bool,
-  is_disabled: Bool,
-  is_readonly: Bool,
+  ctx: FieldRenderCtx,
   upload_states: List(FileUploadState),
   upload_base_url: Option(String),
 ) -> Element(FormMsg) {
-  let uploaded_urls = case value {
+  let uploaded_urls = case ctx.value {
     Some(types.ArrayValue(items)) ->
       list.filter_map(items, fn(item) {
         case item {
@@ -39,7 +37,7 @@ pub fn render(
     _ -> []
   }
 
-  let effective_disabled = is_disabled || is_readonly
+  let effective_disabled = ctx.is_disabled || ctx.is_readonly
 
   let content =
     html.div(
@@ -58,7 +56,7 @@ pub fn render(
             list.append(
               // Completed uploads
               list.map(uploaded_urls, fn(url) {
-                render_uploaded_image(field_path, url, effective_disabled)
+                render_uploaded_image(ctx.path, url, effective_disabled)
               }),
               // In-progress uploads
               list.filter_map(upload_states, fn(state) {
@@ -87,7 +85,7 @@ pub fn render(
                 attribute.type_("button"),
                 attribute.class("formosh-image-add"),
                 attribute.attribute("part", "image-add"),
-                event.on_click(ImageUploadRequested(field_path)),
+                event.on_click(ImageUploadRequested(ctx.path)),
               ],
               [html.text("Add photo")],
             )
@@ -96,9 +94,9 @@ pub fn render(
     )
 
   field_common.field_wrapper_with_path(
-    field_path,
-    property,
-    is_required,
+    ctx.path,
+    ctx.property,
+    ctx.is_required,
     content,
   )
 }

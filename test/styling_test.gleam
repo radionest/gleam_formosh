@@ -3,6 +3,7 @@
 // would silently regress to plain HTML otherwise.
 
 import formosh/fields/boolean_field
+import formosh/fields/field_common
 import formosh/fields/field_dispatcher
 import formosh/form/model.{FormModel}
 import formosh/form/path
@@ -58,14 +59,16 @@ fn render_with_state(
       )
   }
 
-  field_dispatcher.render_field_at_path(
-    field_path,
-    string_property(),
-    model_with_errors,
-    False,
-    False,
-    is_readonly,
-  )
+  let ctx =
+    field_common.make_field_ctx(
+      model: model_with_errors,
+      path: field_path,
+      property: string_property(),
+      is_required: False,
+      is_disabled: False,
+      is_readonly: is_readonly,
+    )
+  field_dispatcher.render_field_at_path(ctx, model_with_errors)
   |> element.to_string
 }
 
@@ -104,15 +107,20 @@ pub fn field_wrapper_has_data_readonly_when_readonly_test() {
   html |> string.contains("data-readonly=\"true\"") |> should.be_true
 }
 
+fn toggle_ctx(value: types.Value) -> field_common.FieldRenderCtx {
+  field_common.FieldRenderCtx(
+    path: path.from_field_name("active"),
+    property: types.empty_property(),
+    value: Some(value),
+    is_required: False,
+    is_disabled: False,
+    is_readonly: False,
+  )
+}
+
 pub fn toggle_on_has_data_state_on_test() {
   let html =
-    boolean_field.render_as_toggle(
-      path.from_field_name("active"),
-      types.empty_property(),
-      Some(types.BooleanValue(True)),
-      False,
-      False,
-    )
+    boolean_field.render_as_toggle(toggle_ctx(types.BooleanValue(True)))
     |> element.to_string
 
   html |> string.contains("part=\"toggle\"") |> should.be_true
@@ -122,13 +130,7 @@ pub fn toggle_on_has_data_state_on_test() {
 
 pub fn toggle_off_has_data_state_off_test() {
   let html =
-    boolean_field.render_as_toggle(
-      path.from_field_name("active"),
-      types.empty_property(),
-      Some(types.BooleanValue(False)),
-      False,
-      False,
-    )
+    boolean_field.render_as_toggle(toggle_ctx(types.BooleanValue(False)))
     |> element.to_string
 
   html |> string.contains("data-state=\"off\"") |> should.be_true

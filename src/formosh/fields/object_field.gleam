@@ -5,12 +5,11 @@
 /// `field_dispatcher.render_field_at_path`), so any child — string,
 /// number, nested object, array, image-upload widget — goes through the
 /// same selection logic as top-level fields.
-import formosh/fields/field_common
+import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{type FormModel, type FormMsg}
-import formosh/form/path.{type FieldPath, PropertySegment}
-import formosh/schema/types.{type SchemaProperty}
+import formosh/form/path.{PropertySegment}
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{Some}
 import lustre/attribute.{class}
 import lustre/element.{type Element}
 import lustre/element/html
@@ -21,68 +20,51 @@ import lustre/element/html
 /// in the parent's `required` list); on every child it's decided here
 /// (it's in *this* property's `required` list).
 pub fn render_container(
-  field_path: FieldPath,
-  property: SchemaProperty,
+  ctx: FieldRenderCtx,
   model: FormModel,
-  is_required: Bool,
-  is_disabled: Bool,
-  is_readonly: Bool,
-  render_child: fn(FieldPath, SchemaProperty, FormModel, Bool, Bool, Bool) ->
-    Element(FormMsg),
+  render_child: fn(FieldRenderCtx, FormModel) -> Element(FormMsg),
 ) -> Element(FormMsg) {
-  let object_name = path.get_field_name(field_path)
-  let description = property.description
+  let object_name = path.get_field_name(ctx.path)
+  let description = ctx.property.description
 
   html.div([class("object-field")], [
     field_common.render_container_label(
       field_name: object_name,
-      property: property,
-      is_required: is_required,
+      property: ctx.property,
+      is_required: ctx.is_required,
       css_class: "object-label",
     ),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
-      None -> element.none()
+      _ -> element.none()
     },
     html.div(
       [class("object-fields")],
-      render_nested_fields(
-        field_path,
-        property,
-        model,
-        is_disabled,
-        is_readonly,
-        render_child,
-      ),
+      render_nested_fields(ctx, model, render_child),
     ),
   ])
 }
 
 fn render_nested_fields(
-  parent_path: FieldPath,
-  property: SchemaProperty,
+  ctx: FieldRenderCtx,
   model: FormModel,
-  is_disabled: Bool,
-  is_readonly: Bool,
-  render_child: fn(FieldPath, SchemaProperty, FormModel, Bool, Bool, Bool) ->
-    Element(FormMsg),
+  render_child: fn(FieldRenderCtx, FormModel) -> Element(FormMsg),
 ) -> List(Element(FormMsg)) {
-  case property.properties {
+  case ctx.property.properties {
     Some(props) ->
       list.map(props, fn(entry) {
         let #(child_name, child_prop) = entry
-        let child_path = list.append(parent_path, [PropertySegment(child_name)])
-        let child_required = list.contains(property.required, child_name)
-        let child_readonly = is_readonly || child_prop.read_only
-        render_child(
-          child_path,
-          child_prop,
-          model,
-          child_required,
-          is_disabled,
-          child_readonly,
-        )
+        let child_path = list.append(ctx.path, [PropertySegment(child_name)])
+        let child_ctx =
+          field_common.make_child_ctx(
+            parent: ctx,
+            model: model,
+            path: child_path,
+            property: child_prop,
+            is_required: list.contains(ctx.property.required, child_name),
+          )
+        render_child(child_ctx, model)
       })
-    None -> []
+    _ -> []
   }
 }

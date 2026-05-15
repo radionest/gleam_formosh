@@ -1,6 +1,6 @@
 // Common field rendering utilities
 
-import formosh/form/model.{type FormMsg, UpdateFieldPath}
+import formosh/form/model.{type FormModel, type FormMsg, UpdateFieldPath}
 import formosh/form/path
 import formosh/schema/types
 import formosh/validation/error.{type ValidationError}
@@ -300,6 +300,89 @@ pub fn extract_boolean_value(value: Option(types.Value)) -> Bool {
     Some(types.BooleanValue(b)) -> b
     _ -> False
   }
+}
+
+/// Shared per-field rendering context.
+///
+/// Bundles the six values every field renderer needs: where the field lives
+/// (`path`), what schema describes it (`property`), its current value, and
+/// the three behavioural flags the parent decides (`is_required`,
+/// `is_disabled`, `is_readonly`). Children build their own ctx via
+/// `make_field_ctx` (extracts value from the model) and a record update for
+/// inheritance (`FieldRenderCtx(..parent, path: child_path, ...)`).
+///
+/// Adding a new piece of contextual data — e.g. `ui_options` in v0.7 — only
+/// requires extending this record and the builder; no signature changes
+/// propagate to leaf renderers.
+pub type FieldRenderCtx {
+  FieldRenderCtx(
+    path: path.FieldPath,
+    property: types.SchemaProperty,
+    value: Option(types.Value),
+    is_required: Bool,
+    is_disabled: Bool,
+    is_readonly: Bool,
+  )
+}
+
+/// Build a `FieldRenderCtx` for a top-level field at the given path.
+///
+/// The caller decides the three boolean flags (it owns the inheritance
+/// rules: parent `required` list, parent `is_readonly`, etc.). The builder
+/// only extracts the current value from the model — this is the single
+/// place where path-to-value lookup happens during render, so v0.7 can hook
+/// `ui_options` lookup here without touching call sites.
+///
+/// For descendants inside containers, use `make_child_ctx` instead: it
+/// encodes the inheritance rules so each container does not re-derive them.
+pub fn make_field_ctx(
+  model model: FormModel,
+  path field_path: path.FieldPath,
+  property property: types.SchemaProperty,
+  is_required is_required: Bool,
+  is_disabled is_disabled: Bool,
+  is_readonly is_readonly: Bool,
+) -> FieldRenderCtx {
+  FieldRenderCtx(
+    path: field_path,
+    property: property,
+    value: model.get_value_at_path(model, field_path),
+    is_required: is_required,
+    is_disabled: is_disabled,
+    is_readonly: is_readonly,
+  )
+}
+
+/// Build a child `FieldRenderCtx` from a parent ctx and the child's own
+/// path/schema/required flag.
+///
+/// Encodes container-to-child inheritance in one place:
+/// - `is_disabled` flows through as-is (parent decides whether the whole
+///   subtree is disabled)
+/// - `is_readonly` OR-merges with `child_prop.read_only` (a readonly parent
+///   makes every descendant readonly, regardless of the child's own flag)
+/// - `is_required` is supplied by the caller, since required-membership is
+///   per-child (parent's `required` list naming the child, or a row-resolved
+///   list after `if/then/else`)
+///
+/// All v0.7+ ctx fields that should inherit by default flow via `..parent`,
+/// so adding a new field (e.g. `ui_options`) does not require touching
+/// `array_field`/`object_field`.
+pub fn make_child_ctx(
+  parent parent: FieldRenderCtx,
+  model model: FormModel,
+  path child_path: path.FieldPath,
+  property child_prop: types.SchemaProperty,
+  is_required child_required: Bool,
+) -> FieldRenderCtx {
+  FieldRenderCtx(
+    ..parent,
+    path: child_path,
+    property: child_prop,
+    value: model.get_value_at_path(model, child_path),
+    is_required: child_required,
+    is_readonly: parent.is_readonly || child_prop.read_only,
+  )
 }
 
 /// Render a list of validation errors for a single field.

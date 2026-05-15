@@ -1,5 +1,6 @@
 // View functions for form rendering
 
+import formosh/fields/field_common
 import formosh/fields/field_dispatcher
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
@@ -85,17 +86,16 @@ fn render_field(
   property: types.SchemaProperty,
 ) -> Element(FormMsg) {
   let field_path = path.from_field_name(field_name)
-  let is_required = model.is_required_at_path(model, field_path)
-  let is_disabled = model.is_field_disabled(model, field_path)
-  let is_readonly = property.read_only
-  field_dispatcher.render_field_at_path(
-    field_path,
-    property,
-    model,
-    is_required,
-    is_disabled,
-    is_readonly,
-  )
+  let ctx =
+    field_common.make_field_ctx(
+      model: model,
+      path: field_path,
+      property: property,
+      is_required: model.is_required_at_path(model, field_path),
+      is_disabled: model.is_field_disabled(model, field_path),
+      is_readonly: property.read_only,
+    )
+  field_dispatcher.render_field_at_path(ctx, model)
 }
 
 fn render_form_footer_content(model: FormModel) -> Element(FormMsg) {

@@ -6,6 +6,7 @@
 // regress (e.g. moved into render_widget where wrap_with_errors would still
 // emit an empty <div>) and pass all other suites.
 
+import formosh/fields/field_common
 import formosh/fields/field_dispatcher
 import formosh/form/model.{FormModel}
 import formosh/form/path
@@ -44,14 +45,18 @@ fn visible_string_property() -> types.SchemaProperty {
 }
 
 fn render(property: types.SchemaProperty, is_readonly: Bool) -> String {
-  field_dispatcher.render_field_at_path(
-    path.from_field_name("name"),
-    property,
-    model.init(empty_schema()),
-    False,
-    False,
-    is_readonly,
-  )
+  let field_path = path.from_field_name("name")
+  let m = model.init(empty_schema())
+  let ctx =
+    field_common.make_field_ctx(
+      model: m,
+      path: field_path,
+      property: property,
+      is_required: False,
+      is_disabled: False,
+      is_readonly: is_readonly,
+    )
+  field_dispatcher.render_field_at_path(ctx, m)
   |> element.to_string
 }
 
@@ -89,16 +94,18 @@ pub fn readonly_suppressed_renders_to_empty_string_test() {
 // disabled input wrapped by formosh-field.
 pub fn readonly_visible_renders_wrapper_when_show_flag_enabled_test() {
   let base = FormModel(..model.init(empty_schema()), show_readonly_fields: True)
-  let html =
-    field_dispatcher.render_field_at_path(
-      path.from_field_name("name"),
-      visible_string_property(),
-      base,
-      False,
-      False,
-      True,
+  let field_path = path.from_field_name("name")
+  let ctx =
+    field_common.make_field_ctx(
+      model: base,
+      path: field_path,
+      property: visible_string_property(),
+      is_required: False,
+      is_disabled: False,
+      is_readonly: True,
     )
-    |> element.to_string
+  let html =
+    field_dispatcher.render_field_at_path(ctx, base) |> element.to_string
   case html {
     "" -> should.fail()
     _ -> Nil
