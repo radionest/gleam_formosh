@@ -1,16 +1,15 @@
 /// Number and integer field renderer.
-/// 
-/// This module handles rendering of numeric input fields for both integer
-/// and floating-point number types, with support for various numeric
-/// constraints like min/max values and step increments.
-import formosh/fields/field_common
+///
+/// Renders numeric input fields for both integer and floating-point types
+/// with min/max/step constraints from the schema.
+import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{type FormMsg, UpdateFieldPath}
 import formosh/form/path
 import formosh/schema/types
 import gleam/float
 import gleam/int
 import gleam/list
-import gleam/option.{type Option, None, Some}
+import gleam/option.{None, Some}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -18,48 +17,25 @@ import lustre/event
 
 /// Render a number or integer input field.
 ///
-/// Creates an HTML number input with appropriate constraints and validation.
-/// Automatically determines whether to use integer or decimal input based
-/// on the field type in the schema property.
-///
-/// ## Parameters
-/// - `field_name`: The field name for identification
-/// - `property`: Schema property containing type and numeric constraints
-/// - `value`: Current field value (NumberValue or IntegerValue)
-/// - `is_required`: Whether the field is required
-/// - `is_disabled`: Whether the field is disabled
-/// - `is_readonly`: Whether the field is read-only
-///
-/// ## Returns
-/// A complete number input field with label, input, and help text
-///
 /// ## Features
 /// - Integer vs decimal input (step="1" vs step="any")
 /// - Min/max value constraints from schema
 /// - Exclusive min/max handling
 /// - Multiple-of (step) constraints
-/// - Proper numeric parsing and validation
-pub fn render(
-  field_path: path.FieldPath,
-  property: types.SchemaProperty,
-  value: Option(types.Value),
-  is_required: Bool,
-  is_disabled: Bool,
-  is_readonly: Bool,
-) -> Element(FormMsg) {
-  let is_integer = case property.field_type {
+pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
+  let is_integer = case ctx.property.field_type {
     Some(types.IntegerType) -> True
     _ -> False
   }
 
-  let current_value = field_common.extract_number_value(value)
-  let field_name = path.get_field_name(field_path)
+  let current_value = field_common.extract_number_value(ctx.value)
+  let field_name = path.get_field_name(ctx.path)
 
   // Build constraint attributes
-  let constraint_attrs = get_number_constraints_attributes(property)
+  let constraint_attrs = get_number_constraints_attributes(ctx.property)
 
   // Add readonly attribute if needed
-  let readonly_attrs = case is_readonly {
+  let readonly_attrs = case ctx.is_readonly {
     True -> [attribute.attribute("readonly", "readonly")]
     False -> []
   }
@@ -70,31 +46,31 @@ pub fn render(
       attribute.attribute("part", "field-wrapper"),
     ],
     [
-      field_common.render_label(field_name, property, is_required),
+      field_common.render_label(field_name, ctx.property, ctx.is_required),
       html.input(
         list.flatten([
           [
-            attribute.id(path.to_string(field_path)),
+            attribute.id(path.to_string(ctx.path)),
             attribute.name(field_name),
             attribute.type_("number"),
             attribute.value(current_value),
             attribute.class("formosh-input formosh-number"),
             attribute.attribute("part", "input number"),
-            attribute.required(is_required),
-            attribute.disabled(is_disabled),
+            attribute.required(ctx.is_required),
+            attribute.disabled(ctx.is_disabled),
             case is_integer {
               True -> attribute.step("1")
               False -> attribute.step("any")
             },
             event.on_change(fn(val) {
-              handle_number_input(field_path, val, is_integer)
+              handle_number_input(ctx.path, val, is_integer)
             }),
           ],
           constraint_attrs,
           readonly_attrs,
         ]),
       ),
-      field_common.render_help_text(property),
+      field_common.render_help_text(ctx.property),
     ],
   )
 }

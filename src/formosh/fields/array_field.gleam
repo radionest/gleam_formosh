@@ -4,11 +4,11 @@
 /// and the add-item button. Child field rendering is delegated back to
 /// the caller via `render_child` — this keeps a single source of truth
 /// for widget dispatch (see `field_dispatcher.render_field_at_path`).
-import formosh/fields/field_common
+import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, RemoveArrayItemPath,
 }
-import formosh/form/path.{type FieldPath}
+import formosh/form/path
 import formosh/schema/conditional_resolver
 import formosh/schema/types.{type SchemaProperty, type Value}
 import gleam/int
@@ -29,28 +29,24 @@ import lustre/event
 /// including nested arrays and objects — goes through the same widget
 /// dispatch as top-level fields.
 pub fn render_container(
-  field_path: FieldPath,
-  property: SchemaProperty,
+  ctx: FieldRenderCtx,
   model: FormModel,
-  is_required: Bool,
-  is_disabled: Bool,
-  is_readonly: Bool,
-  render_child: fn(FieldPath, SchemaProperty, FormModel, Bool, Bool, Bool) ->
-    Element(FormMsg),
+  render_child: fn(FieldRenderCtx, FormModel) -> Element(FormMsg),
 ) -> Element(FormMsg) {
-  let array_name = path.get_field_name(field_path)
-  let description = property.description
+  let array_name = path.get_field_name(ctx.path)
+  let description = ctx.property.description
 
-  let items = case model.get_value_at_path(model, field_path) {
+  let items = case ctx.value {
     Some(types.ArrayValue(xs)) -> xs
-    _ -> []
+    Some(_) -> []
+    None -> []
   }
 
   html.div([class("array-field")], [
     field_common.render_container_label(
       field_name: array_name,
-      property: property,
-      is_required: is_required,
+      property: ctx.property,
+      is_required: ctx.is_required,
       css_class: "array-label",
     ),
     case description {
@@ -60,26 +56,17 @@ pub fn render_container(
     html.div(
       [class("array-items")],
       list.index_map(items, fn(item, index) {
-        render_array_item(
-          field_path,
-          property,
-          item,
-          index,
-          model,
-          is_disabled,
-          is_readonly,
-          render_child,
-        )
+        render_array_item(ctx, item, index, model, render_child)
       }),
     ),
-    case is_readonly || !property.addable {
+    case ctx.is_readonly || !ctx.property.addable {
       True -> element.none()
       False ->
         html.button(
           [
             type_("button"),
             class("add-array-item"),
-            event.on_click(AddArrayItemPath(field_path)),
+            event.on_click(AddArrayItemPath(ctx.path)),
           ],
           [html.text("Добавить элемент")],
         )
@@ -89,31 +76,27 @@ pub fn render_container(
 
 /// Render a single row: header with index + remove button, plus child fields.
 fn render_array_item(
-  array_path: FieldPath,
-  property: SchemaProperty,
+  ctx: FieldRenderCtx,
   item: Value,
   index: Int,
   model: FormModel,
-  is_disabled: Bool,
-  is_readonly: Bool,
-  render_child: fn(FieldPath, SchemaProperty, FormModel, Bool, Bool, Bool) ->
-    Element(FormMsg),
+  render_child: fn(FieldRenderCtx, FormModel) -> Element(FormMsg),
 ) -> Element(FormMsg) {
-  case property.items {
+  case ctx.property.items {
     Some(item_schema) ->
       html.div([class("array-item")], [
         html.div([class("array-item-header")], [
           html.span([class("array-item-index")], [
             html.text("№ " <> int.to_string(index + 1)),
           ]),
-          case is_readonly || !property.removable {
+          case ctx.is_readonly || !ctx.property.removable {
             True -> element.none()
             False ->
               html.button(
                 [
                   type_("button"),
                   class("remove-array-item"),
-                  event.on_click(RemoveArrayItemPath(array_path, index)),
+                  event.on_click(RemoveArrayItemPath(ctx.path, index)),
                 ],
                 [html.text("Удалить")],
               )
@@ -121,16 +104,7 @@ fn render_array_item(
         ]),
         html.div(
           [class("array-item-fields")],
-          render_item_fields(
-            array_path,
-            item_schema,
-            item,
-            index,
-            model,
-            is_disabled,
-            is_readonly,
-            render_child,
-          ),
+          render_item_fields(ctx, item_schema, item, index, model, render_child),
         ),
       ])
     None -> element.none()
@@ -141,21 +115,20 @@ fn render_array_item(
 ///
 /// Resolves the item schema against the row's own values (so item-level
 /// `if/then/else` rules take effect), then dispatches every visible
-/// property through `render_child`.
+/// property through `render_child`. `is_disabled` is inherited as-is from
+/// the array container; `is_readonly` is OR-inherited with each child's
+/// own `read_only`.
 fn render_item_fields(
-  array_path: FieldPath,
+  ctx: FieldRenderCtx,
   item_schema: SchemaProperty,
   item: Value,
   index: Int,
   model: FormModel,
-  is_disabled: Bool,
-  is_readonly: Bool,
-  render_child: fn(FieldPath, SchemaProperty, FormModel, Bool, Bool, Bool) ->
-    Element(FormMsg),
+  render_child: fn(FieldRenderCtx, FormModel) -> Element(FormMsg),
 ) -> List(Element(FormMsg)) {
   let resolved =
     conditional_resolver.resolve_conditional_property(item_schema, item)
-  let item_path = list.append(array_path, [path.ArraySegment(index)])
+  let item_path = list.append(ctx.path, [path.ArraySegment(index)])
 
   case resolved.properties {
     Some(props) ->
@@ -163,16 +136,15 @@ fn render_item_fields(
         let #(child_name, child_prop) = entry
         let child_path =
           list.append(item_path, [path.PropertySegment(child_name)])
-        let child_required = list.contains(resolved.required, child_name)
-        let child_readonly = is_readonly || child_prop.read_only
-        render_child(
-          child_path,
-          child_prop,
-          model,
-          child_required,
-          is_disabled,
-          child_readonly,
-        )
+        let child_ctx =
+          field_common.make_child_ctx(
+            parent: ctx,
+            model: model,
+            path: child_path,
+            property: child_prop,
+            is_required: list.contains(resolved.required, child_name),
+          )
+        render_child(child_ctx, model)
       })
     None -> []
   }

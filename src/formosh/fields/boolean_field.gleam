@@ -1,13 +1,13 @@
 /// Boolean field renderer with multiple presentation options.
-/// 
+///
 /// This module provides different ways to render boolean fields including
 /// radio buttons (Yes/No), checkboxes, and toggle switches. The default
 /// render function uses radio buttons for better accessibility and clarity.
-import formosh/fields/field_common
+import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{type FormMsg, UpdateFieldPath}
 import formosh/form/path
 import formosh/schema/types
-import gleam/option.{type Option}
+import gleam/option
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -15,66 +15,26 @@ import lustre/event
 
 /// Render a boolean field as radio buttons (Yes/No).
 ///
-/// This is the default boolean field renderer that uses radio buttons
-/// for better user experience and accessibility. Radio buttons make the
-/// boolean choice explicit and clear to users.
-///
-/// ## Parameters
-/// - `field_name`: The field name for identification
-/// - `property`: Schema property for labeling and help text
-/// - `value`: Current boolean value (defaults to False if unset)
-/// - `is_required`: Whether a selection is required
-/// - `is_disabled`: Whether the field is disabled
-/// - `is_readonly`: Whether the field is read-only
-///
-/// ## Returns
-/// A complete boolean field using radio buttons for Yes/No selection
-///
 /// ## Alternative Renderers
 /// - `render_as_checkbox`: Single checkbox for true/false
 /// - `render_as_toggle`: Toggle switch interface
-pub fn render(
-  field_path: path.FieldPath,
-  property: types.SchemaProperty,
-  value: Option(types.Value),
-  is_required: Bool,
-  is_disabled: Bool,
-  is_readonly: Bool,
-) -> Element(FormMsg) {
-  // For readonly, disable the radio buttons to prevent changes
-  let effective_disabled = is_disabled || is_readonly
-
-  // Render as radio buttons (Yes/No) for better UX
-  render_as_radio(field_path, property, value, is_required, effective_disabled)
+pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
+  render_as_radio(ctx)
 }
 
 /// Render boolean field as Yes/No radio button group.
-/// 
-/// Creates a radio button group with Yes (true) and No (false) options.
-/// This provides explicit choice selection that's accessible and clear.
-/// 
-/// ## Parameters
-/// - `field_name`: The field name for radio button grouping
-/// - `property`: Schema property for labeling and help text
-/// - `current_value`: Current boolean value
-/// - `is_required`: Whether a selection is required
-/// - `is_disabled`: Whether both radio buttons are disabled
-/// 
-/// ## Returns
-/// A radio button group with Yes/No options
-fn render_as_radio(
-  field_path: path.FieldPath,
-  property: types.SchemaProperty,
-  value: Option(types.Value),
-  is_required: Bool,
-  is_disabled: Bool,
-) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path)
-  let field_id = path.to_string(field_path)
+///
+/// Readonly state has no native HTML mapping for radio inputs, so it is
+/// folded into the disabled attribute locally — same pattern as
+/// `string_field.render_radio_group` and `render_select`.
+fn render_as_radio(ctx: FieldRenderCtx) -> Element(FormMsg) {
+  let field_name = path.get_field_name(ctx.path)
+  let field_id = path.to_string(ctx.path)
   let yes_id = field_id <> "_yes"
   let no_id = field_id <> "_no"
-  let is_true = field_common.extract_boolean_value(value)
-  let has_value = option.is_some(value)
+  let is_true = field_common.extract_boolean_value(ctx.value)
+  let has_value = option.is_some(ctx.value)
+  let effective_disabled = ctx.is_disabled || ctx.is_readonly
 
   html.div(
     [
@@ -82,7 +42,7 @@ fn render_as_radio(
       attribute.attribute("part", "field-wrapper"),
     ],
     [
-      field_common.render_label(field_name, property, is_required),
+      field_common.render_label(field_name, ctx.property, ctx.is_required),
       html.div(
         [
           attribute.class("formosh-radio-group formosh-boolean"),
@@ -101,10 +61,10 @@ fn render_as_radio(
                 attribute.name(field_id),
                 attribute.value("true"),
                 attribute.checked(has_value && is_true),
-                attribute.required(is_required),
-                attribute.disabled(is_disabled),
+                attribute.required(ctx.is_required),
+                attribute.disabled(effective_disabled),
                 event.on_click(UpdateFieldPath(
-                  field_path,
+                  ctx.path,
                   types.BooleanValue(True),
                 )),
               ]),
@@ -123,10 +83,10 @@ fn render_as_radio(
                 attribute.name(field_id),
                 attribute.value("false"),
                 attribute.checked(has_value && !is_true),
-                attribute.required(is_required),
-                attribute.disabled(is_disabled),
+                attribute.required(ctx.is_required),
+                attribute.disabled(effective_disabled),
                 event.on_click(UpdateFieldPath(
-                  field_path,
+                  ctx.path,
                   types.BooleanValue(False),
                 )),
               ]),
@@ -135,40 +95,20 @@ fn render_as_radio(
           ),
         ],
       ),
-      field_common.render_help_text(property),
+      field_common.render_help_text(ctx.property),
     ],
   )
 }
 
 /// Render boolean field as a single checkbox.
-/// 
+///
 /// Alternative boolean renderer that uses a traditional checkbox input.
-/// This is more compact but may be less explicit about the false state
-/// compared to radio buttons.
-/// 
-/// ## Parameters
-/// - `field_name`: The field name for identification
-/// - `property`: Schema property for labeling and help text
-/// - `value`: Current boolean value (defaults to False if unset)
-/// - `is_required`: Whether the checkbox must be checked
-/// - `is_disabled`: Whether the checkbox is disabled
-/// 
-/// ## Returns
-/// A checkbox field with label positioned after the checkbox
-/// 
-/// ## Usage
-/// Use this for compact boolean inputs or when the false state is implicit.
-pub fn render_as_checkbox(
-  field_path: path.FieldPath,
-  property: types.SchemaProperty,
-  value: Option(types.Value),
-  is_required: Bool,
-  is_disabled: Bool,
-) -> Element(FormMsg) {
-  let current_value = field_common.extract_boolean_value(value)
+/// Compact but less explicit about the false state than radio buttons.
+pub fn render_as_checkbox(ctx: FieldRenderCtx) -> Element(FormMsg) {
+  let current_value = field_common.extract_boolean_value(ctx.value)
 
-  let field_name = path.get_field_name(field_path)
-  let field_id = path.to_string(field_path)
+  let field_name = path.get_field_name(ctx.path)
+  let field_id = path.to_string(ctx.path)
 
   html.div(
     [
@@ -187,54 +127,28 @@ pub fn render_as_checkbox(
             attribute.id(field_id),
             attribute.name(field_id),
             attribute.checked(current_value),
-            attribute.required(is_required),
-            attribute.disabled(is_disabled),
+            attribute.required(ctx.is_required),
+            attribute.disabled(ctx.is_disabled),
             event.on_click(UpdateFieldPath(
-              field_path,
+              ctx.path,
               types.BooleanValue(!current_value),
             )),
           ]),
-          field_common.render_label(field_name, property, is_required),
+          field_common.render_label(field_name, ctx.property, ctx.is_required),
         ],
       ),
-      field_common.render_help_text(property),
+      field_common.render_help_text(ctx.property),
     ],
   )
 }
 
 /// Render boolean field as a toggle switch.
-/// 
-/// Alternative boolean renderer that creates a toggle switch interface
-/// with ON/OFF states. This provides a modern, mobile-friendly interface
-/// for boolean selection.
-/// 
-/// ## Parameters
-/// - `field_name`: The field name for identification
-/// - `property`: Schema property for labeling and help text
-/// - `value`: Current boolean value (defaults to False if unset)
-/// - `is_required`: Whether the field is required (for validation only)
-/// - `is_disabled`: Whether the toggle is disabled
-/// 
-/// ## Returns
-/// A toggle switch with ON/OFF visual states
-/// 
-/// ## Features
-/// - Visual ON/OFF indicator
-/// - ARIA accessibility attributes (role="switch", aria-checked)
-/// - Button-based interaction (not a form input)
-/// 
-/// ## Usage
-/// Use for modern interfaces or settings-style boolean controls.
-pub fn render_as_toggle(
-  field_path: path.FieldPath,
-  property: types.SchemaProperty,
-  value: Option(types.Value),
-  is_required: Bool,
-  is_disabled: Bool,
-) -> Element(FormMsg) {
-  let current_value = field_common.extract_boolean_value(value)
+///
+/// Modern, mobile-friendly interface with ON/OFF states and ARIA switch role.
+pub fn render_as_toggle(ctx: FieldRenderCtx) -> Element(FormMsg) {
+  let current_value = field_common.extract_boolean_value(ctx.value)
 
-  let field_name = path.get_field_name(field_path)
+  let field_name = path.get_field_name(ctx.path)
 
   let state_string = case current_value {
     True -> "on"
@@ -247,7 +161,7 @@ pub fn render_as_toggle(
       attribute.attribute("part", "field-wrapper"),
     ],
     [
-      field_common.render_label(field_name, property, is_required),
+      field_common.render_label(field_name, ctx.property, ctx.is_required),
       html.div(
         [
           attribute.class("formosh-toggle-wrapper"),
@@ -260,14 +174,14 @@ pub fn render_as_toggle(
               attribute.class("formosh-toggle"),
               attribute.attribute("part", "toggle"),
               attribute.attribute("data-state", state_string),
-              attribute.disabled(is_disabled),
+              attribute.disabled(ctx.is_disabled),
               attribute.attribute("role", "switch"),
               attribute.attribute("aria-checked", case current_value {
                 True -> "true"
                 False -> "false"
               }),
               event.on_click(UpdateFieldPath(
-                field_path,
+                ctx.path,
                 types.BooleanValue(!current_value),
               )),
             ],
@@ -295,7 +209,7 @@ pub fn render_as_toggle(
           ),
         ],
       ),
-      field_common.render_help_text(property),
+      field_common.render_help_text(ctx.property),
     ],
   )
 }
