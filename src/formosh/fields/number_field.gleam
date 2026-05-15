@@ -64,32 +64,39 @@ pub fn render(
     False -> []
   }
 
-  html.div([attribute.class("formosh-field-wrapper")], [
-    field_common.render_label(field_name, property, is_required),
-    html.input(
-      list.flatten([
-        [
-          attribute.id(path.to_string(field_path)),
-          attribute.name(field_name),
-          attribute.type_("number"),
-          attribute.value(current_value),
-          attribute.class("formosh-input formosh-number"),
-          attribute.required(is_required),
-          attribute.disabled(is_disabled),
-          case is_integer {
-            True -> attribute.step("1")
-            False -> attribute.step("any")
-          },
-          event.on_change(fn(val) {
-            handle_number_input(field_path, val, is_integer)
-          }),
-        ],
-        constraint_attrs,
-        readonly_attrs,
-      ]),
-    ),
-    field_common.render_help_text(property),
-  ])
+  html.div(
+    [
+      attribute.class("formosh-field-wrapper"),
+      attribute.attribute("part", "field-wrapper"),
+    ],
+    [
+      field_common.render_label(field_name, property, is_required),
+      html.input(
+        list.flatten([
+          [
+            attribute.id(path.to_string(field_path)),
+            attribute.name(field_name),
+            attribute.type_("number"),
+            attribute.value(current_value),
+            attribute.class("formosh-input formosh-number"),
+            attribute.attribute("part", "input number"),
+            attribute.required(is_required),
+            attribute.disabled(is_disabled),
+            case is_integer {
+              True -> attribute.step("1")
+              False -> attribute.step("any")
+            },
+            event.on_change(fn(val) {
+              handle_number_input(field_path, val, is_integer)
+            }),
+          ],
+          constraint_attrs,
+          readonly_attrs,
+        ]),
+      ),
+      field_common.render_help_text(property),
+    ],
+  )
 }
 
 /// Handle numeric input parsing and conversion to appropriate field value.

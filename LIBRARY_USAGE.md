@@ -144,7 +144,6 @@ pub fn init() {
     router.FormRoute(schema) -> {
       let form_config = formosh.config(schema)
         |> formosh.with_submit_url(app_state.api_url <> "/forms")
-        |> formosh.with_css_prefix("app-form")
       
       let form = formosh.from_config(form_config)
       lustre.start(form, "#form-container", Nil)
@@ -191,8 +190,7 @@ pub fn create_multiple_forms(schemas: List(#(String, JsonSchema))) {
     let #(container_id, schema) = item
     
     let config = formosh.config(schema)
-      |> formosh.with_css_prefix(container_id)
-    
+
     let form = formosh.from_config(config)
 
     lustre.start(form, "#" <> container_id, Nil)
@@ -202,20 +200,59 @@ pub fn create_multiple_forms(schemas: List(#(String, JsonSchema))) {
 
 ## CSS Customization
 
-The library uses CSS classes with a configurable prefix (default: "formosh"):
+The form renders inside an open Shadow DOM (when used as `<formosh-form>` web
+component). Three styling surfaces are available:
 
-```gleam
-// Custom CSS prefix
-let config = formosh.config(schema)
-  |> formosh.with_css_prefix("my-form")
+### 1. `::part()` selectors — preferred
+
+Every styled element exposes a `part` name (the class suffix without
+`formosh-`). Target them from your stylesheet:
+
+```css
+formosh-form::part(input)         { border: 1px solid #d33; }
+formosh-form::part(label)         { font-weight: 600; }
+formosh-form::part(error)         { color: orange; }
+formosh-form::part(submit)        { background: #08a; color: white; }
 ```
 
-This will generate classes like:
-- `my-form-container`
-- `my-form-field`
-- `my-form-input`
-- `my-form-error`
-- etc.
+### 2. `data-*` attributes for state
+
+Error/readonly state on the field wrapper, on/off state on toggles:
+
+```css
+formosh-form::part(field)[data-error]      { border-color: red; }
+formosh-form::part(field)[data-readonly]   { opacity: 0.6; }
+formosh-form::part(toggle)[data-state=on]  { background: #0a8; }
+formosh-form::part(toggle)[data-state=off] { background: #ccc; }
+```
+
+### 3. Parent stylesheets (auto-adopted)
+
+Lustre clones the parent document's CSS into the shadow root, so plain class
+selectors still apply inside:
+
+```css
+.formosh-input { padding: 0.5rem; }
+.formosh-error { color: red; }
+```
+
+When using Formosh as a plain Lustre application (no web component, no shadow
+DOM), only the class selectors work — `::part()` and shadow-internal
+behaviour do not apply.
+
+### Cascade & limitations
+
+- **Cascade order**: rules from adopted parent stylesheets and `::part()`
+  rules from the host document apply in normal CSS specificity order. To
+  override a class-based rule, give your `::part()` selector higher
+  specificity (e.g. `formosh-form::part(input):not(:disabled)`) or use
+  `!important` sparingly.
+- **Compound parts**: elements with multiple parts (e.g.
+  `part="radio-group boolean"`) are addressable by either token. There is
+  no descendant combinator support inside `::part()`, so you cannot write
+  `formosh-form::part(boolean) ::part(radio-item)` — to style radio items
+  *inside* a boolean group differently from string-enum radios, add a
+  marker class on the host or restructure the schema.
 
 ## Error Handling
 
@@ -252,7 +289,6 @@ pub fn main() {
   
   let config = formosh.config(my_schema)
     |> formosh.with_submit_url("https://api.myapp.com/contact")
-    |> formosh.with_css_prefix("contact-form")
   
   let form = formosh.from_config(config)
 

@@ -46,7 +46,6 @@ let assert Ok(schema) = parser.parse_schema(json_string)
 
 let app = formosh.config(schema)
   |> formosh.with_submit_url("https://api.example.com/submit")
-  |> formosh.with_css_prefix("my-form")
   |> formosh.with_show_errors_on_change(True)
   |> formosh.with_show_readonly_fields(True)
   |> formosh.with_initial_values(dict.from_list([
@@ -97,7 +96,6 @@ Use as a custom HTML element without writing Gleam:
   schema='{"type": "object", "properties": {"name": {"type": "string"}}}'
   submit-url="https://api.example.com/submit"
   submit-method="POST"
-  css-prefix="my-form"
   initial-values='{"name": "John"}'>
 </formosh-form>
 
@@ -324,17 +322,41 @@ The widget is chosen automatically based on schema:
 - Enum value validation (function stub exists, always passes)
 - RFC-compliant email/URL format validation
 
-## CSS Classes
+## Styling
 
-All classes use a configurable prefix (default: `formosh`):
+The component runs inside an open Shadow DOM. There are three customization surfaces:
 
-```
-{prefix}-container, {prefix}-form, {prefix}-field-wrapper,
-{prefix}-label, {prefix}-required, {prefix}-input, {prefix}-textarea,
-{prefix}-radio-group, {prefix}-radio-item, {prefix}-select,
-{prefix}-checkbox-*, {prefix}-toggle-*, {prefix}-help,
-{prefix}-field-error, {prefix}-header, {prefix}-title, {prefix}-description
-```
+1. **`::part()` selectors** — every styled element exposes a `part` name (the class suffix without `formosh-`). Style from outside:
+
+   ```css
+   formosh-form::part(input)         { border: 1px solid #d33; }
+   formosh-form::part(label)         { font-weight: 600; }
+   formosh-form::part(error)         { color: orange; }
+   formosh-form::part(submit)        { background: #08a; color: white; }
+   ```
+
+2. **`data-*` attributes for state** — error and readonly states on the field wrapper, on/off state on toggles:
+
+   ```css
+   formosh-form::part(field)[data-error]    { border-color: red; }
+   formosh-form::part(field)[data-readonly] { opacity: 0.6; }
+   formosh-form::part(toggle)[data-state=on]  { background: #0a8; }
+   formosh-form::part(toggle)[data-state=off] { background: #ccc; }
+   ```
+
+3. **Parent stylesheets are auto-adopted** — Lustre clones the parent document's CSS into the shadow root, so plain class selectors still work:
+
+   ```css
+   .formosh-input { padding: 0.5rem; }
+   .formosh-error { color: red; }
+   ```
+
+Part names available (one per styled element): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `toggle`, `toggle-wrapper`, `toggle-slider`, `toggle-text`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`.
+
+Notes:
+
+- **Cascade**: adopted parent stylesheets and host-level `::part()` rules cascade by normal CSS specificity. To override a `.formosh-*` class rule, give your `::part()` selector higher specificity or use a more specific compound condition (`::part(input):not(:disabled)`).
+- **Compound parts**: elements that carry two part tokens (e.g. `part="radio-group boolean"`) are reachable through either token. `::part()` does not support descendant combinators — so `radio-item` inside a boolean group cannot be addressed differently from one inside an enum group through Shadow Parts alone.
 
 No default styles are included — bring your own CSS.
 
@@ -364,7 +386,6 @@ formosh.from_config(config: FormConfig) -> App
 formosh.with_submit_url(config, url) -> FormConfig
 formosh.with_http_submit(config, url, method, headers) -> FormConfig
 formosh.with_custom_submit(config, handler) -> FormConfig
-formosh.with_css_prefix(config, prefix) -> FormConfig
 formosh.with_show_errors_on_change(config, show) -> FormConfig
 formosh.with_show_readonly_fields(config, show) -> FormConfig
 formosh.with_initial_values(config, values) -> FormConfig

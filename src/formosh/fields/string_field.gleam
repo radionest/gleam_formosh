@@ -159,6 +159,7 @@ fn render_input(
   let extra_attrs = [
     attribute.type_(input_type),
     attribute.class("formosh-input"),
+    attribute.attribute("part", "input"),
     ..get_string_constraints_attributes(property)
   ]
 
@@ -212,6 +213,7 @@ fn render_textarea(
 
   let extra_attrs = [
     attribute.class("formosh-textarea"),
+    attribute.attribute("part", "textarea"),
     ..get_string_constraints_attributes(property)
   ]
 
@@ -370,29 +372,38 @@ fn render_radio_group(
 
   let radio_group =
     html.div(
-      [attribute.class("formosh-radio-group")],
+      [
+        attribute.class("formosh-radio-group"),
+        attribute.attribute("part", "radio-group"),
+      ],
       list.map(enum_vals, fn(val) {
         let str_val = value_to_string(val)
         let radio_id = field_id <> "_" <> str_val
 
-        html.div([attribute.class("formosh-radio-item")], [
-          html.input([
-            attribute.type_("radio"),
-            attribute.id(radio_id),
-            attribute.name(field_id),
-            attribute.value(str_val),
-            attribute.checked(str_val == current_value),
-            attribute.required(is_required),
-            attribute.disabled(effective_disabled),
-            event.on_click(UpdateFieldPath(
-              field_path,
-              types.StringValue(str_val),
-            )),
-          ]),
-          html.label([attribute.for(radio_id)], [
-            html.text(str_val),
-          ]),
-        ])
+        html.div(
+          [
+            attribute.class("formosh-radio-item"),
+            attribute.attribute("part", "radio-item"),
+          ],
+          [
+            html.input([
+              attribute.type_("radio"),
+              attribute.id(radio_id),
+              attribute.name(field_id),
+              attribute.value(str_val),
+              attribute.checked(str_val == current_value),
+              attribute.required(is_required),
+              attribute.disabled(effective_disabled),
+              event.on_click(UpdateFieldPath(
+                field_path,
+                types.StringValue(str_val),
+              )),
+            ]),
+            html.label([attribute.for(radio_id)], [
+              html.text(str_val),
+            ]),
+          ],
+        )
       }),
     )
 
@@ -440,6 +451,7 @@ fn render_select(
         attribute.id(field_id),
         attribute.name(field_id),
         attribute.class("formosh-select"),
+        attribute.attribute("part", "select"),
         attribute.required(is_required),
         attribute.disabled(effective_disabled),
         event.on_change(fn(val) {
@@ -615,26 +627,38 @@ fn render_one_of_radio_group(
 
   let radio_group =
     html.div(
-      [attribute.class("formosh-radio-group")],
+      [
+        attribute.class("formosh-radio-group"),
+        attribute.attribute("part", "radio-group"),
+      ],
       list.map(options, fn(option) {
         let #(value, label) = option
         let radio_id = field_id <> "_" <> value
 
-        html.div([attribute.class("formosh-radio-item")], [
-          html.input([
-            attribute.type_("radio"),
-            attribute.id(radio_id),
-            attribute.name(field_id),
-            attribute.value(value),
-            attribute.checked(value == current_value),
-            attribute.required(is_required),
-            attribute.disabled(effective_disabled),
-            event.on_click(UpdateFieldPath(field_path, types.StringValue(value))),
-          ]),
-          html.label([attribute.for(radio_id)], [
-            html.text(label),
-          ]),
-        ])
+        html.div(
+          [
+            attribute.class("formosh-radio-item"),
+            attribute.attribute("part", "radio-item"),
+          ],
+          [
+            html.input([
+              attribute.type_("radio"),
+              attribute.id(radio_id),
+              attribute.name(field_id),
+              attribute.value(value),
+              attribute.checked(value == current_value),
+              attribute.required(is_required),
+              attribute.disabled(effective_disabled),
+              event.on_click(UpdateFieldPath(
+                field_path,
+                types.StringValue(value),
+              )),
+            ]),
+            html.label([attribute.for(radio_id)], [
+              html.text(label),
+            ]),
+          ],
+        )
       }),
     )
 
@@ -665,6 +689,7 @@ fn render_one_of_select(
         attribute.id(field_id),
         attribute.name(field_id),
         attribute.class("formosh-select"),
+        attribute.attribute("part", "select"),
         attribute.required(is_required),
         attribute.disabled(effective_disabled),
         event.on_change(fn(val) {

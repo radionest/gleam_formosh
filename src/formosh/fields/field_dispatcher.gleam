@@ -21,6 +21,7 @@ import formosh/form/path.{type FieldPath}
 import formosh/schema/types.{type SchemaProperty, type Value}
 import formosh/validation/error.{type ValidationError}
 import gleam/dict
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import lustre/attribute
 import lustre/element.{type Element}
@@ -183,19 +184,24 @@ fn wrap_with_errors(
   has_errors: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let error_class = case has_errors && is_touched {
-    True -> " formosh-field-error"
-    False -> ""
+  let show_error = has_errors && is_touched
+  let base_attrs = [
+    attribute.class("formosh-field"),
+    attribute.attribute("part", "field"),
+  ]
+  let error_attr = case show_error {
+    True -> [attribute.attribute("data-error", "true")]
+    False -> []
   }
-  let readonly_class = case is_readonly {
-    True -> " formosh-field-readonly"
-    False -> ""
+  let readonly_attr = case is_readonly {
+    True -> [attribute.attribute("data-readonly", "true")]
+    False -> []
   }
-  let class_str = "formosh-field" <> error_class <> readonly_class
+  let attrs = list.flatten([base_attrs, error_attr, readonly_attr])
 
-  html.div([attribute.class(class_str)], [
+  html.div(attrs, [
     field_element,
-    case has_errors && is_touched {
+    case show_error {
       True -> field_common.render_field_errors(errors)
       False -> element.none()
     },

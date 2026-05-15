@@ -21,8 +21,6 @@ pub type FormConfig {
   FormConfig(
     schema: JsonSchema,
     submit_config: SubmitConfig,
-    /// Optional CSS class prefix for styling
-    css_prefix: String,
     /// Whether to show validation errors immediately or only after blur
     show_errors_on_change: Bool,
     /// Whether to display readOnly fields (default: False - hidden)
@@ -41,8 +39,8 @@ pub type FormConfig {
 /// - `schema`: The JSON Schema definition for the form
 /// 
 /// ## Returns
-/// A FormConfig with default settings (no submission handler, standard CSS prefix)
-/// 
+/// A FormConfig with default settings (no submission handler)
+///
 /// ## Example
 /// ```gleam
 /// let config = formosh.config(schema)
@@ -52,7 +50,6 @@ pub fn config(schema: JsonSchema) -> FormConfig {
   FormConfig(
     schema: schema,
     submit_config: NoSubmit,
-    css_prefix: "formosh",
     show_errors_on_change: False,
     show_readonly_fields: False,
     initial_values: dict.new(),
@@ -111,18 +108,6 @@ pub fn with_custom_submit(
   handler: fn(model.FormModel) -> Result(String, String),
 ) -> FormConfig {
   FormConfig(..config, submit_config: CustomSubmit(handler: handler))
-}
-
-/// Set the CSS class prefix for form elements.
-/// 
-/// ## Parameters
-/// - `config`: The form configuration to update
-/// - `prefix`: The CSS class prefix to use
-/// 
-/// ## Returns
-/// Updated FormConfig with new CSS prefix
-pub fn with_css_prefix(config: FormConfig, prefix: String) -> FormConfig {
-  FormConfig(..config, css_prefix: prefix)
 }
 
 /// Configure whether to show validation errors immediately on change.
@@ -210,7 +195,6 @@ pub fn from_schema(schema: JsonSchema) -> lustre.App(Nil, FormModel, FormMsg) {
 /// ```gleam
 /// let config = formosh.config(schema)
 ///   |> formosh.with_submit_url("https://api.example.com/submit")
-///   |> formosh.with_css_prefix("my-form")
 /// let app = formosh.from_config(config)
 /// lustre.start(app, "#form-container", Nil)
 /// ```
@@ -293,7 +277,6 @@ pub fn from_json_string_with_config(
         FormConfig(
           schema: schema,
           submit_config: submit_config,
-          css_prefix: "formosh",
           show_errors_on_change: False,
           show_readonly_fields: False,
           initial_values: dict.new(),

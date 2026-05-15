@@ -60,10 +60,6 @@ pub fn register() -> Result(Nil, lustre.Error) {
       component.on_attribute_change("submit-method", fn(value) {
         Ok(SubmitMethodChanged(value))
       }),
-      // Listen for CSS prefix changes
-      component.on_attribute_change("css-prefix", fn(value) {
-        Ok(CssPrefixChanged(value))
-      }),
       // Listen for initial values changes (JSON string)
       component.on_attribute_change("initial-values", fn(value) {
         case json_utils.json_string_to_values(value) {
@@ -133,11 +129,6 @@ pub fn submit_method(method: String) -> Attribute(msg) {
   attribute.attribute("submit-method", method)
 }
 
-/// Set the CSS class prefix for form elements.
-pub fn css_prefix(prefix: String) -> Attribute(msg) {
-  attribute.attribute("css-prefix", prefix)
-}
-
 /// Set initial values for the form as a JSON string.
 pub fn initial_values_string(json: String) -> Attribute(msg) {
   attribute.attribute("initial-values", json)
@@ -204,7 +195,6 @@ type Model {
     // Component configuration
     submit_url: Option(String),
     submit_method: String,
-    css_prefix: String,
     // Initial values to populate the form with
     initial_values: dict.Dict(String, Value),
     // Whether to show readOnly fields (True) or hide them (False)
@@ -220,7 +210,6 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       form_model: None,
       submit_url: None,
       submit_method: "POST",
-      css_prefix: "formosh",
       initial_values: dict.new(),
       show_readonly_fields: True,
       upload_base_url: None,
@@ -237,7 +226,6 @@ type Msg {
   SchemaChanged(JsonSchema)
   SubmitUrlChanged(String)
   SubmitMethodChanged(String)
-  CssPrefixChanged(String)
   InitialValuesChanged(dict.Dict(String, Value))
   ShowReadonlyFieldsChanged(Bool)
   UploadBaseUrlChanged(String)
@@ -326,10 +314,6 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         _ -> new_model
       }
       #(final_model, effect.none())
-    }
-
-    CssPrefixChanged(prefix) -> {
-      #(Model(..model, css_prefix: prefix), effect.none())
     }
 
     InitialValuesChanged(values) -> {
@@ -444,7 +428,8 @@ fn view(model: Model) -> Element(Msg) {
       element.element(
         "div",
         [
-          attribute.class(model.css_prefix <> "-loading"),
+          attribute.class("formosh-loading"),
+          attribute.attribute("part", "loading"),
         ],
         [
           element.text("Waiting for schema..."),

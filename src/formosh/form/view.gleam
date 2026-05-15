@@ -13,26 +13,50 @@ import lustre/event
 
 /// Render the entire form as a Lustre element.
 pub fn view(model: FormModel) -> Element(FormMsg) {
-  html.div([attribute.class("formosh-container")], [
-    render_form_header(model),
-    render_form_body(model),
-    render_submission_result(model),
-  ])
+  html.div(
+    [
+      attribute.class("formosh-container"),
+      attribute.attribute("part", "container"),
+    ],
+    [
+      render_form_header(model),
+      render_form_body(model),
+      render_submission_result(model),
+    ],
+  )
 }
 
 fn render_form_header(model: FormModel) -> Element(FormMsg) {
-  html.div([attribute.class("formosh-header")], [
-    case model.schema.title {
-      Some(title) ->
-        html.h2([attribute.class("formosh-title")], [html.text(title)])
-      None -> element.none()
-    },
-    case model.schema.description {
-      Some(desc) ->
-        html.p([attribute.class("formosh-description")], [html.text(desc)])
-      None -> element.none()
-    },
-  ])
+  html.div(
+    [
+      attribute.class("formosh-header"),
+      attribute.attribute("part", "header"),
+    ],
+    [
+      case model.schema.title {
+        Some(title) ->
+          html.h2(
+            [
+              attribute.class("formosh-title"),
+              attribute.attribute("part", "title"),
+            ],
+            [html.text(title)],
+          )
+        None -> element.none()
+      },
+      case model.schema.description {
+        Some(desc) ->
+          html.p(
+            [
+              attribute.class("formosh-description"),
+              attribute.attribute("part", "description"),
+            ],
+            [html.text(desc)],
+          )
+        None -> element.none()
+      },
+    ],
+  )
 }
 
 fn render_form_body(model: FormModel) -> Element(FormMsg) {
@@ -45,6 +69,7 @@ fn render_form_body(model: FormModel) -> Element(FormMsg) {
   html.form(
     [
       attribute.class("formosh-form"),
+      attribute.attribute("part", "form"),
       event.on_submit(fn(_) { model.FormSubmit }),
     ],
     list.append(fields, [render_form_footer_content(model)]),
@@ -74,42 +99,58 @@ fn render_field(
 }
 
 fn render_form_footer_content(model: FormModel) -> Element(FormMsg) {
-  html.div([attribute.class("formosh-footer")], [
-    html.button(
-      [
-        attribute.type_("submit"),
-        attribute.class("formosh-submit"),
-        attribute.disabled(model.is_submitting || !model.can_submit(model)),
-      ],
-      [
-        html.text(case model.is_submitting {
-          True -> "Submitting..."
-          False -> "Submit"
-        }),
-      ],
-    ),
-    html.button(
-      [
-        attribute.type_("button"),
-        attribute.class("formosh-reset"),
-        event.on_click(model.ResetForm),
-        attribute.disabled(model.is_submitting),
-      ],
-      [html.text("Reset")],
-    ),
-  ])
+  html.div(
+    [
+      attribute.class("formosh-footer"),
+      attribute.attribute("part", "footer"),
+    ],
+    [
+      html.button(
+        [
+          attribute.type_("submit"),
+          attribute.class("formosh-submit"),
+          attribute.attribute("part", "submit"),
+          attribute.disabled(model.is_submitting || !model.can_submit(model)),
+        ],
+        [
+          html.text(case model.is_submitting {
+            True -> "Submitting..."
+            False -> "Submit"
+          }),
+        ],
+      ),
+      html.button(
+        [
+          attribute.type_("button"),
+          attribute.class("formosh-reset"),
+          attribute.attribute("part", "reset"),
+          event.on_click(model.ResetForm),
+          attribute.disabled(model.is_submitting),
+        ],
+        [html.text("Reset")],
+      ),
+    ],
+  )
 }
 
 fn render_submission_result(model: FormModel) -> Element(FormMsg) {
   case model.submission_result {
     Some(model.SubmissionSuccess(message)) ->
-      html.div([attribute.class("formosh-success")], [
-        html.text(message),
-      ])
+      html.div(
+        [
+          attribute.class("formosh-success"),
+          attribute.attribute("part", "success"),
+        ],
+        [html.text(message)],
+      )
     Some(model.SubmissionError(message)) ->
-      html.div([attribute.class("formosh-error-message")], [
-        html.text(message),
-      ])
+      html.div(
+        [
+          attribute.class("formosh-error-message"),
+          attribute.attribute("part", "error-message"),
+        ],
+        [html.text(message)],
+      )
     None -> element.none()
   }
 }
