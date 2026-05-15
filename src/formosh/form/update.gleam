@@ -4,12 +4,15 @@ import formosh/ffi/image_upload as image_upload_ffi
 import formosh/form/json_utils
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit, FileUploadError,
-  FileUploading, FormSubmit, FormSubmitted, HttpSubmit, ImageRemoved,
-  ImageUploadCompleted, ImageUploadFailed, ImageUploadRequested,
-  ImageUploadStarted, NoSubmit, RemoveArrayItemPath, ResetForm, SubmissionError,
-  SubmissionSuccess, UpdateFieldPath, ValidateForm,
+  FileUploading, FormSubmit, FormSubmitted, HttpSubmit, NoSubmit,
+  RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
+  UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
 }
 import formosh/form/path
+import formosh/form/widget_msg.{
+  ImageCompleted, ImageFailed, ImageRemoved, ImageRequested, ImageStarted,
+  ImageUpload,
+}
 import formosh/schema/conditional_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type Value}
@@ -152,12 +155,23 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       #(new_model, effect.none())
     }
 
-    ImageUploadRequested(field_path) -> {
+    WidgetEvent(ImageUpload(image_event)) ->
+      handle_image_upload_event(model, image_event)
+  }
+}
+
+/// Handle the image-upload widget lifecycle events.
+fn handle_image_upload_event(
+  model: FormModel,
+  event: widget_msg.ImageUploadEvent,
+) -> #(FormModel, Effect(FormMsg)) {
+  case event {
+    ImageRequested(field_path) -> {
       let upload_effect = create_upload_effect(model, field_path)
       #(model, upload_effect)
     }
 
-    ImageUploadStarted(field_path, temp_id, preview_url) -> {
+    ImageStarted(field_path, temp_id, preview_url) -> {
       let path_key = path.to_string(field_path)
       let current =
         dict.get(model.upload_states, path_key)
@@ -172,7 +186,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       #(model.FormModel(..model, upload_states: new_states), effect.none())
     }
 
-    ImageUploadCompleted(field_path, temp_id, server_url) -> {
+    ImageCompleted(field_path, temp_id, server_url) -> {
       // Remove from upload_states
       let path_key = path.to_string(field_path)
       let new_states =
@@ -210,7 +224,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       #(validated_model, effect.none())
     }
 
-    ImageUploadFailed(field_path, temp_id, error) -> {
+    ImageFailed(field_path, temp_id, error) -> {
       let path_key = path.to_string(field_path)
 
       // Revoke the blob preview URL if it exists
@@ -481,15 +495,15 @@ fn create_upload_effect(
           max_file_size,
           upload_url,
           fn(temp_id, preview_url) {
-            dispatch(ImageUploadStarted(field_path, temp_id, preview_url))
+            dispatch(image_msg(ImageStarted(field_path, temp_id, preview_url)))
             Nil
           },
           fn(temp_id, server_url) {
-            dispatch(ImageUploadCompleted(field_path, temp_id, server_url))
+            dispatch(image_msg(ImageCompleted(field_path, temp_id, server_url)))
             Nil
           },
           fn(temp_id, error) {
-            dispatch(ImageUploadFailed(field_path, temp_id, error))
+            dispatch(image_msg(ImageFailed(field_path, temp_id, error)))
             Nil
           },
         )
