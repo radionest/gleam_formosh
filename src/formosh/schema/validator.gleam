@@ -6,10 +6,10 @@ import formosh/schema/types.{
   type SchemaProperty, type Value, ArrayValue, BooleanValue, IntegerValue,
   NullValue, NumberValue, ObjectValue, StringValue,
 }
-import formosh/validation/error.{type ValidationError, ValidationError}
+import formosh/validation/error.{type ValidationError}
 import formosh/validation/field_requirements
+import formosh/validation/messages
 import gleam/dict.{type Dict}
-import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -42,11 +42,7 @@ fn validate_image_upload(
     None | Some(NullValue) | Some(ArrayValue([])) ->
       case is_required {
         True -> [
-          ValidationError(
-            field: field_path,
-            message: "At least one image is required",
-            rule: "required",
-          ),
+          error.from_failure(field_path, messages.ImageRequired),
         ]
         False -> []
       }
@@ -60,11 +56,7 @@ fn validate_image_upload(
         })
       case invalid {
         True -> [
-          ValidationError(
-            field: field_path,
-            message: "Invalid image upload value",
-            rule: "type",
-          ),
+          error.from_failure(field_path, messages.InvalidImageUpload),
         ]
         False -> []
       }
@@ -126,13 +118,7 @@ fn validate_string(
               case string.length(str) < min {
                 True ->
                   list.append(errors, [
-                    ValidationError(
-                      field: field_path,
-                      message: "Must be at least "
-                        <> int.to_string(min)
-                        <> " characters",
-                      rule: "minLength",
-                    ),
+                    error.from_failure(field_path, messages.MinLength(min)),
                   ])
                 False -> errors
               }
@@ -145,13 +131,7 @@ fn validate_string(
               case string.length(str) > max {
                 True ->
                   list.append(errors, [
-                    ValidationError(
-                      field: field_path,
-                      message: "Must be at most "
-                        <> int.to_string(max)
-                        <> " characters",
-                      rule: "maxLength",
-                    ),
+                    error.from_failure(field_path, messages.MaxLength(max)),
                   ])
                 False -> errors
               }
@@ -164,11 +144,7 @@ fn validate_string(
               case validate_email(str) {
                 False ->
                   list.append(errors, [
-                    ValidationError(
-                      field: field_path,
-                      message: "Invalid email address",
-                      rule: "format",
-                    ),
+                    error.from_failure(field_path, messages.InvalidEmail),
                   ])
                 True -> errors
               }
@@ -176,11 +152,7 @@ fn validate_string(
               case validate_url(str) {
                 False ->
                   list.append(errors, [
-                    ValidationError(
-                      field: field_path,
-                      message: "Invalid URL",
-                      rule: "format",
-                    ),
+                    error.from_failure(field_path, messages.InvalidUrl),
                   ])
                 True -> errors
               }
@@ -192,11 +164,7 @@ fn validate_string(
       }
     }
     _ -> [
-      ValidationError(
-        field: field_path,
-        message: "Must be a string",
-        rule: "type",
-      ),
+      error.from_failure(field_path, messages.InvalidType("string")),
     ]
   }
 }
@@ -212,11 +180,7 @@ fn validate_number(
     IntegerValue(num) ->
       validate_number_constraints(field_path, int.to_float(num), constraints)
     _ -> [
-      ValidationError(
-        field: field_path,
-        message: "Must be a number",
-        rule: "type",
-      ),
+      error.from_failure(field_path, messages.InvalidType("number")),
     ]
   }
 }
@@ -236,11 +200,7 @@ fn validate_number_constraints(
           case value <. min {
             True ->
               list.append(errors, [
-                ValidationError(
-                  field: field_path,
-                  message: "Must be at least " <> float.to_string(min),
-                  rule: "minimum",
-                ),
+                error.from_failure(field_path, messages.Minimum(min)),
               ])
             False -> errors
           }
@@ -253,11 +213,7 @@ fn validate_number_constraints(
           case value >. max {
             True ->
               list.append(errors, [
-                ValidationError(
-                  field: field_path,
-                  message: "Must be at most " <> float.to_string(max),
-                  rule: "maximum",
-                ),
+                error.from_failure(field_path, messages.Maximum(max)),
               ])
             False -> errors
           }
@@ -270,11 +226,7 @@ fn validate_number_constraints(
           case value <=. min {
             True ->
               list.append(errors, [
-                ValidationError(
-                  field: field_path,
-                  message: "Must be greater than " <> float.to_string(min),
-                  rule: "exclusiveMinimum",
-                ),
+                error.from_failure(field_path, messages.ExclusiveMinimum(min)),
               ])
             False -> errors
           }
@@ -287,11 +239,7 @@ fn validate_number_constraints(
           case value >=. max {
             True ->
               list.append(errors, [
-                ValidationError(
-                  field: field_path,
-                  message: "Must be less than " <> float.to_string(max),
-                  rule: "exclusiveMaximum",
-                ),
+                error.from_failure(field_path, messages.ExclusiveMaximum(max)),
               ])
             False -> errors
           }
@@ -311,11 +259,7 @@ fn validate_boolean(
   case value {
     BooleanValue(_) -> []
     _ -> [
-      ValidationError(
-        field: field_path,
-        message: "Must be true or false",
-        rule: "type",
-      ),
+      error.from_failure(field_path, messages.InvalidBoolean),
     ]
   }
 }
@@ -332,11 +276,7 @@ fn validate_enum(
   {
     True -> []
     False -> [
-      ValidationError(
-        field: field_path,
-        message: "Value is not one of the allowed options",
-        rule: "enum",
-      ),
+      error.from_failure(field_path, messages.InvalidEnum),
     ]
   }
 }

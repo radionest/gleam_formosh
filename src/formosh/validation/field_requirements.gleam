@@ -4,7 +4,8 @@
 
 import formosh/form/path.{type FieldPath}
 import formosh/schema/types.{type JsonSchema, type Value, NullValue, StringValue}
-import formosh/validation/error.{type ValidationError, ValidationError}
+import formosh/validation/error.{type ValidationError}
+import formosh/validation/messages
 import gleam/list
 import gleam/option.{type Option, None, Some}
 
@@ -64,17 +65,9 @@ pub fn check_required_value(
     True ->
       case value {
         None | Some(NullValue) ->
-          Error(ValidationError(
-            field: field_path,
-            message: "This field is required",
-            rule: "required",
-          ))
+          Error(error.from_failure(field_path, messages.Required))
         Some(StringValue("")) ->
-          Error(ValidationError(
-            field: field_path,
-            message: "This field is required",
-            rule: "required",
-          ))
+          Error(error.from_failure(field_path, messages.Required))
         _ -> Ok(Nil)
       }
   }
