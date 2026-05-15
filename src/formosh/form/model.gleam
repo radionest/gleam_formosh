@@ -2,9 +2,9 @@
 
 import formosh/form/defaults
 import formosh/form/path.{type FieldPath}
+import formosh/schema/properties
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ObjectValue,
-  has_property_key,
 }
 import formosh/validation/error.{type ValidationError}
 import gleam/dict.{type Dict}
@@ -289,7 +289,7 @@ pub fn get_resolved_values(model: FormModel) -> Value {
     ObjectValue(fields) ->
       ObjectValue(
         list.filter(fields, fn(pair) {
-          has_property_key(model.resolved_schema.properties, pair.0)
+          properties.has_key(model.resolved_schema.properties, pair.0)
         }),
       )
     other -> other
@@ -332,15 +332,15 @@ pub fn is_required_at_path(model: FormModel, field_path: FieldPath) -> Bool {
 }
 
 fn required_in_node(
-  properties: List(#(String, SchemaProperty)),
+  props: List(#(String, SchemaProperty)),
   required: List(String),
   field_path: FieldPath,
 ) -> Bool {
   case field_path {
     [path.PropertySegment(name)] -> list.contains(required, name)
     [path.PropertySegment(name), path.PropertySegment(child), ..rest] ->
-      case list.key_find(properties, name) {
-        Ok(prop) ->
+      case properties.get(props, name) {
+        option.Some(prop) ->
           case prop.properties {
             option.Some(sub) ->
               required_in_node(sub, prop.required, [
@@ -349,11 +349,11 @@ fn required_in_node(
               ])
             option.None -> False
           }
-        Error(_) -> False
+        option.None -> False
       }
     [path.PropertySegment(name), path.ArraySegment(_), ..rest] ->
-      case list.key_find(properties, name) {
-        Ok(prop) ->
+      case properties.get(props, name) {
+        option.Some(prop) ->
           case prop.items {
             option.Some(items_schema) ->
               case items_schema.properties {
@@ -363,7 +363,7 @@ fn required_in_node(
               }
             option.None -> False
           }
-        Error(_) -> False
+        option.None -> False
       }
     _ -> False
   }
@@ -388,14 +388,14 @@ pub fn find_property_at_path(
 }
 
 fn lookup_property(
-  properties: List(#(String, SchemaProperty)),
+  props: List(#(String, SchemaProperty)),
   field_path: FieldPath,
 ) -> Result(SchemaProperty, Nil) {
   case field_path {
     [path.PropertySegment(name), ..rest] ->
-      case list.key_find(properties, name) {
-        Ok(prop) -> walk_into_property(prop, rest)
-        Error(_) -> Error(Nil)
+      case properties.get(props, name) {
+        option.Some(prop) -> walk_into_property(prop, rest)
+        option.None -> Error(Nil)
       }
     _ -> Error(Nil)
   }
