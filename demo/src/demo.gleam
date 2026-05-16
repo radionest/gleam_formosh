@@ -14,6 +14,8 @@ import lustre/element/html
 import lustre/event
 import rsvp
 
+const submit_url = "http://localhost:8888"
+
 pub type Model {
   Model(
     selected_schema: Option(String),
@@ -28,7 +30,6 @@ pub type Msg {
   LoadSchema(String)
   SchemaFetched(Result(String, String))
   FormSubmitted(dict.Dict(String, String))
-  FormChanged(dict.Dict(String, String))
   ClearSubmissionResult
 }
 
@@ -121,13 +122,12 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
     }
 
     FormSubmitted(values) -> {
-      // Handle form submission
       let result_message = case dict.get(values, "error") {
         Ok(error) -> "Error: " <> error
         Error(_) ->
           case dict.get(values, "response") {
             Ok(response) -> "Success! Server response: " <> response
-            Error(_) -> "Form submitted to http://localhost:8888"
+            Error(_) -> "Form submitted to " <> submit_url
           }
       }
 
@@ -135,12 +135,6 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
         Model(..model, submission_result: option.Some(result_message)),
         effect.none(),
       )
-    }
-
-    FormChanged(values) -> {
-      // Handle form changes (could be used for validation feedback)
-      let _ = values
-      #(model, effect.none())
     }
 
     ClearSubmissionResult -> {
@@ -237,11 +231,9 @@ fn view(model: Model) -> Element(Msg) {
               "formosh-form",
               [
                 attribute.attribute("schema", schema_json),
-                attribute.attribute("submit-url", "http://localhost:8888"),
+                attribute.attribute("submit-url", submit_url),
                 attribute.attribute("submit-method", "POST"),
-                // Listen for form events
                 event.on("formosh-submit", decode_form_submit()),
-                event.on("formosh-change", decode_form_change()),
               ],
               [],
             ),
@@ -323,12 +315,4 @@ fn decode_form_submit() -> decode.Decoder(Msg) {
   }
 
   decode.success(FormSubmitted(values))
-}
-
-fn decode_form_change() -> decode.Decoder(Msg) {
-  decode.at(["detail", "values"], decode.dynamic)
-  |> decode.map(fn(_values) {
-    // TODO: Properly decode the form values
-    FormChanged(dict.new())
-  })
 }

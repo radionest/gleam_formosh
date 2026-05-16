@@ -11,7 +11,6 @@ erl_crash.dump
 priv/static/example/
 demo/build/
 demo/priv/
-demo/examples/
 
 # Dev notes (centralized storage via symlink)
 dev-notes
