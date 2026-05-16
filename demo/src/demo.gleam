@@ -3,7 +3,7 @@ import formosh/component
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/list
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import lustre
@@ -20,6 +20,7 @@ pub type Model {
   Model(
     selected_schema: Option(String),
     schema_content: Option(String),
+    ui_schema_content: Option(String),
     available_schemas: List(String),
     error: Option(String),
     submission_result: Option(String),
@@ -29,12 +30,12 @@ pub type Model {
 pub type Msg {
   LoadSchema(String)
   SchemaFetched(Result(String, String))
+  UiSchemaFetched(Option(String))
   FormSubmitted(dict.Dict(String, String))
   ClearSubmissionResult
 }
 
 pub fn main() {
-  // Register the formosh web component
   let _ = component.register()
 
   let app = lustre.application(init, update, view)
@@ -43,9 +44,10 @@ pub fn main() {
 }
 
 fn init(_) -> #(Model, effect.Effect(Msg)) {
-  // List of available schema files
-  // In browser environment, we can't read directory, so we hardcode the list
+  // Browsers can't list directories — keep the catalogue here. Pair a
+  // schema with a `<basename>.ui.json` to show UiSchema-driven rendering.
   let schemas = [
+    "widgets_demo.json",
     "contact_form.json",
     "survey_form.json",
     "user_registration.json",
@@ -58,11 +60,12 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
 
   #(
     Model(
-      selected_schema: option.None,
-      schema_content: option.None,
+      selected_schema: None,
+      schema_content: None,
+      ui_schema_content: None,
       available_schemas: schemas,
-      error: option.None,
-      submission_result: option.None,
+      error: None,
+      submission_result: None,
     ),
     effect.none(),
   )
@@ -74,51 +77,46 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
       #(
         Model(
           ..model,
-          selected_schema: option.Some(filename),
-          error: option.None,
+          selected_schema: Some(filename),
+          schema_content: None,
+          ui_schema_content: None,
+          error: None,
         ),
-        fetch_schema(filename),
+        effect.batch([fetch_schema(filename), fetch_ui_schema(filename)]),
       )
     }
 
     SchemaFetched(result) -> {
       case result {
         Ok(content) -> {
-          // Validate that it's a valid JSON schema
           case formosh.from_json_string(content) {
-            Ok(_) -> {
-              #(
-                Model(
-                  ..model,
-                  schema_content: option.Some(content),
-                  error: option.None,
-                ),
-                effect.none(),
-              )
-            }
-            Error(_) -> {
-              #(
-                Model(
-                  ..model,
-                  schema_content: option.None,
-                  error: option.Some("Invalid JSON Schema format"),
-                ),
-                effect.none(),
-              )
-            }
+            Ok(_) -> #(
+              Model(..model, schema_content: Some(content), error: None),
+              effect.none(),
+            )
+            Error(_) -> #(
+              Model(
+                ..model,
+                schema_content: None,
+                error: Some("Invalid JSON Schema format"),
+              ),
+              effect.none(),
+            )
           }
         }
-        Error(error) -> {
-          #(
-            Model(
-              ..model,
-              schema_content: option.None,
-              error: option.Some("Failed to load schema: " <> error),
-            ),
-            effect.none(),
-          )
-        }
+        Error(error) -> #(
+          Model(
+            ..model,
+            schema_content: None,
+            error: Some("Failed to load schema: " <> error),
+          ),
+          effect.none(),
+        )
       }
+    }
+
+    UiSchemaFetched(content) -> {
+      #(Model(..model, ui_schema_content: content), effect.none())
     }
 
     FormSubmitted(values) -> {
@@ -131,31 +129,27 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
           }
       }
 
-      #(
-        Model(..model, submission_result: option.Some(result_message)),
-        effect.none(),
-      )
+      #(Model(..model, submission_result: Some(result_message)), effect.none())
     }
 
     ClearSubmissionResult -> {
-      #(Model(..model, submission_result: option.None), effect.none())
+      #(Model(..model, submission_result: None), effect.none())
     }
   }
 }
 
 fn view(model: Model) -> Element(Msg) {
   html.div([attribute.class("container")], [
-    html.h1([], [html.text("JSON Schema File Loader")]),
+    html.h1([], [html.text("Formosh Demo")]),
 
-    // Schema selector
     html.div([attribute.class("schema-selector")], [
       html.h2([], [html.text("Select a schema:")]),
       html.div(
         [attribute.class("schema-list")],
         list.map(model.available_schemas, fn(filename) {
           let is_selected = case model.selected_schema {
-            option.Some(selected) -> selected == filename
-            option.None -> False
+            Some(selected) -> selected == filename
+            None -> False
           }
 
           html.button(
@@ -178,19 +172,14 @@ fn view(model: Model) -> Element(Msg) {
       ),
     ]),
 
-    // Error message
     case model.error {
-      option.Some(error) -> {
-        html.div([attribute.class("error-message")], [
-          html.text(error),
-        ])
-      }
-      option.None -> element.none()
+      Some(error) ->
+        html.div([attribute.class("error-message")], [html.text(error)])
+      None -> element.none()
     },
 
-    // Submission result with styling
     case model.submission_result {
-      option.Some(result) -> {
+      Some(result) -> {
         let is_error = string.contains(result, "Error")
         html.div(
           [
@@ -211,53 +200,65 @@ fn view(model: Model) -> Element(Msg) {
           ],
         )
       }
-      option.None -> element.none()
+      None -> element.none()
     },
 
-    // Form display using web component
     case model.schema_content {
-      option.Some(schema_json) -> {
+      Some(schema_json) -> {
         html.div([attribute.class("form-container")], [
           html.h2([], [html.text("Generated Form:")]),
           html.div([attribute.class("info-box")], [
             html.p([], [
               html.text("Schema: " <> option.unwrap(model.selected_schema, "")),
             ]),
+            case model.ui_schema_content {
+              Some(_) ->
+                html.p([], [html.text("UiSchema: applied (paired .ui.json)")])
+              None -> element.none()
+            },
           ]),
 
-          // Render the formosh web component
           html.div([attribute.id("form-mount-point")], [
             element.element(
               "formosh-form",
-              [
-                attribute.attribute("schema", schema_json),
-                attribute.attribute("submit-url", submit_url),
-                attribute.attribute("submit-method", "POST"),
-                event.on("formosh-submit", decode_form_submit()),
-              ],
+              form_attributes(schema_json, model.ui_schema_content),
               [],
             ),
           ]),
         ])
       }
-      option.None -> {
+      None -> {
         case model.selected_schema {
-          option.None -> {
+          None ->
             html.div([attribute.class("placeholder")], [
               html.p([], [
                 html.text("Select a schema to load and display the form"),
               ]),
             ])
-          }
-          option.Some(_) -> {
+          Some(_) ->
             html.div([attribute.class("placeholder")], [
               html.p([], [html.text("Loading schema...")]),
             ])
-          }
         }
       }
     },
   ])
+}
+
+fn form_attributes(
+  schema_json: String,
+  ui_schema: Option(String),
+) -> List(attribute.Attribute(Msg)) {
+  let base = [
+    attribute.attribute("schema", schema_json),
+    attribute.attribute("submit-url", submit_url),
+    attribute.attribute("submit-method", "POST"),
+    event.on("formosh-submit", decode_form_submit()),
+  ]
+  case ui_schema {
+    Some(json) -> [attribute.attribute("ui-schema", json), ..base]
+    None -> base
+  }
 }
 
 fn get_display_name(filename: String) -> String {
@@ -268,14 +269,13 @@ fn get_display_name(filename: String) -> String {
   |> string.capitalise()
 }
 
-// Effect to fetch schema content via HTTP
 fn fetch_schema(filename: String) -> effect.Effect(Msg) {
   let url = "./schemas/" <> filename
   let handler =
     rsvp.expect_any_response(fn(fetch_result) {
       case fetch_result {
         Ok(json_string) -> SchemaFetched(Ok(json_string.body))
-        Error(error) -> {
+        Error(error) ->
           case error {
             rsvp.HttpError(resp) -> SchemaFetched(Error(resp.body))
             rsvp.NetworkError -> SchemaFetched(Error("Network error"))
@@ -283,34 +283,47 @@ fn fetch_schema(filename: String) -> effect.Effect(Msg) {
             rsvp.BadBody -> SchemaFetched(Error("Bad body"))
             _ -> SchemaFetched(Error("Can't fetch schema at " <> url))
           }
-        }
       }
     })
   rsvp.get(url, handler)
 }
 
-// Decoders for form events
+// UiSchema is optional. lustre/dev returns index.html for missing files
+// (SPA fallback) instead of 404, so we sniff for a leading `{` to tell a
+// real JSON object from the fallback page.
+fn fetch_ui_schema(filename: String) -> effect.Effect(Msg) {
+  let basename = string.replace(filename, ".json", "")
+  let url = "./schemas/" <> basename <> ".ui.json"
+  let handler =
+    rsvp.expect_any_response(fn(fetch_result) {
+      case fetch_result {
+        Ok(resp) ->
+          case string.starts_with(string.trim(resp.body), "{") {
+            True -> UiSchemaFetched(Some(resp.body))
+            False -> UiSchemaFetched(None)
+          }
+        Error(_) -> UiSchemaFetched(None)
+      }
+    })
+  rsvp.get(url, handler)
+}
+
 fn decode_form_submit() -> decode.Decoder(Msg) {
   use event_data <- decode.then(decode.at(["detail"], decode.dynamic))
 
-  // Try to extract status and data/error from the event
   let status =
     decode.run(event_data, decode.at(["status"], decode.string))
     |> result.unwrap("unknown")
 
   let values = case status {
-    "success" -> {
-      // Extract server response data
+    "success" ->
       decode.run(event_data, decode.at(["data"], decode.string))
       |> result.map(fn(data) { dict.from_list([#("response", data)]) })
       |> result.unwrap(dict.new())
-    }
-    "error" -> {
-      // Extract error message
+    "error" ->
       decode.run(event_data, decode.at(["error"], decode.string))
       |> result.map(fn(error) { dict.from_list([#("error", error)]) })
       |> result.unwrap(dict.new())
-    }
     _ -> dict.new()
   }
 
