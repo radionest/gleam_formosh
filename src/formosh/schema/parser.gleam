@@ -541,6 +541,9 @@ fn extract_read_only(data: Dynamic) -> Bool {
 
 /// Extract x-addable structural flag for arrays.
 /// Absent or non-bool -> True (default: add control shown).
+///
+/// **Deprecated since v0.7** — use `ui:addable` in UiSchema. Scheduled for
+/// removal in v0.9.
 fn extract_addable(data: Dynamic) -> Bool {
   decode.run(data, decode.at(["x-addable"], decode.bool))
   |> result.unwrap(True)
@@ -548,6 +551,9 @@ fn extract_addable(data: Dynamic) -> Bool {
 
 /// Extract x-removable structural flag for arrays.
 /// Absent or non-bool -> True (default: remove control shown).
+///
+/// **Deprecated since v0.7** — use `ui:removable` in UiSchema. Scheduled
+/// for removal in v0.9.
 fn extract_removable(data: Dynamic) -> Bool {
   decode.run(data, decode.at(["x-removable"], decode.bool))
   |> result.unwrap(True)
@@ -567,6 +573,9 @@ fn widget_decoder() -> Decoder(types.Widget) {
 }
 
 /// Extract x-widget custom widget override from dynamic JSON data.
+///
+/// **Deprecated since v0.7** — use `ui:widget` in UiSchema. Scheduled for
+/// removal in v0.9.
 fn extract_widget(data: Dynamic) -> Option(types.Widget) {
   decode.run(data, decode.at(["x-widget"], widget_decoder()))
   |> option.from_result()
@@ -574,6 +583,9 @@ fn extract_widget(data: Dynamic) -> Option(types.Widget) {
 
 /// Extract upload configuration from x- extension fields.
 /// Only emits config when widget is ImageUploadWidget.
+///
+/// **Deprecated since v0.7** — use `ui:accept` / `ui:maxFileSize` in
+/// UiSchema. Scheduled for removal in v0.9.
 fn extract_upload_config(
   data: Dynamic,
   widget: Option(types.Widget),
@@ -601,6 +613,8 @@ fn extract_upload_config(
 /// `x-max-file-size` for backwards compatibility — all other fields stay
 /// at their `empty_hints()` defaults and are populated (if at all) by
 /// `ui_resolver.resolve_hints`.
+///
+/// **Deprecated since v0.7.** Scheduled for removal in v0.9.
 fn extract_render_hints(data: Dynamic) -> types.RenderHints {
   let widget = extract_widget(data)
   let upload_config = extract_upload_config(data, widget)

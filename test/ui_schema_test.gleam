@@ -268,6 +268,55 @@ pub fn resolve_hints_upload_falls_back_to_x_extension_test() {
   upload.accept |> should.equal("image/png")
 }
 
+// Schema-Bool fallback for `addable`/`removable` is wrapped in `Some` so
+// renderers can read `hints.addable` uniformly without falling back to
+// `property.addable`. Pin the wrapping to prevent regression.
+pub fn resolve_hints_addable_wraps_schema_property_test() {
+  let ui = empty_ui_schema()
+  let prop = SchemaProperty(..empty_property(), addable: False)
+  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("xs")], prop)
+  hints.addable |> should.equal(Some(False))
+}
+
+pub fn resolve_hints_removable_wraps_schema_property_test() {
+  let ui = empty_ui_schema()
+  let prop = SchemaProperty(..empty_property(), removable: False)
+  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("xs")], prop)
+  hints.removable |> should.equal(Some(False))
+}
+
+// Inverse of `resolve_hints_ui_schema_wins_over_x_widget_test`:
+// x-widget=ImageUploadWidget on schema + ui:widget=textarea on UiSchema
+// — UiSchema's CustomWidget("textarea") wins, not the schema's image
+// upload variant.
+pub fn resolve_hints_ui_widget_overrides_x_image_upload_test() {
+  let assert Ok(ui) = ui_parser.parse("{\"f\":{\"ui:widget\":\"textarea\"}}")
+  let prop = schema_prop_with_widget(types.ImageUploadWidget)
+  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("f")], prop)
+  hints.widget |> should.equal(Some(types.CustomWidget("textarea")))
+}
+
+// ---- ui_parser.extract_upload gating ----
+
+// Authors who write `ui:maxFileSize` (or `ui:accept`) without
+// `ui:widget: "image-upload"` get None — no silent UploadConfig.
+pub fn extract_upload_requires_image_upload_widget_test() {
+  let json = "{\"x\":{\"ui:maxFileSize\":1024,\"ui:accept\":\"image/png\"}}"
+  let assert Ok(ui) = ui_parser.parse(json)
+  let assert Ok(prop) = list.key_find(ui.properties, "x")
+  prop.upload |> should.equal(None)
+}
+
+pub fn extract_upload_emits_for_image_upload_widget_test() {
+  let json =
+    "{\"photo\":{\"ui:widget\":\"image-upload\",\"ui:maxFileSize\":4096}}"
+  let assert Ok(ui) = ui_parser.parse(json)
+  let assert Ok(prop) = list.key_find(ui.properties, "photo")
+  let assert Some(upload) = prop.upload
+  upload.accept |> should.equal("image/*")
+  upload.max_file_size |> should.equal(Some(4096))
+}
+
 // ---- properties.apply_order ----
 
 pub fn apply_order_none_keeps_order_test() {

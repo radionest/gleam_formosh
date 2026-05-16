@@ -81,7 +81,7 @@ fn parse_ui_property(dyn: Dynamic) -> Result(UiProperty, ParseError) {
       let description = extract_string(entries, "ui:description")
       let addable = extract_bool(entries, "ui:addable")
       let removable = extract_bool(entries, "ui:removable")
-      let upload = extract_upload(entries)
+      let upload = extract_upload(entries, widget)
       use items <- result.try(extract_items(entries))
       // Inside a UiProperty, `items` is reserved for the array-element
       // template — any property called "items" in the data schema would
@@ -199,25 +199,32 @@ fn decode_options(entries: List(#(String, Dynamic))) -> Dict(String, Value) {
   })
 }
 
-fn extract_upload(entries: List(#(String, Dynamic))) -> Option(UploadConfig) {
-  let accept = extract_string(entries, "ui:accept")
-  let max_file_size = case list.key_find(entries, "ui:maxFileSize") {
-    Ok(dyn) ->
-      decode.run(dyn, decode.int)
-      |> option.from_result()
-    Error(_) -> None
-  }
-  // If either knob is set, emit a config. `accept` defaults to `image/*`
-  // because the only widget using this config today is `image-upload`,
-  // and most authors only set `ui:maxFileSize`. Set `ui:accept` explicitly
-  // for non-image uploads.
-  case accept, max_file_size {
-    None, None -> None
-    _, _ ->
+/// Extract `UploadConfig` from `ui:accept` / `ui:maxFileSize` entries.
+///
+/// Gated on `widget == Some(ImageUploadWidget)` — mirrors
+/// `parser.extract_upload_config`. Authors who write `ui:maxFileSize: ...`
+/// without `ui:widget: "image-upload"` get `None` (no silent
+/// `accept: "image/*"` fallback). If you genuinely need a non-image
+/// upload, set the widget explicitly and override `ui:accept`.
+fn extract_upload(
+  entries: List(#(String, Dynamic)),
+  widget: Option(Widget),
+) -> Option(UploadConfig) {
+  case widget {
+    Some(ImageUploadWidget) -> {
+      let accept = extract_string(entries, "ui:accept")
+      let max_file_size = case list.key_find(entries, "ui:maxFileSize") {
+        Ok(dyn) ->
+          decode.run(dyn, decode.int)
+          |> option.from_result()
+        Error(_) -> None
+      }
       Some(UploadConfig(
         accept: option.unwrap(accept, "image/*"),
         max_file_size: max_file_size,
       ))
+    }
+    _ -> None
   }
 }
 

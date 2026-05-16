@@ -285,13 +285,17 @@ pub fn extract_boolean_value(value: Option(types.Value)) -> Bool {
 /// three behavioural flags the parent decides (`is_required`, `is_disabled`,
 /// `is_readonly`), and the presentation hints (`hints`) that pick a widget
 /// and feed widget-specific options. Children build their own ctx via
-/// `make_field_ctx` / `make_child_ctx` and a record update for inheritance
-/// (`FieldRenderCtx(..parent, path: child_path, ...)`).
+/// `make_field_ctx` / `make_child_ctx`.
 ///
-/// `hints` is the seam where v0.7's `UiSchema` will plug in: today the
-/// builder reads `property.render_hints` (parsed from `x-widget` family),
-/// in v0.7 the same field will be filled from a path-based `UiSchema`
-/// lookup without any change to leaf renderers.
+/// **When adding a field here:** also propagate it explicitly in
+/// `make_child_ctx` (the inheritance rule must be picked deliberately —
+/// passthrough, OR-merge, override, etc.). The constructor in
+/// `make_child_ctx` lists every field by name on purpose; gleam will NOT
+/// warn you about an omitted new field.
+///
+/// `hints` is the UiSchema seam: filled by `ui_resolver.resolve_hints`
+/// from a path lookup against `model.ui_schema`, with the deprecated
+/// `x-*` extensions as fallback.
 pub type FieldRenderCtx {
   FieldRenderCtx(
     path: path.FieldPath,
@@ -357,13 +361,7 @@ pub fn make_child_ctx(
   is_required child_required: Bool,
 ) -> FieldRenderCtx {
   let hints = ui_resolver.resolve_hints(model.ui_schema, child_path, child_prop)
-  // `..parent` is kept intentionally so any field added to `FieldRenderCtx`
-  // later inherits from the parent by default — adding a new field should
-  // not require touching array_field/object_field. Gleam warns "redundant
-  // record update" because we override every existing field; that's the
-  // cost of forward-compatibility.
   FieldRenderCtx(
-    ..parent,
     path: child_path,
     property: child_prop,
     value: model.get_value_at_path(model, child_path),

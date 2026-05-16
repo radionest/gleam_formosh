@@ -48,6 +48,7 @@ pub fn render_container(
   // (UiSchema override or `SchemaProperty.addable` Bool fallback), so the
   // outer `option.unwrap` default below is just a defensive no-op.
   let addable = option.unwrap(ctx.hints.addable, True)
+  let removable = option.unwrap(ctx.hints.removable, True)
 
   html.div([class("array-field")], [
     field_common.render_container_label(
@@ -64,7 +65,7 @@ pub fn render_container(
     html.div(
       [class("array-items")],
       list.index_map(items, fn(item, index) {
-        render_array_item(ctx, item, index, model, render_child)
+        render_array_item(ctx, removable, item, index, model, render_child)
       }),
     ),
     case ctx.is_readonly || !addable {
@@ -85,6 +86,7 @@ pub fn render_container(
 /// Render a single row: header with index + remove button, plus child fields.
 fn render_array_item(
   ctx: FieldRenderCtx,
+  removable: Bool,
   item: Value,
   index: Int,
   model: FormModel,
@@ -97,7 +99,7 @@ fn render_array_item(
           html.span([class("array-item-index")], [
             html.text("№ " <> int.to_string(index + 1)),
           ]),
-          case ctx.is_readonly || !option.unwrap(ctx.hints.removable, True) {
+          case ctx.is_readonly || !removable {
             True -> element.none()
             False ->
               html.button(

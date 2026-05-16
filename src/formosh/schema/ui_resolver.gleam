@@ -11,9 +11,7 @@
 /// resulting `RenderHints` via `FieldRenderCtx.hints` and stay agnostic of
 /// the source.
 import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
-import formosh/schema/types.{
-  type RenderHints, type SchemaProperty, RenderHints, empty_hints,
-}
+import formosh/schema/types.{type RenderHints, type SchemaProperty, RenderHints}
 import formosh/schema/ui_schema.{
   type UiProperty, type UiSchema, empty_ui_property,
 }
@@ -89,14 +87,4 @@ pub fn resolve_hints(
       option.Some(schema_property.removable),
     ),
   )
-}
-
-/// Resolve hints for the root of the form.
-///
-/// `lookup` cannot return root-level options because there is no
-/// `UiProperty` for the root — only `UiSchema.order`. Root hints carry only
-/// the top-level `ui:order`; widget/title/etc. are not meaningful for the
-/// form root.
-pub fn root_hints(ui_schema: UiSchema) -> RenderHints {
-  RenderHints(..empty_hints(), order: ui_schema.order)
 }

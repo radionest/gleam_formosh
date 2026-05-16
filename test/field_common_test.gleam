@@ -2,6 +2,7 @@ import formosh/fields/field_common
 import formosh/form/model
 import formosh/form/path.{PropertySegment}
 import formosh/schema/types
+import formosh/schema/ui_schema
 import formosh/validation/error
 import gleam/option.{None, Some}
 import gleam/string
@@ -179,6 +180,106 @@ pub fn make_child_ctx_required_comes_from_argument_not_parent_test() {
       is_required: False,
     )
   child.is_required |> should.be_false
+}
+
+// --- make_field_ctx / make_child_ctx + UiSchema hint merge ---
+
+fn model_with_ui(ui: ui_schema.UiSchema) -> model.FormModel {
+  let base = model.init(empty_schema())
+  model.FormModel(..base, ui_schema: ui)
+}
+
+// `ui:disabled: true` OR-merges with the caller-supplied `is_disabled`.
+// Even when the caller passes `is_disabled=False`, hints.disabled wins.
+pub fn make_field_ctx_or_merges_disabled_from_hints_test() {
+  let ui =
+    ui_schema.UiSchema(
+      properties: [
+        #(
+          "f",
+          ui_schema.UiProperty(
+            ..ui_schema.empty_ui_property(),
+            disabled: Some(True),
+          ),
+        ),
+      ],
+      order: None,
+    )
+  let m = model_with_ui(ui)
+  let ctx =
+    field_common.make_field_ctx(
+      model: m,
+      path: path.from_field_name("f"),
+      property: types.empty_property(),
+      is_required: False,
+      is_disabled: False,
+      is_readonly: False,
+    )
+  ctx.is_disabled |> should.be_true
+}
+
+// Same OR-merge logic for `is_readonly`.
+pub fn make_field_ctx_or_merges_readonly_from_hints_test() {
+  let ui =
+    ui_schema.UiSchema(
+      properties: [
+        #(
+          "f",
+          ui_schema.UiProperty(
+            ..ui_schema.empty_ui_property(),
+            readonly: Some(True),
+          ),
+        ),
+      ],
+      order: None,
+    )
+  let m = model_with_ui(ui)
+  let ctx =
+    field_common.make_field_ctx(
+      model: m,
+      path: path.from_field_name("f"),
+      property: types.empty_property(),
+      is_required: False,
+      is_disabled: False,
+      is_readonly: False,
+    )
+  ctx.is_readonly |> should.be_true
+}
+
+// `ui:disabled: true` on a child propagates even when the parent isn't
+// disabled — the merge in make_child_ctx ORs parent's flag with the
+// child's hint.
+pub fn make_child_ctx_or_merges_hints_disabled_test() {
+  let ui =
+    ui_schema.UiSchema(
+      properties: [
+        #(
+          "parent",
+          ui_schema.UiProperty(..ui_schema.empty_ui_property(), properties: [
+            #(
+              "child",
+              ui_schema.UiProperty(
+                ..ui_schema.empty_ui_property(),
+                disabled: Some(True),
+              ),
+            ),
+          ]),
+        ),
+      ],
+      order: None,
+    )
+  let m = model_with_ui(ui)
+  let parent = parent_ctx_with(False, False, False)
+  let child_path = [PropertySegment("parent"), PropertySegment("child")]
+  let child =
+    field_common.make_child_ctx(
+      parent: parent,
+      model: m,
+      path: child_path,
+      property: types.empty_property(),
+      is_required: False,
+    )
+  child.is_disabled |> should.be_true
 }
 
 // value is re-extracted from model by child_path — parent.value is dropped.

@@ -16,6 +16,12 @@ import gleam/result
 import lustre
 import lustre/effect
 
+/// Re-export of `parser.ParseError` so users of `with_ui_schema_json` /
+/// `parse_ui_schema` can refer to the error type without importing
+/// `formosh/schema/parser` directly.
+pub type ParseError =
+  parser.ParseError
+
 /// Configuration options for creating a form.
 ///
 /// This type contains all the configuration needed to create a form,
