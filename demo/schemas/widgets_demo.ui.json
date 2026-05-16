@@ -1,0 +1,65 @@
+{
+  "ui:order": [
+    "project_name",
+    "owner_email",
+    "website",
+    "launch_date",
+    "short_bio",
+    "long_description",
+    "tech_stack",
+    "primary_locale",
+    "team_size",
+    "budget",
+    "is_published",
+    "internal_id",
+    "frozen_section",
+    "computed_score",
+    "team_members"
+  ],
+  "project_name": {
+    "ui:placeholder": "Например: Formosh",
+    "ui:help": "От 2 до 80 символов",
+    "ui:autofocus": true
+  },
+  "owner_email": {
+    "ui:placeholder": "you@example.com"
+  },
+  "website": {
+    "ui:placeholder": "https://example.com"
+  },
+  "short_bio": {
+    "ui:widget": "textarea",
+    "ui:placeholder": "Несколько предложений о проекте"
+  },
+  "tech_stack": {
+    "ui:widget": "select",
+    "ui:help": "По умолчанию был бы radio (3 опции) — UiSchema форсирует select"
+  },
+  "primary_locale": {
+    "ui:widget": "radio",
+    "ui:help": "По умолчанию был бы select (7 опций) — UiSchema форсирует radio"
+  },
+  "team_size": {
+    "ui:placeholder": "1—500"
+  },
+  "internal_id": {
+    "ui:widget": "hidden"
+  },
+  "frozen_section": {
+    "ui:disabled": true,
+    "ui:description": "Весь раздел заблокирован через ui:disabled (наследуется OR-merge)"
+  },
+  "computed_score": {
+    "ui:help": "Заполняется на стороне сервера"
+  },
+  "team_members": {
+    "ui:addable": true,
+    "ui:removable": true,
+    "items": {
+      "ui:order": ["role", "name"],
+      "name": {
+        "ui:placeholder": "Фамилия Имя"
+      }
+    }
+  }
+}

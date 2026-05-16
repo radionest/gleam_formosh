@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/widgets-demo.json",
+  "title": "Widget Zoo",
+  "description": "Показывает все типы полей и оверрайды через ui:widget. Парная UiSchema лежит в widgets_demo.ui.json.",
+  "type": "object",
+  "properties": {
+    "project_name": {
+      "type": "string",
+      "title": "Название проекта",
+      "minLength": 2,
+      "maxLength": 80
+    },
+    "owner_email": {
+      "type": "string",
+      "format": "email",
+      "title": "Email владельца"
+    },
+    "website": {
+      "type": "string",
+      "format": "uri",
+      "title": "Сайт проекта"
+    },
+    "launch_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Дата запуска"
+    },
+    "short_bio": {
+      "type": "string",
+      "title": "Краткое описание",
+      "description": "Короткая строка, которую UiSchema форсирует в textarea"
+    },
+    "long_description": {
+      "type": "string",
+      "title": "Полное описание",
+      "description": "maxLength > 100 даёт textarea автоматически, без ui:widget",
+      "maxLength": 2000
+    },
+    "tech_stack": {
+      "type": "string",
+      "title": "Основной язык",
+      "description": "3 варианта — по умолчанию radio. UiSchema форсирует select.",
+      "enum": ["Gleam", "Erlang", "Elixir"]
+    },
+    "primary_locale": {
+      "type": "string",
+      "title": "Локализация",
+      "description": "7 вариантов — по умолчанию select. UiSchema форсирует radio.",
+      "enum": [
+        "ru-RU",
+        "en-US",
+        "fr-FR",
+        "de-DE",
+        "es-ES",
+        "it-IT",
+        "zh-CN"
+      ]
+    },
+    "team_size": {
+      "type": "integer",
+      "title": "Размер команды",
+      "minimum": 1,
+      "maximum": 500
+    },
+    "budget": {
+      "type": "number",
+      "title": "Бюджет, тыс. ₽",
+      "minimum": 0,
+      "multipleOf": 0.5
+    },
+    "is_published": {
+      "type": "boolean",
+      "title": "Опубликован",
+      "description": "Boolean всегда рендерится как Yes/No radio (ui:widget игнорируется для boolean)"
+    },
+    "internal_id": {
+      "type": "string",
+      "title": "Внутренний ID",
+      "default": "auto-generated-id-42",
+      "description": "Поле скрыто через ui:widget=hidden, но валидируется и сабмитится"
+    },
+    "frozen_section": {
+      "type": "object",
+      "title": "Замороженный раздел",
+      "description": "ui:disabled на контейнере OR-наследуется во все дочерние поля",
+      "properties": {
+        "release_channel": {
+          "type": "string",
+          "title": "Канал релиза",
+          "enum": ["stable", "beta", "nightly"],
+          "default": "stable"
+        },
+        "auto_update": {
+          "type": "boolean",
+          "title": "Автообновления"
+        }
+      }
+    },
+    "computed_score": {
+      "type": "string",
+      "title": "Оценка",
+      "readOnly": true,
+      "default": "будет вычислено сервером",
+      "description": "readOnly на уровне схемы — поле видно, но нельзя редактировать"
+    },
+    "team_members": {
+      "type": "array",
+      "title": "Участники",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Имя"
+          },
+          "role": {
+            "type": "string",
+            "title": "Роль",
+            "enum": ["Разработчик", "Дизайнер", "Менеджер"]
+          }
+        },
+        "required": ["name", "role"]
+      }
+    }
+  },
+  "required": ["project_name", "owner_email"]
+}
