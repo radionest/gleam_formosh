@@ -14,23 +14,51 @@
     },
     "email": {
       "type": "string",
-      "format": "email",
-      "title": "Email",
-      "description": "Адрес электронной почты для ответа"
+      "title": "Email адрес",
+      "description": "Мы используем его только для ответа на ваш запрос",
+      "format": "email"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Телефон",
+      "description": "Необязательно, но поможет связаться быстрее",
+      "pattern": "^[+]?[0-9\\s()-]+$",
+      "minLength": 10,
+      "maxLength": 20
     },
     "subject": {
       "type": "string",
-      "title": "Тема",
-      "enum": ["question", "feedback", "support", "other"],
-      "default": "question"
+      "title": "Тема обращения",
+      "enum": [
+        "Общий вопрос",
+        "Техническая поддержка",
+        "Коммерческое предложение",
+        "Жалоба",
+        "Другое"
+      ]
     },
     "message": {
       "type": "string",
       "title": "Сообщение",
-      "description": "Опишите ваш вопрос подробно",
+      "description": "Опишите ваш вопрос или предложение",
       "minLength": 10,
-      "maxLength": 2000
+      "maxLength": 1000
+    },
+    "subscribe": {
+      "type": "boolean",
+      "title": "Подписаться на новости",
+      "description": "Получать обновления и полезную информацию"
     }
   },
-  "required": ["name", "email", "message"]
+  "required": ["name", "email", "subject", "message"],
+  "if": {
+    "properties": {
+      "subject": { "const": "Общий вопрос" }
+    }
+  },
+  "then": {
+    "properties": {
+      "is_confidential": { "type": "boolean" }
+    }
+  }
 }
