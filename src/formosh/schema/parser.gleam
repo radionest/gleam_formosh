@@ -2,11 +2,12 @@ import formosh/ffi/dynamic_object
 import formosh/schema/resolver
 import formosh/schema/types.{
   type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
-  type SchemaProperty, type StringConstraints, type Value, ArrayType,
-  BooleanType, BooleanValue, ConditionalRule, CustomFormat, EmailFormat,
-  IntegerType, IntegerValue, JsonSchema, NullType, NullValue, NumberConstraints,
-  NumberType, NumberValue, ObjectType, SchemaProperty, StringConstraints,
-  StringType, StringValue, UrlFormat, UuidFormat, empty_property,
+  type ParseError, type SchemaProperty, type StringConstraints, type Value,
+  ArrayType, BooleanType, BooleanValue, ConditionalRule, CustomFormat,
+  DecodingError, EmailFormat, IntegerType, IntegerValue, InvalidJson, JsonSchema,
+  NullType, NullValue, NumberConstraints, NumberType, NumberValue, ObjectType,
+  SchemaProperty, StringConstraints, StringType, StringValue, UnexpectedValue,
+  UrlFormat, UuidFormat, empty_property,
 }
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
@@ -15,18 +16,6 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-
-/// Errors that can occur during JSON Schema parsing.
-/// 
-/// These errors provide specific information about what went wrong
-/// during the parsing process to help with debugging.
-pub type ParseError {
-  InvalidJson(String)
-  MissingField(String)
-  InvalidType(String)
-  UnexpectedValue(String)
-  DecodingError(List(decode.DecodeError))
-}
 
 /// Parse a JSON string into a JsonSchema.
 /// 
