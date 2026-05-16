@@ -42,7 +42,12 @@ fn render_as_radio(ctx: FieldRenderCtx) -> Element(FormMsg) {
       attribute.attribute("part", "field-wrapper"),
     ],
     [
-      field_common.render_label(field_name, ctx.property, ctx.is_required),
+      field_common.render_label(
+        field_name: field_name,
+        property: ctx.property,
+        is_required: ctx.is_required,
+        hints: ctx.hints,
+      ),
       html.div(
         [
           attribute.class("formosh-radio-group formosh-boolean"),
@@ -95,7 +100,7 @@ fn render_as_radio(ctx: FieldRenderCtx) -> Element(FormMsg) {
           ),
         ],
       ),
-      field_common.render_help_text(ctx.property),
+      field_common.render_help_text(ctx.property, ctx.hints),
     ],
   )
 }
@@ -134,10 +139,15 @@ pub fn render_as_checkbox(ctx: FieldRenderCtx) -> Element(FormMsg) {
               types.BooleanValue(!current_value),
             )),
           ]),
-          field_common.render_label(field_name, ctx.property, ctx.is_required),
+          field_common.render_label(
+            field_name,
+            ctx.property,
+            ctx.is_required,
+            ctx.hints,
+          ),
         ],
       ),
-      field_common.render_help_text(ctx.property),
+      field_common.render_help_text(ctx.property, ctx.hints),
     ],
   )
 }
@@ -161,7 +171,12 @@ pub fn render_as_toggle(ctx: FieldRenderCtx) -> Element(FormMsg) {
       attribute.attribute("part", "field-wrapper"),
     ],
     [
-      field_common.render_label(field_name, ctx.property, ctx.is_required),
+      field_common.render_label(
+        field_name: field_name,
+        property: ctx.property,
+        is_required: ctx.is_required,
+        hints: ctx.hints,
+      ),
       html.div(
         [
           attribute.class("formosh-toggle-wrapper"),
@@ -209,7 +224,7 @@ pub fn render_as_toggle(ctx: FieldRenderCtx) -> Element(FormMsg) {
           ),
         ],
       ),
-      field_common.render_help_text(ctx.property),
+      field_common.render_help_text(ctx.property, ctx.hints),
     ],
   )
 }

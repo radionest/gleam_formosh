@@ -8,10 +8,19 @@ import formosh/form/update
 import formosh/form/view
 import formosh/schema/parser
 import formosh/schema/types.{type JsonSchema, type Value}
+import formosh/schema/ui_parser
+import formosh/schema/ui_schema.{type UiSchema, empty_ui_schema}
 import gleam/dict.{type Dict}
 import gleam/option
+import gleam/result
 import lustre
 import lustre/effect
+
+/// Re-export of `parser.ParseError` so users of `with_ui_schema_json` /
+/// `parse_ui_schema` can refer to the error type without importing
+/// `formosh/schema/parser` directly.
+pub type ParseError =
+  parser.ParseError
 
 /// Configuration options for creating a form.
 ///
@@ -27,6 +36,8 @@ pub type FormConfig {
     show_readonly_fields: Bool,
     /// Initial values to populate the form with
     initial_values: Dict(String, Value),
+    /// Presentation settings parallel to `schema`
+    ui_schema: UiSchema,
   )
 }
 
@@ -53,6 +64,7 @@ pub fn config(schema: JsonSchema) -> FormConfig {
     show_errors_on_change: False,
     show_readonly_fields: False,
     initial_values: dict.new(),
+    ui_schema: empty_ui_schema(),
   )
 }
 
@@ -164,6 +176,36 @@ pub fn with_initial_values(
   FormConfig(..config, initial_values: values)
 }
 
+/// Attach a parsed `UiSchema` to the form configuration.
+///
+/// UiSchema separates presentation hints (widgets, ordering, placeholders,
+/// help text, etc.) from the JSON Schema data definition.
+pub fn with_ui_schema(config: FormConfig, ui_schema: UiSchema) -> FormConfig {
+  FormConfig(..config, ui_schema: ui_schema)
+}
+
+/// Attach a `UiSchema` to the form configuration from a JSON string.
+///
+/// Returns `Error(ParseError)` if the string is not valid JSON or does
+/// not describe a UiSchema.
+pub fn with_ui_schema_json(
+  config: FormConfig,
+  json_string: String,
+) -> Result(FormConfig, parser.ParseError) {
+  use ui <- result.map(ui_parser.parse(json_string))
+  FormConfig(..config, ui_schema: ui)
+}
+
+/// Parse a UiSchema JSON string into a `UiSchema` value.
+///
+/// Convenience re-export of `ui_parser.parse` for callers that work with
+/// the public formosh API only.
+pub fn parse_ui_schema(
+  json_string: String,
+) -> Result(UiSchema, parser.ParseError) {
+  ui_parser.parse(json_string)
+}
+
 /// Create a form application from a JSON Schema definition.
 /// 
 /// This is the main entry point for creating forms. It takes a parsed JSON Schema
@@ -217,6 +259,7 @@ fn create_form_with_config(
           option.Some(config.submit_config),
           config.show_readonly_fields,
           config.initial_values,
+          config.ui_schema,
         ),
         effect.none(),
       )
@@ -280,6 +323,7 @@ pub fn from_json_string_with_config(
           show_errors_on_change: False,
           show_readonly_fields: False,
           initial_values: dict.new(),
+          ui_schema: empty_ui_schema(),
         )
       Ok(from_config(form_config))
     }

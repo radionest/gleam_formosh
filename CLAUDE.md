@@ -83,9 +83,17 @@ Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segme
 
 ## Web Component
 
-Registers as `<formosh-form>` custom element. Attributes: `schema`, `submit-url`, `submit-method`, `show-readonly-fields`, `upload-base-url`. Emits events: `formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`.
+Registers as `<formosh-form>` custom element. Attributes: `schema`, `ui-schema`, `submit-url`, `submit-method`, `show-readonly-fields`, `upload-base-url`. Emits events: `formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`.
 
 Styling: the component runs in open Shadow DOM, so target it via `::part()` selectors (`formosh-form::part(input)`, etc.) and `[part=field][data-error]` / `[part=field][data-readonly]` / `[part=toggle][data-state=on]` for field state. Parent stylesheets are also auto-adopted, so plain `.formosh-input { ... }` rules still apply inside the shadow root.
+
+## UiSchema
+
+Presentation hints live in a parallel `UiSchema` (react-jsonschema-form-style JSON: `ui:widget`, `ui:order`, `ui:placeholder`, `ui:help`, `ui:autofocus`, `ui:disabled`, `ui:readonly`, `ui:title`, `ui:description`, `ui:options`, `ui:addable`, `ui:removable`, `ui:accept`, `ui:maxFileSize`). Children are nested inline by field name; `items` is the array-element template. `lookup` (`formosh/schema/ui_resolver`) walks by `FieldPath` — `ArraySegment` ignores the index and descends into `items`.
+
+- `x-widget` / `x-accept` / `x-max-file-size` / `x-addable` / `x-removable` extensions are **deprecated as of v0.7** and read as fallback only. They will be removed in **v0.9**. Use UiSchema instead.
+- `ui:disabled` and `ui:readonly` **OR-merge** with the parent / schema. `ui:disabled: false` on a child of a disabled container does NOT re-enable it — mirrors HTML's `disabled` inheritance and JSON Schema's `readOnly`. To selectively enable, hoist the disabled flag to the leaf instead of the container.
+- `ui:accept` / `ui:maxFileSize` are only honoured when `ui:widget: "image-upload"` is set. Without the widget hint they are silently dropped (the `UploadConfig` is not emitted).
 
 ## Notes
 

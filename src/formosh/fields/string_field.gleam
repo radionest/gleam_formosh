@@ -7,7 +7,7 @@ import formosh/schema/types
 import gleam/float
 import gleam/int
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import lustre/attribute
 import lustre/element.{type Element}
@@ -38,20 +38,69 @@ pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
 }
 
 /// Render a string field as either enum or text input.
+///
+/// `ui:widget` override takes priority — `"textarea"` forces a textarea,
+/// `"select"` / `"radio"` force the corresponding enum widget regardless
+/// of option count. Without an override, the field type is inferred from
+/// schema (enum values → select/radio, maxLength > 100 → textarea).
 fn render_string_or_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
-  case ctx.property.enum_values {
-    Some(_enum_vals) -> render_enum(ctx)
-    None -> {
-      // Check if it's a textarea based on max length
-      case ctx.property.string_constraints {
-        Some(constraints) ->
-          case constraints.max_length {
-            Some(max) if max > 100 -> render_textarea(ctx)
-            _ -> render_input(ctx)
+  case widget_name(ctx) {
+    Some("textarea") -> render_textarea(ctx)
+    Some("select") -> render_select_or_enum(ctx, force_select: True)
+    Some("radio") -> render_select_or_enum(ctx, force_select: False)
+    _ ->
+      case ctx.property.enum_values {
+        Some(_enum_vals) -> render_enum(ctx)
+        None -> {
+          // Check if it's a textarea based on max length
+          case ctx.property.string_constraints {
+            Some(constraints) ->
+              case constraints.max_length {
+                Some(max) if max > 100 -> render_textarea(ctx)
+                _ -> render_input(ctx)
+              }
+            None -> render_input(ctx)
           }
-        None -> render_input(ctx)
+        }
       }
-    }
+  }
+}
+
+/// Extract the `CustomWidget` payload as a string for dispatch decisions.
+/// Returns None for `ImageUploadWidget`, `HiddenWidget` (handled upstream),
+/// or when no widget hint is set.
+fn widget_name(ctx: FieldRenderCtx) -> Option(String) {
+  case ctx.hints.widget {
+    Some(types.CustomWidget(name)) -> Some(name)
+    _ -> None
+  }
+}
+
+/// Force enum rendering as either select or radio, regardless of the
+/// schema-level threshold. Used by `ui:widget` overrides.
+fn render_select_or_enum(
+  ctx: FieldRenderCtx,
+  force_select force_select: Bool,
+) -> Element(FormMsg) {
+  let current_value = field_common.extract_string_value(ctx.value)
+  let one_of_options = case ctx.property.one_of {
+    Some(schemas) -> extract_one_of_options(schemas)
+    None -> []
+  }
+  case one_of_options, ctx.property.enum_values {
+    [_, ..], _ ->
+      case force_select {
+        True -> render_one_of_select(ctx, one_of_options, current_value)
+        False -> render_one_of_radio_group(ctx, one_of_options, current_value)
+      }
+    [], Some(enum_vals) ->
+      case force_select {
+        True -> render_select(ctx, enum_vals, current_value)
+        False -> render_radio_group(ctx, enum_vals, current_value)
+      }
+    [], None ->
+      // Widget=select/radio on a non-enum string — fall back to input.
+      render_input(ctx)
   }
 }
 
@@ -72,6 +121,8 @@ fn render_input(ctx: FieldRenderCtx) -> Element(FormMsg) {
     False -> extra_attrs
   }
 
+  let extra_attrs = list.append(extra_attrs, ui_hint_attributes(ctx))
+
   let input_elem =
     html.input(field_common.input_attributes(
       ctx.path,
@@ -81,12 +132,20 @@ fn render_input(ctx: FieldRenderCtx) -> Element(FormMsg) {
       extra_attrs,
     ))
 
-  field_common.field_wrapper_with_path(
-    ctx.path,
-    ctx.property,
-    ctx.is_required,
-    input_elem,
-  )
+  field_common.field_wrapper(ctx, input_elem)
+}
+
+/// Build attributes from UiSchema hints (placeholder, autofocus).
+fn ui_hint_attributes(ctx: FieldRenderCtx) -> List(attribute.Attribute(FormMsg)) {
+  let placeholder_attrs = case ctx.hints.placeholder {
+    Some(p) -> [attribute.attribute("placeholder", p)]
+    None -> []
+  }
+  let autofocus_attrs = case ctx.hints.autofocus {
+    Some(True) -> [attribute.attribute("autofocus", "")]
+    _ -> []
+  }
+  list.append(placeholder_attrs, autofocus_attrs)
 }
 
 /// Render a textarea for string fields with `maxLength > 100`.
@@ -104,6 +163,8 @@ fn render_textarea(ctx: FieldRenderCtx) -> Element(FormMsg) {
     False -> extra_attrs
   }
 
+  let extra_attrs = list.append(extra_attrs, ui_hint_attributes(ctx))
+
   let textarea_elem =
     html.textarea(
       field_common.input_attributes(
@@ -116,12 +177,7 @@ fn render_textarea(ctx: FieldRenderCtx) -> Element(FormMsg) {
       current_value,
     )
 
-  field_common.field_wrapper_with_path(
-    ctx.path,
-    ctx.property,
-    ctx.is_required,
-    textarea_elem,
-  )
+  field_common.field_wrapper(ctx, textarea_elem)
 }
 
 /// Render an enum field as either radio buttons or a select dropdown.
@@ -203,12 +259,7 @@ fn render_radio_group(
       }),
     )
 
-  field_common.field_wrapper_with_path(
-    ctx.path,
-    ctx.property,
-    ctx.is_required,
-    radio_group,
-  )
+  field_common.field_wrapper(ctx, radio_group)
 }
 
 /// Render a select dropdown for enum values (> 5 options).
@@ -248,12 +299,7 @@ fn render_select(
       ],
     )
 
-  field_common.field_wrapper_with_path(
-    ctx.path,
-    ctx.property,
-    ctx.is_required,
-    select_elem,
-  )
+  field_common.field_wrapper(ctx, select_elem)
 }
 
 /// Determine the appropriate HTML input type based on string format.
@@ -407,12 +453,7 @@ fn render_one_of_radio_group(
       }),
     )
 
-  field_common.field_wrapper_with_path(
-    ctx.path,
-    ctx.property,
-    ctx.is_required,
-    radio_group,
-  )
+  field_common.field_wrapper(ctx, radio_group)
 }
 
 /// Render a select dropdown for oneOf const+title options.
@@ -452,12 +493,7 @@ fn render_one_of_select(
       ],
     )
 
-  field_common.field_wrapper_with_path(
-    ctx.path,
-    ctx.property,
-    ctx.is_required,
-    select_elem,
-  )
+  field_common.field_wrapper(ctx, select_elem)
 }
 
 /// Convert a Value to its string representation.

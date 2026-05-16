@@ -13,6 +13,8 @@ import formosh/schema/conditional_resolver
 import formosh/schema/parser
 import formosh/schema/serializer
 import formosh/schema/types.{type JsonSchema, type Value}
+import formosh/schema/ui_parser
+import formosh/schema/ui_schema.{type UiSchema, empty_ui_schema}
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/io
@@ -77,6 +79,18 @@ pub fn register() -> Result(Nil, lustre.Error) {
       // Listen for upload-base-url changes
       component.on_attribute_change("upload-base-url", fn(value) {
         Ok(UploadBaseUrlChanged(value))
+      }),
+      // Listen for ui-schema changes (JSON string)
+      component.on_attribute_change("ui-schema", fn(value) {
+        case ui_parser.parse(value) {
+          Ok(ui) -> Ok(UiSchemaChanged(ui))
+          Error(error) -> {
+            io.println_error(
+              "formosh: ui-schema parse error: " <> string.inspect(error),
+            )
+            Error(Nil)
+          }
+        }
       }),
     ])
 
@@ -153,6 +167,15 @@ pub fn upload_base_url(url: String) -> Attribute(msg) {
   attribute.attribute("upload-base-url", url)
 }
 
+/// Set the UiSchema as a JSON string attribute.
+///
+/// UiSchema separates presentation hints (widgets, order, placeholder,
+/// help text, etc.) from the JSON Schema data definition. See
+/// `formosh/schema/ui_schema` for the supported `ui:*` fields.
+pub fn ui_schema_string(json: String) -> Attribute(msg) {
+  attribute.attribute("ui-schema", json)
+}
+
 /// Listen for form submission events.
 ///
 /// The handler receives the form data as a JSON object in the event detail.
@@ -201,6 +224,8 @@ type Model {
     show_readonly_fields: Bool,
     // Base URL for file uploads
     upload_base_url: Option(String),
+    // Parsed UiSchema (presentation hints parallel to `schema`)
+    ui_schema: UiSchema,
   )
 }
 
@@ -213,6 +238,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       initial_values: dict.new(),
       show_readonly_fields: True,
       upload_base_url: None,
+      ui_schema: empty_ui_schema(),
     ),
     effect.none(),
   )
@@ -229,6 +255,7 @@ type Msg {
   InitialValuesChanged(dict.Dict(String, Value))
   ShowReadonlyFieldsChanged(Bool)
   UploadBaseUrlChanged(String)
+  UiSchemaChanged(UiSchema)
 
   // Form messages (wrapped)
   FormMessage(FormMsg)
@@ -250,13 +277,14 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
     None -> None
   }
 
-  // Initialize form with the schema, submit config, and initial values
+  // Initialize form with the schema, submit config, initial values, and ui_schema
   let form_model =
     init_with_full_config(
       schema,
       submit_config,
       model.show_readonly_fields,
       model.initial_values,
+      model.ui_schema,
     )
   // Resolve conditional schema (if/then/else) based on initial values
   let resolved_schema =
@@ -347,6 +375,22 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
             form_model: Some(
               FormModel(..form_model, upload_base_url: Some(url)),
             ),
+          )
+        None -> new_model
+      }
+      #(final_model, effect.none())
+    }
+
+    UiSchemaChanged(ui) -> {
+      let new_model = Model(..model, ui_schema: ui)
+      // UiSchema is presentation-only — applying it in-place keeps the
+      // current form values and validation state. Renderers re-resolve
+      // hints from `FormModel.ui_schema` on every render.
+      let final_model = case new_model.form_model {
+        Some(form_model) ->
+          Model(
+            ..new_model,
+            form_model: Some(FormModel(..form_model, ui_schema: ui)),
           )
         None -> new_model
       }

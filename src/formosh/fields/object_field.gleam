@@ -8,6 +8,7 @@
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path.{PropertySegment}
+import formosh/schema/properties
 import gleam/list
 import gleam/option.{None, Some}
 import lustre/attribute.{class}
@@ -33,6 +34,7 @@ pub fn render_container(
       property: ctx.property,
       is_required: ctx.is_required,
       css_class: "object-label",
+      hints: ctx.hints,
     ),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
@@ -52,7 +54,8 @@ fn render_nested_fields(
 ) -> List(Element(FormMsg)) {
   case ctx.property.properties {
     Some(props) ->
-      list.map(props, fn(entry) {
+      properties.apply_order(props, ctx.hints.order)
+      |> list.map(fn(entry) {
         let #(child_name, child_prop) = entry
         let child_path = list.append(ctx.path, [PropertySegment(child_name)])
         let child_ctx =

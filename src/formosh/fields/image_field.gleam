@@ -93,12 +93,7 @@ pub fn render(
       ],
     )
 
-  field_common.field_wrapper_with_path(
-    ctx.path,
-    ctx.property,
-    ctx.is_required,
-    content,
-  )
+  field_common.field_wrapper(ctx, content)
 }
 
 /// Render a single uploaded image with delete button.

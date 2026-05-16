@@ -2,7 +2,8 @@
 
 import formosh/form/model.{type FormModel, type FormMsg, UpdateFieldPath}
 import formosh/form/path
-import formosh/schema/types
+import formosh/schema/types.{type RenderHints}
+import formosh/schema/ui_resolver
 import formosh/validation/error.{type ValidationError}
 import gleam/float
 import gleam/int
@@ -13,28 +14,6 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-
-/// Create a field label from path and property.
-/// 
-/// Creates a properly associated label element for a form field, using either
-/// the property's title or a formatted version of the field name from the path.
-/// Required fields get a visual indicator (typically an asterisk).
-/// 
-/// ## Parameters
-/// - `field_path`: The field path to generate the label for
-/// - `property`: The schema property containing title information
-/// - `is_required`: Whether the field is required
-/// 
-/// ## Returns
-/// A Lustre Element representing the field label
-pub fn create_field_label(
-  field_path: path.FieldPath,
-  property: types.SchemaProperty,
-  is_required: Bool,
-) -> Element(FormMsg) {
-  let field_name = path.get_field_name(field_path)
-  render_label(field_name, property, is_required)
-}
 
 /// Render the required indicator (` *` span with `formosh-required` class)
 /// or an empty element when not required.
@@ -58,43 +37,41 @@ pub fn render_required_marker(is_required: Bool) -> Element(FormMsg) {
   }
 }
 
-/// Visible text for a field label: the schema's `title` if set,
-/// otherwise the field name with underscores replaced by spaces and
-/// capitalised. Shared by `render_label` and `render_container_label`.
-fn label_text(field_name: String, property: types.SchemaProperty) -> String {
-  case property.title {
-    Some(title) -> title
-    None -> field_name |> string.replace("_", " ") |> string.capitalise()
+/// Visible text for a field label: `hints.title` (UiSchema override) wins
+/// over `property.title` (JSON Schema), which in turn wins over the field
+/// name with underscores replaced by spaces and capitalised.
+fn label_text(
+  field_name: String,
+  property: types.SchemaProperty,
+  hints: RenderHints,
+) -> String {
+  case hints.title, property.title {
+    Some(t), _ -> t
+    None, Some(t) -> t
+    None, None -> field_name |> string.replace("_", " ") |> string.capitalise()
   }
 }
 
 /// Render a field label with optional required indicator.
 ///
-/// Creates a properly associated label element for a form field, using either
-/// the schema's title property or a formatted version of the field name.
-/// Required fields get a visual indicator (typically an asterisk).
-///
-/// ## Parameters
-/// - `field_name`: The field name, used as fallback for label text and for association
-/// - `property`: The schema property that may contain a custom title
-/// - `is_required`: Whether to show the required indicator
-///
-/// ## Returns
-/// A Lustre Element representing the field label
+/// `hints.title` (UiSchema) wins over `property.title` (JSON Schema), with
+/// the field name as final fallback. Required fields get a visual
+/// indicator (typically an asterisk).
 pub fn render_label(
-  field_name: String,
-  property: types.SchemaProperty,
-  is_required: Bool,
+  field_name name: String,
+  property prop: types.SchemaProperty,
+  is_required required: Bool,
+  hints hints: RenderHints,
 ) -> Element(FormMsg) {
   html.label(
     [
-      attribute.for(field_name),
+      attribute.for(name),
       attribute.class("formosh-label"),
       attribute.attribute("part", "label"),
     ],
     [
-      html.text(label_text(field_name, property)),
-      render_required_marker(is_required),
+      html.text(label_text(name, prop, hints)),
+      render_required_marker(required),
     ],
   )
 }
@@ -118,56 +95,50 @@ pub fn render_container_label(
   property prop: types.SchemaProperty,
   is_required required: Bool,
   css_class class: String,
+  hints hints: RenderHints,
 ) -> Element(FormMsg) {
   html.label([attribute.class(class)], [
-    html.text(label_text(name, prop)),
+    html.text(label_text(name, prop, hints)),
     render_required_marker(required),
   ])
 }
 
-/// Render help text for a field based on its schema description.
-/// 
-/// If the schema property includes a description, this creates a help text
-/// element to provide additional context to users. Returns empty text if
-/// no description is available.
-/// 
-/// ## Parameters
-/// - `property`: The schema property that may contain a description
-/// 
-/// ## Returns
-/// A Lustre Element containing the help text, or empty text if none
-pub fn render_help_text(property: types.SchemaProperty) -> Element(FormMsg) {
-  case property.description {
-    Some(desc) ->
+/// Render help text for a field.
+///
+/// Priority: `hints.help` (UiSchema override) → `hints.description`
+/// (UiSchema description override) → `property.description` (JSON Schema).
+/// Returns an empty element when no text is available.
+pub fn render_help_text(
+  property: types.SchemaProperty,
+  hints: RenderHints,
+) -> Element(FormMsg) {
+  let text = case hints.help, hints.description, property.description {
+    Some(t), _, _ -> Some(t)
+    None, Some(t), _ -> Some(t)
+    None, None, Some(t) -> Some(t)
+    None, None, None -> None
+  }
+  case text {
+    Some(t) ->
       html.div(
         [
           attribute.class("formosh-help"),
           attribute.attribute("part", "help"),
         ],
-        [html.text(desc)],
+        [html.text(t)],
       )
     None -> element.none()
   }
 }
 
-/// Wrap a form field with label and help text using field path.
-/// 
-/// Creates a consistent structure for all field types with label, input element,
-/// and optional help text. This version uses a field path for better handling
-/// of nested structures.
-/// 
-/// ## Parameters
-/// - `field_path`: The field path for label generation
-/// - `property`: The schema property containing field metadata
-/// - `is_required`: Whether the field is required
-/// - `field_element`: The actual input/select/textarea element
-/// 
-/// ## Returns
-/// A complete field structure with label and help text
-pub fn field_wrapper_with_path(
-  field_path: path.FieldPath,
-  property: types.SchemaProperty,
-  is_required: Bool,
+/// Wrap a form field with label and help text using a `FieldRenderCtx`.
+///
+/// Creates a consistent structure for all field types with label, input
+/// element, and optional help text. Pulls every needed value out of the
+/// ctx so callers don't have to thread `path`/`property`/`is_required`/
+/// `hints` individually.
+pub fn field_wrapper(
+  ctx: FieldRenderCtx,
   field_element: Element(FormMsg),
 ) -> Element(FormMsg) {
   html.div(
@@ -176,9 +147,14 @@ pub fn field_wrapper_with_path(
       attribute.attribute("part", "field-wrapper"),
     ],
     [
-      create_field_label(field_path, property, is_required),
+      render_label(
+        field_name: path.get_field_name(ctx.path),
+        property: ctx.property,
+        is_required: ctx.is_required,
+        hints: ctx.hints,
+      ),
       field_element,
-      render_help_text(property),
+      render_help_text(ctx.property, ctx.hints),
     ],
   )
 }
@@ -309,13 +285,17 @@ pub fn extract_boolean_value(value: Option(types.Value)) -> Bool {
 /// three behavioural flags the parent decides (`is_required`, `is_disabled`,
 /// `is_readonly`), and the presentation hints (`hints`) that pick a widget
 /// and feed widget-specific options. Children build their own ctx via
-/// `make_field_ctx` / `make_child_ctx` and a record update for inheritance
-/// (`FieldRenderCtx(..parent, path: child_path, ...)`).
+/// `make_field_ctx` / `make_child_ctx`.
 ///
-/// `hints` is the seam where v0.7's `UiSchema` will plug in: today the
-/// builder reads `property.render_hints` (parsed from `x-widget` family),
-/// in v0.7 the same field will be filled from a path-based `UiSchema`
-/// lookup without any change to leaf renderers.
+/// **When adding a field here:** also propagate it explicitly in
+/// `make_child_ctx` (the inheritance rule must be picked deliberately —
+/// passthrough, OR-merge, override, etc.). The constructor in
+/// `make_child_ctx` lists every field by name on purpose; gleam will NOT
+/// warn you about an omitted new field.
+///
+/// `hints` is the UiSchema seam: filled by `ui_resolver.resolve_hints`
+/// from a path lookup against `model.ui_schema`, with the deprecated
+/// `x-*` extensions as fallback.
 pub type FieldRenderCtx {
   FieldRenderCtx(
     path: path.FieldPath,
@@ -346,14 +326,15 @@ pub fn make_field_ctx(
   is_disabled is_disabled: Bool,
   is_readonly is_readonly: Bool,
 ) -> FieldRenderCtx {
+  let hints = ui_resolver.resolve_hints(model.ui_schema, field_path, property)
   FieldRenderCtx(
     path: field_path,
     property: property,
     value: model.get_value_at_path(model, field_path),
     is_required: is_required,
-    is_disabled: is_disabled,
-    is_readonly: is_readonly,
-    hints: property.render_hints,
+    is_disabled: is_disabled || option.unwrap(hints.disabled, False),
+    is_readonly: is_readonly || option.unwrap(hints.readonly, False),
+    hints: hints,
   )
 }
 
@@ -379,14 +360,17 @@ pub fn make_child_ctx(
   property child_prop: types.SchemaProperty,
   is_required child_required: Bool,
 ) -> FieldRenderCtx {
+  let hints = ui_resolver.resolve_hints(model.ui_schema, child_path, child_prop)
   FieldRenderCtx(
-    ..parent,
     path: child_path,
     property: child_prop,
     value: model.get_value_at_path(model, child_path),
     is_required: child_required,
-    is_readonly: parent.is_readonly || child_prop.read_only,
-    hints: child_prop.render_hints,
+    is_disabled: parent.is_disabled || option.unwrap(hints.disabled, False),
+    is_readonly: parent.is_readonly
+      || child_prop.read_only
+      || option.unwrap(hints.readonly, False),
+    hints: hints,
   )
 }
 

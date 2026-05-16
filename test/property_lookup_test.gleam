@@ -7,6 +7,7 @@ import formosh/form/model
 import formosh/form/path
 import formosh/schema/parser
 import formosh/schema/types
+import formosh/schema/ui_schema
 import gleam/dict
 import gleam/option.{None, Some}
 import gleeunit/should
@@ -45,7 +46,13 @@ const lookup_schema = "{
 
 fn init_for_lookup() -> model.FormModel {
   let assert Ok(schema) = parser.parse_schema(lookup_schema)
-  model.init_with_full_config(schema, None, False, dict.new())
+  model.init_with_full_config(
+    schema,
+    None,
+    False,
+    dict.new(),
+    ui_schema.empty_ui_schema(),
+  )
 }
 
 pub fn top_level_property_resolves_test() {

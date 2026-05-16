@@ -34,8 +34,8 @@ fn hidden_string_property() -> types.SchemaProperty {
     ..types.empty_property(),
     field_type: Some(types.StringType),
     render_hints: types.RenderHints(
+      ..types.empty_hints(),
       widget: Some(types.HiddenWidget),
-      upload_config: None,
     ),
   )
 }

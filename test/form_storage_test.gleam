@@ -10,6 +10,7 @@ import formosh/form/path
 import formosh/form/update
 import formosh/schema/parser
 import formosh/schema/types.{ArrayValue, ObjectValue, StringValue}
+import formosh/schema/ui_schema
 import gleam/dict
 import gleam/json
 import gleam/list
@@ -41,7 +42,13 @@ const nested_schema = "{
 
 fn init_with_nested(initial: dict.Dict(String, types.Value)) -> model.FormModel {
   let assert Ok(schema) = parser.parse_schema(nested_schema)
-  model.init_with_full_config(schema, None, False, initial)
+  model.init_with_full_config(
+    schema,
+    None,
+    False,
+    initial,
+    ui_schema.empty_ui_schema(),
+  )
 }
 
 // Initial values for a deeply nested structure must be hydrated into the

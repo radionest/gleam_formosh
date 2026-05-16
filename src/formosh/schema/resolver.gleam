@@ -236,6 +236,11 @@ fn merge_properties(
 }
 
 /// Merge two `RenderHints`, with the referencing side winning per-field.
+///
+/// Currently only widget/upload_config are populated from JSON Schema
+/// x-* extensions, so other fields fall through `option.or` as a no-op
+/// (both sides are `None`). When UiSchema gains $ref-aware merging this
+/// stays correct without changes.
 fn merge_render_hints(
   referencing: types.RenderHints,
   referenced: types.RenderHints,
@@ -246,5 +251,15 @@ fn merge_render_hints(
       referencing.upload_config,
       referenced.upload_config,
     ),
+    placeholder: option.or(referencing.placeholder, referenced.placeholder),
+    help: option.or(referencing.help, referenced.help),
+    autofocus: option.or(referencing.autofocus, referenced.autofocus),
+    disabled: option.or(referencing.disabled, referenced.disabled),
+    readonly: option.or(referencing.readonly, referenced.readonly),
+    title: option.or(referencing.title, referenced.title),
+    description: option.or(referencing.description, referenced.description),
+    order: option.or(referencing.order, referenced.order),
+    addable: option.or(referencing.addable, referenced.addable),
+    removable: option.or(referencing.removable, referenced.removable),
   )
 }
