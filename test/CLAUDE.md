@@ -86,7 +86,7 @@ pub fn conditional_field_appears_when_condition_met_test() {
 ### File-based integration test
 ```gleam
 pub fn parse_basic_leak_signs_schema_test() {
-  let assert Ok(json) = simplifile.read("examples/file_schema_loader/schemas/basic_leak_signs.json")
+  let assert Ok(json) = simplifile.read("demo/schemas/basic_leak_signs.json")
   let result = parser.parse_schema(json)
   result |> should.be_ok()
 }

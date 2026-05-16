@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/contact-form.json",
+  "title": "Контактная форма",
+  "description": "Форма для связи с нами",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Полное имя",
+      "description": "Введите ваше имя и фамилию",
+      "minLength": 2,
+      "maxLength": 100
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "title": "Email",
+      "description": "Адрес электронной почты для ответа"
+    },
+    "subject": {
+      "type": "string",
+      "title": "Тема",
+      "enum": ["question", "feedback", "support", "other"],
+      "default": "question"
+    },
+    "message": {
+      "type": "string",
+      "title": "Сообщение",
+      "description": "Опишите ваш вопрос подробно",
+      "minLength": 10,
+      "maxLength": 2000
+    }
+  },
+  "required": ["name", "email", "message"]
+}

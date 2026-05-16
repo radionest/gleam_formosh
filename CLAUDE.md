@@ -43,15 +43,17 @@ gleam test --module parser_test
 # Format code (ALWAYS run before committing)
 gleam format
 
-# Run development server with hot reload (port 1234)
-gleam run -m lustre/dev start
+# Build CDN bundle (cdn.min.mjs) for production
+npm run build
 
-# Build for production
-gleam run -m lustre/dev build app
+# Run interactive demo (port 1234) — picks a JSON Schema, renders it with <formosh-form>
+make demo
 
-# Run example application
-gleam run
+# Run echo test_server.py for form submission (port 8888)
+make demo-server
 ```
+
+The `demo/` directory is a standalone Gleam project (`demo/gleam.toml`) that depends on the library via `formosh = { path = ".." }`. It mounts `<formosh-form>` and lets you click through all schemas in `demo/schemas/`. `make demo` runs `gleam run -m lustre/dev start` inside `demo/`.
 
 ## Architecture
 
