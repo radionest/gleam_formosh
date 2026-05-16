@@ -1,6 +1,7 @@
 // JSON Schema types for form generation
 
 import gleam/dict.{type Dict}
+import gleam/dynamic/decode
 import gleam/option.{type Option, None}
 
 /// Unified value type for both schema definitions and form values.
@@ -307,4 +308,16 @@ pub fn empty_hints() -> RenderHints {
     addable: None,
     removable: None,
   )
+}
+
+/// Errors that can occur during JSON Schema or UiSchema parsing.
+///
+/// These errors provide specific information about what went wrong
+/// during the parsing process to help with debugging.
+pub type ParseError {
+  InvalidJson(String)
+  MissingField(String)
+  InvalidType(String)
+  UnexpectedValue(String)
+  DecodingError(List(decode.DecodeError))
 }

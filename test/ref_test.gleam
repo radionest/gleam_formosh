@@ -303,7 +303,7 @@ pub fn invalid_ref_error_test() {
   case result {
     Error(error) -> {
       case error {
-        parser.UnexpectedValue(msg) -> {
+        types.UnexpectedValue(msg) -> {
           should.equal(string.contains(msg, "not found"), True)
         }
         _ -> panic as "Expected UnexpectedValue error"
@@ -371,7 +371,7 @@ pub fn circular_ref_test() {
     Error(error) -> {
       // If it errors, it should be a circular reference error
       case error {
-        parser.UnexpectedValue(msg) -> {
+        types.UnexpectedValue(msg) -> {
           should.equal(string.contains(msg, "Circular"), True)
         }
         _ -> panic as "Expected circular reference error"

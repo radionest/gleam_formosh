@@ -16,11 +16,11 @@ import gleam/result
 import lustre
 import lustre/effect
 
-/// Re-export of `parser.ParseError` so users of `with_ui_schema_json` /
+/// Re-export of `types.ParseError` so users of `with_ui_schema_json` /
 /// `parse_ui_schema` can refer to the error type without importing
-/// `formosh/schema/parser` directly.
+/// `formosh/schema/types` directly.
 pub type ParseError =
-  parser.ParseError
+  types.ParseError
 
 /// Configuration options for creating a form.
 ///
@@ -191,7 +191,7 @@ pub fn with_ui_schema(config: FormConfig, ui_schema: UiSchema) -> FormConfig {
 pub fn with_ui_schema_json(
   config: FormConfig,
   json_string: String,
-) -> Result(FormConfig, parser.ParseError) {
+) -> Result(FormConfig, ParseError) {
   use ui <- result.map(ui_parser.parse(json_string))
   FormConfig(..config, ui_schema: ui)
 }
@@ -200,9 +200,7 @@ pub fn with_ui_schema_json(
 ///
 /// Convenience re-export of `ui_parser.parse` for callers that work with
 /// the public formosh API only.
-pub fn parse_ui_schema(
-  json_string: String,
-) -> Result(UiSchema, parser.ParseError) {
+pub fn parse_ui_schema(json_string: String) -> Result(UiSchema, ParseError) {
   ui_parser.parse(json_string)
 }
 
@@ -292,7 +290,7 @@ fn create_form_with_config(
 /// ```
 pub fn from_json_string(
   json_string: String,
-) -> Result(lustre.App(Nil, FormModel, FormMsg), parser.ParseError) {
+) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError) {
   case parser.parse_schema(json_string) {
     Ok(schema) -> Ok(from_schema(schema))
     Error(err) -> Error(err)
@@ -313,7 +311,7 @@ pub fn from_json_string(
 pub fn from_json_string_with_config(
   json_string: String,
   submit_config: SubmitConfig,
-) -> Result(lustre.App(Nil, FormModel, FormMsg), parser.ParseError) {
+) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError) {
   case parser.parse_schema(json_string) {
     Ok(schema) -> {
       let form_config =

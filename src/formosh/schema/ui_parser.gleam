@@ -3,15 +3,14 @@
 /// Accepts react-jsonschema-form-style JSON: `ui:*` keys carry settings for
 /// the current node, `items` is a reserved key for the array-element
 /// template, every other key is a child property name. Errors surface as
-/// `parser.ParseError` (the same type used by the JSON Schema parser) so
+/// `types.ParseError` (the same type used by the JSON Schema parser) so
 /// callers can handle both kinds of input uniformly.
 import formosh/ffi/dynamic_object
-import formosh/schema/parser.{
-  type ParseError, DecodingError, InvalidJson, UnexpectedValue,
-}
+import formosh/schema/parser
 import formosh/schema/types.{
-  type UploadConfig, type Value, type Widget, CustomWidget, HiddenWidget,
-  ImageUploadWidget, UploadConfig,
+  type ParseError, type UploadConfig, type Value, type Widget, CustomWidget,
+  DecodingError, HiddenWidget, ImageUploadWidget, InvalidJson, UnexpectedValue,
+  UploadConfig,
 }
 import formosh/schema/ui_schema.{
   type UiProperty, type UiSchema, UiProperty, UiSchema, empty_ui_schema,
