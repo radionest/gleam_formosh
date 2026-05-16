@@ -4,6 +4,7 @@ import formosh/fields/field_common
 import formosh/fields/field_dispatcher
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
+import formosh/schema/properties
 import formosh/schema/types
 import gleam/list
 import gleam/option.{None, Some}
@@ -61,8 +62,13 @@ fn render_form_header(model: FormModel) -> Element(FormMsg) {
 }
 
 fn render_form_body(model: FormModel) -> Element(FormMsg) {
+  let ordered_properties =
+    properties.apply_order(
+      model.resolved_schema.properties,
+      model.ui_schema.order,
+    )
   let fields =
-    list.map(model.resolved_schema.properties, fn(pair) {
+    list.map(ordered_properties, fn(pair) {
       let #(field_name, property) = pair
       render_field(model, field_name, property)
     })

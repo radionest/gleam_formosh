@@ -3,8 +3,8 @@
 import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
 import formosh/schema/conditional_resolver
 import formosh/schema/types.{
-  type SchemaProperty, type Value, ArrayValue, BooleanValue, IntegerValue,
-  NullValue, NumberValue, ObjectValue, StringValue,
+  type SchemaProperty, type Value, type Widget, ArrayValue, BooleanValue,
+  IntegerValue, NullValue, NumberValue, ObjectValue, StringValue,
 }
 import formosh/validation/error.{type ValidationError}
 import formosh/validation/field_requirements
@@ -17,15 +17,19 @@ import gleam/string
 
 /// Validate a field value against its schema property definition.
 ///
-/// `field_path` is the canonical path used by every form layer; errors built
-/// here are keyed by this path without any intermediate string round-trip.
+/// `field_path` is the canonical path used by every form layer; errors
+/// built here are keyed by this path without any intermediate string
+/// round-trip. `effective_widget` is the merged widget choice (UiSchema +
+/// x-widget fallback) supplied by the caller — `validator` itself doesn't
+/// know about `UiSchema`.
 pub fn validate_field(
   field_path: FieldPath,
   value: Option(Value),
   property: SchemaProperty,
   is_required: Bool,
+  effective_widget: Option(Widget),
 ) -> List(ValidationError) {
-  case property.render_hints.widget {
+  case effective_widget {
     Some(types.ImageUploadWidget) ->
       validate_image_upload(field_path, value, is_required)
     _ -> validate_standard_field(field_path, value, property, is_required)
@@ -360,8 +364,18 @@ fn validate_resolved_props(
         let field_value = dict.get(values, field_name) |> option.from_result
         let is_required = list.contains(resolved.required, field_name)
         let field_path = key_for(field_name)
+        // Nested validation only sees x-widget here — UiSchema lookup for
+        // nested image-upload fields lives in callers that have access to
+        // the model. Nested image-upload widgets are not yet supported
+        // (see CLAUDE.md), so this fallback is sufficient.
         let own_errors =
-          validate_field(field_path, field_value, field_prop, is_required)
+          validate_field(
+            field_path,
+            field_value,
+            field_prop,
+            is_required,
+            field_prop.render_hints.widget,
+          )
         let nested = validate_nested(field_path, field_prop, field_value)
         list.append(own_errors, nested)
       })

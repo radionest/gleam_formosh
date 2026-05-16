@@ -40,13 +40,27 @@ pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
     False -> []
   }
 
+  let placeholder_attrs = case ctx.hints.placeholder {
+    Some(p) -> [attribute.attribute("placeholder", p)]
+    None -> []
+  }
+  let autofocus_attrs = case ctx.hints.autofocus {
+    Some(True) -> [attribute.attribute("autofocus", "")]
+    _ -> []
+  }
+
   html.div(
     [
       attribute.class("formosh-field-wrapper"),
       attribute.attribute("part", "field-wrapper"),
     ],
     [
-      field_common.render_label(field_name, ctx.property, ctx.is_required),
+      field_common.render_label(
+        field_name: field_name,
+        property: ctx.property,
+        is_required: ctx.is_required,
+        hints: ctx.hints,
+      ),
       html.input(
         list.flatten([
           [
@@ -68,9 +82,11 @@ pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
           ],
           constraint_attrs,
           readonly_attrs,
+          placeholder_attrs,
+          autofocus_attrs,
         ]),
       ),
-      field_common.render_help_text(ctx.property),
+      field_common.render_help_text(ctx.property, ctx.hints),
     ],
   )
 }

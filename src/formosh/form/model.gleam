@@ -7,6 +7,7 @@ import formosh/schema/properties
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ObjectValue,
 }
+import formosh/schema/ui_schema.{type UiSchema, empty_ui_schema}
 import formosh/validation/error.{type ValidationError}
 import gleam/dict.{type Dict}
 import gleam/list
@@ -61,6 +62,9 @@ pub type FormModel {
     upload_base_url: Option(String),
     // In-flight upload states: field_path_string -> list of uploads
     upload_states: Dict(String, List(FileUploadState)),
+    // Presentation settings parallel to `schema`. `ui_resolver.resolve_hints`
+    // merges this with each `SchemaProperty.render_hints` at render time.
+    ui_schema: UiSchema,
   )
 }
 
@@ -144,7 +148,13 @@ pub fn init_with_config(
   schema: JsonSchema,
   submit_config: Option(SubmitConfig),
 ) -> FormModel {
-  init_with_full_config(schema, submit_config, False, dict.new())
+  init_with_full_config(
+    schema,
+    submit_config,
+    False,
+    dict.new(),
+    empty_ui_schema(),
+  )
 }
 
 /// Initialize a new form model with full configuration including readOnly and initial values.
@@ -167,6 +177,7 @@ pub fn init_with_full_config(
   submit_config: Option(SubmitConfig),
   show_readonly_fields: Bool,
   initial_values: Dict(String, Value),
+  ui_schema: UiSchema,
 ) -> FormModel {
   // Public API still accepts a flat Dict of top-level values. Internally
   // we store one ObjectValue tree, so convert at the boundary and let the
@@ -189,6 +200,7 @@ pub fn init_with_full_config(
     show_readonly_fields: show_readonly_fields,
     upload_base_url: option.None,
     upload_states: dict.new(),
+    ui_schema: ui_schema,
   )
 }
 
@@ -263,6 +275,7 @@ pub fn reset(model: FormModel) -> FormModel {
     show_readonly_fields: model.show_readonly_fields,
     upload_base_url: model.upload_base_url,
     upload_states: dict.new(),
+    ui_schema: model.ui_schema,
   )
 }
 

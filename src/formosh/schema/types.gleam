@@ -93,12 +93,26 @@ pub type Widget {
 /// Presentation hints separate from JSON Schema data definitions.
 ///
 /// `SchemaProperty` describes the *data*; `RenderHints` describes how it
-/// should appear. Today the hints come from `x-widget` / `x-accept` /
-/// `x-max-file-size` extensions on the same JSON Schema node — in v0.7 the
-/// same record will be filled from a parallel `UiSchema`, so renderers
-/// already read through this seam.
+/// should appear. As of v0.7 hints come from two sources: the parallel
+/// `UiSchema` (primary) and `x-widget` / `x-accept` / `x-max-file-size`
+/// extensions on the same JSON Schema node (deprecated fallback). The
+/// merge happens in `ui_resolver.resolve_hints` and produces this record.
+/// Leaf renderers read via `FieldRenderCtx.hints` and stay source-agnostic.
 pub type RenderHints {
-  RenderHints(widget: Option(Widget), upload_config: Option(UploadConfig))
+  RenderHints(
+    widget: Option(Widget),
+    upload_config: Option(UploadConfig),
+    placeholder: Option(String),
+    help: Option(String),
+    autofocus: Option(Bool),
+    disabled: Option(Bool),
+    readonly: Option(Bool),
+    title: Option(String),
+    description: Option(String),
+    order: Option(List(String)),
+    addable: Option(Bool),
+    removable: Option(Bool),
+  )
 }
 
 /// A single property definition within a JSON Schema.
@@ -272,10 +286,25 @@ pub fn empty_property() -> SchemaProperty {
   )
 }
 
-/// Create an empty `RenderHints` record (no widget override, no upload config).
+/// Create an empty `RenderHints` record (no overrides — every renderer
+/// falls back to schema-level defaults).
 ///
-/// Use as the default value for properties without `x-widget` extensions and
-/// as the base for `FieldRenderCtx.hints` when no hints apply.
+/// Use as the default value for properties without `x-widget` extensions
+/// and UiSchema entries, and as the base for `FieldRenderCtx.hints` when
+/// no hints apply.
 pub fn empty_hints() -> RenderHints {
-  RenderHints(widget: None, upload_config: None)
+  RenderHints(
+    widget: None,
+    upload_config: None,
+    placeholder: None,
+    help: None,
+    autofocus: None,
+    disabled: None,
+    readonly: None,
+    title: None,
+    description: None,
+    order: None,
+    addable: None,
+    removable: None,
+  )
 }

@@ -16,8 +16,8 @@ pub fn image_upload_required_empty_test() {
     SchemaProperty(
       ..empty_property(),
       render_hints: types.RenderHints(
+        ..types.empty_hints(),
         widget: Some(types.ImageUploadWidget),
-        upload_config: None,
       ),
     )
 
@@ -27,6 +27,7 @@ pub fn image_upload_required_empty_test() {
       Some(ArrayValue([])),
       property,
       True,
+      property.render_hints.widget,
     )
 
   should.equal(errors != [], True)
@@ -37,8 +38,8 @@ pub fn image_upload_required_with_values_test() {
     SchemaProperty(
       ..empty_property(),
       render_hints: types.RenderHints(
+        ..types.empty_hints(),
         widget: Some(types.ImageUploadWidget),
-        upload_config: None,
       ),
     )
 
@@ -47,7 +48,14 @@ pub fn image_upload_required_with_values_test() {
       ArrayValue([StringValue("/uploads/a.jpg"), StringValue("/uploads/b.jpg")]),
     )
 
-  let errors = validator.validate_field(photos_path(), value, property, True)
+  let errors =
+    validator.validate_field(
+      photos_path(),
+      value,
+      property,
+      True,
+      property.render_hints.widget,
+    )
 
   should.equal(errors, [])
 }
@@ -57,8 +65,8 @@ pub fn image_upload_not_required_empty_test() {
     SchemaProperty(
       ..empty_property(),
       render_hints: types.RenderHints(
+        ..types.empty_hints(),
         widget: Some(types.ImageUploadWidget),
-        upload_config: None,
       ),
     )
 
@@ -68,6 +76,7 @@ pub fn image_upload_not_required_empty_test() {
       Some(ArrayValue([])),
       property,
       False,
+      property.render_hints.widget,
     )
 
   should.equal(errors, [])
@@ -78,12 +87,19 @@ pub fn image_upload_required_none_value_test() {
     SchemaProperty(
       ..empty_property(),
       render_hints: types.RenderHints(
+        ..types.empty_hints(),
         widget: Some(types.ImageUploadWidget),
-        upload_config: None,
       ),
     )
 
-  let errors = validator.validate_field(photos_path(), None, property, True)
+  let errors =
+    validator.validate_field(
+      photos_path(),
+      None,
+      property,
+      True,
+      property.render_hints.widget,
+    )
 
   should.equal(errors != [], True)
 }
@@ -93,12 +109,19 @@ pub fn image_upload_not_required_none_value_test() {
     SchemaProperty(
       ..empty_property(),
       render_hints: types.RenderHints(
+        ..types.empty_hints(),
         widget: Some(types.ImageUploadWidget),
-        upload_config: None,
       ),
     )
 
-  let errors = validator.validate_field(photos_path(), None, property, False)
+  let errors =
+    validator.validate_field(
+      photos_path(),
+      None,
+      property,
+      False,
+      property.render_hints.widget,
+    )
 
   should.equal(errors, [])
 }
@@ -118,12 +141,14 @@ fn status_path() -> path.FieldPath {
 // Regression: validate_enum used to be a no-op stub that accepted everything.
 // A value outside the declared set must now produce a "enum" rule error.
 pub fn validate_enum_rejects_value_outside_set_test() {
+  let property = enum_status_property()
   let errors =
     validator.validate_field(
       status_path(),
       Some(StringValue("banned")),
-      enum_status_property(),
+      property,
       False,
+      property.render_hints.widget,
     )
 
   list.any(errors, fn(e) { e.rule == "enum" })
@@ -133,12 +158,14 @@ pub fn validate_enum_rejects_value_outside_set_test() {
 // Regression: validate_enum must NOT produce an error when the value is one
 // of the allowed enum members.
 pub fn validate_enum_accepts_value_in_set_test() {
+  let property = enum_status_property()
   let errors =
     validator.validate_field(
       status_path(),
       Some(StringValue("active")),
-      enum_status_property(),
+      property,
       False,
+      property.render_hints.widget,
     )
 
   list.any(errors, fn(e) { e.rule == "enum" })
@@ -154,8 +181,8 @@ fn hidden_string_property() -> SchemaProperty {
     ..empty_property(),
     field_type: Some(types.StringType),
     render_hints: types.RenderHints(
+      ..types.empty_hints(),
       widget: Some(types.HiddenWidget),
-      upload_config: None,
     ),
   )
 }
@@ -164,12 +191,14 @@ fn hidden_string_property() -> SchemaProperty {
 // value must surface a required-rule error, otherwise schemas relying on
 // default-injected hidden values can silently submit empty payloads.
 pub fn hidden_widget_required_missing_value_test() {
+  let property = hidden_string_property()
   let errors =
     validator.validate_field(
       tenant_id_path(),
       None,
-      hidden_string_property(),
+      property,
       True,
+      property.render_hints.widget,
     )
 
   list.any(errors, fn(e) { e.rule == "required" })
@@ -177,24 +206,28 @@ pub fn hidden_widget_required_missing_value_test() {
 }
 
 pub fn hidden_widget_required_with_value_test() {
+  let property = hidden_string_property()
   let errors =
     validator.validate_field(
       tenant_id_path(),
       Some(StringValue("acme")),
-      hidden_string_property(),
+      property,
       True,
+      property.render_hints.widget,
     )
 
   should.equal(errors, [])
 }
 
 pub fn hidden_widget_not_required_missing_value_test() {
+  let property = hidden_string_property()
   let errors =
     validator.validate_field(
       tenant_id_path(),
       None,
-      hidden_string_property(),
+      property,
       False,
+      property.render_hints.widget,
     )
 
   should.equal(errors, [])

@@ -10,7 +10,9 @@ import formosh/form/model.{
 }
 import formosh/form/path
 import formosh/schema/conditional_resolver
+import formosh/schema/properties
 import formosh/schema/types.{type SchemaProperty, type Value}
+import formosh/schema/ui_resolver
 import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
@@ -42,12 +44,18 @@ pub fn render_container(
     None -> []
   }
 
+  // `resolve_hints` always wraps `addable`/`removable` in `Some`
+  // (UiSchema override or `SchemaProperty.addable` Bool fallback), so the
+  // outer `option.unwrap` default below is just a defensive no-op.
+  let addable = option.unwrap(ctx.hints.addable, True)
+
   html.div([class("array-field")], [
     field_common.render_container_label(
       field_name: array_name,
       property: ctx.property,
       is_required: ctx.is_required,
       css_class: "array-label",
+      hints: ctx.hints,
     ),
     case description {
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
@@ -59,7 +67,7 @@ pub fn render_container(
         render_array_item(ctx, item, index, model, render_child)
       }),
     ),
-    case ctx.is_readonly || !ctx.property.addable {
+    case ctx.is_readonly || !addable {
       True -> element.none()
       False ->
         html.button(
@@ -89,7 +97,7 @@ fn render_array_item(
           html.span([class("array-item-index")], [
             html.text("№ " <> int.to_string(index + 1)),
           ]),
-          case ctx.is_readonly || !ctx.property.removable {
+          case ctx.is_readonly || !option.unwrap(ctx.hints.removable, True) {
             True -> element.none()
             False ->
               html.button(
@@ -130,9 +138,14 @@ fn render_item_fields(
     conditional_resolver.resolve_conditional_property(item_schema, item)
   let item_path = list.append(ctx.path, [path.ArraySegment(index)])
 
+  // For array items, the row order is controlled by the array's `items`
+  // template, looked up via the row's path.
+  let item_hints =
+    ui_resolver.resolve_hints(model.ui_schema, item_path, item_schema)
   case resolved.properties {
     Some(props) ->
-      list.map(props, fn(entry) {
+      properties.apply_order(props, item_hints.order)
+      |> list.map(fn(entry) {
         let #(child_name, child_prop) = entry
         let child_path =
           list.append(item_path, [path.PropertySegment(child_name)])

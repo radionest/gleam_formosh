@@ -595,13 +595,20 @@ fn extract_upload_config(
   }
 }
 
-/// Build a `RenderHints` from the JSON Schema node's `x-` extensions.
-/// In v0.7 this is the single seam that switches from `x-widget` to
-/// `UiSchema` lookup — `SchemaProperty` itself stays out of UI concerns.
+/// Build a `RenderHints` from the JSON Schema node's deprecated `x-`
+/// extensions. UiSchema is the primary source for hints; this path only
+/// fills `widget` and `upload_config` from `x-widget` / `x-accept` /
+/// `x-max-file-size` for backwards compatibility — all other fields stay
+/// at their `empty_hints()` defaults and are populated (if at all) by
+/// `ui_resolver.resolve_hints`.
 fn extract_render_hints(data: Dynamic) -> types.RenderHints {
   let widget = extract_widget(data)
   let upload_config = extract_upload_config(data, widget)
-  types.RenderHints(widget: widget, upload_config: upload_config)
+  types.RenderHints(
+    ..types.empty_hints(),
+    widget: widget,
+    upload_config: upload_config,
+  )
 }
 
 /// Decode a string format specifier into a StringFormat.

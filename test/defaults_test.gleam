@@ -4,13 +4,20 @@ import formosh/schema/parser
 import formosh/schema/types.{
   ArrayValue, BooleanValue, IntegerValue, NullValue, ObjectValue, StringValue,
 }
+import formosh/schema/ui_schema
 import gleam/dict
 import gleam/option.{None, Some}
 import gleeunit/should
 
 fn init_with(schema_json: String, values: dict.Dict(String, types.Value)) {
   let assert Ok(schema) = parser.parse_schema(schema_json)
-  model.init_with_full_config(schema, None, False, values)
+  model.init_with_full_config(
+    schema,
+    None,
+    False,
+    values,
+    ui_schema.empty_ui_schema(),
+  )
 }
 
 fn read(m: model.FormModel, name: String) -> option.Option(types.Value) {

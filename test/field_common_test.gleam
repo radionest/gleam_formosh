@@ -22,7 +22,7 @@ pub fn render_help_text_has_part_attribute_test() {
       description: Some("Enter your name"),
     )
   let html =
-    field_common.render_help_text(property)
+    field_common.render_help_text(property, types.empty_hints())
     |> element.to_string
 
   html |> string.contains("part=\"help\"") |> should.be_true
@@ -57,6 +57,7 @@ pub fn render_container_label_uses_title_test() {
       property: property,
       is_required: False,
       css_class: "array-label",
+      hints: types.empty_hints(),
     )
     |> element.to_string
 
@@ -74,6 +75,7 @@ pub fn render_container_label_formats_fallback_test() {
       property: property,
       is_required: False,
       css_class: "object-label",
+      hints: types.empty_hints(),
     )
     |> element.to_string
 
@@ -91,6 +93,7 @@ pub fn render_container_label_shows_required_marker_test() {
       property: property,
       is_required: True,
       css_class: "array-label",
+      hints: types.empty_hints(),
     )
     |> element.to_string
 

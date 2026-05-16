@@ -757,6 +757,7 @@ pub fn image_upload_serialization_test() {
               SchemaProperty(..empty_property(), field_type: Some(StringType)),
             ),
             render_hints: types.RenderHints(
+              ..types.empty_hints(),
               widget: Some(types.ImageUploadWidget),
               upload_config: Some(UploadConfig(
                 accept: "image/*",

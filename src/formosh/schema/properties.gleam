@@ -11,7 +11,7 @@
 /// rather than calling `list.key_find` or hand-rolling merge logic.
 import formosh/schema/types.{type SchemaProperty}
 import gleam/list
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 
 pub type PropertyList =
@@ -71,6 +71,33 @@ pub fn merge(base: PropertyList, additions: PropertyList) -> PropertyList {
       !list.contains(base_keys, entry.0)
     })
   list.append(updated_base, new_only)
+}
+
+/// Reorder an ordered key/value list according to a `ui:order` list.
+///
+/// Generic over the value type so it can be applied to any ordered list of
+/// `#(String, _)` entries — primarily `PropertyList`, but also UiSchema
+/// children and arbitrary test fixtures. Keys listed in `order` come first
+/// in the given sequence; everything else follows in its original position.
+/// Unknown keys in `order` (not present in `entries`) are silently dropped.
+/// Returns the input unchanged when `order` is `None`.
+pub fn apply_order(
+  entries: List(#(String, a)),
+  order: Option(List(String)),
+) -> List(#(String, a)) {
+  case order {
+    None -> entries
+    Some(ordered_keys) -> {
+      let ordered =
+        list.filter_map(ordered_keys, fn(key) {
+          list.key_find(entries, key)
+          |> result.map(fn(value) { #(key, value) })
+        })
+      let unordered =
+        list.filter(entries, fn(entry) { !list.contains(ordered_keys, entry.0) })
+      list.append(ordered, unordered)
+    }
+  }
 }
 
 /// Keep only the first occurrence of each key, preserving order.
