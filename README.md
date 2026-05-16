@@ -367,9 +367,12 @@ gleam deps download    # install dependencies
 gleam build            # build
 gleam test             # run tests
 gleam format           # format code
-gleam run -m lustre/dev start   # dev server with hot reload (port 1234)
-gleam run -m lustre/dev build app   # production build
+make demo              # interactive demo on http://localhost:1234 (picks a schema, mounts <formosh-form>)
+make demo-server       # echo backend for form submissions on port 8888 (optional)
+npm run build          # build CDN bundle into dist/
 ```
+
+The interactive demo lives in `demo/` as a standalone Gleam project that depends on the library via `formosh = { path = ".." }`. Add JSON Schemas to `demo/schemas/` and they become selectable in the UI (see `demo/src/demo.gleam`).
 
 ## API Reference
 

@@ -18,9 +18,7 @@ fn find_prop(
 
 pub fn hidden_fields_example_schema_parses_test() {
   let assert Ok(schema_json) =
-    simplifile.read(
-      "examples/file_schema_loader/schemas/hidden_fields_test.json",
-    )
+    simplifile.read("demo/schemas/hidden_fields_test.json")
 
   let parse_result = parser.parse_schema(schema_json)
   parse_result |> should.be_ok()
