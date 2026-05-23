@@ -1,5 +1,6 @@
 // Update functions for form MVU
 
+import formosh/ffi/console
 import formosh/ffi/image_upload as image_upload_ffi
 import formosh/form/defaults
 import formosh/form/json_utils
@@ -182,6 +183,7 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           #(submitting_model, submit_effect)
         }
         False -> {
+          warn_if_only_hidden_blocks(validated_model)
           #(validated_model, effect.none())
         }
       }
@@ -606,6 +608,42 @@ fn serialize_values(m: FormModel) -> String {
   m.values
   |> json_utils.value_to_json
   |> json.to_string
+}
+
+/// Diagnostic for the strict submit gate: when the only blocking errors are
+/// on UI-suppressed paths, the user sees a disabled submit button with no
+/// associated message anywhere on the page. Emit a single `console.warn`
+/// listing the offending paths so the developer can locate the schema bug
+/// (typically a hidden/readOnly-suppressed field that is `required` but has
+/// no `default` and no programmatic value).
+fn warn_if_only_hidden_blocks(model: FormModel) -> Nil {
+  case model.is_valid_for_submit(model) {
+    False -> Nil
+    True -> {
+      let hidden = model.hidden_errors(model)
+      case dict.is_empty(hidden) {
+        True -> Nil
+        False -> console.warn(format_hidden_errors_warning(hidden))
+      }
+    }
+  }
+}
+
+fn format_hidden_errors_warning(
+  hidden: dict.Dict(String, List(error.ValidationError)),
+) -> String {
+  let lines =
+    hidden
+    |> dict.to_list
+    |> list.flat_map(fn(entry) {
+      let #(path_key, errors) = entry
+      list.map(errors, fn(err) { "  - " <> path_key <> ": " <> err.message })
+    })
+  "[formosh] Submit blocked by errors on UI-suppressed fields:\n"
+  <> string.join(lines, "\n")
+  <> "\nThese paths are hidden (`x-widget`/`ui:widget: \"hidden\"`) or"
+  <> " readOnly with `show_readonly_fields: false`. Supply a JSON Schema"
+  <> " `default`, set the value programmatically, or drop `required`."
 }
 
 /// Create an effect for form submission.
