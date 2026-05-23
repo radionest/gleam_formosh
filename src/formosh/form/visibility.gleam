@@ -16,6 +16,13 @@
 /// Run after `conditional_resolver.resolve_recursive` so branch switches are
 /// reflected. Set keys use `path.to_string`, matching the encoding of
 /// `model.errors` keys (canonical format in `formosh/path_format`).
+///
+/// Known limitation: item-level conditionals inside array `items` are not
+/// recursed per row (mirrors `conditional_resolver.resolve_nested_conditionals`
+/// — per-row resolve happens at render time, not in the pre-walk). If a
+/// conditional flips visibility for some rows but not others, the set is
+/// computed against the base `items` template, not the per-row resolved
+/// schema.
 import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ArrayType, ArrayValue,
