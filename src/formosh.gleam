@@ -220,6 +220,19 @@ pub fn parse_ui_schema(json_string: String) -> Result(UiSchema, ParseError) {
 /// Use this for rules JSON Schema cannot express — e.g. "sum of category
 /// limits ≤ total limit", "end date > start date".
 ///
+/// ## Behavior
+///
+/// - **Triggered on every value change.** For large forms with expensive
+///   validators (e.g. JS validators that serialise the whole values tree
+///   to JSON on every keystroke), consider the performance cost.
+/// - **Skipped while `touched_fields` is empty.** This prevents pre-touch
+///   errors from invisibly blocking submit before the user has interacted.
+/// - **Errors on unknown paths are dropped** (with a console warning).
+///   Returning `ValidationError(field: [], ...)` is also dropped.
+/// - **Schema errors take precedence.** If a field already has a schema
+///   error, the cross-field error for the same field is suppressed until
+///   the schema error clears.
+///
 /// ## Example
 /// ```gleam
 /// import formosh/form/path.{PropertySegment}

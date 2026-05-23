@@ -506,13 +506,14 @@ pub fn clear_errors_at_path(
 }
 
 /// Check if the form can be submitted.
-/// 
-/// A form can be submitted if it is valid (no validation errors),
-/// not currently being submitted, and has been modified (is dirty).
-/// 
+///
+/// A form can be submitted if it is valid (no validation errors) and not
+/// currently being submitted. `is_dirty` is **not** checked — a form with
+/// valid defaults can be submitted without any user interaction.
+///
 /// ## Parameters
 /// - `model`: The form model to check
-/// 
+///
 /// ## Returns
 /// True if the form can be submitted, False otherwise
 pub fn can_submit(model: FormModel) -> Bool {

@@ -1,5 +1,8 @@
 export function callValidator(jsFn, valuesJson) {
   if (typeof jsFn !== "function") {
+    console.warn(
+      "formosh: validator is not a function (got " + typeof jsFn + ")",
+    );
     return [];
   }
   let values;

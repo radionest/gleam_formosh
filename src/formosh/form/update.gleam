@@ -19,8 +19,10 @@ import formosh/schema/types.{type Value}
 import formosh/schema/ui_resolver
 import formosh/schema/validator
 import formosh/validation/cross_validator
+import formosh/validation/error
 import gleam/dict
 import gleam/http/response
+import gleam/io
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
@@ -371,19 +373,46 @@ pub fn validate_all_fields(model: FormModel) -> FormModel {
       })
     })
 
-  case after_nested.validator {
-    None -> after_nested
-    Some(v) -> {
-      // Drop errors whose path is empty: they would land under key "" in
-      // `model.errors`, invisibly blocking submit. Cross-field errors must
-      // bind to a real field (see "no form-level errors" design decision).
+  case after_nested.validator, after_nested.touched_fields {
+    None, _ -> after_nested
+    // Skip the custom validator until the user has touched something. This
+    // prevents pre-touch errors from invisibly blocking submit (UI hides
+    // them via touched-gate, but `is_valid` already flipped to False).
+    Some(_), [] -> after_nested
+    Some(v), _ -> {
       let cross_errors =
         cross_validator.run(v, after_nested, serialize_values)
-        |> list.filter(fn(err) { err.field != [] })
+        |> list.filter(filter_cross_error(_, after_nested))
       list.fold(cross_errors, after_nested, fn(m, err) {
         model.add_error_at_path(m, err.field, err)
       })
     }
+  }
+}
+
+/// Filter pass for a single cross-validator error.
+///
+/// Drops:
+///   - empty paths (would land under key "" and silently block submit)
+///   - paths that don't resolve to any field in the resolved schema (typos,
+///     ghost errors that the UI can never render)
+///   - paths where the schema already produced an error (avoid stacking
+///     "required" + "sum exceeds" on the same field — schema error wins
+///     until the user fixes it)
+fn filter_cross_error(err: error.ValidationError, m: FormModel) -> Bool {
+  case err.field {
+    [] -> False
+    _ ->
+      case model.find_property_at_path(m, err.field) {
+        Error(_) -> {
+          io.println_error(
+            "formosh: dropping validator error for unknown path: "
+            <> path.to_string(err.field),
+          )
+          False
+        }
+        Ok(_) -> !model.has_errors_at_path(m, err.field)
+      }
   }
 }
 

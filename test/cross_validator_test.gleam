@@ -7,6 +7,7 @@ import formosh/schema/types.{
 }
 import formosh/validation/cross_validator
 import formosh/validation/error.{type ValidationError, ValidationError}
+import gleam/dynamic
 import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
@@ -93,6 +94,7 @@ pub fn cross_validator_adds_error_when_sum_exceeds_test() {
           ]),
         ),
       ]),
+      touched_fields: [[PropertySegment("total_limit")]],
       validator: Some(cross_validator.pure(check_sum)),
     )
 
@@ -154,6 +156,167 @@ pub fn cross_validator_absence_does_not_alter_behaviour_test() {
   |> should.equal([])
 }
 
+pub fn cross_validator_skipped_when_no_touched_fields_test() {
+  let schema = limits_schema()
+  let m =
+    FormModel(
+      ..model.init(schema),
+      values: ObjectValue([
+        #("total_limit", IntegerValue(100)),
+        #(
+          "categories",
+          types.ArrayValue([ObjectValue([#("limit", IntegerValue(200))])]),
+        ),
+      ]),
+      // touched_fields stays []; cross validator must NOT run, so
+      // pre-touch is_valid stays True even though check_sum would fail.
+      validator: Some(cross_validator.pure(check_sum)),
+    )
+
+  let validated = update.validate_all_fields(m)
+
+  validated.is_valid
+  |> should.be_true()
+}
+
+pub fn cross_validator_ignores_error_when_schema_error_present_test() {
+  let schema = limits_schema()
+  // total_limit is required → schema error appears. Cross-validator also
+  // targets total_limit, but its error must be suppressed.
+  let always_fail = fn(_m: FormModel) {
+    [
+      ValidationError(
+        field: [PropertySegment("total_limit")],
+        message: "cross says nope",
+        rule: "custom",
+      ),
+    ]
+  }
+  let m =
+    FormModel(
+      ..model.init(schema),
+      values: ObjectValue([]),
+      touched_fields: [[PropertySegment("total_limit")]],
+      validator: Some(cross_validator.pure(always_fail)),
+    )
+
+  let validated = update.validate_all_fields(m)
+
+  // Only schema error ("required") survives, not the cross-field one.
+  let errors =
+    model.get_errors_at_path(validated, [
+      PropertySegment("total_limit"),
+    ])
+  errors
+  |> list.length()
+  |> should.equal(1)
+  let assert Ok(only_err) = list.first(errors)
+  only_err.rule
+  |> should.equal("required")
+}
+
+pub fn cross_validator_drops_unknown_path_errors_test() {
+  let schema = limits_schema()
+  let ghost = fn(_m: FormModel) {
+    [
+      ValidationError(
+        field: [PropertySegment("totallimit_typo")],
+        message: "ghost",
+        rule: "custom",
+      ),
+    ]
+  }
+  let m =
+    FormModel(
+      ..model.init(schema),
+      values: ObjectValue([#("total_limit", IntegerValue(50))]),
+      touched_fields: [[PropertySegment("total_limit")]],
+      validator: Some(cross_validator.pure(ghost)),
+    )
+
+  let validated = update.validate_all_fields(m)
+
+  // Unknown-path errors are dropped; total_limit has no errors so the form
+  // is valid (the typo would otherwise invisibly block submit).
+  validated.is_valid
+  |> should.be_true()
+}
+
+fn dyn_string_entry(
+  key: String,
+  value: String,
+) -> #(dynamic.Dynamic, dynamic.Dynamic) {
+  #(dynamic.string(key), dynamic.string(value))
+}
+
+// JS path: feed `decode_errors` a Dynamic that mimics what the FFI shim
+// returns, and check the round-trip through path.from_string + rule default.
+pub fn decode_errors_handles_valid_items_test() {
+  let item1 =
+    dynamic.properties([
+      dyn_string_entry("path", "user.email"),
+      dyn_string_entry("message", "must match"),
+      dyn_string_entry("rule", "equality"),
+    ])
+  let item2 =
+    dynamic.properties([
+      dyn_string_entry("path", "items.[0].name"),
+      dyn_string_entry("message", "required"),
+      // No `rule` field → defaults to "custom"
+    ])
+  let raw = dynamic.array([item1, item2])
+
+  let errors = cross_validator.decode_errors(raw)
+
+  errors
+  |> list.length()
+  |> should.equal(2)
+  let assert [first, second] = errors
+  first.field
+  |> should.equal([PropertySegment("user"), PropertySegment("email")])
+  first.rule
+  |> should.equal("equality")
+  second.field
+  |> should.equal([
+    PropertySegment("items"),
+    ArraySegment(0),
+    PropertySegment("name"),
+  ])
+  second.rule
+  |> should.equal("custom")
+}
+
+pub fn decode_errors_skips_malformed_items_test() {
+  // Three items: valid, missing `message`, valid. Middle is dropped.
+  let item1 =
+    dynamic.properties([
+      dyn_string_entry("path", "a"),
+      dyn_string_entry("message", "first"),
+    ])
+  let item2 = dynamic.properties([dyn_string_entry("path", "b")])
+  let item3 =
+    dynamic.properties([
+      dyn_string_entry("path", "c"),
+      dyn_string_entry("message", "third"),
+    ])
+  let raw = dynamic.array([item1, item2, item3])
+
+  let errors = cross_validator.decode_errors(raw)
+
+  errors
+  |> list.length()
+  |> should.equal(2)
+  let assert [a, c] = errors
+  a.message |> should.equal("first")
+  c.message |> should.equal("third")
+}
+
+pub fn decode_errors_handles_non_array_test() {
+  let raw = dynamic.string("not an array")
+  cross_validator.decode_errors(raw)
+  |> should.equal([])
+}
+
 pub fn cross_validator_can_target_nested_array_item_test() {
   let schema = limits_schema()
   let flag_overspent = fn(m: FormModel) {
@@ -193,6 +356,13 @@ pub fn cross_validator_can_target_nested_array_item_test() {
           ]),
         ),
       ]),
+      touched_fields: [
+        [
+          PropertySegment("categories"),
+          ArraySegment(1),
+          PropertySegment("limit"),
+        ],
+      ],
       validator: Some(cross_validator.pure(flag_overspent)),
     )
 

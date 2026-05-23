@@ -17,6 +17,9 @@ import formosh/form/path
 import formosh/validation/error.{type ValidationError, ValidationError}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
+import gleam/io
+import gleam/list
+import gleam/string
 
 /// A cross-field validator parameterised on the model type `m`.
 ///
@@ -37,7 +40,13 @@ pub fn pure(f: fn(m) -> List(ValidationError)) -> Validator(m) {
 /// The JS function will be called with `JSON.parse(values_json)` and is
 /// expected to return `Array<{path: string, message: string, rule?: string}>`.
 /// Exceptions thrown by the JS function are caught and logged; malformed
-/// items are silently dropped.
+/// items are dropped with a warning to the console.
+///
+/// **Path-string contract.** `path` uses dot-notation with `[N]` for array
+/// indices — e.g. `"user.name"`, `"items.[0].title"`. This means property
+/// names containing literal `.` or `[N]` cannot be addressed unambiguously.
+/// If you need such names, prefer the Gleam `pure` constructor and build
+/// `FieldPath` segments directly.
 pub fn from_js(js_fn: Dynamic) -> Validator(m) {
   Js(js_fn)
 }
@@ -61,7 +70,14 @@ pub fn run(
   }
 }
 
-fn decode_errors(raw: Dynamic) -> List(ValidationError) {
+/// Decode a `Dynamic` array of error records into `ValidationError`s.
+///
+/// Each item is decoded independently — a malformed item is dropped with
+/// a console warning instead of poisoning the whole batch. Exposed as
+/// `@internal` so the JS-path test can exercise it without faking an FFI
+/// roundtrip.
+@internal
+pub fn decode_errors(raw: Dynamic) -> List(ValidationError) {
   let item_decoder = {
     use path_str <- decode.field("path", decode.string)
     use message <- decode.field("message", decode.string)
@@ -72,8 +88,20 @@ fn decode_errors(raw: Dynamic) -> List(ValidationError) {
       rule: rule,
     ))
   }
-  case decode.run(raw, decode.list(item_decoder)) {
-    Ok(errors) -> errors
+  case decode.run(raw, decode.list(decode.dynamic)) {
+    Ok(items) ->
+      list.filter_map(items, fn(item) {
+        case decode.run(item, item_decoder) {
+          Ok(err) -> Ok(err)
+          Error(errs) -> {
+            io.println_error(
+              "formosh: dropping malformed validator error: "
+              <> string.inspect(errs),
+            )
+            Error(Nil)
+          }
+        }
+      })
     Error(_) -> []
   }
 }
