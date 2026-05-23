@@ -182,10 +182,10 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 
           #(submitting_model, submit_effect)
         }
-        False -> {
-          warn_if_only_hidden_blocks(validated_model)
-          #(validated_model, effect.none())
-        }
+        False -> #(
+          validated_model,
+          warn_only_hidden_blocks_effect(validated_model),
+        )
       }
     }
 
@@ -610,20 +610,35 @@ fn serialize_values(m: FormModel) -> String {
   |> json.to_string
 }
 
-/// Diagnostic for the strict submit gate: when the only blocking errors are
-/// on UI-suppressed paths, the user sees a disabled submit button with no
-/// associated message anywhere on the page. Emit a single `console.warn`
-/// listing the offending paths so the developer can locate the schema bug
-/// (typically a hidden/readOnly-suppressed field that is `required` but has
-/// no `default` and no programmatic value).
-fn warn_if_only_hidden_blocks(model: FormModel) -> Nil {
-  case model.is_valid_for_submit(model) {
-    False -> Nil
+/// Diagnostic effect for the strict submit gate: when the only blocking
+/// errors are on UI-suppressed paths, the user sees a disabled submit
+/// button with no associated message anywhere on the page. Emit a single
+/// `console.warn` listing the offending paths so the developer can locate
+/// the schema bug (typically a hidden / readOnly-suppressed field that is
+/// `required` but has no `default` and no programmatic value).
+///
+/// Runs after `validate_all_fields`, which runs after schema defaults are
+/// applied at `init_with_full_config`: a `default` that satisfies the
+/// required field clears the error before the gate is checked, so the warn
+/// stays silent for the happy path.
+///
+/// Wraps the `console.warn` call in an `Effect` so the update function
+/// remains pure — matches the rest of the MVU pipeline (`submit_form_effect`
+/// etc.). The visibility walker runs at most once: its result is shared
+/// between the permissive-gate check and the hidden-error slice via the
+/// `_with` model helpers.
+fn warn_only_hidden_blocks_effect(model: FormModel) -> Effect(FormMsg) {
+  let invisible = model.invisible_paths(model)
+  case model.is_valid_for_submit_with(model, invisible) {
+    False -> effect.none()
     True -> {
-      let hidden = model.hidden_errors(model)
+      let hidden = model.hidden_errors_with(model, invisible)
       case dict.is_empty(hidden) {
-        True -> Nil
-        False -> console.warn(format_hidden_errors_warning(hidden))
+        True -> effect.none()
+        False -> {
+          let message = format_hidden_errors_warning(hidden)
+          effect.from(fn(_dispatch) { console.warn(message) })
+        }
       }
     }
   }

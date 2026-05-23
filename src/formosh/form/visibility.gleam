@@ -26,7 +26,7 @@
 import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ArrayType, ArrayValue,
-  HiddenWidget, ObjectType, ObjectValue,
+  ObjectType, ObjectValue,
 }
 import formosh/schema/ui_resolver
 import formosh/schema/ui_schema.{type UiSchema}
@@ -91,15 +91,15 @@ fn walk_node(
   acc: Set(String),
 ) -> Set(String) {
   let hints = ui_resolver.resolve_hints(ui_schema, node_path, prop)
-  let is_hidden = hints.widget == Some(HiddenWidget)
   let effective_readonly =
     parent_readonly || prop.read_only || option.unwrap(hints.readonly, False)
-  let is_readonly_suppressed = effective_readonly && !show_readonly_fields
 
-  case is_hidden || is_readonly_suppressed {
+  case
+    ui_resolver.is_suppressed(hints, effective_readonly, show_readonly_fields)
+  {
     True -> {
       let acc = set.insert(acc, path.to_string(node_path))
-      push_all_descendants(prop, node_path, value, acc)
+      push_subtree_paths(prop, node_path, value, acc)
     }
     False ->
       descend_visible(
@@ -164,14 +164,18 @@ fn descend_visible(
   }
 }
 
-/// Push every declared descendant path of a suppressed container.
+/// Enumerate every error-producible path inside a suppressed subtree.
 ///
-/// For objects, every declared child property is pushed regardless of whether
-/// the value tree has an entry — the validator walks the schema and produces
-/// errors for missing required fields, so the error key may exist even when
-/// the value does not. For arrays, indices are enumerated from `values`
-/// since rows that don't exist cannot have errors.
-fn push_all_descendants(
+/// Walks down through containers (objects + arrays) pushing each declared
+/// child path. Scalar leaves are added by the caller before descending here,
+/// so this helper only handles the recursion into containers.
+///
+/// For objects: every declared child property path is pushed regardless of
+/// whether the value tree has an entry — the validator walks the schema and
+/// produces errors for missing required fields, so the error key may exist
+/// even when the value does not. For arrays: indices are enumerated from
+/// `values` since rows that don't exist cannot have errors.
+fn push_subtree_paths(
   prop: SchemaProperty,
   node_path: FieldPath,
   value: Option(Value),
@@ -190,7 +194,7 @@ fn push_all_descendants(
             let child_path = list.append(node_path, [PropertySegment(name)])
             let acc = set.insert(acc, path.to_string(child_path))
             let child_value = option.from_result(list.key_find(fields, name))
-            push_all_descendants(child_prop, child_path, child_value, acc)
+            push_subtree_paths(child_prop, child_path, child_value, acc)
           })
         }
         None -> acc
@@ -201,7 +205,7 @@ fn push_all_descendants(
           list.index_fold(items, acc, fn(acc, item_value, idx) {
             let item_path = list.append(node_path, [ArraySegment(idx)])
             let acc = set.insert(acc, path.to_string(item_path))
-            push_all_descendants(items_schema, item_path, Some(item_value), acc)
+            push_subtree_paths(items_schema, item_path, Some(item_value), acc)
           })
         _, _ -> acc
       }

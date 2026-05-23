@@ -215,3 +215,90 @@ pub fn visible_sibling_not_invisible_test() {
     )
   result |> should.equal(set.from_list(["a"]))
 }
+
+// Helpers for UiSchema-parallel tests below.
+fn ui_widget_hidden(name: String) -> ui_schema.UiSchema {
+  ui_schema.UiSchema(
+    properties: [
+      #(
+        name,
+        ui_schema.UiProperty(
+          ..ui_schema.empty_ui_property(),
+          widget: Some(types.HiddenWidget),
+        ),
+      ),
+    ],
+    order: None,
+  )
+}
+
+fn ui_readonly(name: String) -> ui_schema.UiSchema {
+  ui_schema.UiSchema(
+    properties: [
+      #(
+        name,
+        ui_schema.UiProperty(
+          ..ui_schema.empty_ui_property(),
+          readonly: Some(True),
+        ),
+      ),
+    ],
+    order: None,
+  )
+}
+
+// UiSchema hidden on an object pulls every declared child — parallel to
+// `hidden_object_pulls_children_test`, but routes through `ui:widget:
+// "hidden"` (the primary channel) instead of the deprecated `x-widget`
+// extension. Guards against a `ui_resolver.resolve_hints` regression
+// silently disconnecting UiSchema from the visibility walker.
+pub fn ui_schema_hidden_object_pulls_children_test() {
+  let inner = object_prop([#("y", string_prop()), #("z", string_prop())], ["y"])
+  let schema = schema_with([#("x", inner)], [])
+  let result =
+    visibility.invisible_paths(
+      schema,
+      ui_widget_hidden("x"),
+      types.ObjectValue([]),
+      False,
+    )
+  result |> should.equal(set.from_list(["x", "x.y", "x.z"]))
+}
+
+// UiSchema hidden on an array enumerates every present row plus required
+// leaves — parallel to `hidden_array_with_items_test` via the primary
+// channel.
+pub fn ui_schema_hidden_array_with_items_test() {
+  let item_schema = object_prop([#("name", string_prop())], ["name"])
+  let schema = schema_with([#("items", array_prop(item_schema))], [])
+  let values =
+    types.ObjectValue([
+      #(
+        "items",
+        types.ArrayValue([types.ObjectValue([]), types.ObjectValue([])]),
+      ),
+    ])
+  let result =
+    visibility.invisible_paths(schema, ui_widget_hidden("items"), values, False)
+  result
+  |> should.equal(
+    set.from_list([
+      "items", "items.[0]", "items.[0].name", "items.[1]", "items.[1].name",
+    ]),
+  )
+}
+
+// `ui:readonly: true` participates in the same readOnly OR-merge as the
+// schema's `readOnly` flag — when `show_readonly_fields` is false the
+// field is suppressed. Parallel to `readonly_suppressed_when_show_false_test`.
+pub fn ui_schema_readonly_suppressed_test() {
+  let schema = schema_with([#("x", string_prop())], ["x"])
+  let result =
+    visibility.invisible_paths(
+      schema,
+      ui_readonly("x"),
+      types.ObjectValue([]),
+      False,
+    )
+  result |> should.equal(set.from_list(["x"]))
+}

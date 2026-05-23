@@ -652,9 +652,11 @@ pub fn can_submit(model: FormModel) -> Bool {
 /// Compute the set of canonical path keys whose fields are suppressed from
 /// the UI for the current `resolved_schema` / `ui_schema` / `values`.
 ///
-/// Delegates to `visibility.invisible_paths`. Computed on demand: there is
-/// no cached field on `FormModel`, so callers should hold the result if they
-/// need to query it more than once in the same code path.
+/// Delegates to `visibility.invisible_paths`. Computed on demand — there is
+/// no cached field on `FormModel`. When a single code path needs both
+/// `is_valid_for_submit` and `hidden_errors` (as `update.FormSubmit` does),
+/// call this once and feed the result to `is_valid_for_submit_with` /
+/// `hidden_errors_with` to avoid walking the schema twice.
 pub fn invisible_paths(model: FormModel) -> Set(String) {
   visibility.invisible_paths(
     model.resolved_schema,
@@ -669,7 +671,17 @@ pub fn invisible_paths(model: FormModel) -> Set(String) {
 /// Used by `update.FormSubmit` to format the diagnostic `console.warn` when
 /// a submit is blocked solely by required-errors a user cannot address.
 pub fn hidden_errors(model: FormModel) -> Dict(String, List(ValidationError)) {
-  let invisible = invisible_paths(model)
+  hidden_errors_with(model, invisible_paths(model))
+}
+
+/// Variant of `hidden_errors` that takes a pre-computed invisible-paths set.
+///
+/// Use this when both `is_valid_for_submit_with` and `hidden_errors_with`
+/// are called in the same flow — share one walker invocation between them.
+pub fn hidden_errors_with(
+  model: FormModel,
+  invisible: Set(String),
+) -> Dict(String, List(ValidationError)) {
   dict.filter(model.errors, fn(key, _errors) { set.contains(invisible, key) })
 }
 
@@ -680,10 +692,18 @@ pub fn hidden_errors(model: FormModel) -> Dict(String, List(ValidationError)) {
 /// remaining blockers are out of reach for the user (e.g. backend supplies
 /// the hidden value, not the JSON Schema).
 pub fn is_valid_for_submit(model: FormModel) -> Bool {
+  is_valid_for_submit_with(model, invisible_paths(model))
+}
+
+/// Variant of `is_valid_for_submit` that takes a pre-computed invisible
+/// paths set. See `hidden_errors_with`.
+pub fn is_valid_for_submit_with(
+  model: FormModel,
+  invisible: Set(String),
+) -> Bool {
   case model.is_submitting {
     True -> False
     False -> {
-      let invisible = invisible_paths(model)
       let visible_errors =
         dict.filter(model.errors, fn(key, _errors) {
           !set.contains(invisible, key)

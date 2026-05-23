@@ -20,6 +20,7 @@ import formosh/fields/swipe_review_field
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
 import formosh/schema/types
+import formosh/schema/ui_resolver
 import formosh/validation/error.{type ValidationError}
 import gleam/dict
 import gleam/list
@@ -40,9 +41,17 @@ pub fn render_field_at_path(
   ctx: FieldRenderCtx,
   model: FormModel,
 ) -> Element(FormMsg) {
-  let is_hidden = ctx.hints.widget == Some(types.HiddenWidget)
-  let is_readonly_suppressed = ctx.is_readonly && !model.show_readonly_fields
-  case is_hidden || is_readonly_suppressed {
+  // `ui_resolver.is_suppressed` is the single source of truth for the
+  // "this field is suppressed from the UI" decision — shared with the
+  // submit-time walker in `formosh/form/visibility`. Add new suppression
+  // rules there, not inline here.
+  case
+    ui_resolver.is_suppressed(
+      ctx.hints,
+      ctx.is_readonly,
+      model.show_readonly_fields,
+    )
+  {
     True -> element.none()
     False -> render_visible(ctx, model)
   }

@@ -11,12 +11,14 @@
 /// resulting `RenderHints` via `FieldRenderCtx.hints` and stay agnostic of
 /// the source.
 import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
-import formosh/schema/types.{type RenderHints, type SchemaProperty, RenderHints}
+import formosh/schema/types.{
+  type RenderHints, type SchemaProperty, HiddenWidget, RenderHints,
+}
 import formosh/schema/ui_schema.{
   type UiProperty, type UiSchema, empty_ui_property,
 }
 import gleam/list
-import gleam/option
+import gleam/option.{Some}
 
 /// Look up the `UiProperty` at the given path in `ui_schema`.
 ///
@@ -50,6 +52,24 @@ fn walk(prop: UiProperty, rest: FieldPath) -> UiProperty {
         option.None -> empty_ui_property()
       }
   }
+}
+
+/// Predicate that decides whether a field is suppressed from the UI for the
+/// given resolved `hints`, `is_readonly`, and `show_readonly_fields` flag.
+///
+/// Owned here (alongside `resolve_hints`) so the render-time gate in
+/// `field_dispatcher.render_field_at_path` and the submit-time walker in
+/// `form/visibility.invisible_paths` cannot drift apart. Adding a new
+/// widget with suppression semantics or a new readOnly rule? Update this
+/// predicate, not the call sites.
+pub fn is_suppressed(
+  hints: RenderHints,
+  is_readonly: Bool,
+  show_readonly_fields: Bool,
+) -> Bool {
+  let is_hidden = hints.widget == Some(HiddenWidget)
+  let is_readonly_suppressed = is_readonly && !show_readonly_fields
+  is_hidden || is_readonly_suppressed
 }
 
 /// Merge UiSchema with x-* fallback to produce the effective `RenderHints`.
