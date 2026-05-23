@@ -8,6 +8,7 @@ import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ObjectValue,
 }
 import formosh/schema/ui_schema.{type UiSchema, empty_ui_schema}
+import formosh/validation/cross_validator.{type Validator}
 import formosh/validation/error.{type ValidationError}
 import gleam/dict.{type Dict}
 import gleam/list
@@ -65,6 +66,10 @@ pub type FormModel {
     // Presentation settings parallel to `schema`. `ui_resolver.resolve_hints`
     // merges this with each `SchemaProperty.render_hints` at render time.
     ui_schema: UiSchema,
+    // Optional cross-field custom validator. Invoked at the end of
+    // `update.validate_all_fields` after the schema-driven passes; its
+    // errors are merged into `errors` via `add_error_at_path`.
+    validator: Option(Validator(FormModel)),
   )
 }
 
@@ -201,6 +206,7 @@ pub fn init_with_full_config(
     upload_base_url: option.None,
     upload_states: dict.new(),
     ui_schema: ui_schema,
+    validator: option.None,
   )
 }
 
@@ -276,6 +282,7 @@ pub fn reset(model: FormModel) -> FormModel {
     upload_base_url: model.upload_base_url,
     upload_states: dict.new(),
     ui_schema: model.ui_schema,
+    validator: model.validator,
   )
 }
 
@@ -499,13 +506,14 @@ pub fn clear_errors_at_path(
 }
 
 /// Check if the form can be submitted.
-/// 
-/// A form can be submitted if it is valid (no validation errors),
-/// not currently being submitted, and has been modified (is dirty).
-/// 
+///
+/// A form can be submitted if it is valid (no validation errors) and not
+/// currently being submitted. `is_dirty` is **not** checked — a form with
+/// valid defaults can be submitted without any user interaction.
+///
 /// ## Parameters
 /// - `model`: The form model to check
-/// 
+///
 /// ## Returns
 /// True if the form can be submitted, False otherwise
 pub fn can_submit(model: FormModel) -> Bool {

@@ -18,8 +18,11 @@ import formosh/schema/properties
 import formosh/schema/types.{type Value}
 import formosh/schema/ui_resolver
 import formosh/schema/validator
+import formosh/validation/cross_validator
+import formosh/validation/error
 import gleam/dict
 import gleam/http/response
+import gleam/io
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
@@ -332,11 +335,15 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
 
 /// Validate all fields in the form against their schema definitions.
 ///
-/// Runs validation in two passes:
+/// Runs validation in three passes:
 ///   1. Top-level fields against `resolved_schema.properties`.
 ///   2. For every top-level field, recursively validate nested object/array
 ///      structures via `validator.validate_nested`. Item-level conditionals
 ///      (`if/then/else`, `allOf`) are re-evaluated per row/per object.
+///   3. If a cross-field custom validator is configured, run it against the
+///      now-fully-populated model and merge its errors via
+///      `add_error_at_path`. This is where rules like "sum ≤ total" or
+///      "endDate > startDate" plug in.
 ///
 /// Errors for nested fields are keyed under a path-style name matching
 /// `path.to_string` (`<parent>.[<index>].<field>` for array items,
@@ -354,16 +361,66 @@ pub fn validate_all_fields(model: FormModel) -> FormModel {
     |> list.map(fn(entry) { entry.0 })
     |> list.fold(model.clear_all_errors(model), validate_field)
 
-  list.fold(after_top.resolved_schema.properties, after_top, fn(acc, entry) {
-    let #(field_name, property) = entry
-    let field_path = path.from_field_name(field_name)
-    let field_value = path.get_at_path(acc.values, field_path)
-    let nested_errors =
-      validator.validate_nested(field_path, property, field_value)
-    list.fold(nested_errors, acc, fn(m, err) {
-      model.add_error_at_path(m, err.field, err)
+  let after_nested =
+    list.fold(after_top.resolved_schema.properties, after_top, fn(acc, entry) {
+      let #(field_name, property) = entry
+      let field_path = path.from_field_name(field_name)
+      let field_value = path.get_at_path(acc.values, field_path)
+      let nested_errors =
+        validator.validate_nested(field_path, property, field_value)
+      list.fold(nested_errors, acc, fn(m, err) {
+        model.add_error_at_path(m, err.field, err)
+      })
     })
-  })
+
+  case after_nested.validator, after_nested.touched_fields {
+    None, _ -> after_nested
+    // Skip the custom validator until the user has touched something. This
+    // prevents pre-touch errors from invisibly blocking submit (UI hides
+    // them via touched-gate, but `is_valid` already flipped to False).
+    Some(_), [] -> after_nested
+    Some(v), _ -> {
+      let cross_errors =
+        cross_validator.run(v, after_nested, serialize_values)
+        |> list.filter(filter_cross_error(_, after_nested))
+      list.fold(cross_errors, after_nested, fn(m, err) {
+        model.add_error_at_path(m, err.field, err)
+      })
+    }
+  }
+}
+
+/// Filter pass for a single cross-validator error.
+///
+/// Drops:
+///   - empty paths (would land under key "" and silently block submit)
+///   - paths that don't resolve to any field in the resolved schema (typos,
+///     ghost errors that the UI can never render)
+///   - paths where the schema already produced an error (avoid stacking
+///     "required" + "sum exceeds" on the same field — schema error wins
+///     until the user fixes it)
+fn filter_cross_error(err: error.ValidationError, m: FormModel) -> Bool {
+  case err.field {
+    [] -> False
+    _ ->
+      case model.find_property_at_path(m, err.field) {
+        Error(_) -> {
+          io.println_error(
+            "formosh: dropping validator error for unknown path: "
+            <> path.to_string(err.field),
+          )
+          False
+        }
+        Ok(_) -> !model.has_errors_at_path(m, err.field)
+      }
+  }
+}
+
+/// Serialise a form model's values to a JSON string for FFI consumption.
+fn serialize_values(m: FormModel) -> String {
+  m.values
+  |> json_utils.value_to_json
+  |> json.to_string
 }
 
 /// Create an effect for form submission.

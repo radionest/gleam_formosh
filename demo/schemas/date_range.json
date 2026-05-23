@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "title": "Event scheduling",
+  "description": "End date must be on or after start date. Enforced by a JS cross-field validator (JSON Schema cannot compare two date fields).",
+  "properties": {
+    "event_name": {
+      "type": "string",
+      "title": "Event name",
+      "minLength": 1
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Start date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date",
+      "title": "End date"
+    }
+  },
+  "required": ["event_name", "start_date", "end_date"]
+}

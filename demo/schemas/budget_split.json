@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "title": "Budget allocation",
+  "description": "Distribute a total budget across categories. JSON Schema cannot express \"sum of category limits ≤ total\" — this is enforced by a JS cross-field validator attached via element.validator.",
+  "properties": {
+    "total_limit": {
+      "type": "integer",
+      "minimum": 0,
+      "title": "Total budget"
+    },
+    "categories": {
+      "type": "array",
+      "title": "Categories",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "title": "Name" },
+          "limit": { "type": "integer", "minimum": 0, "title": "Limit" }
+        },
+        "required": ["name", "limit"]
+      }
+    }
+  },
+  "required": ["total_limit"]
+}

@@ -13,8 +13,25 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import rsvp
+import validators
 
 const submit_url = "http://localhost:8888"
+
+const form_element_id = "demo-formosh-form"
+
+/// Map a schema filename to a cross-field validator kind, if any.
+///
+/// The kind string must match a key in the `VALIDATORS` table in
+/// `validator_ffi.mjs`. Schemas not in this list render with no
+/// cross-field validation.
+fn validator_kind_for(filename: String) -> Option(String) {
+  case filename {
+    "budget_split.json" -> Some("budget_split")
+    "date_range.json" -> Some("date_range")
+    "password_confirm.json" -> Some("password_confirm")
+    _ -> None
+  }
+}
 
 pub type Model {
   Model(
@@ -56,6 +73,9 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
     "array_readonly_test.json",
     "array_readonly_test_full.json",
     "hidden_fields_test.json",
+    "budget_split.json",
+    "date_range.json",
+    "password_confirm.json",
   ]
 
   #(
@@ -92,7 +112,7 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
           case formosh.from_json_string(content) {
             Ok(_) -> #(
               Model(..model, schema_content: Some(content), error: None),
-              effect.none(),
+              attach_validator_effect(model.selected_schema),
             )
             Error(_) -> #(
               Model(
@@ -216,6 +236,16 @@ fn view(model: Model) -> Element(Msg) {
                 html.p([], [html.text("UiSchema: applied (paired .ui.json)")])
               None -> element.none()
             },
+            case
+              model.selected_schema
+              |> option.then(validator_kind_for)
+            {
+              Some(kind) ->
+                html.p([], [
+                  html.text("Cross-field validator: " <> kind <> " (active)"),
+                ])
+              None -> element.none()
+            },
           ]),
 
           html.div([attribute.id("form-mount-point")], [
@@ -250,6 +280,7 @@ fn form_attributes(
   ui_schema: Option(String),
 ) -> List(attribute.Attribute(Msg)) {
   let base = [
+    attribute.id(form_element_id),
     attribute.attribute("schema", schema_json),
     attribute.attribute("submit-url", submit_url),
     attribute.attribute("submit-method", "POST"),
@@ -259,6 +290,21 @@ fn form_attributes(
     Some(json) -> [attribute.attribute("ui-schema", json), ..base]
     None -> base
   }
+}
+
+/// Build an effect that attaches the right cross-field validator (or
+/// detaches any previous one) once Lustre has rendered the form.
+fn attach_validator_effect(filename: Option(String)) -> effect.Effect(Msg) {
+  effect.from(fn(_dispatch) {
+    case filename {
+      None -> validators.detach_validator(form_element_id)
+      Some(name) ->
+        case validator_kind_for(name) {
+          Some(kind) -> validators.attach_validator(form_element_id, kind)
+          None -> validators.detach_validator(form_element_id)
+        }
+    }
+  })
 }
 
 fn get_display_name(filename: String) -> String {

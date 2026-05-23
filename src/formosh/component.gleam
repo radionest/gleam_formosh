@@ -15,7 +15,9 @@ import formosh/schema/serializer
 import formosh/schema/types.{type JsonSchema, type Value}
 import formosh/schema/ui_parser
 import formosh/schema/ui_schema.{type UiSchema, empty_ui_schema}
+import formosh/validation/cross_validator.{type Validator}
 import gleam/dict
+import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/io
 import gleam/json
@@ -92,6 +94,12 @@ pub fn register() -> Result(Nil, lustre.Error) {
           }
         }
       }),
+      // Listen for `validator` JS property — embedder sets
+      // `element.validator = (values) => [...]` on the DOM node.
+      component.on_property_change(
+        "validator",
+        decode.map(decode.dynamic, ValidatorChanged),
+      ),
     ])
 
   lustre.register(component, "formosh-form")
@@ -226,6 +234,8 @@ type Model {
     upload_base_url: Option(String),
     // Parsed UiSchema (presentation hints parallel to `schema`)
     ui_schema: UiSchema,
+    // Optional cross-field validator received via the `validator` JS property
+    validator: Option(Validator(FormModel)),
   )
 }
 
@@ -239,6 +249,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       show_readonly_fields: True,
       upload_base_url: None,
       ui_schema: empty_ui_schema(),
+      validator: None,
     ),
     effect.none(),
   )
@@ -256,6 +267,7 @@ type Msg {
   ShowReadonlyFieldsChanged(Bool)
   UploadBaseUrlChanged(String)
   UiSchemaChanged(UiSchema)
+  ValidatorChanged(Dynamic)
 
   // Form messages (wrapped)
   FormMessage(FormMsg)
@@ -294,6 +306,7 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
       ..form_model,
       resolved_schema: resolved_schema,
       upload_base_url: model.upload_base_url,
+      validator: model.validator,
     )
   // Validate the form initially to check required fields
   let validated_form = validate_all_fields(form_model_resolved)
@@ -392,6 +405,21 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
             ..new_model,
             form_model: Some(FormModel(..form_model, ui_schema: ui)),
           )
+        None -> new_model
+      }
+      #(final_model, effect.none())
+    }
+
+    ValidatorChanged(js_fn) -> {
+      let v = cross_validator.from_js(js_fn)
+      let new_model = Model(..model, validator: Some(v))
+      // If the form is already initialised, patch the validator in place
+      // and re-run validation so cross-field errors appear immediately.
+      let final_model = case new_model.form_model {
+        Some(form_model) -> {
+          let patched = FormModel(..form_model, validator: Some(v))
+          Model(..new_model, form_model: Some(validate_all_fields(patched)))
+        }
         None -> new_model
       }
       #(final_model, effect.none())
