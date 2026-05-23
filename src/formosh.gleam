@@ -10,6 +10,8 @@ import formosh/schema/parser
 import formosh/schema/types.{type JsonSchema, type Value}
 import formosh/schema/ui_parser
 import formosh/schema/ui_schema.{type UiSchema, empty_ui_schema}
+import formosh/validation/cross_validator.{type Validator}
+import formosh/validation/error
 import gleam/dict.{type Dict}
 import gleam/option
 import gleam/result
@@ -38,6 +40,8 @@ pub type FormConfig {
     initial_values: Dict(String, Value),
     /// Presentation settings parallel to `schema`
     ui_schema: UiSchema,
+    /// Optional cross-field custom validator
+    validator: option.Option(Validator(FormModel)),
   )
 }
 
@@ -65,6 +69,7 @@ pub fn config(schema: JsonSchema) -> FormConfig {
     show_readonly_fields: False,
     initial_values: dict.new(),
     ui_schema: empty_ui_schema(),
+    validator: option.None,
   )
 }
 
@@ -204,6 +209,42 @@ pub fn parse_ui_schema(json_string: String) -> Result(UiSchema, ParseError) {
   ui_parser.parse(json_string)
 }
 
+/// Attach a cross-field custom validator to the form.
+///
+/// The validator receives the full `FormModel` after the schema-driven
+/// validation passes have completed, and returns a list of additional
+/// per-field errors. These errors gate submission (`can_submit`) just like
+/// schema errors, and are shown in the UI only for fields the user has
+/// already touched.
+///
+/// Use this for rules JSON Schema cannot express — e.g. "sum of category
+/// limits ≤ total limit", "end date > start date".
+///
+/// ## Example
+/// ```gleam
+/// import formosh/form/path.{PropertySegment}
+/// import formosh/validation/error.{ValidationError}
+///
+/// fn check_sum(m: FormModel) -> List(ValidationError) {
+///   case sum_categories(m) > total_limit(m) {
+///     True -> [ValidationError(
+///       field: [PropertySegment("total_limit")],
+///       message: "Sum of categories exceeds total",
+///       rule: "custom",
+///     )]
+///     False -> []
+///   }
+/// }
+///
+/// formosh.config(schema) |> formosh.with_validator(check_sum)
+/// ```
+pub fn with_validator(
+  config: FormConfig,
+  validator: fn(FormModel) -> List(error.ValidationError),
+) -> FormConfig {
+  FormConfig(..config, validator: option.Some(cross_validator.pure(validator)))
+}
+
 /// Create a form application from a JSON Schema definition.
 /// 
 /// This is the main entry point for creating forms. It takes a parsed JSON Schema
@@ -251,16 +292,17 @@ fn create_form_with_config(
 ) -> lustre.App(Nil, FormModel, FormMsg) {
   lustre.application(
     fn(_) {
-      #(
+      let initial =
         model.init_with_full_config(
           config.schema,
           option.Some(config.submit_config),
           config.show_readonly_fields,
           config.initial_values,
           config.ui_schema,
-        ),
-        effect.none(),
-      )
+        )
+      let with_validator =
+        model.FormModel(..initial, validator: config.validator)
+      #(with_validator, effect.none())
     },
     update.update,
     view.view,
@@ -322,6 +364,7 @@ pub fn from_json_string_with_config(
           show_readonly_fields: False,
           initial_values: dict.new(),
           ui_schema: empty_ui_schema(),
+          validator: option.None,
         )
       Ok(from_config(form_config))
     }

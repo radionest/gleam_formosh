@@ -18,6 +18,7 @@ import formosh/schema/properties
 import formosh/schema/types.{type Value}
 import formosh/schema/ui_resolver
 import formosh/schema/validator
+import formosh/validation/cross_validator
 import gleam/dict
 import gleam/http/response
 import gleam/json
@@ -332,11 +333,15 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
 
 /// Validate all fields in the form against their schema definitions.
 ///
-/// Runs validation in two passes:
+/// Runs validation in three passes:
 ///   1. Top-level fields against `resolved_schema.properties`.
 ///   2. For every top-level field, recursively validate nested object/array
 ///      structures via `validator.validate_nested`. Item-level conditionals
 ///      (`if/then/else`, `allOf`) are re-evaluated per row/per object.
+///   3. If a cross-field custom validator is configured, run it against the
+///      now-fully-populated model and merge its errors via
+///      `add_error_at_path`. This is where rules like "sum ≤ total" or
+///      "endDate > startDate" plug in.
 ///
 /// Errors for nested fields are keyed under a path-style name matching
 /// `path.to_string` (`<parent>.[<index>].<field>` for array items,
@@ -354,16 +359,39 @@ pub fn validate_all_fields(model: FormModel) -> FormModel {
     |> list.map(fn(entry) { entry.0 })
     |> list.fold(model.clear_all_errors(model), validate_field)
 
-  list.fold(after_top.resolved_schema.properties, after_top, fn(acc, entry) {
-    let #(field_name, property) = entry
-    let field_path = path.from_field_name(field_name)
-    let field_value = path.get_at_path(acc.values, field_path)
-    let nested_errors =
-      validator.validate_nested(field_path, property, field_value)
-    list.fold(nested_errors, acc, fn(m, err) {
-      model.add_error_at_path(m, err.field, err)
+  let after_nested =
+    list.fold(after_top.resolved_schema.properties, after_top, fn(acc, entry) {
+      let #(field_name, property) = entry
+      let field_path = path.from_field_name(field_name)
+      let field_value = path.get_at_path(acc.values, field_path)
+      let nested_errors =
+        validator.validate_nested(field_path, property, field_value)
+      list.fold(nested_errors, acc, fn(m, err) {
+        model.add_error_at_path(m, err.field, err)
+      })
     })
-  })
+
+  case after_nested.validator {
+    None -> after_nested
+    Some(v) -> {
+      // Drop errors whose path is empty: they would land under key "" in
+      // `model.errors`, invisibly blocking submit. Cross-field errors must
+      // bind to a real field (see "no form-level errors" design decision).
+      let cross_errors =
+        cross_validator.run(v, after_nested, serialize_values)
+        |> list.filter(fn(err) { err.field != [] })
+      list.fold(cross_errors, after_nested, fn(m, err) {
+        model.add_error_at_path(m, err.field, err)
+      })
+    }
+  }
+}
+
+/// Serialise a form model's values to a JSON string for FFI consumption.
+fn serialize_values(m: FormModel) -> String {
+  m.values
+  |> json_utils.value_to_json
+  |> json.to_string
 }
 
 /// Create an effect for form submission.
