@@ -34,11 +34,8 @@ gleam deps download
 # Build the project
 gleam build
 
-# Run tests
+# Run tests (gleeunit always runs every *_test.gleam in test/ — no per-module filter)
 gleam test
-
-# Run specific test module
-gleam test --module parser_test
 
 # Format code (ALWAYS run before committing)
 gleam format
@@ -82,6 +79,8 @@ Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segme
 - **Array indexing**: Reindex array fields after any add/remove operation
 - **Circular $refs**: Resolver maintains visited set — do not bypass it
 - **View refactors**: Required-asterisk (` *` with `class="required"`) and error wrappers are easy to drop when unifying renderers. Use `field_common.render_required_marker` and let the field dispatcher own error display — re-render the marker explicitly per container, not «implicitly via the parent»
+- **FFI naming**: a hand-written FFI pair must be `<name>.gleam` + `<name>_ffi.mjs` (different base names — Gleam compiler errors on collision). `.gitignore` whitelists `!src/formosh/ffi/*_ffi.mjs` and `!demo/src/*_ffi.mjs`; put new FFI pairs in those directories or extend the whitelist
+- **`gleam format` between Edits**: format may re-indent blocks and invalidate the next Edit's `old_string`. Run format once at the end of an edit batch, or `Read` the file again before the next Edit
 
 ## Web Component
 

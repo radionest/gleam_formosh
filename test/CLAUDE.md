@@ -5,10 +5,10 @@ Tests for the formosh library using the `gleeunit` framework.
 ## Running Tests
 
 ```bash
-gleam test                          # Run all tests
-gleam test --module parser_test     # Run specific module
-gleam test --module path_test       # Run specific module
+gleam test    # Runs every *_test.gleam in this directory; no per-module filter
 ```
+
+`gleeunit` discovers and runs all tests; flags like `--module foo_test` are silently ignored.
 
 ## Framework & Conventions
 
@@ -97,5 +97,9 @@ pub fn parse_basic_leak_signs_schema_test() {
 1. Create or edit `test/<module>_test.gleam`
 2. Import `gleeunit/should` and the module under test
 3. Name test functions with `_test` suffix
-4. Run `gleam test --module <module>_test` to verify
+4. Run `gleam test` to verify (runs the full suite)
 5. Run `gleam format` before committing
+
+## Validator tests gotcha
+
+When constructing a `FormModel` for tests that exercise `validate_all_fields` / cross-validators: `touched_fields` must be non-empty, otherwise the cross-validator pass is skipped (intentional — avoids pre-touch errors blocking submit on form init). Either pre-populate `touched_fields` or test through `update.update`, not the model directly. See `cross_validator_test.gleam` for the pattern.
