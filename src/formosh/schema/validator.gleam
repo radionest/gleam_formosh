@@ -11,6 +11,7 @@ import formosh/validation/field_requirements
 import formosh/validation/messages
 import gleam/dict.{type Dict}
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/regexp
@@ -89,7 +90,12 @@ fn validate_standard_field(
     Some(val) -> {
       let type_errors = case property.field_type {
         Some(types.StringType) ->
-          validate_string(field_path, val, property.string_constraints)
+          validate_string(
+            field_path,
+            val,
+            property.string_constraints,
+            is_required,
+          )
         Some(types.NumberType) | Some(types.IntegerType) ->
           validate_number(field_path, val, property.number_constraints)
         Some(types.BooleanType) -> validate_boolean(field_path, val)
@@ -110,8 +116,15 @@ fn validate_string(
   field_path: FieldPath,
   value: Value,
   constraints: Option(types.StringConstraints),
+  is_required: Bool,
 ) -> List(ValidationError) {
   case value {
+    // An empty value on an optional field is the user clearing the input —
+    // not "the value is too short" or "doesn't match a format". Skip every
+    // string-constraint check so min_length, format, and pattern behave
+    // consistently when the field is cleared. Required fields still report
+    // the missing value via the required-rule (set in validate_standard_field).
+    StringValue("") if !is_required -> []
     StringValue(str) -> {
       case constraints {
         None -> []
@@ -166,14 +179,10 @@ fn validate_string(
 
           // JSON Schema `pattern` is a partial-match check (draft 2020-12
           // §6.3.3). `regexp.check` matches the spec semantics. A syntactically
-          // invalid pattern is a schema-author bug — skip validation rather
-          // than surfacing it as a user-facing field error. Empty strings
-          // also skip the check: when a field is required, the required-rule
-          // already fires; when optional, an empty value is the user clearing
-          // the field and should not surface a pattern error.
-          let errors = case c.pattern, str {
-            Some(_), "" -> errors
-            Some(pat), _ ->
+          // invalid pattern is a schema-author bug — log it once and skip the
+          // check so the form keeps working for the end user.
+          let errors = case c.pattern {
+            Some(pat) ->
               case regexp.from_string(pat) {
                 Ok(re) ->
                   case regexp.check(re, str) {
@@ -183,9 +192,14 @@ fn validate_string(
                         error.from_failure(field_path, messages.PatternMismatch),
                       ])
                   }
-                Error(_) -> errors
+                Error(_) -> {
+                  io.println_error(
+                    "formosh: invalid regex pattern in JSON Schema: " <> pat,
+                  )
+                  errors
+                }
               }
-            None, _ -> errors
+            None -> errors
           }
 
           errors

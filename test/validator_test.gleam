@@ -261,8 +261,7 @@ pub fn pattern_accepts_matching_value_test() {
       property.render_hints.widget,
     )
 
-  list.any(errors, fn(e) { e.rule == "pattern" })
-  |> should.be_false()
+  errors |> should.equal([])
 }
 
 pub fn pattern_rejects_non_matching_value_test() {
@@ -280,6 +279,24 @@ pub fn pattern_rejects_non_matching_value_test() {
   |> should.be_true()
 }
 
+// Central case: a required field with a non-matching value must produce
+// exactly one pattern error (not a duplicate required-error too — required
+// only fires when the value is missing/null).
+pub fn pattern_required_with_non_matching_value_test() {
+  let property = string_with_pattern("^[a-z]+$")
+  let errors =
+    validator.validate_field(
+      username_path(),
+      Some(StringValue("Alice123")),
+      property,
+      True,
+      property.render_hints.widget,
+    )
+
+  let rules = list.map(errors, fn(e) { e.rule })
+  rules |> should.equal(["pattern"])
+}
+
 // JSON Schema partial-match semantics: a pattern without anchors matches
 // anywhere in the string. `regexp.check` already behaves this way.
 pub fn pattern_matches_substring_test() {
@@ -293,12 +310,11 @@ pub fn pattern_matches_substring_test() {
       property.render_hints.widget,
     )
 
-  list.any(errors, fn(e) { e.rule == "pattern" })
-  |> should.be_false()
+  errors |> should.equal([])
 }
 
 // A syntactically invalid pattern is a schema-author bug, not a user-facing
-// validation failure — skip the check silently.
+// validation failure — log via io.println_error and skip the check.
 pub fn pattern_invalid_regex_is_skipped_test() {
   let property = string_with_pattern("[unclosed")
   let errors =
@@ -310,8 +326,7 @@ pub fn pattern_invalid_regex_is_skipped_test() {
       property.render_hints.widget,
     )
 
-  list.any(errors, fn(e) { e.rule == "pattern" })
-  |> should.be_false()
+  errors |> should.equal([])
 }
 
 // Pattern validation does not bypass the required check — a missing value
@@ -331,9 +346,9 @@ pub fn pattern_skipped_for_missing_value_test() {
   |> should.be_false()
 }
 
-// Optional field with empty string: clearing the field must not surface a
-// pattern error. Mirrors rjsf behaviour and avoids "Does not match the
-// required format" appearing when the user simply hasn't typed anything.
+// Optional field with empty string: clearing the field must not surface any
+// string-constraint error (pattern, min_length, format). Mirrors rjsf and
+// keeps the UX consistent across all string constraints.
 pub fn pattern_skipped_for_empty_optional_string_test() {
   let property = string_with_pattern("^[a-z]+$")
   let errors =
@@ -345,6 +360,5 @@ pub fn pattern_skipped_for_empty_optional_string_test() {
       property.render_hints.widget,
     )
 
-  list.any(errors, fn(e) { e.rule == "pattern" })
-  |> should.be_false()
+  errors |> should.equal([])
 }
