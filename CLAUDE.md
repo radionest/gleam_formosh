@@ -34,11 +34,8 @@ gleam deps download
 # Build the project
 gleam build
 
-# Run tests
+# Run tests (gleeunit always runs every *_test.gleam in test/ — no per-module filter)
 gleam test
-
-# Run specific test module
-gleam test --module parser_test
 
 # Format code (ALWAYS run before committing)
 gleam format
