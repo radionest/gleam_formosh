@@ -19,6 +19,7 @@ pub type ValidationFailure {
   ExclusiveMinimum(min: Float)
   ExclusiveMaximum(max: Float)
   InvalidEnum
+  PatternMismatch
 }
 
 /// Render the message text for a validation failure.
@@ -38,6 +39,7 @@ pub fn format(failure: ValidationFailure) -> String {
     ExclusiveMinimum(min) -> "Must be greater than " <> float.to_string(min)
     ExclusiveMaximum(max) -> "Must be less than " <> float.to_string(max)
     InvalidEnum -> "Value is not one of the allowed options"
+    PatternMismatch -> "Does not match the required format"
   }
 }
 
@@ -58,5 +60,6 @@ pub fn rule_of(failure: ValidationFailure) -> String {
     ExclusiveMinimum(_) -> "exclusiveMinimum"
     ExclusiveMaximum(_) -> "exclusiveMaximum"
     InvalidEnum -> "enum"
+    PatternMismatch -> "pattern"
   }
 }

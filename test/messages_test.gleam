@@ -50,3 +50,13 @@ pub fn minimum_rule_test() {
   messages.rule_of(messages.Minimum(5.0))
   |> should.equal("minimum")
 }
+
+pub fn pattern_mismatch_format_test() {
+  messages.format(messages.PatternMismatch)
+  |> should.equal("Does not match the required format")
+}
+
+pub fn pattern_mismatch_rule_test() {
+  messages.rule_of(messages.PatternMismatch)
+  |> should.equal("pattern")
+}

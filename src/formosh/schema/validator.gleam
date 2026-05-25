@@ -13,6 +13,7 @@ import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/regexp
 import gleam/string
 
 /// Validate a field value against its schema property definition.
@@ -161,6 +162,30 @@ fn validate_string(
                 True -> errors
               }
             _ -> errors
+          }
+
+          // JSON Schema `pattern` is a partial-match check (draft 2020-12
+          // §6.3.3). `regexp.check` matches the spec semantics. A syntactically
+          // invalid pattern is a schema-author bug — skip validation rather
+          // than surfacing it as a user-facing field error. Empty strings
+          // also skip the check: when a field is required, the required-rule
+          // already fires; when optional, an empty value is the user clearing
+          // the field and should not surface a pattern error.
+          let errors = case c.pattern, str {
+            Some(_), "" -> errors
+            Some(pat), _ ->
+              case regexp.from_string(pat) {
+                Ok(re) ->
+                  case regexp.check(re, str) {
+                    True -> errors
+                    False ->
+                      list.append(errors, [
+                        error.from_failure(field_path, messages.PatternMismatch),
+                      ])
+                  }
+                Error(_) -> errors
+              }
+            None, _ -> errors
           }
 
           errors
