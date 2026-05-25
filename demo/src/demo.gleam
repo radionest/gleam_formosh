@@ -68,6 +68,7 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
     "contact_form.json",
     "survey_form.json",
     "user_registration.json",
+    "pattern_validation.json",
     "basic_leak_signs.json",
     "array_editable_test.json",
     "array_readonly_test.json",

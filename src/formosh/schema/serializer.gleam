@@ -7,8 +7,8 @@ import formosh/schema/types.{
   BooleanValue, CustomFormat, CustomWidget, DateFormat, DateTimeFormat,
   EmailFormat, HiddenWidget, ImageUploadWidget, IntegerType, IntegerValue,
   NullType, NullValue, NumberType, NumberValue, ObjectType, ObjectValue,
-  RegexFormat, StringType, StringValue, TimeFormat, UploadConfig, UriFormat,
-  UrlFormat, UuidFormat,
+  StringType, StringValue, TimeFormat, UploadConfig, UriFormat, UrlFormat,
+  UuidFormat,
 }
 import gleam/dict
 import gleam/json
@@ -333,7 +333,6 @@ fn string_format_to_string(format: StringFormat) -> String {
     UriFormat -> "uri"
     UrlFormat -> "url"
     UuidFormat -> "uuid"
-    RegexFormat(pattern) -> "regex:" <> pattern
     CustomFormat(name) -> name
   }
 }

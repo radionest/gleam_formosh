@@ -11,8 +11,10 @@ import formosh/validation/field_requirements
 import formosh/validation/messages
 import gleam/dict.{type Dict}
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/regexp
 import gleam/string
 
 /// Validate a field value against its schema property definition.
@@ -88,7 +90,12 @@ fn validate_standard_field(
     Some(val) -> {
       let type_errors = case property.field_type {
         Some(types.StringType) ->
-          validate_string(field_path, val, property.string_constraints)
+          validate_string(
+            field_path,
+            val,
+            property.string_constraints,
+            is_required,
+          )
         Some(types.NumberType) | Some(types.IntegerType) ->
           validate_number(field_path, val, property.number_constraints)
         Some(types.BooleanType) -> validate_boolean(field_path, val)
@@ -109,8 +116,15 @@ fn validate_string(
   field_path: FieldPath,
   value: Value,
   constraints: Option(types.StringConstraints),
+  is_required: Bool,
 ) -> List(ValidationError) {
   case value {
+    // An empty value on an optional field is the user clearing the input —
+    // not "the value is too short" or "doesn't match a format". Skip every
+    // string-constraint check so min_length, format, and pattern behave
+    // consistently when the field is cleared. Required fields still report
+    // the missing value via the required-rule (set in validate_standard_field).
+    StringValue("") if !is_required -> []
     StringValue(str) -> {
       case constraints {
         None -> []
@@ -161,6 +175,31 @@ fn validate_string(
                 True -> errors
               }
             _ -> errors
+          }
+
+          // JSON Schema `pattern` is a partial-match check (draft 2020-12
+          // §6.3.3). `regexp.check` matches the spec semantics. A syntactically
+          // invalid pattern is a schema-author bug — log it once and skip the
+          // check so the form keeps working for the end user.
+          let errors = case c.pattern {
+            Some(pat) ->
+              case regexp.from_string(pat) {
+                Ok(re) ->
+                  case regexp.check(re, str) {
+                    True -> errors
+                    False ->
+                      list.append(errors, [
+                        error.from_failure(field_path, messages.PatternMismatch),
+                      ])
+                  }
+                Error(_) -> {
+                  io.println_error(
+                    "formosh: invalid regex pattern in JSON Schema: " <> pat,
+                  )
+                  errors
+                }
+              }
+            None -> errors
           }
 
           errors
