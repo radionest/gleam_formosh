@@ -5,10 +5,10 @@ Tests for the formosh library using the `gleeunit` framework.
 ## Running Tests
 
 ```bash
-gleam test    # Runs every *_test.gleam in this directory; no per-module filter
+gleam test
 ```
 
-`gleeunit` discovers and runs all tests; flags like `--module foo_test` are silently ignored.
+`gleeunit` compiles every `.gleam` file in `test/` (helpers too — discovery is by function name suffix `_test`, not filename). There is no per-module filter: flags like `--module foo_test` are accepted by the CLI but silently ignored by gleeunit.
 
 ## Framework & Conventions
 
