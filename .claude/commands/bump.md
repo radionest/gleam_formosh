@@ -1,4 +1,4 @@
-Bump the project version, commit, tag, and push.
+Bump the project version, commit, tag, push, and create a GitHub Release.
 
 ## Usage
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Bump version in gleam.toml, commit, tag, and push.
+# Bump version in gleam.toml, commit, tag, push, and create a GitHub Release.
 #
 # Usage:
 #   scripts/bump.sh          # auto-increment patch (0.2.3 → 0.2.4)
@@ -80,4 +80,6 @@ git commit -m "chore: version bump to $NEW"
 git tag "v$NEW"
 git push --atomic origin HEAD "v$NEW"
 
-echo "Done: v$NEW pushed"
+gh release create "v$NEW" --title "v$NEW" --generate-notes
+
+echo "Done: v$NEW released"
