@@ -114,7 +114,12 @@ fn resolve_property_ref(
   }
 }
 
-/// Apply a fallible function to an optional value, preserving None
+/// Traverse an `Option` through a fallible function, preserving `None`.
+///
+/// Equivalent to `Option.traverse` over `Result` — when `value` is `Some(v)`
+/// the resolver runs and its `Result` is re-wrapped in `Some`; `None` short
+/// circuits to `Ok(None)`. Used wherever `SchemaProperty` carries optional
+/// sub-schemas (`items`, `one_of`, `then_schema`, `else_schema`).
 fn resolve_optional(
   value: option.Option(a),
   resolver: fn(a) -> Result(b, ResolveError),
@@ -180,17 +185,16 @@ fn resolve_conditional_rule(
   context: Dict(String, SchemaProperty),
   visited: List(String),
 ) -> Result(ConditionalRule, ResolveError) {
-  use if_resolved <- result.try(resolve_property_ref(
-    rule.if_schema,
-    context,
-    visited,
+  let resolve_one = resolve_property_ref(_, context, visited)
+  use if_resolved <- result.try(resolve_one(rule.if_schema))
+  use then_resolved <- result.try(resolve_optional(
+    rule.then_schema,
+    resolve_one,
   ))
-  use then_resolved <- result.try(
-    resolve_optional(rule.then_schema, resolve_property_ref(_, context, visited)),
-  )
-  use else_resolved <- result.try(
-    resolve_optional(rule.else_schema, resolve_property_ref(_, context, visited)),
-  )
+  use else_resolved <- result.try(resolve_optional(
+    rule.else_schema,
+    resolve_one,
+  ))
   Ok(types.ConditionalRule(
     if_schema: if_resolved,
     then_schema: then_resolved,
@@ -291,10 +295,12 @@ fn merge_properties(
 
 /// Merge two `RenderHints`, with the referencing side winning per-field.
 ///
-/// Currently only widget/upload_config are populated from JSON Schema
-/// x-* extensions, so other fields fall through `option.or` as a no-op
-/// (both sides are `None`). When UiSchema gains $ref-aware merging this
-/// stays correct without changes.
+/// Runs only during `$ref` resolution, so the inputs carry hints from JSON
+/// Schema `x-*` extensions on the referencing/referenced nodes — currently
+/// `x-widget`, `x-accept`, `x-max-file-size`. UiSchema merging happens later
+/// in `ui_resolver.resolve_hints` and feeds the other `RenderHints` fields
+/// (`placeholder`, `help`, etc.), so here they are always `None` on both
+/// sides and `option.or` is a no-op for them.
 fn merge_render_hints(
   referencing: types.RenderHints,
   referenced: types.RenderHints,

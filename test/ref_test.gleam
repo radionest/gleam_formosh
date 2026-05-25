@@ -3,9 +3,33 @@
 import formosh/schema/parser
 import formosh/schema/types
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleeunit/should
+
+// ---- Test helpers for the conditional/$ref test cases below ----
+
+/// Parse a schema that carries a single top-level `allOf` / `if/then/else`
+/// rule and return that rule. Panics if there isn't exactly one.
+fn top_level_rule(json: String) -> types.ConditionalRule {
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert [rule] = schema.conditionals
+  rule
+}
+
+/// Look up a property by name inside a conditional branch
+/// (`rule.then_schema` / `rule.else_schema`, or `Some(rule.if_schema)`).
+/// Asserts that the branch is `Some`, its `properties` is `Some`, and the
+/// key is present. Returns the resolved `SchemaProperty`.
+fn assert_branch_property(
+  branch: Option(types.SchemaProperty),
+  key: String,
+) -> types.SchemaProperty {
+  let assert Some(branch_schema) = branch
+  let assert Some(props) = branch_schema.properties
+  let assert Ok(prop) = list.key_find(props, key)
+  prop
+}
 
 /// Test simple $ref to a definition in $defs
 pub fn simple_ref_test() {
@@ -439,11 +463,7 @@ pub fn ref_in_then_branch_property_test() {
     }]
   }"
 
-  let assert Ok(schema) = parser.parse_schema(json)
-  let assert [rule] = schema.conditionals
-  let assert Some(then_schema) = rule.then_schema
-  let assert Some(then_props) = then_schema.properties
-  let assert Ok(side) = list.key_find(then_props, "side")
+  let side = assert_branch_property(top_level_rule(json).then_schema, "side")
   side.ref |> should.equal(None)
   side.field_type |> should.equal(Some(types.StringType))
   case side.enum_values {
@@ -470,11 +490,8 @@ pub fn ref_in_else_branch_property_test() {
     }]
   }"
 
-  let assert Ok(schema) = parser.parse_schema(json)
-  let assert [rule] = schema.conditionals
-  let assert Some(else_schema) = rule.else_schema
-  let assert Some(else_props) = else_schema.properties
-  let assert Ok(reason) = list.key_find(else_props, "reason")
+  let reason =
+    assert_branch_property(top_level_rule(json).else_schema, "reason")
   reason.ref |> should.equal(None)
   reason.field_type |> should.equal(Some(types.StringType))
   case reason.string_constraints {
@@ -501,10 +518,8 @@ pub fn ref_in_if_condition_property_test() {
     }]
   }"
 
-  let assert Ok(schema) = parser.parse_schema(json)
-  let assert [rule] = schema.conditionals
-  let assert Some(if_props) = rule.if_schema.properties
-  let assert Ok(status) = list.key_find(if_props, "status")
+  let status =
+    assert_branch_property(Some(top_level_rule(json).if_schema), "status")
   status.ref |> should.equal(None)
   status.field_type |> should.equal(Some(types.StringType))
   case status.enum_values {
@@ -537,9 +552,7 @@ pub fn ref_as_whole_then_branch_test() {
     }]
   }"
 
-  let assert Ok(schema) = parser.parse_schema(json)
-  let assert [rule] = schema.conditionals
-  let assert Some(then_schema) = rule.then_schema
+  let assert Some(then_schema) = top_level_rule(json).then_schema
   then_schema.ref |> should.equal(None)
   then_schema.field_type |> should.equal(Some(types.ObjectType))
   then_schema.required |> should.equal(["detail"])
@@ -575,9 +588,7 @@ pub fn ref_inside_array_items_conditionals_test() {
   let assert Ok(lesions) = list.key_find(schema.properties, "lesions")
   let assert Some(item_schema) = lesions.items
   let assert [rule] = item_schema.conditionals
-  let assert Some(then_schema) = rule.then_schema
-  let assert Some(then_props) = then_schema.properties
-  let assert Ok(side) = list.key_find(then_props, "side")
+  let side = assert_branch_property(rule.then_schema, "side")
   side.ref |> should.equal(None)
   side.field_type |> should.equal(Some(types.StringType))
   case side.enum_values {
@@ -617,9 +628,7 @@ pub fn ref_to_defs_with_nested_allof_ref_test() {
   item.field_type |> should.equal(Some(types.ObjectType))
 
   let assert [rule] = item.conditionals
-  let assert Some(then_schema) = rule.then_schema
-  let assert Some(then_props) = then_schema.properties
-  let assert Ok(detail) = list.key_find(then_props, "detail")
+  let detail = assert_branch_property(rule.then_schema, "detail")
   detail.ref |> should.equal(None)
   detail.field_type |> should.equal(Some(types.StringType))
   case detail.string_constraints {
@@ -627,6 +636,73 @@ pub fn ref_to_defs_with_nested_allof_ref_test() {
     None ->
       panic as "Resolved $ref inside merged conditional should carry constraints"
   }
+}
+
+/// Self-referential `$ref` reachable via `then_schema` must be detected as
+/// a cycle (or successfully truncated by `visited`), not loop forever.
+pub fn ref_cycle_through_then_branch_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"node\": {\"$ref\": \"#/$defs/Self\"}
+    },
+    \"$defs\": {
+      \"Self\": {
+        \"type\": \"object\",
+        \"properties\": {\"flag\": {\"type\": \"boolean\"}},
+        \"allOf\": [{
+          \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+          \"then\": {\"$ref\": \"#/$defs/Self\"}
+        }]
+      }
+    }
+  }"
+
+  case parser.parse_schema(json) {
+    Ok(_) -> Nil
+    Error(types.UnexpectedValue(msg)) ->
+      should.equal(string.contains(msg, "Circular"), True)
+    Error(_) -> panic as "Expected Ok or a Circular reference error"
+  }
+}
+
+/// `$ref` inside a `oneOf` element nested in `then.properties` must also be
+/// expanded — exercises the recursion path
+/// `resolve_conditional_rule` → `resolve_property_ref` → `resolve_nested_refs`
+/// → `resolve_optional(one_of, ...)`.
+pub fn ref_inside_oneof_inside_then_branch_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"flag\": {\"type\": \"boolean\"}
+    },
+    \"$defs\": {
+      \"Side\": {\"type\": \"string\", \"enum\": [\"left\", \"right\"]},
+      \"Code\": {\"type\": \"integer\"}
+    },
+    \"allOf\": [{
+      \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+      \"then\": {
+        \"properties\": {
+          \"choice\": {\"oneOf\": [
+            {\"$ref\": \"#/$defs/Side\"},
+            {\"$ref\": \"#/$defs/Code\"}
+          ]}
+        }
+      }
+    }]
+  }"
+
+  let choice =
+    assert_branch_property(top_level_rule(json).then_schema, "choice")
+  let assert Some(variants) = choice.one_of
+  let assert [side_variant, code_variant] = variants
+  side_variant.ref |> should.equal(None)
+  side_variant.field_type |> should.equal(Some(types.StringType))
+  code_variant.ref |> should.equal(None)
+  code_variant.field_type |> should.equal(Some(types.IntegerType))
 }
 
 /// Resolving $ref must preserve the declaration order of nested properties.
