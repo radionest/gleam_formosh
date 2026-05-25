@@ -3,7 +3,9 @@
 // This module handles the resolution of $ref pointers to their corresponding
 // schema definitions, supporting the JSON Pointer syntax used in JSON Schema.
 
-import formosh/schema/types.{type JsonSchema, type SchemaProperty}
+import formosh/schema/types.{
+  type ConditionalRule, type JsonSchema, type SchemaProperty,
+}
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{None, Some}
@@ -44,8 +46,18 @@ pub fn resolve_refs(schema: JsonSchema) -> Result(JsonSchema, ResolveError) {
     resolve_properties_refs(schema.properties, context, []),
   )
 
-  // Return the schema with resolved properties
-  Ok(types.JsonSchema(..schema, properties: resolved_properties))
+  // Resolve references inside top-level conditional rules (allOf / if / then / else)
+  use resolved_conditionals <- result.try(
+    list.try_map(schema.conditionals, resolve_conditional_rule(_, context, [])),
+  )
+
+  Ok(
+    types.JsonSchema(
+      ..schema,
+      properties: resolved_properties,
+      conditionals: resolved_conditionals,
+    ),
+  )
 }
 
 /// Resolve references in an ordered list of properties, preserving key order.
@@ -138,14 +150,52 @@ fn resolve_nested_refs(
     ),
   )
 
+  use resolved_conditionals <- result.try(
+    list.try_map(property.conditionals, resolve_conditional_rule(
+      _,
+      context,
+      visited,
+    )),
+  )
+
   Ok(
     types.SchemaProperty(
       ..property,
       properties: resolved_properties,
       items: resolved_items,
       one_of: resolved_one_of,
+      conditionals: resolved_conditionals,
     ),
   )
+}
+
+/// Resolve `$ref` references inside a single `ConditionalRule`.
+///
+/// Walks `if_schema`, `then_schema`, `else_schema` through `resolve_property_ref`
+/// so `$ref`-bearing sub-schemas are expanded before `conditional_resolver`
+/// merges them at render time. Without this, `then.properties` with a `$ref`
+/// stays unresolved and downstream renderers see fields with `field_type: None`.
+fn resolve_conditional_rule(
+  rule: ConditionalRule,
+  context: Dict(String, SchemaProperty),
+  visited: List(String),
+) -> Result(ConditionalRule, ResolveError) {
+  use if_resolved <- result.try(resolve_property_ref(
+    rule.if_schema,
+    context,
+    visited,
+  ))
+  use then_resolved <- result.try(
+    resolve_optional(rule.then_schema, resolve_property_ref(_, context, visited)),
+  )
+  use else_resolved <- result.try(
+    resolve_optional(rule.else_schema, resolve_property_ref(_, context, visited)),
+  )
+  Ok(types.ConditionalRule(
+    if_schema: if_resolved,
+    then_schema: then_resolved,
+    else_schema: else_resolved,
+  ))
 }
 
 /// Parse a JSON Pointer reference path

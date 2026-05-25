@@ -420,6 +420,215 @@ pub fn definitions_compatibility_test() {
   }
 }
 
+/// `$ref` inside `allOf[*].then.properties.X` must be expanded — otherwise
+/// the conditional merge surfaces a field with `field_type: None` and the
+/// dispatcher silently drops it.
+pub fn ref_in_then_branch_property_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"flag\": {\"type\": \"boolean\"}
+    },
+    \"$defs\": {
+      \"Side\": {\"type\": \"string\", \"enum\": [\"left\", \"right\"]}
+    },
+    \"allOf\": [{
+      \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+      \"then\": {\"properties\": {\"side\": {\"$ref\": \"#/$defs/Side\"}}}
+    }]
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert [rule] = schema.conditionals
+  let assert Some(then_schema) = rule.then_schema
+  let assert Some(then_props) = then_schema.properties
+  let assert Ok(side) = list.key_find(then_props, "side")
+  side.ref |> should.equal(None)
+  side.field_type |> should.equal(Some(types.StringType))
+  case side.enum_values {
+    Some(values) -> list.length(values) |> should.equal(2)
+    None -> panic as "Resolved $ref should carry enum_values from $defs"
+  }
+}
+
+/// `$ref` inside `allOf[*].else.properties.X` must be expanded too —
+/// symmetric to the then-branch test.
+pub fn ref_in_else_branch_property_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"flag\": {\"type\": \"boolean\"}
+    },
+    \"$defs\": {
+      \"Reason\": {\"type\": \"string\", \"minLength\": 1}
+    },
+    \"allOf\": [{
+      \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+      \"else\": {\"properties\": {\"reason\": {\"$ref\": \"#/$defs/Reason\"}}}
+    }]
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert [rule] = schema.conditionals
+  let assert Some(else_schema) = rule.else_schema
+  let assert Some(else_props) = else_schema.properties
+  let assert Ok(reason) = list.key_find(else_props, "reason")
+  reason.ref |> should.equal(None)
+  reason.field_type |> should.equal(Some(types.StringType))
+  case reason.string_constraints {
+    Some(c) -> c.min_length |> should.equal(Some(1))
+    None -> panic as "Resolved $ref should carry string_constraints from $defs"
+  }
+}
+
+/// `$ref` inside `allOf[*].if.properties.X` must be expanded — otherwise
+/// `evaluate_condition` cannot inspect `enum_values` of the referenced schema.
+pub fn ref_in_if_condition_property_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"status\": {\"type\": \"string\"}
+    },
+    \"$defs\": {
+      \"ActiveStatus\": {\"type\": \"string\", \"enum\": [\"active\"]}
+    },
+    \"allOf\": [{
+      \"if\": {\"properties\": {\"status\": {\"$ref\": \"#/$defs/ActiveStatus\"}}},
+      \"then\": {\"properties\": {\"reason\": {\"type\": \"string\"}}}
+    }]
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert [rule] = schema.conditionals
+  let assert Some(if_props) = rule.if_schema.properties
+  let assert Ok(status) = list.key_find(if_props, "status")
+  status.ref |> should.equal(None)
+  status.field_type |> should.equal(Some(types.StringType))
+  case status.enum_values {
+    Some([_]) -> Nil
+    _ -> panic as "Resolved $ref should expose the const-style enum_values"
+  }
+}
+
+/// `then` may itself be a bare `$ref` (the whole branch is a referenced
+/// definition). The resolver must expand it before downstream consumers see it.
+pub fn ref_as_whole_then_branch_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"flag\": {\"type\": \"boolean\"}
+    },
+    \"$defs\": {
+      \"ExtraFields\": {
+        \"type\": \"object\",
+        \"properties\": {
+          \"detail\": {\"type\": \"string\"}
+        },
+        \"required\": [\"detail\"]
+      }
+    },
+    \"allOf\": [{
+      \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+      \"then\": {\"$ref\": \"#/$defs/ExtraFields\"}
+    }]
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert [rule] = schema.conditionals
+  let assert Some(then_schema) = rule.then_schema
+  then_schema.ref |> should.equal(None)
+  then_schema.field_type |> should.equal(Some(types.ObjectType))
+  then_schema.required |> should.equal(["detail"])
+  let assert Some(then_props) = then_schema.properties
+  list.length(then_props) |> should.equal(1)
+}
+
+/// `$ref` inside conditionals nested in array `items` (item-level allOf)
+/// must be expanded too — this is the original bug report scenario.
+pub fn ref_inside_array_items_conditionals_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"lesions\": {
+        \"type\": \"array\",
+        \"items\": {
+          \"type\": \"object\",
+          \"properties\": {\"is_resected\": {\"type\": \"boolean\"}},
+          \"allOf\": [{
+            \"if\": {\"properties\": {\"is_resected\": {\"const\": true}}},
+            \"then\": {\"properties\": {\"side\": {\"$ref\": \"#/$defs/Side\"}}}
+          }]
+        }
+      }
+    },
+    \"$defs\": {
+      \"Side\": {\"type\": \"string\", \"enum\": [\"left\", \"right\"]}
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(lesions) = list.key_find(schema.properties, "lesions")
+  let assert Some(item_schema) = lesions.items
+  let assert [rule] = item_schema.conditionals
+  let assert Some(then_schema) = rule.then_schema
+  let assert Some(then_props) = then_schema.properties
+  let assert Ok(side) = list.key_find(then_props, "side")
+  side.ref |> should.equal(None)
+  side.field_type |> should.equal(Some(types.StringType))
+  case side.enum_values {
+    Some(values) -> list.length(values) |> should.equal(2)
+    None -> panic as "Resolved $ref should carry enum_values from $defs"
+  }
+}
+
+/// `$ref` to a `$defs` entry that itself contains `allOf` with a nested
+/// `$ref` inside `then`. Exercises the merge path:
+/// `resolve_property_ref` → recursive `resolve_property_ref` on the referenced
+/// definition → `resolve_nested_refs` resolves its `conditionals` → result is
+/// folded back via `merge_properties` (which `list.append`s conditionals).
+pub fn ref_to_defs_with_nested_allof_ref_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"item\": {\"$ref\": \"#/$defs/ConditionalShape\"}
+    },
+    \"$defs\": {
+      \"Detail\": {\"type\": \"string\", \"minLength\": 1},
+      \"ConditionalShape\": {
+        \"type\": \"object\",
+        \"properties\": {\"flag\": {\"type\": \"boolean\"}},
+        \"allOf\": [{
+          \"if\": {\"properties\": {\"flag\": {\"const\": true}}},
+          \"then\": {\"properties\": {\"detail\": {\"$ref\": \"#/$defs/Detail\"}}}
+        }]
+      }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(item) = list.key_find(schema.properties, "item")
+  item.ref |> should.equal(None)
+  item.field_type |> should.equal(Some(types.ObjectType))
+
+  let assert [rule] = item.conditionals
+  let assert Some(then_schema) = rule.then_schema
+  let assert Some(then_props) = then_schema.properties
+  let assert Ok(detail) = list.key_find(then_props, "detail")
+  detail.ref |> should.equal(None)
+  detail.field_type |> should.equal(Some(types.StringType))
+  case detail.string_constraints {
+    Some(c) -> c.min_length |> should.equal(Some(1))
+    None ->
+      panic as "Resolved $ref inside merged conditional should carry constraints"
+  }
+}
+
 /// Resolving $ref must preserve the declaration order of nested properties.
 pub fn ref_preserves_nested_property_order_test() {
   let json =
