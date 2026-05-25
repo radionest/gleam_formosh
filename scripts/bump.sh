@@ -6,6 +6,7 @@
 #   scripts/bump.sh 0.3.0    # set explicit version
 #
 # Must be on main branch with clean working tree.
+# Set BUMP_NO_RELEASE=1 to push tag only and skip the GitHub Release step.
 
 set -euo pipefail
 
@@ -13,11 +14,6 @@ MANIFEST="gleam.toml"
 
 if [ ! -f "$MANIFEST" ]; then
   echo "Error: $MANIFEST not found" >&2
-  exit 1
-fi
-
-if ! command -v gh >/dev/null 2>&1; then
-  echo "Error: gh CLI not found (required to create the release)" >&2
   exit 1
 fi
 
@@ -31,6 +27,17 @@ if [ -n "$(git status --porcelain)" ]; then
   echo "Error: working tree is not clean" >&2
   git status --short >&2
   exit 1
+fi
+
+if [ "${BUMP_NO_RELEASE:-0}" != "1" ]; then
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "Error: gh CLI not found (set BUMP_NO_RELEASE=1 to skip the release step)" >&2
+    exit 1
+  fi
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "Error: gh CLI is not authenticated (run \`gh auth login\` or set BUMP_NO_RELEASE=1)" >&2
+    exit 1
+  fi
 fi
 
 CURRENT=$(python3 -c "
@@ -85,6 +92,15 @@ git commit -m "chore: version bump to $NEW"
 git tag "v$NEW"
 git push --atomic origin HEAD "v$NEW"
 
-gh release create "v$NEW" --title "v$NEW" --generate-notes
+if [ "${BUMP_NO_RELEASE:-0}" = "1" ]; then
+  echo "Done: v$NEW pushed (release skipped via BUMP_NO_RELEASE=1)"
+  exit 0
+fi
+
+if ! gh release create "v$NEW" --verify-tag --title "v$NEW" --generate-notes; then
+  echo "Error: gh release create failed. Tag v$NEW is already on origin." >&2
+  echo "Recover with: gh release create v$NEW --verify-tag --title v$NEW --generate-notes" >&2
+  exit 1
+fi
 
 echo "Done: v$NEW released"
