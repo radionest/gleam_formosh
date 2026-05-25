@@ -16,6 +16,11 @@ if [ ! -f "$MANIFEST" ]; then
   exit 1
 fi
 
+if ! command -v gh >/dev/null 2>&1; then
+  echo "Error: gh CLI not found (required to create the release)" >&2
+  exit 1
+fi
+
 BRANCH=$(git branch --show-current)
 if [ "$BRANCH" != "main" ]; then
   echo "Error: must be on main branch (current: $BRANCH)" >&2
