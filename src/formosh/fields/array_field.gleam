@@ -1,6 +1,6 @@
 /// Array container renderer.
 ///
-/// Renders the array label, item-level frames (number, remove button),
+/// Renders the array label, item-level frames (remove button),
 /// and the add-item button. Child field rendering is delegated back to
 /// the caller via `render_child` — this keeps a single source of truth
 /// for widget dispatch (see `field_dispatcher.render_field_at_path`).
@@ -13,7 +13,6 @@ import formosh/schema/conditional_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type SchemaProperty, type Value}
 import formosh/schema/ui_resolver
-import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
 import lustre/attribute.{class, type_}
@@ -23,7 +22,7 @@ import lustre/event
 
 /// Render an array field as a labelled container of items.
 ///
-/// Each item gets a header (index + remove button) followed by its child
+/// Each item gets an optional remove-button header followed by its child
 /// fields. Items resolve their own conditionals against the row's own
 /// values, so every row is treated independently.
 ///
@@ -83,7 +82,7 @@ pub fn render_container(
   ])
 }
 
-/// Render a single row: header with index + remove button, plus child fields.
+/// Render a single row: optional remove-button header, plus child fields.
 fn render_array_item(
   ctx: FieldRenderCtx,
   removable: Bool,
@@ -95,13 +94,10 @@ fn render_array_item(
   case ctx.property.items {
     Some(item_schema) ->
       html.div([class("array-item")], [
-        html.div([class("array-item-header")], [
-          html.span([class("array-item-index")], [
-            html.text("№ " <> int.to_string(index + 1)),
-          ]),
-          case ctx.is_readonly || !removable {
-            True -> element.none()
-            False ->
+        case ctx.is_readonly || !removable {
+          True -> element.none()
+          False ->
+            html.div([class("array-item-header")], [
               html.button(
                 [
                   type_("button"),
@@ -109,9 +105,9 @@ fn render_array_item(
                   event.on_click(RemoveArrayItemPath(ctx.path, index)),
                 ],
                 [html.text("Удалить")],
-              )
-          },
-        ]),
+              ),
+            ])
+        },
         html.div(
           [class("array-item-fields")],
           render_item_fields(ctx, item_schema, item, index, model, render_child),
