@@ -113,6 +113,12 @@ Use as a custom HTML element without writing Gleam:
 
 Events: `formosh-ready`, `formosh-change`, `formosh-submitting`, `formosh-submit`.
 
+Set `read-only="true"` (or `component.read_only(True)` programmatically) to
+render the form as a static label→value summary instead of inputs: enums show
+their label, booleans Yes/No, nested objects as groups, arrays of flat objects
+as tables; Submit/Reset are hidden. Useful for displaying stored values of
+records that are not editable. Style it via the `readonly-*` parts (see below).
+
 Or use inside a Lustre app programmatically:
 
 ```gleam
@@ -351,7 +357,7 @@ The component runs inside an open Shadow DOM. There are three customization surf
    .formosh-error { color: red; }
    ```
 
-Part names available (one per styled element): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `toggle`, `toggle-wrapper`, `toggle-slider`, `toggle-text`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`.
+Part names available (one per styled element): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `toggle`, `toggle-wrapper`, `toggle-slider`, `toggle-text`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`.
 
 Notes:
 

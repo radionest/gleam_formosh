@@ -70,6 +70,11 @@ pub type FormModel {
     // `update.validate_all_fields` after the schema-driven passes; its
     // errors are merged into `errors` via `add_error_at_path`.
     validator: Option(Validator(FormModel)),
+    // Whether the whole form renders as a static, non-editable summary
+    // (label → value) instead of input widgets. Set via the component's
+    // `read-only` attribute. Distinct from `show_readonly_fields`, which
+    // only toggles visibility of schema `readOnly` fields in edit mode.
+    read_only: Bool,
   )
 }
 
@@ -207,6 +212,7 @@ pub fn init_with_full_config(
     upload_states: dict.new(),
     ui_schema: ui_schema,
     validator: option.None,
+    read_only: False,
   )
 }
 
@@ -283,6 +289,7 @@ pub fn reset(model: FormModel) -> FormModel {
     upload_states: dict.new(),
     ui_schema: model.ui_schema,
     validator: model.validator,
+    read_only: model.read_only,
   )
 }
 

@@ -2,6 +2,7 @@
 
 import formosh/fields/field_common
 import formosh/fields/field_dispatcher
+import formosh/fields/readonly_field
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
 import formosh/schema/properties
@@ -73,13 +74,20 @@ fn render_form_body(model: FormModel) -> Element(FormMsg) {
       render_field(model, field_name, property)
     })
 
+  // In read-only (review) mode there is nothing to submit or reset, so the
+  // footer with its Submit/Reset buttons is omitted entirely.
+  let body = case model.read_only {
+    True -> fields
+    False -> list.append(fields, [render_form_footer_content(model)])
+  }
+
   html.form(
     [
       attribute.class("formosh-form"),
       attribute.attribute("part", "form"),
       event.on_submit(fn(_) { model.FormSubmit }),
     ],
-    list.append(fields, [render_form_footer_content(model)]),
+    body,
   )
 }
 
@@ -101,7 +109,10 @@ fn render_field(
       is_disabled: model.is_field_disabled(model, field_path),
       is_readonly: property.read_only,
     )
-  field_dispatcher.render_field_at_path(ctx, model)
+  case model.read_only {
+    True -> readonly_field.render(ctx, model)
+    False -> field_dispatcher.render_field_at_path(ctx, model)
+  }
 }
 
 fn render_form_footer_content(model: FormModel) -> Element(FormMsg) {
