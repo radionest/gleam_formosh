@@ -78,6 +78,10 @@ pub fn register() -> Result(Nil, lustre.Error) {
       component.on_attribute_change("show-readonly-fields", fn(value) {
         Ok(ShowReadonlyFieldsChanged(value == "true"))
       }),
+      // Listen for read-only (review) mode toggle
+      component.on_attribute_change("read-only", fn(value) {
+        Ok(ReadOnlyChanged(value == "true"))
+      }),
       // Listen for upload-base-url changes
       component.on_attribute_change("upload-base-url", fn(value) {
         Ok(UploadBaseUrlChanged(value))
@@ -167,6 +171,16 @@ pub fn show_readonly_fields(show: Bool) -> Attribute(msg) {
   })
 }
 
+/// Render the form as a static, read-only summary (label → value) instead
+/// of editable inputs. Submit/Reset controls are hidden. Pair with
+/// `schema_string` + `initial_values_string` to display stored values.
+pub fn read_only(value: Bool) -> Attribute(msg) {
+  attribute.attribute("read-only", case value {
+    True -> "true"
+    False -> "false"
+  })
+}
+
 /// Set the base URL for file uploads.
 ///
 /// Files are uploaded via POST to this URL with multipart/form-data.
@@ -230,6 +244,8 @@ type Model {
     initial_values: dict.Dict(String, Value),
     // Whether to show readOnly fields (True) or hide them (False)
     show_readonly_fields: Bool,
+    // Render the whole form as a static read-only summary (review mode)
+    read_only: Bool,
     // Base URL for file uploads
     upload_base_url: Option(String),
     // Parsed UiSchema (presentation hints parallel to `schema`)
@@ -247,6 +263,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       submit_method: "POST",
       initial_values: dict.new(),
       show_readonly_fields: True,
+      read_only: False,
       upload_base_url: None,
       ui_schema: empty_ui_schema(),
       validator: None,
@@ -265,6 +282,7 @@ type Msg {
   SubmitMethodChanged(String)
   InitialValuesChanged(dict.Dict(String, Value))
   ShowReadonlyFieldsChanged(Bool)
+  ReadOnlyChanged(Bool)
   UploadBaseUrlChanged(String)
   UiSchemaChanged(UiSchema)
   ValidatorChanged(Dynamic)
@@ -307,6 +325,7 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
       resolved_schema: resolved_schema,
       upload_base_url: model.upload_base_url,
       validator: model.validator,
+      read_only: model.read_only,
     )
   // Validate the form initially to check required fields
   let validated_form = validate_all_fields(form_model_resolved)
@@ -373,6 +392,22 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       let final_model = case new_model.form_model {
         Some(form_model) ->
           reinitialize_form_with_schema(new_model, form_model.schema)
+        None -> new_model
+      }
+      #(final_model, effect.none())
+    }
+
+    ReadOnlyChanged(read_only) -> {
+      // Presentation-only toggle: patch the flag in place (like
+      // `UiSchemaChanged`) so current values and validation state survive,
+      // rather than reinitialising the form from defaults.
+      let new_model = Model(..model, read_only: read_only)
+      let final_model = case new_model.form_model {
+        Some(form_model) ->
+          Model(
+            ..new_model,
+            form_model: Some(FormModel(..form_model, read_only: read_only)),
+          )
         None -> new_model
       }
       #(final_model, effect.none())

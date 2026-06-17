@@ -82,7 +82,9 @@ Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segme
 
 ## Web Component
 
-Registers as `<formosh-form>` custom element. Attributes: `schema`, `ui-schema`, `submit-url`, `submit-method`, `show-readonly-fields`, `upload-base-url`. Emits events: `formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`.
+Registers as `<formosh-form>` custom element. Attributes: `schema`, `ui-schema`, `submit-url`, `submit-method`, `show-readonly-fields`, `read-only`, `upload-base-url`. Emits events: `formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`.
+
+`read-only="true"` renders the whole form as a static label→value summary (review mode) instead of inputs, hiding Submit/Reset — distinct from `show-readonly-fields`, which only toggles visibility of schema `readOnly` fields in edit mode. Drives the `readonly_field` renderer (`src/formosh/fields/readonly_field.gleam`); exposes `::part(readonly-field|readonly-label|readonly-value|readonly-group|readonly-group-label|readonly-group-body|readonly-table|readonly-th|readonly-td)`.
 
 Styling: the component runs in open Shadow DOM, so target it via `::part()` selectors (`formosh-form::part(input)`, etc.) and `[part=field][data-error]` / `[part=field][data-readonly]` / `[part=toggle][data-state=on]` for field state. Parent stylesheets are also auto-adopted, so plain `.formosh-input { ... }` rules still apply inside the shadow root.
 

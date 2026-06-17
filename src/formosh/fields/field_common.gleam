@@ -40,7 +40,7 @@ pub fn render_required_marker(is_required: Bool) -> Element(FormMsg) {
 /// Visible text for a field label: `hints.title` (UiSchema override) wins
 /// over `property.title` (JSON Schema), which in turn wins over the field
 /// name with underscores replaced by spaces and capitalised.
-fn label_text(
+pub fn label_text(
   field_name: String,
   property: types.SchemaProperty,
   hints: RenderHints,
