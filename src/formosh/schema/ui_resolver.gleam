@@ -86,5 +86,8 @@ pub fn resolve_hints(
       ui_prop.removable,
       option.Some(schema_property.removable),
     ),
+    // No x-* fallback for orderable — UiSchema only. `None` means "enabled"
+    // (the renderer applies the default).
+    orderable: ui_prop.orderable,
   )
 }

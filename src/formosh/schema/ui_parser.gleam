@@ -80,6 +80,7 @@ fn parse_ui_property(dyn: Dynamic) -> Result(UiProperty, ParseError) {
       let description = extract_string(entries, "ui:description")
       let addable = extract_bool(entries, "ui:addable")
       let removable = extract_bool(entries, "ui:removable")
+      let orderable = extract_bool(entries, "ui:orderable")
       let upload = extract_upload(entries, widget)
       use items <- result.try(extract_items(entries))
       // Inside a UiProperty, `items` is reserved for the array-element
@@ -100,6 +101,7 @@ fn parse_ui_property(dyn: Dynamic) -> Result(UiProperty, ParseError) {
         description: description,
         addable: addable,
         removable: removable,
+        orderable: orderable,
         upload: upload,
         properties: children,
         items: items,

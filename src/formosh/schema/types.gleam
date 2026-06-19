@@ -112,6 +112,7 @@ pub type RenderHints {
     order: Option(List(String)),
     addable: Option(Bool),
     removable: Option(Bool),
+    orderable: Option(Bool),
   )
 }
 
@@ -306,6 +307,7 @@ pub fn empty_hints() -> RenderHints {
     order: None,
     addable: None,
     removable: None,
+    orderable: None,
   )
 }
 

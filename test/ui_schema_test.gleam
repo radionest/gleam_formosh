@@ -344,3 +344,29 @@ pub fn apply_order_all_listed_exact_order_test() {
   let keys = list.map(result, fn(entry) { entry.0 })
   keys |> should.equal(["c", "a", "b"])
 }
+
+// ---- ui:orderable ----
+
+pub fn parse_orderable_false_test() {
+  let assert Ok(ui) = ui_parser.parse("{\"tags\":{\"ui:orderable\":false}}")
+  let assert Ok(prop) = list.key_find(ui.properties, "tags")
+  prop.orderable |> should.equal(Some(False))
+}
+
+pub fn resolve_hints_orderable_defaults_none_test() {
+  // No UiSchema entry — orderable stays None (renderer treats None as enabled).
+  let hints =
+    ui_resolver.resolve_hints(
+      empty_ui_schema(),
+      [PropertySegment("tags")],
+      empty_property(),
+    )
+  hints.orderable |> should.equal(None)
+}
+
+pub fn resolve_hints_orderable_from_ui_test() {
+  let assert Ok(ui) = ui_parser.parse("{\"tags\":{\"ui:orderable\":false}}")
+  let hints =
+    ui_resolver.resolve_hints(ui, [PropertySegment("tags")], empty_property())
+  hints.orderable |> should.equal(Some(False))
+}

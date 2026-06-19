@@ -44,6 +44,8 @@ pub type UiProperty {
     addable: Option(Bool),
     /// Array-level "show remove button" toggle (`ui:removable`).
     removable: Option(Bool),
+    /// Array-level "show reorder buttons" toggle (`ui:orderable`).
+    orderable: Option(Bool),
     /// Upload widget configuration (`ui:accept`, `ui:maxFileSize`).
     upload: Option(UploadConfig),
     /// UI hints for object children, keyed by property name.
@@ -77,6 +79,7 @@ pub fn empty_ui_property() -> UiProperty {
     description: None,
     addable: None,
     removable: None,
+    orderable: None,
     upload: None,
     properties: [],
     items: None,
