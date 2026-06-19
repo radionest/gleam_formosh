@@ -3,6 +3,7 @@ import formosh/fields/field_dispatcher
 import formosh/form/model.{FormModel}
 import formosh/form/path
 import formosh/schema/types
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
@@ -66,9 +67,19 @@ pub fn array_shows_move_buttons_test() {
 }
 
 pub fn array_boundary_button_disabled_test() {
-  // first row's ▲ and last row's ▼ carry the disabled attribute.
-  let html = render_tags([types.StringValue("a"), types.StringValue("b")])
-  string.contains(html, "disabled") |> should.be_true
+  // 3 rows: only row 0's ▲ and row 2's ▼ are disabled; interior buttons stay
+  // enabled, so exactly two `disabled` attributes render regardless of length.
+  let html =
+    render_tags([
+      types.StringValue("a"),
+      types.StringValue("b"),
+      types.StringValue("c"),
+    ])
+  count_occurrences(html, "disabled") |> should.equal(2)
+}
+
+fn count_occurrences(haystack: String, needle: String) -> Int {
+  list.length(string.split(haystack, needle)) - 1
 }
 
 pub fn single_item_array_hides_move_buttons_test() {
