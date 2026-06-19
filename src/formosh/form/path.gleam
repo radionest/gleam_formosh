@@ -1,5 +1,6 @@
 import formosh/path_format
 import formosh/schema/types
+import gleam/bool
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -328,27 +329,25 @@ pub fn move_array_item_at_path(
   from: Int,
   to: Int,
 ) -> types.Value {
-  modify_at_path(root, path, fn(value) {
-    case value {
-      types.ArrayValue(items) -> {
-        let len = list.length(items)
-        case from == to || from < 0 || to < 0 || from >= len || to >= len {
-          True -> value
-          False -> {
-            let #(before, rest) = list.split(items, from)
-            case rest {
-              [moved, ..tail] -> {
-                let #(left, right) = list.split(list.append(before, tail), to)
-                types.ArrayValue(list.append(left, [moved, ..right]))
-              }
-              [] -> value
-            }
-          }
+  use value <- modify_at_path(root, path)
+  case value {
+    types.ArrayValue(items) -> {
+      let len = list.length(items)
+      use <- bool.guard(
+        from == to || from < 0 || to < 0 || from >= len || to >= len,
+        value,
+      )
+      let #(before, rest) = list.split(items, from)
+      case rest {
+        [moved, ..tail] -> {
+          let #(left, right) = list.split(list.append(before, tail), to)
+          types.ArrayValue(list.append(left, [moved, ..right]))
         }
+        [] -> value
       }
-      _ -> value
     }
-  })
+    _ -> value
+  }
 }
 
 /// After moving an item from `from` to `to` within the array at `array_path`,

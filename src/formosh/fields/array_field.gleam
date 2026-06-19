@@ -14,6 +14,7 @@ import formosh/schema/conditional_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type SchemaProperty, type Value}
 import formosh/schema/ui_resolver
+import gleam/bool
 import gleam/list
 import gleam/option.{None, Some}
 import lustre/attribute.{class, disabled, type_}
@@ -165,10 +166,8 @@ fn render_array_item_header(
     False -> []
   }
   let controls = list.append(move_buttons, remove_button)
-  case ctx.is_readonly || list.is_empty(controls) {
-    True -> element.none()
-    False -> html.div([class("array-item-header")], controls)
-  }
+  use <- bool.guard(ctx.is_readonly || list.is_empty(controls), element.none())
+  html.div([class("array-item-header")], controls)
 }
 
 /// Render every child field of a single row.
