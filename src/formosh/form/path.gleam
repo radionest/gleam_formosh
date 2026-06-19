@@ -319,6 +319,90 @@ pub fn reindex_after_array_removal(
   }
 }
 
+/// Move an array item from `from` to `to` within the array at `path`.
+///
+/// No-op when `from == to` or when either index is outside `0..length-1`.
+pub fn move_array_item_at_path(
+  root: types.Value,
+  path: FieldPath,
+  from: Int,
+  to: Int,
+) -> types.Value {
+  modify_at_path(root, path, fn(value) {
+    case value {
+      types.ArrayValue(items) -> {
+        let len = list.length(items)
+        case from == to || from < 0 || to < 0 || from >= len || to >= len {
+          True -> value
+          False ->
+            case list_remove_at(items, from) {
+              Some(#(moved, rest)) ->
+                types.ArrayValue(list_insert_at(rest, to, moved))
+              None -> value
+            }
+        }
+      }
+      _ -> value
+    }
+  })
+}
+
+fn list_remove_at(items: List(a), index: Int) -> Option(#(a, List(a))) {
+  case items, index {
+    [], _ -> None
+    [first, ..rest], 0 -> Some(#(first, rest))
+    [first, ..rest], n if n > 0 ->
+      case list_remove_at(rest, n - 1) {
+        Some(#(removed, remaining)) -> Some(#(removed, [first, ..remaining]))
+        None -> None
+      }
+    _, _ -> None
+  }
+}
+
+fn list_insert_at(items: List(a), index: Int, item: a) -> List(a) {
+  case items, index {
+    _, 0 -> [item, ..items]
+    [], _ -> [item]
+    [first, ..rest], n if n > 0 -> [first, ..list_insert_at(rest, n - 1, item)]
+    _, _ -> [item, ..items]
+  }
+}
+
+/// After moving an item from `from` to `to` within the array at `array_path`,
+/// rewrite a touched/error FieldPath so it still points at the same logical
+/// row. A move never drops a path, so this always returns a path.
+pub fn reindex_after_array_move(
+  path: FieldPath,
+  array_path: FieldPath,
+  from: Int,
+  to: Int,
+) -> FieldPath {
+  case strip_prefix(path, array_path) {
+    Some([ArraySegment(i), ..rest]) -> {
+      let new_i = case i == from {
+        True -> to
+        False ->
+          case int.compare(from, to) {
+            order.Lt ->
+              case i > from && i <= to {
+                True -> i - 1
+                False -> i
+              }
+            order.Gt ->
+              case i >= to && i < from {
+                True -> i + 1
+                False -> i
+              }
+            order.Eq -> i
+          }
+      }
+      list.append(array_path, [ArraySegment(new_i), ..rest])
+    }
+    _ -> path
+  }
+}
+
 fn strip_prefix(path: FieldPath, prefix: FieldPath) -> Option(FieldPath) {
   case prefix, path {
     [], rest -> Some(rest)
