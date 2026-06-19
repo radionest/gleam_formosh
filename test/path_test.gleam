@@ -353,3 +353,175 @@ pub fn from_string_round_trip_test() {
     |> should.equal(s)
   })
 }
+
+// ---- move_array_item_at_path ----
+
+pub fn move_array_item_adjacent_test() {
+  let data =
+    types.ObjectValue([
+      #(
+        "tags",
+        types.ArrayValue([
+          types.StringValue("a"),
+          types.StringValue("b"),
+          types.StringValue("c"),
+        ]),
+      ),
+    ])
+  path.move_array_item_at_path(data, [path.PropertySegment("tags")], 0, 1)
+  |> should.equal(
+    types.ObjectValue([
+      #(
+        "tags",
+        types.ArrayValue([
+          types.StringValue("b"),
+          types.StringValue("a"),
+          types.StringValue("c"),
+        ]),
+      ),
+    ]),
+  )
+}
+
+pub fn move_array_item_far_forward_test() {
+  // [a,b,c,d], move 1 -> 3  ==>  [a,c,d,b]
+  let data =
+    types.ObjectValue([
+      #(
+        "tags",
+        types.ArrayValue([
+          types.StringValue("a"),
+          types.StringValue("b"),
+          types.StringValue("c"),
+          types.StringValue("d"),
+        ]),
+      ),
+    ])
+  path.move_array_item_at_path(data, [path.PropertySegment("tags")], 1, 3)
+  |> should.equal(
+    types.ObjectValue([
+      #(
+        "tags",
+        types.ArrayValue([
+          types.StringValue("a"),
+          types.StringValue("c"),
+          types.StringValue("d"),
+          types.StringValue("b"),
+        ]),
+      ),
+    ]),
+  )
+}
+
+pub fn move_array_item_far_backward_test() {
+  // [a,b,c,d], move 3 -> 1  ==>  [a,d,b,c]
+  let data =
+    types.ObjectValue([
+      #(
+        "tags",
+        types.ArrayValue([
+          types.StringValue("a"),
+          types.StringValue("b"),
+          types.StringValue("c"),
+          types.StringValue("d"),
+        ]),
+      ),
+    ])
+  path.move_array_item_at_path(data, [path.PropertySegment("tags")], 3, 1)
+  |> should.equal(
+    types.ObjectValue([
+      #(
+        "tags",
+        types.ArrayValue([
+          types.StringValue("a"),
+          types.StringValue("d"),
+          types.StringValue("b"),
+          types.StringValue("c"),
+        ]),
+      ),
+    ]),
+  )
+}
+
+pub fn move_array_item_noop_same_index_test() {
+  let data =
+    types.ObjectValue([
+      #(
+        "tags",
+        types.ArrayValue([types.StringValue("a"), types.StringValue("b")]),
+      ),
+    ])
+  path.move_array_item_at_path(data, [path.PropertySegment("tags")], 1, 1)
+  |> should.equal(data)
+}
+
+pub fn move_array_item_noop_out_of_range_test() {
+  let data =
+    types.ObjectValue([
+      #(
+        "tags",
+        types.ArrayValue([types.StringValue("a"), types.StringValue("b")]),
+      ),
+    ])
+  path.move_array_item_at_path(data, [path.PropertySegment("tags")], 0, 5)
+  |> should.equal(data)
+}
+
+// ---- reindex_after_array_move ----
+
+pub fn reindex_after_move_maps_moved_row_test() {
+  // move 1 -> 3 : the moved row's touched path follows to index 3.
+  path.reindex_after_array_move(
+    [path.PropertySegment("tags"), path.ArraySegment(1)],
+    [path.PropertySegment("tags")],
+    1,
+    3,
+  )
+  |> should.equal([path.PropertySegment("tags"), path.ArraySegment(3)])
+}
+
+pub fn reindex_after_move_forward_shifts_between_rows_test() {
+  // move 1 -> 3 : row 2 shifts down to 1.
+  path.reindex_after_array_move(
+    [path.PropertySegment("tags"), path.ArraySegment(2)],
+    [path.PropertySegment("tags")],
+    1,
+    3,
+  )
+  |> should.equal([path.PropertySegment("tags"), path.ArraySegment(1)])
+}
+
+pub fn reindex_after_move_backward_shifts_test() {
+  // move 3 -> 1 : row 1 shifts up to 2.
+  path.reindex_after_array_move(
+    [path.PropertySegment("tags"), path.ArraySegment(1)],
+    [path.PropertySegment("tags")],
+    3,
+    1,
+  )
+  |> should.equal([path.PropertySegment("tags"), path.ArraySegment(2)])
+}
+
+pub fn reindex_after_move_preserves_nested_rest_test() {
+  path.reindex_after_array_move(
+    [
+      path.PropertySegment("tags"),
+      path.ArraySegment(1),
+      path.PropertySegment("name"),
+    ],
+    [path.PropertySegment("tags")],
+    1,
+    3,
+  )
+  |> should.equal([
+    path.PropertySegment("tags"),
+    path.ArraySegment(3),
+    path.PropertySegment("name"),
+  ])
+}
+
+pub fn reindex_after_move_outside_array_unchanged_test() {
+  let other = [path.PropertySegment("other"), path.ArraySegment(0)]
+  path.reindex_after_array_move(other, [path.PropertySegment("tags")], 1, 3)
+  |> should.equal(other)
+}

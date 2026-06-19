@@ -1,5 +1,6 @@
 import formosh/path_format
 import formosh/schema/types
+import gleam/bool
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -316,6 +317,70 @@ pub fn reindex_after_array_removal(
         order.Gt -> Some(list.append(array_path, [ArraySegment(i - 1), ..rest]))
       }
     _ -> Some(path)
+  }
+}
+
+/// Move an array item from `from` to `to` within the array at `path`.
+///
+/// No-op when `from == to` or when either index is outside `0..length-1`.
+pub fn move_array_item_at_path(
+  root: types.Value,
+  path: FieldPath,
+  from: Int,
+  to: Int,
+) -> types.Value {
+  use value <- modify_at_path(root, path)
+  case value {
+    types.ArrayValue(items) -> {
+      let len = list.length(items)
+      use <- bool.guard(
+        from == to || from < 0 || to < 0 || from >= len || to >= len,
+        value,
+      )
+      let #(before, rest) = list.split(items, from)
+      case rest {
+        [moved, ..tail] -> {
+          let #(left, right) = list.split(list.append(before, tail), to)
+          types.ArrayValue(list.append(left, [moved, ..right]))
+        }
+        [] -> value
+      }
+    }
+    _ -> value
+  }
+}
+
+/// After moving an item from `from` to `to` within the array at `array_path`,
+/// rewrite a touched/error FieldPath so it still points at the same logical
+/// row. A move never drops a path, so this always returns a path.
+pub fn reindex_after_array_move(
+  path: FieldPath,
+  array_path: FieldPath,
+  from: Int,
+  to: Int,
+) -> FieldPath {
+  case strip_prefix(path, array_path) {
+    Some([ArraySegment(i), ..rest]) -> {
+      let new_i = case i == from {
+        True -> to
+        False ->
+          case int.compare(from, to) {
+            order.Lt ->
+              case i > from && i <= to {
+                True -> i - 1
+                False -> i
+              }
+            order.Gt ->
+              case i >= to && i < from {
+                True -> i + 1
+                False -> i
+              }
+            order.Eq -> i
+          }
+      }
+      list.append(array_path, [ArraySegment(new_i), ..rest])
+    }
+    _ -> path
   }
 }
 

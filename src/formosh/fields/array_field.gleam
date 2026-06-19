@@ -6,16 +6,18 @@
 /// for widget dispatch (see `field_dispatcher.render_field_at_path`).
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{
-  type FormModel, type FormMsg, AddArrayItemPath, RemoveArrayItemPath,
+  type FormModel, type FormMsg, AddArrayItemPath, MoveArrayItemPath,
+  RemoveArrayItemPath,
 }
 import formosh/form/path
 import formosh/schema/conditional_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type SchemaProperty, type Value}
 import formosh/schema/ui_resolver
+import gleam/bool
 import gleam/list
 import gleam/option.{None, Some}
-import lustre/attribute.{class, type_}
+import lustre/attribute.{class, disabled, type_}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
@@ -48,6 +50,8 @@ pub fn render_container(
   // outer `option.unwrap` default below is just a defensive no-op.
   let addable = option.unwrap(ctx.hints.addable, True)
   let removable = option.unwrap(ctx.hints.removable, True)
+  let orderable = option.unwrap(ctx.hints.orderable, True)
+  let count = list.length(items)
 
   html.div([class("array-field")], [
     field_common.render_container_label(
@@ -64,7 +68,16 @@ pub fn render_container(
     html.div(
       [class("array-items")],
       list.index_map(items, fn(item, index) {
-        render_array_item(ctx, removable, item, index, model, render_child)
+        render_array_item(
+          ctx,
+          removable,
+          orderable,
+          count,
+          item,
+          index,
+          model,
+          render_child,
+        )
       }),
     ),
     case ctx.is_readonly || !addable {
@@ -82,10 +95,12 @@ pub fn render_container(
   ])
 }
 
-/// Render a single row: optional remove-button header, plus child fields.
+/// Render a single row: optional control header, plus child fields.
 fn render_array_item(
   ctx: FieldRenderCtx,
   removable: Bool,
+  orderable: Bool,
+  count: Int,
   item: Value,
   index: Int,
   model: FormModel,
@@ -94,20 +109,7 @@ fn render_array_item(
   case ctx.property.items {
     Some(item_schema) ->
       html.div([class("array-item")], [
-        case ctx.is_readonly || !removable {
-          True -> element.none()
-          False ->
-            html.div([class("array-item-header")], [
-              html.button(
-                [
-                  type_("button"),
-                  class("remove-array-item"),
-                  event.on_click(RemoveArrayItemPath(ctx.path, index)),
-                ],
-                [html.text("Удалить")],
-              ),
-            ])
-        },
+        render_array_item_header(ctx, removable, orderable, count, index),
         html.div(
           [class("array-item-fields")],
           render_item_fields(ctx, item_schema, item, index, model, render_child),
@@ -115,6 +117,57 @@ fn render_array_item(
       ])
     None -> element.none()
   }
+}
+
+/// Per-row control header: move up/down (when orderable and the array has
+/// more than one row) followed by remove (when removable). Renders nothing
+/// in readonly mode or when no control applies.
+fn render_array_item_header(
+  ctx: FieldRenderCtx,
+  removable: Bool,
+  orderable: Bool,
+  count: Int,
+  index: Int,
+) -> Element(FormMsg) {
+  let move_buttons = case orderable && count > 1 {
+    True -> [
+      html.button(
+        [
+          type_("button"),
+          class("move-array-item-up"),
+          disabled(index == 0),
+          event.on_click(MoveArrayItemPath(ctx.path, index, index - 1)),
+        ],
+        [html.text("▲")],
+      ),
+      html.button(
+        [
+          type_("button"),
+          class("move-array-item-down"),
+          disabled(index == count - 1),
+          event.on_click(MoveArrayItemPath(ctx.path, index, index + 1)),
+        ],
+        [html.text("▼")],
+      ),
+    ]
+    False -> []
+  }
+  let remove_button = case removable {
+    True -> [
+      html.button(
+        [
+          type_("button"),
+          class("remove-array-item"),
+          event.on_click(RemoveArrayItemPath(ctx.path, index)),
+        ],
+        [html.text("Удалить")],
+      ),
+    ]
+    False -> []
+  }
+  let controls = list.append(move_buttons, remove_button)
+  use <- bool.guard(ctx.is_readonly || list.is_empty(controls), element.none())
+  html.div([class("array-item-header")], controls)
 }
 
 /// Render every child field of a single row.

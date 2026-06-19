@@ -261,5 +261,6 @@ fn merge_render_hints(
     order: option.or(referencing.order, referenced.order),
     addable: option.or(referencing.addable, referenced.addable),
     removable: option.or(referencing.removable, referenced.removable),
+    orderable: option.or(referencing.orderable, referenced.orderable),
   )
 }
