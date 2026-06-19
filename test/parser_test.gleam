@@ -496,6 +496,67 @@ pub fn array_addable_removable_independent_test() {
   should.be_false(prop.removable)
 }
 
+pub fn union_type_string_null_parses_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"user_id\": { \"type\": [\"string\", \"null\"], \"title\": \"Author\" }
+    }
+  }"
+
+  let result = parser.parse_schema(json)
+  should.be_ok(result)
+
+  let assert Ok(schema) = result
+  let assert Ok(prop) = list.key_find(schema.properties, "user_id")
+  should.equal(prop.field_type, Some(types.StringType))
+}
+
+pub fn union_type_null_first_parses_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"user_id\": { \"type\": [\"null\", \"string\"] }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(prop) = list.key_find(schema.properties, "user_id")
+  should.equal(prop.field_type, Some(types.StringType))
+}
+
+pub fn union_type_integer_null_parses_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"age\": { \"type\": [\"integer\", \"null\"] }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(prop) = list.key_find(schema.properties, "age")
+  should.equal(prop.field_type, Some(types.IntegerType))
+}
+
+pub fn union_type_without_null_takes_first_known_test() {
+  // Pure union without null: reduced to the first known type (not a parse
+  // failure) so a multi-type schema still renders — see field_type_decoder doc.
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"mixed\": { \"type\": [\"string\", \"number\"] }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(prop) = list.key_find(schema.properties, "mixed")
+  should.equal(prop.field_type, Some(types.StringType))
+}
+
 pub fn hidden_widget_test() {
   let json =
     "{
@@ -517,4 +578,20 @@ pub fn hidden_widget_test() {
 
   should.equal(prop.render_hints.widget, Some(types.HiddenWidget))
   should.equal(prop.default, Some(types.StringValue("acme")))
+}
+
+pub fn union_type_null_only_resolves_to_null_type_test() {
+  // The whole point of the fix: a degenerate `type` array (here only "null")
+  // must NOT abort the schema parse — it resolves to NullType.
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"nothing\": { \"type\": [\"null\"] }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(prop) = list.key_find(schema.properties, "nothing")
+  should.equal(prop.field_type, Some(types.NullType))
 }
