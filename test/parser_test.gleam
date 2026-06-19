@@ -579,3 +579,19 @@ pub fn hidden_widget_test() {
   should.equal(prop.render_hints.widget, Some(types.HiddenWidget))
   should.equal(prop.default, Some(types.StringValue("acme")))
 }
+
+pub fn union_type_null_only_resolves_to_null_type_test() {
+  // The whole point of the fix: a degenerate `type` array (here only "null")
+  // must NOT abort the schema parse — it resolves to NullType.
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"nothing\": { \"type\": [\"null\"] }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(prop) = list.key_find(schema.properties, "nothing")
+  should.equal(prop.field_type, Some(types.NullType))
+}
