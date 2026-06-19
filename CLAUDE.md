@@ -94,7 +94,7 @@ Presentation hints live in a parallel `UiSchema` (react-jsonschema-form-style JS
 
 - `x-widget` / `x-accept` / `x-max-file-size` / `x-addable` / `x-removable` extensions are **deprecated as of v0.7** and read as fallback only. They will be removed in **v0.9**. Use UiSchema instead.
 - `ui:disabled` and `ui:readonly` **OR-merge** with the parent / schema. `ui:disabled: false` on a child of a disabled container does NOT re-enable it — mirrors HTML's `disabled` inheritance and JSON Schema's `readOnly`. To selectively enable, hoist the disabled flag to the leaf instead of the container.
-- `ui:orderable` toggles the per-row ▲/▼ reorder buttons on an array (default `True`). Set `ui:orderable: false` to hide them. Buttons are disabled at the ends and hidden when the array has one item or fewer; controls expose classes `move-array-item-up` / `move-array-item-down`.
+- `ui:orderable` toggles the per-row ▲/▼ reorder buttons on an array (default `true`). Set `ui:orderable: false` to hide them. Buttons are disabled at the ends and hidden when the array has one item or fewer; controls expose classes `move-array-item-up` / `move-array-item-down`.
 - `ui:accept` / `ui:maxFileSize` are only honoured when `ui:widget: "image-upload"` is set. Without the widget hint they are silently dropped (the `UploadConfig` is not emitted).
 
 ## Notes
