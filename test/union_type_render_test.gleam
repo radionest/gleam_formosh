@@ -75,4 +75,6 @@ pub fn union_type_null_value_renders_dash_in_review_mode_test() {
 
   // Review mode shows the label→value row (em-dash for null), no crash.
   html |> string.contains("part=\"readonly-value\"") |> should.be_true
+  // The null leaf must surface as the em-dash placeholder, not render blank.
+  html |> string.contains("—") |> should.be_true
 }
