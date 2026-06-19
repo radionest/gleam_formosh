@@ -128,22 +128,59 @@ fn schema_decoder() -> Decoder(JsonSchema) {
   ))
 }
 
-/// Decode a field type string into a FieldType.
-/// 
-/// Converts JSON Schema type strings ("string", "number", etc.) into
-/// the corresponding FieldType enum values.
+/// Single source of truth for a JSON Schema `type` string → FieldType.
+///
+/// `Error(Nil)` signals an unknown type name; callers decide whether that is
+/// a hard parse failure (scalar / root form) or a soft `None` (the bare-string
+/// property fallback).
+fn field_type_from_string(type_str: String) -> Result(FieldType, Nil) {
+  case type_str {
+    "string" -> Ok(StringType)
+    "number" -> Ok(NumberType)
+    "integer" -> Ok(IntegerType)
+    "boolean" -> Ok(BooleanType)
+    "null" -> Ok(NullType)
+    "array" -> Ok(ArrayType)
+    "object" -> Ok(ObjectType)
+    _ -> Error(Nil)
+  }
+}
+
+/// Decode a JSON Schema `type` into a FieldType.
+///
+/// Accepts both the scalar form (`"type": "string"`) and the array/union form
+/// (`"type": ["string", "null"]`). For the array form the first **known**
+/// non-`"null"` member wins, so `["string","null"]`, `["null","string"]` and
+/// the pure union `["string","number"]` all resolve to `StringType`: a
+/// nullable union collapses to its base type, and a multi-type union is
+/// deliberately reduced to its first known type rather than failing — keeping
+/// the *whole* schema parseable was the bug this fixes. An array with only
+/// `"null"` (or no known type) resolves to `NullType` so it never aborts the
+/// parse.
 fn field_type_decoder() -> Decoder(FieldType) {
+  decode.one_of(scalar_field_type_decoder(), [array_field_type_decoder()])
+}
+
+fn scalar_field_type_decoder() -> Decoder(FieldType) {
   decode.string
   |> decode.then(fn(type_str) {
-    case type_str {
-      "string" -> decode.success(StringType)
-      "number" -> decode.success(NumberType)
-      "integer" -> decode.success(IntegerType)
-      "boolean" -> decode.success(BooleanType)
-      "null" -> decode.success(NullType)
-      "array" -> decode.success(ArrayType)
-      "object" -> decode.success(ObjectType)
-      _ -> decode.failure(StringType, "Unknown field type: " <> type_str)
+    case field_type_from_string(type_str) {
+      Ok(field_type) -> decode.success(field_type)
+      Error(_) -> decode.failure(StringType, "Unknown field type: " <> type_str)
+    }
+  })
+}
+
+fn array_field_type_decoder() -> Decoder(FieldType) {
+  decode.list(decode.string)
+  |> decode.then(fn(type_strs) {
+    let known_types =
+      type_strs
+      |> list.filter(fn(t) { t != "null" })
+      |> list.filter_map(field_type_from_string)
+    case known_types {
+      [first, ..] -> decode.success(first)
+      [] -> decode.success(NullType)
     }
   })
 }
@@ -195,16 +232,10 @@ fn property_decoder() -> Decoder(SchemaProperty) {
     // Fallback to simple type string
     decode.string
     |> decode.map(fn(type_str) {
-      SchemaProperty(..empty_property(), field_type: case type_str {
-        "string" -> Some(StringType)
-        "number" -> Some(NumberType)
-        "integer" -> Some(IntegerType)
-        "boolean" -> Some(BooleanType)
-        "null" -> Some(NullType)
-        "array" -> Some(ArrayType)
-        "object" -> Some(ObjectType)
-        _ -> None
-      })
+      SchemaProperty(
+        ..empty_property(),
+        field_type: field_type_from_string(type_str) |> option.from_result(),
+      )
     }),
   ])
 }
