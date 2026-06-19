@@ -20,6 +20,7 @@ import formosh/schema/ui_resolver
 import formosh/schema/validator
 import formosh/validation/cross_validator
 import formosh/validation/error
+import gleam/bool
 import gleam/dict
 import gleam/http/response
 import gleam/io
@@ -109,6 +110,10 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     MoveArrayItemPath(field_path, from, to) -> {
       let new_values =
         path.move_array_item_at_path(model.values, field_path, from, to)
+      // No-op move (same index, out of range, or path is not an array): the
+      // values are untouched, so leave touched_fields and the dirty flag alone
+      // — reindexing here would desync touched paths from values.
+      use <- bool.guard(new_values == model.values, #(model, effect.none()))
       let new_touched =
         list.map(model.touched_fields, fn(p) {
           path.reindex_after_array_move(p, field_path, from, to)
