@@ -5,7 +5,8 @@ import formosh/form/model
 import formosh/form/path
 import formosh/form/update
 import formosh/schema/parser
-import formosh/schema/types.{ObjectValue, StringValue}
+import formosh/schema/types.{ArrayValue, ObjectValue, StringValue}
+import gleam/option.{Some}
 import gleeunit/should
 
 const simple_schema = "{
@@ -49,5 +50,71 @@ pub fn validate_all_fields_optional_missing_test() {
   let m = init_model([])
   let validated = update.validate_all_fields(m)
   model.has_errors_at_path(validated, path.from_field_name("nickname"))
+  |> should.be_false
+}
+
+const array_schema = "{
+  \"type\": \"object\",
+  \"properties\": {
+    \"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}
+  }
+}"
+
+fn init_array_model() -> model.FormModel {
+  let assert Ok(schema) = parser.parse_schema(array_schema)
+  let m = model.init(schema)
+  model.FormModel(
+    ..m,
+    values: ObjectValue([
+      #(
+        "tags",
+        ArrayValue([StringValue("a"), StringValue("b"), StringValue("c")]),
+      ),
+    ]),
+    resolved_schema: schema,
+  )
+}
+
+pub fn move_array_item_reorders_values_test() {
+  let m = init_array_model()
+  let #(new_model, _effect) =
+    update.update(
+      m,
+      model.MoveArrayItemPath([path.PropertySegment("tags")], 0, 2),
+    )
+  path.get_at_path(new_model.values, [
+    path.PropertySegment("tags"),
+    path.ArraySegment(0),
+  ])
+  |> should.equal(Some(StringValue("b")))
+  path.get_at_path(new_model.values, [
+    path.PropertySegment("tags"),
+    path.ArraySegment(2),
+  ])
+  |> should.equal(Some(StringValue("a")))
+  new_model.is_dirty |> should.be_true
+}
+
+pub fn move_array_item_reindexes_touched_test() {
+  let m =
+    model.mark_field_touched(init_array_model(), [
+      path.PropertySegment("tags"),
+      path.ArraySegment(0),
+    ])
+  let #(new_model, _effect) =
+    update.update(
+      m,
+      model.MoveArrayItemPath([path.PropertySegment("tags")], 0, 2),
+    )
+  // row 0 moved to row 2 — touched state follows the row.
+  model.is_field_touched(new_model, [
+    path.PropertySegment("tags"),
+    path.ArraySegment(2),
+  ])
+  |> should.be_true
+  model.is_field_touched(new_model, [
+    path.PropertySegment("tags"),
+    path.ArraySegment(0),
+  ])
   |> should.be_false
 }

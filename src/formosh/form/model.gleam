@@ -103,6 +103,7 @@ pub type FormMsg {
   UpdateFieldPath(path: FieldPath, value: Value)
   AddArrayItemPath(path: FieldPath)
   RemoveArrayItemPath(path: FieldPath, index: Int)
+  MoveArrayItemPath(path: FieldPath, from_index: Int, to_index: Int)
 
   // Form submission
   FormSubmit

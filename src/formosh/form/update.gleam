@@ -4,8 +4,8 @@ import formosh/ffi/image_upload as image_upload_ffi
 import formosh/form/json_utils
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit, FileUploadError,
-  FileUploading, FormSubmit, FormSubmitted, HttpSubmit, NoSubmit,
-  RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
+  FileUploading, FormSubmit, FormSubmitted, HttpSubmit, MoveArrayItemPath,
+  NoSubmit, RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
   UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
 }
 import formosh/form/path
@@ -94,6 +94,24 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
             Some(new_p) -> Ok(new_p)
             None -> Error(Nil)
           }
+        })
+      let new_model =
+        model.FormModel(
+          ..model,
+          values: new_values,
+          touched_fields: new_touched,
+          is_dirty: True,
+        )
+      let validated_model = validate_all_fields(new_model)
+      #(validated_model, effect.none())
+    }
+
+    MoveArrayItemPath(field_path, from, to) -> {
+      let new_values =
+        path.move_array_item_at_path(model.values, field_path, from, to)
+      let new_touched =
+        list.map(model.touched_fields, fn(p) {
+          path.reindex_after_array_move(p, field_path, from, to)
         })
       let new_model =
         model.FormModel(
