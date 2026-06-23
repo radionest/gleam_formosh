@@ -67,6 +67,7 @@ pub fn resolve_hints(
   let x_hints = schema_property.render_hints
   RenderHints(
     widget: option.or(ui_prop.widget, x_hints.widget),
+    options: ui_prop.options,
     upload_config: option.or(ui_prop.upload, x_hints.upload_config),
     placeholder: ui_prop.placeholder,
     help: ui_prop.help,

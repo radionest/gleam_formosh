@@ -101,6 +101,7 @@ pub type Widget {
 pub type RenderHints {
   RenderHints(
     widget: Option(Widget),
+    options: Dict(String, Value),
     upload_config: Option(UploadConfig),
     placeholder: Option(String),
     help: Option(String),
@@ -296,6 +297,7 @@ pub fn empty_property() -> SchemaProperty {
 pub fn empty_hints() -> RenderHints {
   RenderHints(
     widget: None,
+    options: dict.new(),
     upload_config: None,
     placeholder: None,
     help: None,
