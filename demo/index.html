@@ -212,6 +212,12 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            /* Phase B swipe: let the browser pan vertically (scroll) while we
+               own horizontal drag; spring back smoothly when the inline
+               transform is cleared on release. */
+            touch-action: pan-y;
+            user-select: none;
+            transition: transform 0.18s ease;
         }
 
         [part="swipe-zone-title"] {

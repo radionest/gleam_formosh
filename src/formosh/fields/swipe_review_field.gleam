@@ -1,24 +1,32 @@
-//// Tap-based burndown renderer for the swipe-review widget. Phase A: a
-//// shrinking "sheet" — every still-unanswered zone is shown at once, grouped
-//// by region, each with three large tap targets (touch-friendly). Answering a
-//// zone removes it from the sheet (any order); progress, undo, and bulk-finish
-//// sit at the foot, and a review summary replaces the sheet once every zone is
-//// answered. Phase B adds swipe gestures + animation on top of this same view.
+//// Burndown renderer for the swipe-review widget — a shrinking "sheet": every
+//// still-unanswered zone is shown at once, grouped by region, each row a
+//// mini-card. Phase A: three large tap targets per row. Phase B: each row is
+//// also draggable horizontally — drag right past threshold commits the
+//// positive answer, left commits the negative; the tap targets remain a
+//// fallback and «inaccessible» stays a button. Answering removes the row (any
+//// order); a review summary replaces the sheet once every zone is answered.
 
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/fields/swipe_review.{type Choice, type GestureConfig, type Zone}
 import formosh/form/model.{
-  type FormModel, type FormMsg, ClearFieldPath, UpdateFieldPath,
+  type FormModel, type FormMsg, type SwipeDrag, ClearFieldPath, UpdateFieldPath,
 }
-import formosh/form/widget_msg.{FillRemaining}
+import formosh/form/widget_msg.{
+  DragCancel, DragEnd, DragMove, DragStart, FillRemaining,
+}
 import formosh/schema/types
+import gleam/dynamic/decode
+import gleam/float
 import gleam/int
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+
+/// Horizontal travel (px) a row must pass for a release to commit an answer.
+const swipe_threshold = 80.0
 
 pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   let config = swipe_review.gesture_config(ctx.hints.options)
@@ -28,7 +36,8 @@ pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
 
   let body = case swipe_review.unanswered_by_region(zones) {
     [] -> render_review(zones, config)
-    groups -> render_sheet(groups, zones, config, answered, total)
+    groups ->
+      render_sheet(groups, zones, config, answered, total, model.swipe_drag)
   }
 
   html.div(
@@ -48,6 +57,7 @@ fn render_sheet(
   config: GestureConfig,
   answered: Int,
   total: Int,
+  drag: Option(SwipeDrag),
 ) -> Element(FormMsg) {
   html.div([attribute.attribute("part", "swipe-sheet")], [
     render_progress(answered, total),
@@ -55,7 +65,7 @@ fn render_sheet(
       [attribute.attribute("part", "swipe-regions")],
       list.map(groups, fn(group) {
         let #(region_title, region_zones) = group
-        render_region(region_title, region_zones, config)
+        render_region(region_title, region_zones, config, drag)
       }),
     ),
     render_controls(zones, config),
@@ -66,6 +76,7 @@ fn render_region(
   region_title: String,
   region_zones: List(Zone),
   config: GestureConfig,
+  drag: Option(SwipeDrag),
 ) -> Element(FormMsg) {
   html.div([attribute.attribute("part", "swipe-region-group")], [
     html.div([attribute.attribute("part", "swipe-region")], [
@@ -73,13 +84,54 @@ fn render_region(
     ]),
     html.div(
       [attribute.attribute("part", "swipe-zones")],
-      list.map(region_zones, fn(zone) { render_zone_row(zone, config) }),
+      list.map(region_zones, fn(zone) { render_zone_row(zone, config, drag) }),
     ),
   ])
 }
 
-fn render_zone_row(zone: Zone, config: GestureConfig) -> Element(FormMsg) {
-  html.div([attribute.attribute("part", "swipe-row")], [
+/// One zone row. It always carries a `pointerdown` handler that begins a drag;
+/// while THIS row is the one being dragged it also gets the live `translateX`
+/// offset plus the move/up/cancel handlers. The three tap buttons remain a
+/// fallback for non-swipe input.
+fn render_zone_row(
+  zone: Zone,
+  config: GestureConfig,
+  drag: Option(SwipeDrag),
+) -> Element(FormMsg) {
+  let dragging_dx = case drag {
+    Some(d) ->
+      case d.path == zone.path {
+        True -> Some(d.dx)
+        False -> None
+      }
+    None -> None
+  }
+
+  let base = [
+    attribute.attribute("part", "swipe-row"),
+    attribute.attribute("data-swipe-row", "true"),
+    on_pointer_down(zone, config),
+  ]
+
+  let attrs = case dragging_dx {
+    Some(dx) ->
+      list.append(base, [
+        attribute.styles([
+          #("transform", "translateX(" <> float.to_string(dx) <> "px)"),
+          #("transition", "none"),
+        ]),
+        event.on("pointermove", {
+          decode.at(["clientX"], decode.float)
+          |> decode.map(fn(x) { model.swipe_msg(DragMove(x)) })
+        }),
+        event.on("pointerup", decode.success(model.swipe_msg(DragEnd))),
+        event.on("pointercancel", decode.success(model.swipe_msg(DragCancel))),
+        event.on("pointerleave", decode.success(model.swipe_msg(DragCancel))),
+      ])
+    None -> base
+  }
+
+  html.div(attrs, [
     html.div([attribute.attribute("part", "swipe-zone-title")], [
       html.text(zone.title),
     ]),
@@ -89,6 +141,24 @@ fn render_zone_row(zone: Zone, config: GestureConfig) -> Element(FormMsg) {
       choice_button(zone, config.right),
     ]),
   ])
+}
+
+fn on_pointer_down(
+  zone: Zone,
+  config: GestureConfig,
+) -> attribute.Attribute(FormMsg) {
+  event.on("pointerdown", {
+    decode.at(["clientX"], decode.float)
+    |> decode.map(fn(x) {
+      model.swipe_msg(DragStart(
+        zone.path,
+        x,
+        config.right.code,
+        config.left.code,
+        swipe_threshold,
+      ))
+    })
+  })
 }
 
 fn choice_button(zone: Zone, choice: Choice) -> Element(FormMsg) {
