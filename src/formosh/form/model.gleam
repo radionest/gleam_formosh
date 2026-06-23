@@ -103,6 +103,7 @@ pub type SubmissionResult {
 pub type FormMsg {
   // Path-based operations (simplified approach)
   UpdateFieldPath(path: FieldPath, value: Value)
+  ClearFieldPath(path: FieldPath)
   AddArrayItemPath(path: FieldPath)
   RemoveArrayItemPath(path: FieldPath, index: Int)
   MoveArrayItemPath(path: FieldPath, from_index: Int, to_index: Int)

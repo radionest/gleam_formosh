@@ -3,10 +3,10 @@
 import formosh/ffi/image_upload as image_upload_ffi
 import formosh/form/json_utils
 import formosh/form/model.{
-  type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit, FileUploadError,
-  FileUploading, FormSubmit, FormSubmitted, HttpSubmit, MoveArrayItemPath,
-  NoSubmit, RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
-  UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
+  type FormModel, type FormMsg, AddArrayItemPath, ClearFieldPath, CustomSubmit,
+  FileUploadError, FileUploading, FormSubmit, FormSubmitted, HttpSubmit,
+  MoveArrayItemPath, NoSubmit, RemoveArrayItemPath, ResetForm, SubmissionError,
+  SubmissionSuccess, UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
 }
 import formosh/form/path
 import formosh/form/widget_msg.{
@@ -59,6 +59,22 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     // Path-based handlers — work directly against the single Value tree.
     UpdateFieldPath(field_path, value) -> {
       let new_values = path.set_at_path(model.values, field_path, value)
+      let resolved_schema =
+        conditional_resolver.resolve_recursive(model.schema, new_values)
+      let touched_model = model.mark_field_touched(model, field_path)
+      let new_model =
+        model.FormModel(
+          ..touched_model,
+          values: new_values,
+          resolved_schema: resolved_schema,
+          is_dirty: True,
+        )
+      let validated_model = validate_all_fields(new_model)
+      #(validated_model, effect.none())
+    }
+
+    ClearFieldPath(field_path) -> {
+      let new_values = path.remove_at_path(model.values, field_path)
       let resolved_schema =
         conditional_resolver.resolve_recursive(model.schema, new_values)
       let touched_model = model.mark_field_touched(model, field_path)

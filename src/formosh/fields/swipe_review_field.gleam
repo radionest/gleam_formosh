@@ -5,7 +5,9 @@
 
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/fields/swipe_review.{type Choice, type GestureConfig, type Zone}
-import formosh/form/model.{type FormModel, type FormMsg, UpdateFieldPath}
+import formosh/form/model.{
+  type FormModel, type FormMsg, ClearFieldPath, UpdateFieldPath,
+}
 import formosh/form/widget_msg.{FillRemaining}
 import formosh/schema/types
 import gleam/int
@@ -91,7 +93,7 @@ fn render_controls(zones: List(Zone), config: GestureConfig) -> Element(FormMsg)
           attribute.type_("button"),
           attribute.class("formosh-swipe-undo"),
           attribute.attribute("part", "swipe-undo"),
-          event.on_click(UpdateFieldPath(p, types.NullValue)),
+          event.on_click(ClearFieldPath(p)),
         ],
         [html.text("← Назад")],
       )
@@ -141,7 +143,7 @@ fn render_review_row(zone: Zone, config: GestureConfig) -> Element(FormMsg) {
       attribute.class("formosh-swipe-review-row"),
       attribute.attribute("part", "swipe-review-row"),
       // Tap a row to re-open that zone for correction.
-      event.on_click(UpdateFieldPath(zone.path, types.NullValue)),
+      event.on_click(ClearFieldPath(zone.path)),
     ],
     [
       html.span([attribute.attribute("part", "swipe-review-zone")], [

@@ -114,8 +114,8 @@ pub fn unanswered_paths(zones: List(Zone)) -> List(FieldPath) {
   |> list.map(fn(z) { z.path })
 }
 
-/// Parse the gesture binding from a `ui:options` bag, falling back to the
-/// carcinomatosis defaults when keys are missing.
+/// Parse the gesture binding from a `ui:options` bag, falling back to generic
+/// placeholder labels (`Yes`/`No`/`Skip`) when a key is missing from `ui:options`.
 pub fn gesture_config(options: Dict(String, Value)) -> GestureConfig {
   GestureConfig(
     right: choice(options, "swipeRight", "positive", "Yes", "danger"),
