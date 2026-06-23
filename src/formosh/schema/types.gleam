@@ -87,6 +87,7 @@ pub type UploadConfig {
 pub type Widget {
   ImageUploadWidget
   HiddenWidget
+  SwipeReviewWidget
   CustomWidget(String)
 }
 

@@ -7,8 +7,8 @@ import formosh/schema/types.{
   BooleanValue, CustomFormat, CustomWidget, DateFormat, DateTimeFormat,
   EmailFormat, HiddenWidget, ImageUploadWidget, IntegerType, IntegerValue,
   NullType, NullValue, NumberType, NumberValue, ObjectType, ObjectValue,
-  StringType, StringValue, TimeFormat, UploadConfig, UriFormat, UrlFormat,
-  UuidFormat,
+  StringType, StringValue, SwipeReviewWidget, TimeFormat, UploadConfig,
+  UriFormat, UrlFormat, UuidFormat,
 }
 import gleam/dict
 import gleam/json
@@ -319,6 +319,7 @@ fn widget_to_string(widget: Widget) -> String {
   case widget {
     ImageUploadWidget -> "image-upload"
     HiddenWidget -> "hidden"
+    SwipeReviewWidget -> "swipe-review"
     CustomWidget(raw) -> raw
   }
 }

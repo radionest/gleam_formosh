@@ -9,8 +9,8 @@ import formosh/ffi/dynamic_object
 import formosh/schema/parser
 import formosh/schema/types.{
   type ParseError, type UploadConfig, type Value, type Widget, CustomWidget,
-  DecodingError, HiddenWidget, ImageUploadWidget, InvalidJson, UnexpectedValue,
-  UploadConfig,
+  DecodingError, HiddenWidget, ImageUploadWidget, InvalidJson, SwipeReviewWidget,
+  UnexpectedValue, UploadConfig,
 }
 import formosh/schema/ui_schema.{
   type UiProperty, type UiSchema, UiProperty, UiSchema, empty_ui_schema,
@@ -173,6 +173,7 @@ fn extract_widget(entries: List(#(String, Dynamic))) -> Option(Widget) {
       Some(case raw {
         "image-upload" -> ImageUploadWidget
         "hidden" -> HiddenWidget
+        "swipe-review" -> SwipeReviewWidget
         _ -> CustomWidget(raw)
       })
     None -> None
