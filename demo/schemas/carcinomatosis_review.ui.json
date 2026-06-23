@@ -1,0 +1,10 @@
+{
+  "zones": {
+    "ui:widget": "swipe-review",
+    "ui:options": {
+      "swipeRight": { "value": "positive", "label": "Карциноматоз", "tone": "danger" },
+      "swipeLeft":  { "value": "negative", "label": "Чисто", "tone": "ok" },
+      "button":     { "value": "inaccessible", "label": "Недоступна", "tone": "muted" }
+    }
+  }
+}

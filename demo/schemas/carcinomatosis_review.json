@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Карциноматоз: интраоперационный обзор",
+  "type": "object",
+  "required": ["zones"],
+  "properties": {
+    "zones": {
+      "type": "object",
+      "title": "Зоны брюшной полости",
+      "required": [
+        "diaphragm_upper", "omentum_transverse", "right_flank", "left_flank",
+        "small_bowel", "pelvis", "parietal_peritoneum", "ligaments_other"
+      ],
+      "properties": {
+        "diaphragm_upper": {
+          "type": "object", "title": "Диафрагма и верхний этаж",
+          "required": ["right_dome","left_dome","falciform_ligament","liver_surface","right_subhepatic","lesser_omentum","hepatoduodenal_ligament","stomach","spleen_hilum"],
+          "properties": {
+            "right_dome": {"type":"string","title":"Правый купол диафрагмы","enum":["positive","negative","inaccessible"]},
+            "left_dome": {"type":"string","title":"Левый купол диафрагмы","enum":["positive","negative","inaccessible"]},
+            "falciform_ligament": {"type":"string","title":"Серповидная связка","enum":["positive","negative","inaccessible"]},
+            "liver_surface": {"type":"string","title":"Поверхность печени (капсула)","enum":["positive","negative","inaccessible"]},
+            "right_subhepatic": {"type":"string","title":"Правое подпечёночное пространство","enum":["positive","negative","inaccessible"]},
+            "lesser_omentum": {"type":"string","title":"Малый сальник","enum":["positive","negative","inaccessible"]},
+            "hepatoduodenal_ligament": {"type":"string","title":"Гепатодуоденальная связка","enum":["positive","negative","inaccessible"]},
+            "stomach": {"type":"string","title":"Желудок (серозная)","enum":["positive","negative","inaccessible"]},
+            "spleen_hilum": {"type":"string","title":"Селезёнка и ворота","enum":["positive","negative","inaccessible"]}
+          }
+        },
+        "omentum_transverse": {
+          "type": "object", "title": "Большой сальник и поперечная ОК",
+          "required": ["greater_omentum","transverse_colon","transverse_mesocolon"],
+          "properties": {
+            "greater_omentum": {"type":"string","title":"Большой сальник","enum":["positive","negative","inaccessible"]},
+            "transverse_colon": {"type":"string","title":"Поперечная ободочная кишка","enum":["positive","negative","inaccessible"]},
+            "transverse_mesocolon": {"type":"string","title":"Брыжейка поперечной кишки","enum":["positive","negative","inaccessible"]}
+          }
+        },
+        "right_flank": {
+          "type": "object", "title": "Правый фланк",
+          "required": ["right_paracolic_gutter","ascending_colon","cecum","appendix","ileocecal_junction"],
+          "properties": {
+            "right_paracolic_gutter": {"type":"string","title":"Правый боковой канал","enum":["positive","negative","inaccessible"]},
+            "ascending_colon": {"type":"string","title":"Восходящая кишка","enum":["positive","negative","inaccessible"]},
+            "cecum": {"type":"string","title":"Слепая кишка","enum":["positive","negative","inaccessible"]},
+            "appendix": {"type":"string","title":"Аппендикс","enum":["positive","negative","inaccessible"]},
+            "ileocecal_junction": {"type":"string","title":"Илеоцекальный угол","enum":["positive","negative","inaccessible"]}
+          }
+        },
+        "left_flank": {
+          "type": "object", "title": "Левый фланк",
+          "required": ["left_paracolic_gutter","descending_colon","sigmoid_colon"],
+          "properties": {
+            "left_paracolic_gutter": {"type":"string","title":"Левый боковой канал","enum":["positive","negative","inaccessible"]},
+            "descending_colon": {"type":"string","title":"Нисходящая кишка","enum":["positive","negative","inaccessible"]},
+            "sigmoid_colon": {"type":"string","title":"Сигмовидная кишка","enum":["positive","negative","inaccessible"]}
+          }
+        },
+        "small_bowel": {
+          "type": "object", "title": "Тонкая кишка и брыжейка",
+          "required": ["proximal_jejunum","distal_jejunum","proximal_ileum","distal_ileum","mesentery_root"],
+          "properties": {
+            "proximal_jejunum": {"type":"string","title":"Проксимальная тощая","enum":["positive","negative","inaccessible"]},
+            "distal_jejunum": {"type":"string","title":"Дистальная тощая","enum":["positive","negative","inaccessible"]},
+            "proximal_ileum": {"type":"string","title":"Проксимальная подвздошная","enum":["positive","negative","inaccessible"]},
+            "distal_ileum": {"type":"string","title":"Дистальная подвздошная","enum":["positive","negative","inaccessible"]},
+            "mesentery_root": {"type":"string","title":"Корень брыжейки","enum":["positive","negative","inaccessible"]}
+          }
+        },
+        "pelvis": {
+          "type": "object", "title": "Малый таз",
+          "required": ["pelvic_peritoneum","douglas_pouch","rectum","bladder_serosa","adnexa_uterus","right_pelvic_sidewall","left_pelvic_sidewall"],
+          "properties": {
+            "pelvic_peritoneum": {"type":"string","title":"Тазовая брюшина","enum":["positive","negative","inaccessible"]},
+            "douglas_pouch": {"type":"string","title":"Дугласово пространство","enum":["positive","negative","inaccessible"]},
+            "rectum": {"type":"string","title":"Прямая кишка","enum":["positive","negative","inaccessible"]},
+            "bladder_serosa": {"type":"string","title":"Серозная мочевого пузыря","enum":["positive","negative","inaccessible"]},
+            "adnexa_uterus": {"type":"string","title":"Придатки/матка","enum":["positive","negative","inaccessible"]},
+            "right_pelvic_sidewall": {"type":"string","title":"Правая боковая стенка таза","enum":["positive","negative","inaccessible"]},
+            "left_pelvic_sidewall": {"type":"string","title":"Левая боковая стенка таза","enum":["positive","negative","inaccessible"]}
+          }
+        },
+        "parietal_peritoneum": {
+          "type": "object", "title": "Париетальная брюшина",
+          "required": ["anterior_wall","umbilicus","posterior_retroperitoneum"],
+          "properties": {
+            "anterior_wall": {"type":"string","title":"Передняя брюшная стенка","enum":["positive","negative","inaccessible"]},
+            "umbilicus": {"type":"string","title":"Пупок","enum":["positive","negative","inaccessible"]},
+            "posterior_retroperitoneum": {"type":"string","title":"Задняя/забрюшинное обнажение","enum":["positive","negative","inaccessible"]}
+          }
+        },
+        "ligaments_other": {
+          "type": "object", "title": "Связки и прочее",
+          "required": ["gastrocolic_ligament","gastrosplenic_ligament","duodenum","pancreas_surface","gallbladder"],
+          "properties": {
+            "gastrocolic_ligament": {"type":"string","title":"Желудочно-ободочная связка","enum":["positive","negative","inaccessible"]},
+            "gastrosplenic_ligament": {"type":"string","title":"Желудочно-селезёночная связка","enum":["positive","negative","inaccessible"]},
+            "duodenum": {"type":"string","title":"Двенадцатиперстная кишка","enum":["positive","negative","inaccessible"]},
+            "pancreas_surface": {"type":"string","title":"Поверхность поджелудочной (передняя)","enum":["positive","negative","inaccessible"]},
+            "gallbladder": {"type":"string","title":"Жёлчный пузырь","enum":["positive","negative","inaccessible"]}
+          }
+        }
+      }
+    }
+  }
+}
