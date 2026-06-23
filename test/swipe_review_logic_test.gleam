@@ -84,3 +84,45 @@ pub fn label_for_test() {
     )
   swipe_review.label_for(cfg, "negative") |> should.equal("Чисто")
 }
+
+fn zone_in(
+  region_key: String,
+  region_title: String,
+  name: String,
+  answer: option.Option(String),
+) -> Zone {
+  Zone(
+    region_key: region_key,
+    region_title: region_title,
+    path: [
+      PropertySegment("zones"),
+      PropertySegment(region_key),
+      PropertySegment(name),
+    ],
+    title: name,
+    answer: answer,
+  )
+}
+
+pub fn unanswered_by_region_groups_and_filters_test() {
+  let zs = [
+    zone_in("r1", "Region 1", "a", Some("positive")),
+    zone_in("r1", "Region 1", "b", None),
+    zone_in("r2", "Region 2", "c", None),
+    zone_in("r2", "Region 2", "d", Some("negative")),
+  ]
+  swipe_review.unanswered_by_region(zs)
+  |> should.equal([
+    #("Region 1", [zone_in("r1", "Region 1", "b", None)]),
+    #("Region 2", [zone_in("r2", "Region 2", "c", None)]),
+  ])
+}
+
+pub fn unanswered_by_region_drops_fully_answered_region_test() {
+  let zs = [
+    zone_in("r1", "Region 1", "a", Some("positive")),
+    zone_in("r2", "Region 2", "c", None),
+  ]
+  swipe_review.unanswered_by_region(zs)
+  |> should.equal([#("Region 2", [zone_in("r2", "Region 2", "c", None)])])
+}

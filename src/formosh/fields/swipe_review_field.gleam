@@ -1,7 +1,9 @@
-//// Tap-based burndown renderer for the swipe-review widget. Phase A: three
-//// large tap targets per card (touch-friendly), progress, undo, bulk-finish,
-//// and a review summary when every zone is answered. Phase B adds swipe
-//// gestures + animation on top of this same view.
+//// Tap-based burndown renderer for the swipe-review widget. Phase A: a
+//// shrinking "sheet" — every still-unanswered zone is shown at once, grouped
+//// by region, each with three large tap targets (touch-friendly). Answering a
+//// zone removes it from the sheet (any order); progress, undo, and bulk-finish
+//// sit at the foot, and a review summary replaces the sheet once every zone is
+//// answered. Phase B adds swipe gestures + animation on top of this same view.
 
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/fields/swipe_review.{type Choice, type GestureConfig, type Zone}
@@ -24,9 +26,9 @@ pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   let total = list.length(zones)
   let answered = swipe_review.answered_count(zones)
 
-  let body = case swipe_review.current(zones) {
-    Some(zone) -> render_card(zone, config, zones, answered, total)
-    None -> render_review(zones, config)
+  let body = case swipe_review.unanswered_by_region(zones) {
+    [] -> render_review(zones, config)
+    groups -> render_sheet(groups, zones, config, answered, total)
   }
 
   html.div(
@@ -38,17 +40,46 @@ pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   )
 }
 
-fn render_card(
-  zone: Zone,
-  config: GestureConfig,
+/// The shrinking sheet: progress, then every region that still has unanswered
+/// zones (each zone a row of three tap targets), then the foot controls.
+fn render_sheet(
+  groups: List(#(String, List(Zone))),
   zones: List(Zone),
+  config: GestureConfig,
   answered: Int,
   total: Int,
 ) -> Element(FormMsg) {
-  html.div([attribute.attribute("part", "swipe-card")], [
+  html.div([attribute.attribute("part", "swipe-sheet")], [
+    render_progress(answered, total),
+    html.div(
+      [attribute.attribute("part", "swipe-regions")],
+      list.map(groups, fn(group) {
+        let #(region_title, region_zones) = group
+        render_region(region_title, region_zones, config)
+      }),
+    ),
+    render_controls(zones, config),
+  ])
+}
+
+fn render_region(
+  region_title: String,
+  region_zones: List(Zone),
+  config: GestureConfig,
+) -> Element(FormMsg) {
+  html.div([attribute.attribute("part", "swipe-region-group")], [
     html.div([attribute.attribute("part", "swipe-region")], [
-      html.text(zone.region_title),
+      html.text(region_title),
     ]),
+    html.div(
+      [attribute.attribute("part", "swipe-zones")],
+      list.map(region_zones, fn(zone) { render_zone_row(zone, config) }),
+    ),
+  ])
+}
+
+fn render_zone_row(zone: Zone, config: GestureConfig) -> Element(FormMsg) {
+  html.div([attribute.attribute("part", "swipe-row")], [
     html.div([attribute.attribute("part", "swipe-zone-title")], [
       html.text(zone.title),
     ]),
@@ -57,8 +88,6 @@ fn render_card(
       choice_button(zone, config.button),
       choice_button(zone, config.right),
     ]),
-    render_progress(answered, total),
-    render_controls(zones, config),
   ])
 }
 

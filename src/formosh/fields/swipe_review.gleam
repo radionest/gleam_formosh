@@ -114,6 +114,30 @@ pub fn unanswered_paths(zones: List(Zone)) -> List(FieldPath) {
   |> list.map(fn(z) { z.path })
 }
 
+/// All UNANSWERED zones grouped by region, in declared order; regions with no
+/// unanswered zones left are omitted. Each pair is `#(region_title, zones)`.
+/// Drives the shrinking "sheet" view — every still-open zone is shown at once,
+/// and a region drops out entirely once all its zones are answered.
+pub fn unanswered_by_region(zones: List(Zone)) -> List(#(String, List(Zone))) {
+  zones
+  |> list.filter(fn(z) { !is_answered(z) })
+  |> list.fold([], fn(acc, z) {
+    case acc {
+      [#(key, title, members), ..rest] ->
+        case key == z.region_key {
+          True -> [#(key, title, [z, ..members]), ..rest]
+          False -> [#(z.region_key, z.region_title, [z]), ..acc]
+        }
+      [] -> [#(z.region_key, z.region_title, [z])]
+    }
+  })
+  |> list.reverse
+  |> list.map(fn(group) {
+    let #(_key, title, members) = group
+    #(title, list.reverse(members))
+  })
+}
+
 /// Parse the gesture binding from a `ui:options` bag, falling back to generic
 /// placeholder labels (`Yes`/`No`/`Skip`) when a key is missing from `ui:options`.
 pub fn gesture_config(options: Dict(String, Value)) -> GestureConfig {
