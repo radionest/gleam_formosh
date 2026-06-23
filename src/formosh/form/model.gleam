@@ -2,7 +2,9 @@
 
 import formosh/form/defaults
 import formosh/form/path.{type FieldPath}
-import formosh/form/widget_msg.{type ImageUploadEvent, type WidgetMsg}
+import formosh/form/widget_msg.{
+  type ImageUploadEvent, type SwipeReviewEvent, type WidgetMsg,
+}
 import formosh/schema/properties
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ObjectValue,
@@ -123,6 +125,12 @@ pub type FormMsg {
 /// `WidgetEvent(ImageUpload(...))` wrapper at emission sites.
 pub fn image_msg(event: ImageUploadEvent) -> FormMsg {
   WidgetEvent(widget_msg.ImageUpload(event))
+}
+
+/// Build a `FormMsg` from a `SwipeReviewEvent` — collapses the
+/// `WidgetEvent(SwipeReview(...))` wrapper at emission sites.
+pub fn swipe_msg(event: SwipeReviewEvent) -> FormMsg {
+  WidgetEvent(widget_msg.SwipeReview(event))
 }
 
 /// Initialize a new form model from a JSON Schema.

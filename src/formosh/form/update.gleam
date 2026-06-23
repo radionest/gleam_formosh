@@ -10,8 +10,8 @@ import formosh/form/model.{
 }
 import formosh/form/path
 import formosh/form/widget_msg.{
-  ImageCompleted, ImageFailed, ImageRemoved, ImageRequested, ImageStarted,
-  ImageUpload,
+  FillRemaining, ImageCompleted, ImageFailed, ImageRemoved, ImageRequested,
+  ImageStarted, ImageUpload, SwipeReview,
 }
 import formosh/schema/conditional_resolver
 import formosh/schema/properties
@@ -184,6 +184,25 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 
     WidgetEvent(ImageUpload(image_event)) ->
       handle_image_upload_event(model, image_event)
+
+    WidgetEvent(SwipeReview(FillRemaining(paths, code))) -> {
+      let new_values =
+        list.fold(paths, model.values, fn(acc, p) {
+          path.set_at_path(acc, p, types.StringValue(code))
+        })
+      let resolved_schema =
+        conditional_resolver.resolve_recursive(model.schema, new_values)
+      let touched_model =
+        list.fold(paths, model, fn(m, p) { model.mark_field_touched(m, p) })
+      let new_model =
+        model.FormModel(
+          ..touched_model,
+          values: new_values,
+          resolved_schema: resolved_schema,
+          is_dirty: True,
+        )
+      #(validate_all_fields(new_model), effect.none())
+    }
   }
 }
 
