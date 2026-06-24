@@ -2,6 +2,7 @@ import formosh
 import formosh/component
 import gleam/dict
 import gleam/dynamic/decode
+import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -161,95 +162,131 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
 }
 
 fn view(model: Model) -> Element(Msg) {
-  html.div([attribute.class("container")], [
-    html.h1([], [html.text("Formosh Demo")]),
-
-    html.div([attribute.class("schema-selector")], [
-      html.h2([], [html.text("Select a schema:")]),
+  html.div([attribute.class("page")], [
+    masthead(),
+    html.section([], [
+      section_head("Schema catalogue", schema_count(model.available_schemas)),
       html.div(
         [attribute.class("schema-list")],
         list.map(model.available_schemas, fn(filename) {
-          let is_selected = case model.selected_schema {
-            Some(selected) -> selected == filename
-            None -> False
-          }
-
-          html.button(
-            [
-              event.on_click(LoadSchema(filename)),
-              attribute.class(case is_selected {
-                True -> "schema-button selected"
-                False -> "schema-button"
-              }),
-            ],
-            [
-              html.text(get_display_name(filename)),
-              case is_selected {
-                True -> html.span([attribute.class("badge")], [html.text(" ✓")])
-                False -> element.none()
-              },
-            ],
-          )
+          schema_chip(filename, is_selected(model, filename))
         }),
       ),
     ]),
-
     case model.error {
       Some(error) ->
-        html.div([attribute.class("error-message")], [html.text(error)])
+        html.div([attribute.class("error-message")], [
+          html.span([attribute.class("error-mark")], [html.text("!")]),
+          html.span([], [html.text(error)]),
+        ])
       None -> element.none()
     },
-
     case model.submission_result {
-      Some(result) -> {
-        let is_error = string.contains(result, "Error")
-        html.div(
-          [
-            attribute.class(case is_error {
-              True -> "form-status error"
-              False -> "form-status success"
-            }),
-          ],
-          [
-            html.text(result),
-            html.button(
-              [
-                event.on_click(ClearSubmissionResult),
-                attribute.class("clear-button"),
-              ],
-              [html.text(" ×")],
-            ),
-          ],
-        )
-      }
+      Some(result) -> submission_banner(result)
       None -> element.none()
     },
+    form_section(model),
+  ])
+}
 
-    case model.schema_content {
-      Some(schema_json) -> {
-        html.div([attribute.class("form-container")], [
-          html.h2([], [html.text("Generated Form:")]),
-          html.div([attribute.class("info-box")], [
-            html.p([], [
-              html.text("Schema: " <> option.unwrap(model.selected_schema, "")),
-            ]),
-            case model.ui_schema_content {
-              Some(_) ->
-                html.p([], [html.text("UiSchema: applied (paired .ui.json)")])
-              None -> element.none()
-            },
-            case
-              model.selected_schema
-              |> option.then(validator_kind_for)
-            {
-              Some(kind) ->
-                html.p([], [
-                  html.text("Cross-field validator: " <> kind <> " (active)"),
-                ])
-              None -> element.none()
-            },
-          ]),
+fn masthead() -> Element(Msg) {
+  html.header([attribute.class("masthead")], [
+    html.p([attribute.class("eyebrow")], [
+      html.span([attribute.class("diamond")], [html.text("◆")]),
+      html.text("Gleam · Lustre · JSON Schema"),
+    ]),
+    html.h1([attribute.class("wordmark")], [
+      html.text("Formosh"),
+      html.span([attribute.class("wordmark-dot")], [html.text(".")]),
+    ]),
+    html.div([attribute.class("field-shell")], [
+      html.span([attribute.class("field-shell-label")], [
+        html.text("what is this"),
+      ]),
+      html.p([attribute.class("field-value")], [
+        html.text("A JSON Schema, rendered to a live, typed form."),
+        html.span([attribute.class("caret")], []),
+      ]),
+    ]),
+  ])
+}
 
+fn section_head(label: String, note: String) -> Element(Msg) {
+  html.div([attribute.class("section-head")], [
+    html.span([attribute.class("section-label")], [
+      html.span([attribute.class("section-mark")], []),
+      html.text(label),
+    ]),
+    html.span([attribute.class("section-note")], [html.text(note)]),
+  ])
+}
+
+fn schema_count(schemas: List(String)) -> String {
+  int.to_string(list.length(schemas)) <> " schemas"
+}
+
+fn is_selected(model: Model, filename: String) -> Bool {
+  case model.selected_schema {
+    Some(selected) -> selected == filename
+    None -> False
+  }
+}
+
+fn schema_chip(filename: String, selected: Bool) -> Element(Msg) {
+  html.button(
+    [
+      event.on_click(LoadSchema(filename)),
+      attribute.class(case selected {
+        True -> "schema-button selected"
+        False -> "schema-button"
+      }),
+    ],
+    [
+      html.div([attribute.class("schema-file-row")], [
+        html.code([attribute.class("schema-file")], [html.text(filename)]),
+        html.span([attribute.class("schema-go")], [
+          html.text(case selected {
+            True -> "● selected"
+            False -> "→"
+          }),
+        ]),
+      ]),
+      html.span([attribute.class("schema-name")], [
+        html.text(get_display_name(filename)),
+      ]),
+    ],
+  )
+}
+
+fn submission_banner(result: String) -> Element(Msg) {
+  let is_error = string.contains(result, "Error")
+  html.div(
+    [
+      attribute.class(case is_error {
+        True -> "form-status error"
+        False -> "form-status success"
+      }),
+    ],
+    [
+      html.span([], [html.text(result)]),
+      html.button(
+        [
+          event.on_click(ClearSubmissionResult),
+          attribute.class("clear-button"),
+        ],
+        [html.text("×")],
+      ),
+    ],
+  )
+}
+
+fn form_section(model: Model) -> Element(Msg) {
+  case model.schema_content {
+    Some(schema_json) ->
+      html.div([attribute.class("workbench")], [
+        transform_bar(option.unwrap(model.selected_schema, "schema.json")),
+        html.div([attribute.class("workbench-body")], [
+          info_chips(model),
           html.div([attribute.id("form-mount-point")], [
             element.element(
               "formosh-form",
@@ -257,23 +294,54 @@ fn view(model: Model) -> Element(Msg) {
               [],
             ),
           ]),
-        ])
+        ]),
+      ])
+    None ->
+      case model.selected_schema {
+        None ->
+          placeholder("Pick a schema above to render it as a live, typed form.")
+        Some(_) -> placeholder("Loading schema…")
       }
-      None -> {
-        case model.selected_schema {
-          None ->
-            html.div([attribute.class("placeholder")], [
-              html.p([], [
-                html.text("Select a schema to load and display the form"),
-              ]),
-            ])
-          Some(_) ->
-            html.div([attribute.class("placeholder")], [
-              html.p([], [html.text("Loading schema...")]),
-            ])
-        }
-      }
-    },
+  }
+}
+
+fn transform_bar(filename: String) -> Element(Msg) {
+  html.div([attribute.class("transform-bar")], [
+    html.code([attribute.class("tb-file")], [html.text(filename)]),
+    html.span([attribute.class("tb-arrow")], [html.text("→")]),
+    html.span([attribute.class("tb-out")], [html.text("live form")]),
+  ])
+}
+
+fn info_chips(model: Model) -> Element(Msg) {
+  let ui_chip = case model.ui_schema_content {
+    Some(_) -> [chip("ui-schema", "applied")]
+    None -> []
+  }
+  let validator_chip = case
+    model.selected_schema
+    |> option.then(validator_kind_for)
+  {
+    Some(kind) -> [chip("validator", kind)]
+    None -> []
+  }
+  html.div(
+    [attribute.class("info-chips")],
+    list.flatten([[chip("json-schema", "2020-12")], ui_chip, validator_chip]),
+  )
+}
+
+fn chip(key: String, value: String) -> Element(Msg) {
+  html.span([attribute.class("chip")], [
+    html.span([attribute.class("chip-key")], [html.text(key)]),
+    html.text(value),
+  ])
+}
+
+fn placeholder(message: String) -> Element(Msg) {
+  html.div([attribute.class("placeholder")], [
+    html.span([attribute.class("placeholder-mark")], [html.text("{ }")]),
+    html.p([], [html.text(message)]),
   ])
 }
 
