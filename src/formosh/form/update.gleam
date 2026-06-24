@@ -10,9 +10,9 @@ import formosh/form/model.{
 }
 import formosh/form/path
 import formosh/form/widget_msg.{
-  DragCancel, DragEnd, DragMove, DragStart, FillRemaining, ImageCompleted,
-  ImageFailed, ImageRemoved, ImageRequested, ImageStarted, ImageUpload,
-  SwipeReview, ToggleHideAnswered,
+  AnswerZone, DragCancel, DragEnd, DragMove, DragStart, ExitDone, ExitLeft,
+  ExitRight, FillRemaining, ImageCompleted, ImageFailed, ImageRemoved,
+  ImageRequested, ImageStarted, ImageUpload, SwipeReview, ToggleHideAnswered,
 }
 import formosh/schema/conditional_resolver
 import formosh/schema/properties
@@ -85,6 +85,11 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           values: new_values,
           resolved_schema: resolved_schema,
           is_dirty: True,
+          // Re-opening a zone (swipe-review undo / summary correction) cancels
+          // any in-flight fly-off for that path so it can't linger in `exiting`.
+          swipe_exiting: list.filter(model.swipe_exiting, fn(p) {
+            p.0 != field_path
+          }),
         )
       let validated_model = validate_all_fields(new_model)
       #(validated_model, effect.none())
@@ -207,10 +212,11 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   }
 }
 
-/// Handle swipe-review widget events: bulk-finish plus the live drag lifecycle
-/// (start / move / end / cancel). Drag start/move/cancel only mutate the
-/// transient `swipe_drag` state; an answer is committed only on a release past
-/// threshold (or via bulk-finish).
+/// Handle swipe-review widget events: bulk-finish, the live drag lifecycle
+/// (start / move / end / cancel), a tap commit (`AnswerZone`), and the fly-off
+/// completion (`ExitDone`). Drag start/move/cancel only mutate the transient
+/// `swipe_drag`; an answer is committed on a tap, a release past threshold, or
+/// bulk-finish — committing flies the card off (hide mode) via `commit_zone`.
 fn handle_swipe_review_event(
   model: FormModel,
   event: widget_msg.SwipeReviewEvent,
@@ -244,14 +250,8 @@ fn handle_swipe_review_event(
         Some(d) -> {
           let cleared = model.FormModel(..model, swipe_drag: None)
           case d.dx >=. d.threshold, d.dx <=. 0.0 -. d.threshold {
-            True, _ -> #(
-              apply_answers(cleared, [#(d.path, d.pos_code)]),
-              effect.none(),
-            )
-            _, True -> #(
-              apply_answers(cleared, [#(d.path, d.neg_code)]),
-              effect.none(),
-            )
+            True, _ -> commit_zone(model, d.path, d.pos_code, ExitRight)
+            _, True -> commit_zone(model, d.path, d.neg_code, ExitLeft)
             _, _ -> #(cleared, effect.none())
           }
         }
@@ -261,7 +261,24 @@ fn handle_swipe_review_event(
     DragCancel -> #(model.FormModel(..model, swipe_drag: None), effect.none())
 
     ToggleHideAnswered -> #(
-      model.FormModel(..model, swipe_hide_answered: !model.swipe_hide_answered),
+      model.FormModel(
+        ..model,
+        swipe_hide_answered: !model.swipe_hide_answered,
+        swipe_exiting: [],
+      ),
+      effect.none(),
+    )
+
+    AnswerZone(field_path, code, dir) ->
+      commit_zone(model, field_path, code, dir)
+
+    ExitDone(field_path) -> #(
+      model.FormModel(
+        ..model,
+        swipe_exiting: list.filter(model.swipe_exiting, fn(p) {
+          p.0 != field_path
+        }),
+      ),
       effect.none(),
     )
   }
@@ -292,6 +309,26 @@ fn apply_answers(
       is_dirty: True,
     )
   validate_all_fields(new_model)
+}
+
+/// Commit a single zone answer (shared by tap `AnswerZone` and a past-threshold
+/// swipe release) and, in hide-answered mode only, mark the card as exiting so
+/// the renderer keeps it on-screen flying off until its `transitionend`.
+fn commit_zone(
+  model: FormModel,
+  field_path: path.FieldPath,
+  code: String,
+  dir: widget_msg.ExitDir,
+) -> #(FormModel, Effect(FormMsg)) {
+  let committed = apply_answers(model, [#(field_path, code)])
+  let exiting = case model.swipe_hide_answered {
+    True -> list.key_set(committed.swipe_exiting, field_path, dir)
+    False -> committed.swipe_exiting
+  }
+  #(
+    model.FormModel(..committed, swipe_drag: None, swipe_exiting: exiting),
+    effect.none(),
+  )
 }
 
 /// Handle the image-upload widget lifecycle events.

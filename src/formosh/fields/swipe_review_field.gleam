@@ -3,8 +3,11 @@
 //// mini-card. Phase A: three large tap targets per row. Phase B: each row is
 //// also draggable horizontally — drag right past threshold commits the
 //// positive answer, left commits the negative; the tap targets remain a
-//// fallback and «inaccessible» stays a button. Answering removes the row (any
-//// order); a review summary replaces the sheet once every zone is answered.
+//// fallback and «inaccessible» stays a button. Answering commits the row and,
+//// in hide-answered mode, flies it off-screen — right for the positive answer,
+//// left for the negative, a fade for the middle — before dropping it (any
+//// order); a review summary replaces the sheet once every zone is answered,
+//// including any card still mid-flight.
 //// A "hide answered / show all" checkbox (rendered in every state) switches
 //// between this shrinking sheet and a show-all view where every zone stays
 //// visible and editable in place — the chosen answer is marked `data-selected`.
@@ -12,12 +15,13 @@
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/fields/swipe_review.{type Choice, type GestureConfig, type Zone}
 import formosh/form/model.{
-  type FormModel, type FormMsg, type SwipeDrag, ClearFieldPath, UpdateFieldPath,
+  type FormModel, type FormMsg, type SwipeDrag, ClearFieldPath,
 }
+import formosh/form/path
 import formosh/form/widget_msg.{
-  DragCancel, DragEnd, DragMove, DragStart, FillRemaining, ToggleHideAnswered,
+  type ExitDir, AnswerZone, DragCancel, DragEnd, DragMove, DragStart, ExitDone,
+  ExitFade, ExitLeft, ExitRight, FillRemaining, ToggleHideAnswered,
 }
-import formosh/schema/types
 import gleam/dynamic/decode
 import gleam/float
 import gleam/int
@@ -26,6 +30,7 @@ import gleam/option.{type Option, None, Some}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
+import lustre/element/keyed
 import lustre/event
 
 /// Horizontal travel (px) a row must pass for a release to commit an answer.
@@ -38,14 +43,25 @@ pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   let total = list.length(zones)
   let answered = swipe_review.answered_count(zones)
   let hide = model.swipe_hide_answered
+  let exiting = model.swipe_exiting
+  let exiting_paths = list.map(exiting, fn(p) { p.0 })
 
   let body = case hide {
-    // Hide answered: the shrinking sheet, or the review summary once empty.
+    // Hide answered: the shrinking sheet (still showing any card mid fly-off),
+    // or the review summary once nothing is left — not even an exiting card.
     True ->
-      case swipe_review.unanswered_by_region(zones) {
+      case swipe_review.unanswered_or_exiting_by_region(zones, exiting_paths) {
         [] -> render_review(zones, config)
         groups ->
-          render_sheet(groups, zones, config, answered, total, model.swipe_drag)
+          render_sheet(
+            groups,
+            zones,
+            config,
+            answered,
+            total,
+            model.swipe_drag,
+            exiting,
+          )
       }
     // Show all: every zone stays visible and editable; no review summary.
     False ->
@@ -56,6 +72,7 @@ pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
         answered,
         total,
         model.swipe_drag,
+        exiting,
       )
   }
 
@@ -79,6 +96,7 @@ fn render_sheet(
   answered: Int,
   total: Int,
   drag: Option(SwipeDrag),
+  exiting: List(#(path.FieldPath, ExitDir)),
 ) -> Element(FormMsg) {
   html.div([attribute.attribute("part", "swipe-sheet")], [
     render_progress(answered, total),
@@ -86,7 +104,7 @@ fn render_sheet(
       [attribute.attribute("part", "swipe-regions")],
       list.map(groups, fn(group) {
         let #(region_title, region_zones) = group
-        render_region(region_title, region_zones, config, drag)
+        render_region(region_title, region_zones, config, drag, exiting)
       }),
     ),
     render_controls(zones, config),
@@ -111,27 +129,39 @@ fn render_region(
   region_zones: List(Zone),
   config: GestureConfig,
   drag: Option(SwipeDrag),
+  exiting: List(#(path.FieldPath, ExitDir)),
 ) -> Element(FormMsg) {
   html.div([attribute.attribute("part", "swipe-region-group")], [
     html.div([attribute.attribute("part", "swipe-region")], [
       html.text(region_title),
     ]),
-    html.div(
+    // Keyed by path so removing a finished fly-off drops THAT row, instead of
+    // Lustre reusing its node for the next zone (which looked like a spring-back).
+    keyed.div(
       [attribute.attribute("part", "swipe-zones")],
-      list.map(region_zones, fn(zone) { render_zone_row(zone, config, drag) }),
+      list.map(region_zones, fn(zone) {
+        #(
+          path.to_string(zone.path),
+          render_zone_row(zone, config, drag, exiting),
+        )
+      }),
     ),
   ])
 }
 
-/// One zone row. It always carries a `pointerdown` handler that begins a drag;
-/// while THIS row is the one being dragged it also gets the live `translateX`
-/// offset plus the move/up/cancel handlers. The three tap buttons remain a
-/// fallback for non-swipe input.
+/// One zone row. An idle row carries a `pointerdown` that can begin a drag;
+/// the row being dragged also gets the live `translateX` offset and the
+/// move/up/cancel handlers. A committed row that is still flying off (`exiting`)
+/// gets the off-screen transform plus a `transitionend` that finally drops it,
+/// and is made inert (`pointer-events:none`) so neither swipe nor tap fires.
 fn render_zone_row(
   zone: Zone,
   config: GestureConfig,
   drag: Option(SwipeDrag),
+  exiting: List(#(path.FieldPath, ExitDir)),
 ) -> Element(FormMsg) {
+  let exit_dir = list.key_find(exiting, zone.path) |> option.from_result()
+
   let dragging_dx = case drag {
     Some(d) ->
       case d.path == zone.path {
@@ -144,12 +174,28 @@ fn render_zone_row(
   let base = [
     attribute.attribute("part", "swipe-row"),
     attribute.attribute("data-swipe-row", "true"),
-    on_pointer_down(zone, config),
   ]
 
-  let attrs = case dragging_dx {
-    Some(dx) ->
+  let attrs = case exit_dir, dragging_dx {
+    // Committed, flying off: no drag/tap handlers; pointer-events:none makes the
+    // whole row (its buttons included) inert until `transitionend` removes it.
+    Some(dir), _ ->
       list.append(base, [
+        attribute.attribute("data-exiting", "true"),
+        attribute.styles([
+          #("transform", exit_transform(dir)),
+          #("opacity", "0"),
+          #("transition", "transform 0.18s ease, opacity 0.18s ease"),
+          #("pointer-events", "none"),
+        ]),
+        event.on(
+          "transitionend",
+          decode.success(model.swipe_msg(ExitDone(zone.path))),
+        ),
+      ])
+    // Actively dragging THIS row: live offset + drag lifecycle handlers.
+    None, Some(dx) ->
+      list.append([on_pointer_down(zone, config), ..base], [
         attribute.styles([
           #("transform", "translateX(" <> float.to_string(dx) <> "px)"),
           #("transition", "none"),
@@ -162,7 +208,8 @@ fn render_zone_row(
         event.on("pointercancel", decode.success(model.swipe_msg(DragCancel))),
         event.on("pointerleave", decode.success(model.swipe_msg(DragCancel))),
       ])
-    None -> base
+    // Idle row: only the pointerdown that can start a drag.
+    None, None -> [on_pointer_down(zone, config), ..base]
   }
 
   html.div(attrs, [
@@ -170,11 +217,21 @@ fn render_zone_row(
       html.text(zone.title),
     ]),
     html.div([attribute.attribute("part", "swipe-choices")], [
-      choice_button(zone, config.left),
-      choice_button(zone, config.button),
-      choice_button(zone, config.right),
+      choice_button(zone, config.left, ExitLeft),
+      choice_button(zone, config.button, ExitFade),
+      choice_button(zone, config.right, ExitRight),
     ]),
   ])
+}
+
+/// Off-screen transform for a flying-off card: slide out to the answered side,
+/// or just fade in place for the neutral middle choice.
+fn exit_transform(dir: ExitDir) -> String {
+  case dir {
+    ExitRight -> "translateX(120%)"
+    ExitLeft -> "translateX(-120%)"
+    ExitFade -> "none"
+  }
 }
 
 fn on_pointer_down(
@@ -195,7 +252,7 @@ fn on_pointer_down(
   })
 }
 
-fn choice_button(zone: Zone, choice: Choice) -> Element(FormMsg) {
+fn choice_button(zone: Zone, choice: Choice, dir: ExitDir) -> Element(FormMsg) {
   let selected = case zone.answer {
     Some(code) -> code == choice.code
     None -> False
@@ -210,7 +267,7 @@ fn choice_button(zone: Zone, choice: Choice) -> Element(FormMsg) {
         True -> "true"
         False -> "false"
       }),
-      event.on_click(UpdateFieldPath(zone.path, types.StringValue(choice.code))),
+      event.on_click(model.swipe_msg(AnswerZone(zone.path, choice.code, dir))),
     ],
     [html.text(choice.label)],
   )

@@ -3,6 +3,7 @@ import formosh/fields/swipe_review_field
 import formosh/form/model.{UpdateFieldPath}
 import formosh/form/path.{PropertySegment}
 import formosh/form/update
+import formosh/form/widget_msg.{AnswerZone, ExitRight}
 import formosh/schema/parser
 import formosh/schema/properties
 import formosh/schema/types
@@ -125,4 +126,42 @@ pub fn sheet_shrinks_when_zone_answered_test() {
   html |> string.contains("Zone B") |> should.be_true
   html |> string.contains("Zone A") |> should.be_false
   html |> string.contains("1 / 2") |> should.be_true
+}
+
+pub fn exiting_card_stays_rendered_flying_off_test() {
+  let assert Ok(schema) = parser.parse_schema(schema2_json)
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let m = model.init_with_full_config(schema, None, False, dict.new(), ui)
+  let path_a = [
+    PropertySegment("zones"),
+    PropertySegment("r"),
+    PropertySegment("a"),
+  ]
+  // Answer A via the swipe path → committed AND marked exiting (hide mode).
+  let #(m2, _) =
+    update.update(m, model.swipe_msg(AnswerZone(path_a, "positive", ExitRight)))
+  let html = render_model(schema, m2)
+  // The just-answered card stays on screen, flying off to the right…
+  html |> string.contains("Zone A") |> should.be_true
+  html |> string.contains("translateX(120%)") |> should.be_true
+  html |> string.contains("pointer-events:none") |> should.be_true
+  // …while the still-unanswered card remains.
+  html |> string.contains("Zone B") |> should.be_true
+}
+
+pub fn last_exiting_card_defers_review_summary_test() {
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let m = model.init_with_full_config(schema, None, False, dict.new(), ui)
+  let path_a = [
+    PropertySegment("zones"),
+    PropertySegment("r"),
+    PropertySegment("a"),
+  ]
+  let #(m2, _) =
+    update.update(m, model.swipe_msg(AnswerZone(path_a, "positive", ExitRight)))
+  let html = render_model(schema, m2)
+  // The only zone is still flying off — the review summary must wait for it.
+  html |> string.contains("Все зоны просмотрены") |> should.be_false
+  html |> string.contains("Zone A") |> should.be_true
 }

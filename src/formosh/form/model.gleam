@@ -3,7 +3,7 @@
 import formosh/form/defaults
 import formosh/form/path.{type FieldPath}
 import formosh/form/widget_msg.{
-  type ImageUploadEvent, type SwipeReviewEvent, type WidgetMsg,
+  type ExitDir, type ImageUploadEvent, type SwipeReviewEvent, type WidgetMsg,
 }
 import formosh/schema/properties
 import formosh/schema/types.{
@@ -82,6 +82,10 @@ pub type FormModel {
     // Swipe-review view mode: True hides answered zones (shrinking sheet),
     // False keeps every zone visible and editable. Default True.
     swipe_hide_answered: Bool,
+    // Swipe-review cards committed but still animating off-screen (any order).
+    // Each is kept rendered (flying off) until its `transitionend` clears it.
+    // Only populated in hide-answered mode. Empty unless a fly-off is in flight.
+    swipe_exiting: List(#(FieldPath, ExitDir)),
   )
 }
 
@@ -245,6 +249,7 @@ pub fn init_with_full_config(
     read_only: False,
     swipe_drag: option.None,
     swipe_hide_answered: True,
+    swipe_exiting: [],
   )
 }
 
@@ -324,6 +329,7 @@ pub fn reset(model: FormModel) -> FormModel {
     read_only: model.read_only,
     swipe_drag: option.None,
     swipe_hide_answered: True,
+    swipe_exiting: [],
   )
 }
 
