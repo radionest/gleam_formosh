@@ -336,9 +336,9 @@ fn fetch_schema(filename: String) -> effect.Effect(Msg) {
   rsvp.get(url, handler)
 }
 
-// UiSchema is optional. lustre/dev returns index.html for missing files
-// (SPA fallback) instead of 404, so we sniff for a leading `{` to tell a
-// real JSON object from the fallback page.
+// UiSchema is optional. A missing `.ui.json` yields a non-JSON response
+// (a 404 error page), so we sniff for a leading `{` to tell a real JSON
+// object from an error page before treating it as a UiSchema.
 fn fetch_ui_schema(filename: String) -> effect.Effect(Msg) {
   let basename = string.replace(filename, ".json", "")
   let url = "./schemas/" <> basename <> ".ui.json"

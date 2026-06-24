@@ -1,0 +1,60 @@
+name: Deploy demo to Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.1.2"
+          # Demo's gleam_fetch (via rsvp) needs Gleam >= 1.14; newer than test.yml.
+          gleam-version: "1.14.0"
+          rebar3-version: "3"
+
+      - name: Build demo
+        working-directory: demo
+        run: |
+          gleam deps download
+          gleam build --target javascript
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site/build/dev
+          cp demo/index.html _site/
+          cp -r demo/schemas _site/
+          cp -r demo/build/dev/javascript _site/build/dev/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    # Only publish from main; on pull_request we build-only to catch breakage.
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
