@@ -5,6 +5,9 @@
 //// positive answer, left commits the negative; the tap targets remain a
 //// fallback and «inaccessible» stays a button. Answering removes the row (any
 //// order); a review summary replaces the sheet once every zone is answered.
+//// A "hide answered / show all" checkbox (rendered in every state) switches
+//// between this shrinking sheet and a show-all view where every zone stays
+//// visible and editable in place — the chosen answer is marked `data-selected`.
 
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/fields/swipe_review.{type Choice, type GestureConfig, type Zone}
@@ -12,7 +15,7 @@ import formosh/form/model.{
   type FormModel, type FormMsg, type SwipeDrag, ClearFieldPath, UpdateFieldPath,
 }
 import formosh/form/widget_msg.{
-  DragCancel, DragEnd, DragMove, DragStart, FillRemaining,
+  DragCancel, DragEnd, DragMove, DragStart, FillRemaining, ToggleHideAnswered,
 }
 import formosh/schema/types
 import gleam/dynamic/decode
@@ -30,22 +33,40 @@ const swipe_threshold = 80.0
 
 pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   let config = swipe_review.gesture_config(ctx.hints.options)
+  let toggle_label = swipe_review.hide_answered_label(ctx.hints.options)
   let zones = swipe_review.zones(ctx.path, ctx.property, model)
   let total = list.length(zones)
   let answered = swipe_review.answered_count(zones)
+  let hide = model.swipe_hide_answered
 
-  let body = case swipe_review.unanswered_by_region(zones) {
-    [] -> render_review(zones, config)
-    groups ->
-      render_sheet(groups, zones, config, answered, total, model.swipe_drag)
+  let body = case hide {
+    // Hide answered: the shrinking sheet, or the review summary once empty.
+    True ->
+      case swipe_review.unanswered_by_region(zones) {
+        [] -> render_review(zones, config)
+        groups ->
+          render_sheet(groups, zones, config, answered, total, model.swipe_drag)
+      }
+    // Show all: every zone stays visible and editable; no review summary.
+    False ->
+      render_sheet(
+        swipe_review.all_by_region(zones),
+        zones,
+        config,
+        answered,
+        total,
+        model.swipe_drag,
+      )
   }
 
+  // The view toggle sits above the body so it is reachable in every state
+  // (shrinking sheet, show-all, and the review summary).
   html.div(
     [
       attribute.class("formosh-swipe-review"),
       attribute.attribute("part", "swipe-review"),
     ],
-    [body],
+    [render_view_toggle(hide, toggle_label), body],
   )
 }
 
@@ -69,6 +90,19 @@ fn render_sheet(
       }),
     ),
     render_controls(zones, config),
+  ])
+}
+
+/// The "hide answered / show all" checkbox. Checked = answered zones are
+/// hidden (the shrinking sheet); unchecked = every zone stays visible.
+fn render_view_toggle(hide_answered: Bool, label: String) -> Element(FormMsg) {
+  html.label([attribute.attribute("part", "swipe-toggle")], [
+    html.input([
+      attribute.type_("checkbox"),
+      attribute.checked(hide_answered),
+      event.on_click(model.swipe_msg(ToggleHideAnswered)),
+    ]),
+    html.text(label),
   ])
 }
 
@@ -162,12 +196,20 @@ fn on_pointer_down(
 }
 
 fn choice_button(zone: Zone, choice: Choice) -> Element(FormMsg) {
+  let selected = case zone.answer {
+    Some(code) -> code == choice.code
+    None -> False
+  }
   html.button(
     [
       attribute.type_("button"),
       attribute.class("formosh-swipe-choice"),
       attribute.attribute("part", "swipe-choice"),
       attribute.attribute("data-tone", choice.tone),
+      attribute.attribute("data-selected", case selected {
+        True -> "true"
+        False -> "false"
+      }),
       event.on_click(UpdateFieldPath(zone.path, types.StringValue(choice.code))),
     ],
     [html.text(choice.label)],

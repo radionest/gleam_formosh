@@ -35,4 +35,6 @@ pub type SwipeReviewEvent {
   DragEnd
   /// Drag aborted (pointer left the row / cancelled) — snap back, no answer.
   DragCancel
+  /// Flip the "hide answered / show all" view mode.
+  ToggleHideAnswered
 }

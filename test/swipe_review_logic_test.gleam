@@ -126,3 +126,19 @@ pub fn unanswered_by_region_drops_fully_answered_region_test() {
   swipe_review.unanswered_by_region(zs)
   |> should.equal([#("Region 2", [zone_in("r2", "Region 2", "c", None)])])
 }
+
+pub fn all_by_region_keeps_answered_zones_test() {
+  let zs = [
+    zone_in("r1", "Region 1", "a", Some("positive")),
+    zone_in("r1", "Region 1", "b", None),
+    zone_in("r2", "Region 2", "c", Some("negative")),
+  ]
+  swipe_review.all_by_region(zs)
+  |> should.equal([
+    #("Region 1", [
+      zone_in("r1", "Region 1", "a", Some("positive")),
+      zone_in("r1", "Region 1", "b", None),
+    ]),
+    #("Region 2", [zone_in("r2", "Region 2", "c", Some("negative"))]),
+  ])
+}
