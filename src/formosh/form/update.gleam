@@ -12,7 +12,7 @@ import formosh/form/path
 import formosh/form/widget_msg.{
   DragCancel, DragEnd, DragMove, DragStart, FillRemaining, ImageCompleted,
   ImageFailed, ImageRemoved, ImageRequested, ImageStarted, ImageUpload,
-  SwipeReview,
+  SwipeReview, ToggleHideAnswered,
 }
 import formosh/schema/conditional_resolver
 import formosh/schema/properties
@@ -259,6 +259,11 @@ fn handle_swipe_review_event(
       }
 
     DragCancel -> #(model.FormModel(..model, swipe_drag: None), effect.none())
+
+    ToggleHideAnswered -> #(
+      model.FormModel(..model, swipe_hide_answered: !model.swipe_hide_answered),
+      effect.none(),
+    )
   }
 }
 

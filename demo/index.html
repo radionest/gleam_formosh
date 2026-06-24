@@ -244,6 +244,26 @@
         [part="swipe-choice"][data-tone="danger"] { background: #e5484d; }
         [part="swipe-choice"][data-tone="ok"]     { background: #30a46c; }
         [part="swipe-choice"][data-tone="muted"]  { background: #8b8d98; }
+        /* The currently-chosen answer of a zone (visible in "show all" mode). */
+        [part="swipe-choice"][data-selected="true"] {
+            outline: 3px solid #1a1a1a;
+            outline-offset: 1px;
+            box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.12);
+        }
+        [part="swipe-choice"][data-selected="false"] { opacity: 0.92; }
+
+        /* "Hide answered / show all" toggle. */
+        [part="swipe-toggle"] {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            align-self: flex-end;
+            font-size: 0.9em;
+            color: #555;
+            cursor: pointer;
+            user-select: none;
+        }
+        [part="swipe-toggle"] input { width: 18px; height: 18px; cursor: pointer; }
 
         [part="swipe-controls"] {
             display: flex;

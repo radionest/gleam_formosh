@@ -79,6 +79,9 @@ pub type FormModel {
     read_only: Bool,
     // Transient swipe-review drag state (None unless a row is being dragged).
     swipe_drag: Option(SwipeDrag),
+    // Swipe-review view mode: True hides answered zones (shrinking sheet),
+    // False keeps every zone visible and editable. Default True.
+    swipe_hide_answered: Bool,
   )
 }
 
@@ -241,6 +244,7 @@ pub fn init_with_full_config(
     validator: option.None,
     read_only: False,
     swipe_drag: option.None,
+    swipe_hide_answered: True,
   )
 }
 
@@ -319,6 +323,7 @@ pub fn reset(model: FormModel) -> FormModel {
     validator: model.validator,
     read_only: model.read_only,
     swipe_drag: option.None,
+    swipe_hide_answered: True,
   )
 }
 

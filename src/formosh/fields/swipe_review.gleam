@@ -115,12 +115,25 @@ pub fn unanswered_paths(zones: List(Zone)) -> List(FieldPath) {
 }
 
 /// All UNANSWERED zones grouped by region, in declared order; regions with no
-/// unanswered zones left are omitted. Each pair is `#(region_title, zones)`.
-/// Drives the shrinking "sheet" view — every still-open zone is shown at once,
-/// and a region drops out entirely once all its zones are answered.
+/// unanswered zones left are omitted. Drives the shrinking "sheet" view — every
+/// still-open zone is shown at once, and a region drops out once all its zones
+/// are answered.
 pub fn unanswered_by_region(zones: List(Zone)) -> List(#(String, List(Zone))) {
   zones
   |> list.filter(fn(z) { !is_answered(z) })
+  |> by_region
+}
+
+/// Every zone grouped by region, in declared order — drives the "show all"
+/// view (answered zones stay visible and editable, the list never shrinks).
+pub fn all_by_region(zones: List(Zone)) -> List(#(String, List(Zone))) {
+  by_region(zones)
+}
+
+/// Group an already-filtered zone list into `#(region_title, zones)` pairs,
+/// preserving declared order and omitting empty regions.
+fn by_region(zones: List(Zone)) -> List(#(String, List(Zone))) {
+  zones
   |> list.fold([], fn(acc, z) {
     case acc {
       [#(key, title, members), ..rest] ->
@@ -136,6 +149,15 @@ pub fn unanswered_by_region(zones: List(Zone)) -> List(#(String, List(Zone))) {
     let #(_key, title, members) = group
     #(title, list.reverse(members))
   })
+}
+
+/// Label for the "hide answered" view toggle, read from
+/// `ui:options.hideAnsweredLabel` (default `"Hide answered"`).
+pub fn hide_answered_label(options: Dict(String, Value)) -> String {
+  case dict.get(options, "hideAnsweredLabel") {
+    Ok(types.StringValue(s)) -> s
+    _ -> "Hide answered"
+  }
 }
 
 /// Parse the gesture binding from a `ui:options` bag, falling back to generic
