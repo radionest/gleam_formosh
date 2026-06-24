@@ -130,6 +130,18 @@ pub fn all_by_region(zones: List(Zone)) -> List(#(String, List(Zone))) {
   by_region(zones)
 }
 
+/// Hide-mode visible groups: unanswered zones PLUS any still in `exiting`
+/// (committed but mid fly-off), so a just-answered card stays rendered until
+/// its exit animation completes. Declared order preserved.
+pub fn unanswered_or_exiting_by_region(
+  zones: List(Zone),
+  exiting: List(FieldPath),
+) -> List(#(String, List(Zone))) {
+  zones
+  |> list.filter(fn(z) { !is_answered(z) || list.contains(exiting, z.path) })
+  |> by_region
+}
+
 /// Group an already-filtered zone list into `#(region_title, zones)` pairs,
 /// preserving declared order and omitting empty regions.
 fn by_region(zones: List(Zone)) -> List(#(String, List(Zone))) {

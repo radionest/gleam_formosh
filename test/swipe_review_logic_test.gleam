@@ -142,3 +142,23 @@ pub fn all_by_region_keeps_answered_zones_test() {
     #("Region 2", [zone_in("r2", "Region 2", "c", Some("negative"))]),
   ])
 }
+
+pub fn unanswered_or_exiting_keeps_exiting_zone_in_place_test() {
+  let zs = [
+    // answered AND still exiting → kept, in declared order before b
+    zone_in("r1", "Region 1", "a", Some("positive")),
+    zone_in("r1", "Region 1", "b", None),
+    // answered but NOT exiting → excluded, so its region drops out
+    zone_in("r2", "Region 2", "c", Some("negative")),
+  ]
+  let exiting = [
+    [PropertySegment("zones"), PropertySegment("r1"), PropertySegment("a")],
+  ]
+  swipe_review.unanswered_or_exiting_by_region(zs, exiting)
+  |> should.equal([
+    #("Region 1", [
+      zone_in("r1", "Region 1", "a", Some("positive")),
+      zone_in("r1", "Region 1", "b", None),
+    ]),
+  ])
+}

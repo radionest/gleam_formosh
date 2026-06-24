@@ -37,4 +37,19 @@ pub type SwipeReviewEvent {
   DragCancel
   /// Flip the "hide answered / show all" view mode.
   ToggleHideAnswered
+  /// Commit a zone answer and fly the card off in `dir` (tap path; the swipe
+  /// release computes its own dir from the drag). Drives a fly-off only in
+  /// hide-answered mode; in show-all it just records the answer.
+  AnswerZone(path: FieldPath, code: String, dir: ExitDir)
+  /// The fly-off transition for a committed card finished — drop it from the
+  /// transient exiting set.
+  ExitDone(path: FieldPath)
+}
+
+/// Direction a committed swipe-review card flies off: right/left for a
+/// directional answer, fade-in-place for the neutral middle choice.
+pub type ExitDir {
+  ExitLeft
+  ExitRight
+  ExitFade
 }
