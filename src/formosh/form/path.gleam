@@ -153,6 +153,26 @@ pub fn set_at_path(
   modify_at_path(root, path, fn(_) { value })
 }
 
+/// Remove the leaf at `path` from its parent object. The final segment must
+/// be a `PropertySegment`; the key is dropped from the parent `ObjectValue`,
+/// leaving siblings intact. No-op for an empty path, an array-index leaf, or
+/// when the parent is not an object.
+pub fn remove_at_path(root: types.Value, path: FieldPath) -> types.Value {
+  case list.reverse(path) {
+    [PropertySegment(name), ..rev_prefix] -> {
+      let prefix = list.reverse(rev_prefix)
+      modify_at_path(root, prefix, fn(parent) {
+        case parent {
+          types.ObjectValue(fields) ->
+            types.ObjectValue(list.filter(fields, fn(kv) { kv.0 != name }))
+          other -> other
+        }
+      })
+    }
+    _ -> root
+  }
+}
+
 /// Universal function for modifying a value at a path.
 /// Takes a modifier function that is applied to the target value.
 pub fn modify_at_path(

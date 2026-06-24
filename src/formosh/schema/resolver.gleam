@@ -247,6 +247,7 @@ fn merge_render_hints(
 ) -> types.RenderHints {
   types.RenderHints(
     widget: option.or(referencing.widget, referenced.widget),
+    options: referencing.options,
     upload_config: option.or(
       referencing.upload_config,
       referenced.upload_config,

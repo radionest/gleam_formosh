@@ -3,15 +3,16 @@
 import formosh/ffi/image_upload as image_upload_ffi
 import formosh/form/json_utils
 import formosh/form/model.{
-  type FormModel, type FormMsg, AddArrayItemPath, CustomSubmit, FileUploadError,
-  FileUploading, FormSubmit, FormSubmitted, HttpSubmit, MoveArrayItemPath,
-  NoSubmit, RemoveArrayItemPath, ResetForm, SubmissionError, SubmissionSuccess,
-  UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
+  type FormModel, type FormMsg, AddArrayItemPath, ClearFieldPath, CustomSubmit,
+  FileUploadError, FileUploading, FormSubmit, FormSubmitted, HttpSubmit,
+  MoveArrayItemPath, NoSubmit, RemoveArrayItemPath, ResetForm, SubmissionError,
+  SubmissionSuccess, UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
 }
 import formosh/form/path
 import formosh/form/widget_msg.{
-  ImageCompleted, ImageFailed, ImageRemoved, ImageRequested, ImageStarted,
-  ImageUpload,
+  DragCancel, DragEnd, DragMove, DragStart, FillRemaining, ImageCompleted,
+  ImageFailed, ImageRemoved, ImageRequested, ImageStarted, ImageUpload,
+  SwipeReview,
 }
 import formosh/schema/conditional_resolver
 import formosh/schema/properties
@@ -59,6 +60,22 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     // Path-based handlers — work directly against the single Value tree.
     UpdateFieldPath(field_path, value) -> {
       let new_values = path.set_at_path(model.values, field_path, value)
+      let resolved_schema =
+        conditional_resolver.resolve_recursive(model.schema, new_values)
+      let touched_model = model.mark_field_touched(model, field_path)
+      let new_model =
+        model.FormModel(
+          ..touched_model,
+          values: new_values,
+          resolved_schema: resolved_schema,
+          is_dirty: True,
+        )
+      let validated_model = validate_all_fields(new_model)
+      #(validated_model, effect.none())
+    }
+
+    ClearFieldPath(field_path) -> {
+      let new_values = path.remove_at_path(model.values, field_path)
       let resolved_schema =
         conditional_resolver.resolve_recursive(model.schema, new_values)
       let touched_model = model.mark_field_touched(model, field_path)
@@ -184,7 +201,92 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 
     WidgetEvent(ImageUpload(image_event)) ->
       handle_image_upload_event(model, image_event)
+
+    WidgetEvent(SwipeReview(swipe_event)) ->
+      handle_swipe_review_event(model, swipe_event)
   }
+}
+
+/// Handle swipe-review widget events: bulk-finish plus the live drag lifecycle
+/// (start / move / end / cancel). Drag start/move/cancel only mutate the
+/// transient `swipe_drag` state; an answer is committed only on a release past
+/// threshold (or via bulk-finish).
+fn handle_swipe_review_event(
+  model: FormModel,
+  event: widget_msg.SwipeReviewEvent,
+) -> #(FormModel, Effect(FormMsg)) {
+  case event {
+    FillRemaining(paths, code) -> #(
+      apply_answers(model, list.map(paths, fn(p) { #(p, code) })),
+      effect.none(),
+    )
+
+    DragStart(path, start_x, pos_code, neg_code, threshold) -> {
+      let drag =
+        model.SwipeDrag(path, start_x, 0.0, pos_code, neg_code, threshold)
+      #(model.FormModel(..model, swipe_drag: Some(drag)), effect.none())
+    }
+
+    DragMove(x) ->
+      case model.swipe_drag {
+        Some(d) -> #(
+          model.FormModel(
+            ..model,
+            swipe_drag: Some(model.SwipeDrag(..d, dx: x -. d.start_x)),
+          ),
+          effect.none(),
+        )
+        None -> #(model, effect.none())
+      }
+
+    DragEnd ->
+      case model.swipe_drag {
+        Some(d) -> {
+          let cleared = model.FormModel(..model, swipe_drag: None)
+          case d.dx >=. d.threshold, d.dx <=. 0.0 -. d.threshold {
+            True, _ -> #(
+              apply_answers(cleared, [#(d.path, d.pos_code)]),
+              effect.none(),
+            )
+            _, True -> #(
+              apply_answers(cleared, [#(d.path, d.neg_code)]),
+              effect.none(),
+            )
+            _, _ -> #(cleared, effect.none())
+          }
+        }
+        None -> #(model, effect.none())
+      }
+
+    DragCancel -> #(model.FormModel(..model, swipe_drag: None), effect.none())
+  }
+}
+
+/// Set each `#(path, code)` zone answer, re-resolve conditionals, mark the
+/// paths touched, and re-validate — the shared commit path for bulk-finish and
+/// a past-threshold swipe release.
+fn apply_answers(
+  model: FormModel,
+  answers: List(#(path.FieldPath, String)),
+) -> FormModel {
+  let new_values =
+    list.fold(answers, model.values, fn(acc, pair) {
+      path.set_at_path(acc, pair.0, types.StringValue(pair.1))
+    })
+  let resolved_schema =
+    conditional_resolver.resolve_recursive(model.schema, new_values)
+  let touched_model =
+    list.fold(answers, model, fn(m, pair) {
+      model.mark_field_touched(m, pair.0)
+    })
+  let new_model =
+    model.FormModel(
+      ..touched_model,
+      values: new_values,
+      resolved_schema: resolved_schema,
+      is_dirty: True,
+    )
+  validate_all_fields(new_model)
 }
 
 /// Handle the image-upload widget lifecycle events.

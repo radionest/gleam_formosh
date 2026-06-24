@@ -16,6 +16,7 @@ import formosh/fields/image_field
 import formosh/fields/number_field
 import formosh/fields/object_field
 import formosh/fields/string_field
+import formosh/fields/swipe_review_field
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
 import formosh/schema/types
@@ -73,6 +74,7 @@ fn render_widget(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
       }
       image_field.render(ctx, upload_states, model.upload_base_url)
     }
+    Some(types.SwipeReviewWidget) -> swipe_review_field.render(ctx, model)
     _ ->
       case ctx.property.field_type {
         Some(types.StringType) -> string_field.render(ctx)

@@ -587,6 +587,7 @@ fn widget_decoder() -> Decoder(types.Widget) {
     case raw {
       "image-upload" -> decode.success(types.ImageUploadWidget)
       "hidden" -> decode.success(types.HiddenWidget)
+      "swipe-review" -> decode.success(types.SwipeReviewWidget)
       _ -> decode.success(types.CustomWidget(raw))
     }
   })

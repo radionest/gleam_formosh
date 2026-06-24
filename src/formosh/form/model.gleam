@@ -2,7 +2,9 @@
 
 import formosh/form/defaults
 import formosh/form/path.{type FieldPath}
-import formosh/form/widget_msg.{type ImageUploadEvent, type WidgetMsg}
+import formosh/form/widget_msg.{
+  type ImageUploadEvent, type SwipeReviewEvent, type WidgetMsg,
+}
 import formosh/schema/properties
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ObjectValue,
@@ -75,6 +77,8 @@ pub type FormModel {
     // `read-only` attribute. Distinct from `show_readonly_fields`, which
     // only toggles visibility of schema `readOnly` fields in edit mode.
     read_only: Bool,
+    // Transient swipe-review drag state (None unless a row is being dragged).
+    swipe_drag: Option(SwipeDrag),
   )
 }
 
@@ -82,6 +86,21 @@ pub type FormModel {
 pub type FileUploadState {
   FileUploading(temp_id: String, preview_url: String)
   FileUploadError(temp_id: String, error: String)
+}
+
+/// Transient state of an in-progress horizontal swipe on a swipe-review zone
+/// row. Held on the model only while a drag is active; cleared on release.
+/// `dx` is the live offset (current pointer X minus `start_x`); a release with
+/// `dx >= threshold` commits `pos_code`, `dx <= -threshold` commits `neg_code`.
+pub type SwipeDrag {
+  SwipeDrag(
+    path: FieldPath,
+    start_x: Float,
+    dx: Float,
+    pos_code: String,
+    neg_code: String,
+    threshold: Float,
+  )
 }
 
 /// Result of a form submission attempt.
@@ -101,6 +120,7 @@ pub type SubmissionResult {
 pub type FormMsg {
   // Path-based operations (simplified approach)
   UpdateFieldPath(path: FieldPath, value: Value)
+  ClearFieldPath(path: FieldPath)
   AddArrayItemPath(path: FieldPath)
   RemoveArrayItemPath(path: FieldPath, index: Int)
   MoveArrayItemPath(path: FieldPath, from_index: Int, to_index: Int)
@@ -123,6 +143,12 @@ pub type FormMsg {
 /// `WidgetEvent(ImageUpload(...))` wrapper at emission sites.
 pub fn image_msg(event: ImageUploadEvent) -> FormMsg {
   WidgetEvent(widget_msg.ImageUpload(event))
+}
+
+/// Build a `FormMsg` from a `SwipeReviewEvent` — collapses the
+/// `WidgetEvent(SwipeReview(...))` wrapper at emission sites.
+pub fn swipe_msg(event: SwipeReviewEvent) -> FormMsg {
+  WidgetEvent(widget_msg.SwipeReview(event))
 }
 
 /// Initialize a new form model from a JSON Schema.
@@ -214,6 +240,7 @@ pub fn init_with_full_config(
     ui_schema: ui_schema,
     validator: option.None,
     read_only: False,
+    swipe_drag: option.None,
   )
 }
 
@@ -291,6 +318,7 @@ pub fn reset(model: FormModel) -> FormModel {
     ui_schema: model.ui_schema,
     validator: model.validator,
     read_only: model.read_only,
+    swipe_drag: option.None,
   )
 }
 
