@@ -378,8 +378,7 @@
         }
         formosh-form::part(label) { font-weight: 600; font-size: 0.92rem; color: var(--ink); }
         formosh-form::part(required) { color: var(--magenta); margin-left: 3px; }
-        formosh-form::part(help),
-        formosh-form::part(description) { font-size: 0.82rem; color: var(--muted); }
+        formosh-form::part(help) { font-size: 0.82rem; color: var(--muted); }
 
         formosh-form::part(input),
         formosh-form::part(textarea),
@@ -466,6 +465,7 @@
 
         /* arrays (these elements carry plain classes, not parts) */
         .array-items { display: flex; flex-direction: column; gap: 12px; }
+        .array-item-fields { display: flex; flex-direction: column; gap: 16px; }
         .array-item {
             padding: clamp(12px, 3vw, 16px);
             background: var(--surface-2);

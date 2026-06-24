@@ -164,30 +164,28 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
 fn view(model: Model) -> Element(Msg) {
   html.div([attribute.class("page")], [
     masthead(),
-    html.div([attribute.class("content")], [
-      html.section([attribute.class("catalogue")], [
-        section_head("Schema catalogue", schema_count(model.available_schemas)),
-        html.div(
-          [attribute.class("schema-list")],
-          list.map(model.available_schemas, fn(filename) {
-            schema_chip(filename, is_selected(model, filename))
-          }),
-        ),
-      ]),
-      case model.error {
-        Some(error) ->
-          html.div([attribute.class("error-message")], [
-            html.span([attribute.class("error-mark")], [html.text("!")]),
-            html.span([], [html.text(error)]),
-          ])
-        None -> element.none()
-      },
-      case model.submission_result {
-        Some(result) -> submission_banner(result)
-        None -> element.none()
-      },
-      form_section(model),
+    html.section([], [
+      section_head("Schema catalogue", schema_count(model.available_schemas)),
+      html.div(
+        [attribute.class("schema-list")],
+        list.map(model.available_schemas, fn(filename) {
+          schema_chip(filename, is_selected(model, filename))
+        }),
+      ),
     ]),
+    case model.error {
+      Some(error) ->
+        html.div([attribute.class("error-message")], [
+          html.span([attribute.class("error-mark")], [html.text("!")]),
+          html.span([], [html.text(error)]),
+        ])
+      None -> element.none()
+    },
+    case model.submission_result {
+      Some(result) -> submission_banner(result)
+      None -> element.none()
+    },
+    form_section(model),
   ])
 }
 
