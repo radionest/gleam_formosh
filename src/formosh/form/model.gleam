@@ -230,6 +230,7 @@ pub fn init_with_full_config(
   let initial_value = ObjectValue(dict.to_list(initial_values))
   let values_with_defaults =
     defaults.apply_schema_defaults(schema.properties, initial_value)
+    |> defaults.ensure_min_items(schema.properties, _)
   FormModel(
     schema: schema,
     resolved_schema: schema,
@@ -313,7 +314,8 @@ pub fn reset(model: FormModel) -> FormModel {
     values: defaults.apply_schema_defaults(
       model.schema.properties,
       ObjectValue([]),
-    ),
+    )
+      |> defaults.ensure_min_items(model.schema.properties, _),
     errors: dict.new(),
     is_submitting: False,
     is_dirty: False,

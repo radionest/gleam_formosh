@@ -331,3 +331,79 @@ pub fn add_item_to_conditional_array_carries_defaults_test() {
     Ok(types.ObjectValue([#("diffuse", types.BooleanValue(False))])),
   )
 }
+
+// --- Reconcile: auto-created rows ---------------------------------------------
+
+pub fn init_tops_up_min_items_array_test() {
+  let assert Ok(schema) = parser.parse_schema(tags_schema)
+  let m = model.init(schema)
+  let assert Some(types.ArrayValue(rows)) =
+    path.get_at_path(m.values, [PropertySegment("tags")])
+  list.length(rows) |> should.equal(2)
+  // And the topped-up array is valid — no minItems error on init.
+  dict.has_key(m.errors, "tags") |> should.be_false()
+}
+
+pub fn reset_tops_up_min_items_array_test() {
+  let assert Ok(schema) = parser.parse_schema(tags_schema)
+  let m = model.reset(model.init(schema))
+  let assert Some(types.ArrayValue(rows)) =
+    path.get_at_path(m.values, [PropertySegment("tags")])
+  list.length(rows) |> should.equal(2)
+}
+
+pub fn update_reveals_and_tops_up_conditional_array_test() {
+  let assert Ok(schema) = parser.parse_schema(zones_schema)
+  let m = model.init(schema)
+  let #(m1, _) =
+    update.update(m, model.AddArrayItemPath([PropertySegment("zones")]))
+  // No lesions before the condition fires.
+  path.get_at_path(m1.values, [
+    PropertySegment("zones"),
+    ArraySegment(0),
+    PropertySegment("lesions"),
+  ])
+  |> should.equal(None)
+
+  let #(m2, _) =
+    update.update(
+      m1,
+      model.UpdateFieldPath(
+        [
+          PropertySegment("zones"),
+          ArraySegment(0),
+          PropertySegment("affected"),
+        ],
+        types.BooleanValue(True),
+      ),
+    )
+  // affected == true reveals lesions; reconcile auto-creates one row with
+  // the diffuse=false default applied.
+  path.get_at_path(m2.values, [
+    PropertySegment("zones"),
+    ArraySegment(0),
+    PropertySegment("lesions"),
+  ])
+  |> should.equal(
+    Some(
+      types.ArrayValue([
+        types.ObjectValue([#("diffuse", types.BooleanValue(False))]),
+      ]),
+    ),
+  )
+  // The auto-created row satisfies minItems — no error on the array.
+  dict.has_key(m2.errors, "zones.[0].lesions") |> should.be_false()
+}
+
+pub fn remove_below_min_is_not_fought_test() {
+  // External removal below minItems: reconcile does not run on remove;
+  // validation reports the violation instead.
+  let assert Ok(schema) = parser.parse_schema(tags_schema)
+  let m = model.init(schema)
+  let #(m1, _) =
+    update.update(m, model.RemoveArrayItemPath([PropertySegment("tags")], 0))
+  let assert Some(types.ArrayValue(rows)) =
+    path.get_at_path(m1.values, [PropertySegment("tags")])
+  list.length(rows) |> should.equal(1)
+  dict.has_key(m1.errors, "tags") |> should.be_true()
+}

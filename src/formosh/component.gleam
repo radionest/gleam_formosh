@@ -2,6 +2,7 @@
 // This module provides a Lustre component that can be embedded in applications
 // with configurable submission endpoint and other properties.
 
+import formosh/form/defaults
 import formosh/form/json_utils
 import formosh/form/model.{
   type FormModel, type FormMsg, FormModel, FormSubmit, FormSubmitted, HttpSubmit,
@@ -316,12 +317,17 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
       model.initial_values,
       model.ui_schema,
     )
-  // Resolve conditional schema (if/then/else) based on initial values
+  // Resolve conditional schema (if/then/else) based on initial values,
+  // then top up arrays revealed by those values (a single pass: appending
+  // rows can never flip a condition — the matcher compares scalars).
   let resolved_schema =
     conditional_resolver.resolve_recursive(schema, form_model.values)
+  let reconciled_values =
+    defaults.ensure_min_items(resolved_schema.properties, form_model.values)
   let form_model_resolved =
     FormModel(
       ..form_model,
+      values: reconciled_values,
       resolved_schema: resolved_schema,
       upload_base_url: model.upload_base_url,
       validator: model.validator,
