@@ -75,6 +75,15 @@ pub type NumberConstraints {
   )
 }
 
+/// Validation constraints for array fields.
+///
+/// These constraints correspond to JSON Schema array validation rules
+/// (`minItems` / `maxItems`) and drive length validation, add/remove
+/// button gating, and auto-created rows.
+pub type ArrayConstraints {
+  ArrayConstraints(min_items: Option(Int), max_items: Option(Int))
+}
+
 /// Upload configuration from x- extension fields.
 pub type UploadConfig {
   UploadConfig(accept: String, max_file_size: Option(Int))
@@ -140,6 +149,8 @@ pub type SchemaProperty {
     // Type-specific constraints
     string_constraints: Option(StringConstraints),
     number_constraints: Option(NumberConstraints),
+    // Array length constraints (minItems / maxItems)
+    array_constraints: Option(ArrayConstraints),
     // For array types
     items: Option(SchemaProperty),
     // For object types.
@@ -278,6 +289,7 @@ pub fn empty_property() -> SchemaProperty {
     ref: None,
     string_constraints: None,
     number_constraints: None,
+    array_constraints: None,
     items: None,
     properties: None,
     required: [],
