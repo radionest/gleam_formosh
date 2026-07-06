@@ -66,6 +66,7 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
   // schema with a `<basename>.ui.json` to show UiSchema-driven rendering.
   let schemas = [
     "carcinomatosis_review.json",
+    "carcinomatosis_radiology.json",
     "widgets_demo.json",
     "contact_form.json",
     "survey_form.json",
@@ -290,7 +291,11 @@ fn form_section(model: Model) -> Element(Msg) {
           html.div([attribute.id("form-mount-point")], [
             element.element(
               "formosh-form",
-              form_attributes(schema_json, model.ui_schema_content),
+              form_attributes(
+                schema_json,
+                model.ui_schema_content,
+                model.selected_schema,
+              ),
               [],
             ),
           ]),
@@ -348,6 +353,7 @@ fn placeholder(message: String) -> Element(Msg) {
 fn form_attributes(
   schema_json: String,
   ui_schema: Option(String),
+  filename: Option(String),
 ) -> List(attribute.Attribute(Msg)) {
   let base = [
     attribute.id(form_element_id),
@@ -356,6 +362,15 @@ fn form_attributes(
     attribute.attribute("submit-method", "POST"),
     event.on("formosh-submit", decode_form_submit()),
   ]
+  // Prefilled readOnly rows (zone number/label) are the whole point of the
+  // radiology schema — force them visible for that demo only.
+  let base = case filename {
+    Some("carcinomatosis_radiology.json") -> [
+      attribute.attribute("show-readonly-fields", "true"),
+      ..base
+    ]
+    _ -> base
+  }
   case ui_schema {
     Some(json) -> [attribute.attribute("ui-schema", json), ..base]
     None -> base
