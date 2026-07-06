@@ -1,6 +1,7 @@
 // Update functions for form MVU
 
 import formosh/ffi/image_upload as image_upload_ffi
+import formosh/form/defaults
 import formosh/form/json_utils
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, ClearFieldPath, CustomSubmit,
@@ -96,12 +97,21 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     }
 
     AddArrayItemPath(field_path) -> {
+      // Build the new row from the item schema so manual rows carry the
+      // same field defaults as auto-created ones. The value-resolved
+      // lookup also finds arrays revealed by per-row conditionals.
+      let new_item = case
+        model.find_resolved_property_at_path(model, field_path)
+      {
+        Ok(prop) ->
+          case prop.items {
+            Some(item_schema) -> defaults.new_array_item(item_schema)
+            None -> types.ObjectValue([])
+          }
+        Error(_) -> types.ObjectValue([])
+      }
       let new_values =
-        path.add_array_item_at_path(
-          model.values,
-          field_path,
-          types.ObjectValue([]),
-        )
+        path.add_array_item_at_path(model.values, field_path, new_item)
       let new_model =
         model.FormModel(..model, values: new_values, is_dirty: True)
       let validated_model = validate_all_fields(new_model)

@@ -3,14 +3,14 @@
 import formosh/fields/field_common
 import formosh/fields/field_dispatcher
 import formosh/form/model.{FormModel}
-import formosh/form/path.{PropertySegment}
+import formosh/form/path.{ArraySegment, PropertySegment}
 import formosh/form/update
 import formosh/schema/parser
 import formosh/schema/types
 import formosh/schema/ui_parser
 import gleam/dict
 import gleam/list
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
 import lustre/element
@@ -262,4 +262,72 @@ pub fn array_container_error_renders_when_touched_test() {
   let html = render_array(m2, "tags")
   string.contains(html, "data-error") |> should.be_true()
   string.contains(html, "At least 2 item(s) required") |> should.be_true()
+}
+
+// --- AddArrayItemPath: manual rows carry item defaults -----------------------
+
+pub fn add_array_item_carries_item_defaults_test() {
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"lesions\": {
+          \"type\": \"array\",
+          \"items\": {
+            \"type\": \"object\",
+            \"properties\": {
+              \"form\": {\"type\": \"string\"},
+              \"diffuse\": {\"type\": \"boolean\", \"default\": false}
+            }
+          }
+        }
+      }
+    }",
+    )
+  let m = model.init(schema)
+  let #(m1, _) =
+    update.update(m, model.AddArrayItemPath([PropertySegment("lesions")]))
+  path.get_at_path(m1.values, [
+    PropertySegment("lesions"),
+    ArraySegment(0),
+    PropertySegment("diffuse"),
+  ])
+  |> should.equal(Some(types.BooleanValue(False)))
+}
+
+pub fn add_item_to_conditional_array_carries_defaults_test() {
+  // The lesions array only exists in the resolved row schema (affected ==
+  // true), so the item template must be found via the value-resolved walk.
+  let assert Ok(schema) = parser.parse_schema(zones_schema)
+  let m = model.init(schema)
+  let #(m1, _) =
+    update.update(m, model.AddArrayItemPath([PropertySegment("zones")]))
+  let #(m2, _) =
+    update.update(
+      m1,
+      model.UpdateFieldPath(
+        [
+          PropertySegment("zones"),
+          ArraySegment(0),
+          PropertySegment("affected"),
+        ],
+        types.BooleanValue(True),
+      ),
+    )
+  let lesions_path = [
+    PropertySegment("zones"),
+    ArraySegment(0),
+    PropertySegment("lesions"),
+  ]
+  let #(m3, _) = update.update(m2, model.AddArrayItemPath(lesions_path))
+
+  // Assert on the LAST row: it is the manually added one both before and
+  // after the reconcile pass (Task 8) starts auto-creating the first row.
+  let assert Some(types.ArrayValue(rows)) =
+    path.get_at_path(m3.values, lesions_path)
+  list.last(rows)
+  |> should.equal(
+    Ok(types.ObjectValue([#("diffuse", types.BooleanValue(False))])),
+  )
 }
