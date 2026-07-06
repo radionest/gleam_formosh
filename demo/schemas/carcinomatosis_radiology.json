@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Карциноматоз: лучевая форма (КТ)",
-  "description": "Очаги (lesions) — вложенный массив внутри строк зон (zones). Поля размера зависят от формы очага: if/then внутри элемента массива.",
+  "description": "Очаги (lesions) появляются только в поражённой зоне: массив внутри then (minItems 1) — первая строка создаётся автоматически. Поля размера зависят от формы очага: if/then внутри элемента массива.",
   "type": "object",
   "required": ["study_type", "zones"],
   "properties": {
@@ -33,94 +33,102 @@
         "properties": {
           "zone_id": { "type": "integer", "title": "№ зоны", "readOnly": true },
           "label": { "type": "string", "title": "Зона", "readOnly": true },
-          "affected": { "type": "boolean", "title": "Поражение в зоне" },
-          "lesions": {
-            "type": "array",
-            "title": "Очаги",
-            "items": { "$ref": "#/$defs/lesion" }
-          }
-        }
-      }
-    }
-  },
-  "$defs": {
-    "lesion": {
-      "type": "object",
-      "title": "Очаг",
-      "required": ["form", "contour"],
-      "properties": {
-        "form": {
-          "type": "string",
-          "title": "Форма",
-          "enum": ["очаг", "кистозный", "утолщение"]
+          "affected": { "type": "boolean", "title": "Поражение в зоне" }
         },
-        "calcinate": { "type": "boolean", "title": "Кальцинат" },
-        "diffuse": {
-          "type": "boolean",
-          "title": "Диффузное поражение (размер не измерим)"
-        },
-        "contour": {
-          "type": "string",
-          "title": "Контур",
-          "enum": ["чёткий", "нечёткий"]
-        },
-        "angular_deformation": {
-          "type": "boolean",
-          "title": "Угловая деформация (брыжейка)"
-        },
-        "stellate": {
-          "type": "boolean",
-          "title": "Звёздчатая деформация (брыжейка)"
-        }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "form": { "enum": ["очаг", "кистозный"] },
-              "diffuse": { "const": false }
-            }
-          },
-          "then": {
-            "properties": {
-              "length_mm": { "type": "number", "title": "Длина, мм", "minimum": 0 },
-              "width_mm": { "type": "number", "title": "Ширина, мм", "minimum": 0 }
-            },
-            "required": ["length_mm", "width_mm"]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "form": { "const": "утолщение" },
-              "diffuse": { "const": false }
-            }
-          },
-          "then": {
-            "properties": {
-              "extent_mm": { "type": "number", "title": "Протяжённость, мм", "minimum": 0 },
-              "thickness_mm": { "type": "number", "title": "Толщина, мм", "minimum": 0 }
-            },
-            "required": ["extent_mm", "thickness_mm"]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "form": { "const": "утолщение" }
-            }
-          },
-          "then": {
-            "properties": {
-              "uniformity": {
-                "type": "string",
-                "title": "Равномерность",
-                "enum": ["равномерное", "узловое"]
+        "allOf": [
+          {
+            "if": { "properties": { "affected": { "const": true } } },
+            "then": {
+              "properties": {
+                "lesions": {
+                  "type": "array",
+                  "title": "Очаги",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "title": "Очаг",
+                    "required": ["form", "contour"],
+                    "properties": {
+                      "form": {
+                        "type": "string",
+                        "title": "Форма",
+                        "enum": ["очаг", "кистозный", "утолщение"]
+                      },
+                      "calcinate": { "type": "boolean", "title": "Кальцинат" },
+                      "diffuse": {
+                        "type": "boolean",
+                        "title": "Диффузное поражение (размер не измерим)",
+                        "default": false
+                      },
+                      "contour": {
+                        "type": "string",
+                        "title": "Контур",
+                        "enum": ["чёткий", "нечёткий"]
+                      },
+                      "angular_deformation": {
+                        "type": "boolean",
+                        "title": "Угловая деформация (брыжейка)"
+                      },
+                      "stellate": {
+                        "type": "boolean",
+                        "title": "Звёздчатая деформация (брыжейка)"
+                      }
+                    },
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "form": { "enum": ["очаг", "кистозный"] },
+                            "diffuse": { "const": false }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "length_mm": { "type": "number", "title": "Длина, мм", "minimum": 0 },
+                            "width_mm": { "type": "number", "title": "Ширина, мм", "minimum": 0 }
+                          },
+                          "required": ["length_mm", "width_mm"]
+                        }
+                      },
+                      {
+                        "if": {
+                          "properties": {
+                            "form": { "const": "утолщение" },
+                            "diffuse": { "const": false }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "extent_mm": { "type": "number", "title": "Протяжённость, мм", "minimum": 0 },
+                            "thickness_mm": { "type": "number", "title": "Толщина, мм", "minimum": 0 }
+                          },
+                          "required": ["extent_mm", "thickness_mm"]
+                        }
+                      },
+                      {
+                        "if": {
+                          "properties": {
+                            "form": { "const": "утолщение" }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "uniformity": {
+                              "type": "string",
+                              "title": "Равномерность",
+                              "enum": ["равномерное", "узловое"]
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
               }
             }
           }
-        }
-      ]
+        ]
+      }
     }
   }
 }
