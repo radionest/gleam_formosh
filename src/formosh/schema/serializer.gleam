@@ -1,14 +1,14 @@
 // JSON Schema serialization functions
 
 import formosh/schema/types.{
-  type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
-  type SchemaProperty, type StringConstraints, type StringFormat,
-  type UploadConfig, type Value, type Widget, ArrayType, ArrayValue, BooleanType,
-  BooleanValue, CustomFormat, CustomWidget, DateFormat, DateTimeFormat,
-  EmailFormat, HiddenWidget, ImageUploadWidget, IntegerType, IntegerValue,
-  NullType, NullValue, NumberType, NumberValue, ObjectType, ObjectValue,
-  StringType, StringValue, SwipeReviewWidget, TimeFormat, UploadConfig,
-  UriFormat, UrlFormat, UuidFormat,
+  type ArrayConstraints, type ConditionalRule, type FieldType, type JsonSchema,
+  type NumberConstraints, type SchemaProperty, type StringConstraints,
+  type StringFormat, type UploadConfig, type Value, type Widget, ArrayType,
+  ArrayValue, BooleanType, BooleanValue, CustomFormat, CustomWidget, DateFormat,
+  DateTimeFormat, EmailFormat, HiddenWidget, ImageUploadWidget, IntegerType,
+  IntegerValue, NullType, NullValue, NumberType, NumberValue, ObjectType,
+  ObjectValue, StringType, StringValue, SwipeReviewWidget, TimeFormat,
+  UploadConfig, UriFormat, UrlFormat, UuidFormat,
 }
 import gleam/dict
 import gleam/json
@@ -208,6 +208,11 @@ fn property_to_json(prop: SchemaProperty) -> json.Json {
     |> option.map(add_number_constraint_fields(fields, _))
     |> option.unwrap(fields)
   }
+  |> fn(fields) {
+    prop.array_constraints
+    |> option.map(add_array_constraint_fields(fields, _))
+    |> option.unwrap(fields)
+  }
   |> add_optional_items(prop.items)
   |> add_optional_properties(prop.properties)
   |> add_required_array(prop.required)
@@ -312,6 +317,16 @@ fn add_number_constraint_fields(
     json.float,
   )
   |> add_optional_json_field("multipleOf", constraints.multiple_of, json.float)
+}
+
+/// Add array constraint fields to a field list.
+fn add_array_constraint_fields(
+  fields: List(#(String, json.Json)),
+  constraints: ArrayConstraints,
+) -> List(#(String, json.Json)) {
+  fields
+  |> add_optional_json_field("minItems", constraints.min_items, json.int)
+  |> add_optional_json_field("maxItems", constraints.max_items, json.int)
 }
 
 /// Convert a Widget variant back to its `x-widget` JSON Schema string.
