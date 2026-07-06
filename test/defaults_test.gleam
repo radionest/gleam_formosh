@@ -1,3 +1,4 @@
+import formosh/form/defaults
 import formosh/form/model
 import formosh/form/path
 import formosh/schema/parser
@@ -6,6 +7,7 @@ import formosh/schema/types.{
 }
 import formosh/schema/ui_schema
 import gleam/dict
+import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
 
@@ -373,4 +375,95 @@ pub fn reset_reapplies_defaults_test() {
   let after_reset = model.reset(m)
   model.get_value_at_path(after_reset, path.from_field_name("is_resected"))
   |> should.equal(Some(BooleanValue(False)))
+}
+
+// --- new_array_item ----------------------------------------------------------
+
+fn item_schema_of(
+  schema_json: String,
+  array_name: String,
+) -> types.SchemaProperty {
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let assert Ok(#(_, prop)) =
+    list.find(schema.properties, fn(entry) { entry.0 == array_name })
+  let assert Some(item_schema) = prop.items
+  item_schema
+}
+
+pub fn new_array_item_object_with_defaults_test() {
+  let item =
+    item_schema_of(
+      "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"lesions\": {
+          \"type\": \"array\",
+          \"items\": {
+            \"type\": \"object\",
+            \"properties\": {
+              \"form\": {\"type\": \"string\"},
+              \"diffuse\": {\"type\": \"boolean\", \"default\": false}
+            }
+          }
+        }
+      }
+    }",
+      "lesions",
+    )
+  defaults.new_array_item(item)
+  |> should.equal(ObjectValue([#("diffuse", BooleanValue(False))]))
+}
+
+pub fn new_array_item_object_without_defaults_test() {
+  let item =
+    item_schema_of(
+      "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"lesions\": {
+          \"type\": \"array\",
+          \"items\": {
+            \"type\": \"object\",
+            \"properties\": {\"form\": {\"type\": \"string\"}}
+          }
+        }
+      }
+    }",
+      "lesions",
+    )
+  defaults.new_array_item(item)
+  |> should.equal(ObjectValue([]))
+}
+
+pub fn new_array_item_scalar_with_default_test() {
+  let item =
+    item_schema_of(
+      "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"tags\": {
+          \"type\": \"array\",
+          \"items\": {\"type\": \"string\", \"default\": \"x\"}
+        }
+      }
+    }",
+      "tags",
+    )
+  defaults.new_array_item(item)
+  |> should.equal(StringValue("x"))
+}
+
+pub fn new_array_item_scalar_without_default_test() {
+  let item =
+    item_schema_of(
+      "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}
+      }
+    }",
+      "tags",
+    )
+  defaults.new_array_item(item)
+  |> should.equal(NullValue)
 }

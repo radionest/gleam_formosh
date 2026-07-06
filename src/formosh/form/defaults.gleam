@@ -140,3 +140,19 @@ fn map_array_item_defaults(
     option.None -> ArrayValue(items)
   }
 }
+
+/// Build a fresh array row from the array's `items` schema: object items
+/// get an `ObjectValue` with field `default`s applied (empty object when
+/// no default exists anywhere), scalar items get their `default` or
+/// `NullValue`. Shared by the add-item handler and `ensure_min_items` so
+/// manual and auto-created rows hydrate identically.
+pub fn new_array_item(item_schema: SchemaProperty) -> Value {
+  case defaults_for_missing(item_schema) {
+    option.Some(v) -> v
+    option.None ->
+      case item_schema.field_type {
+        option.Some(ObjectType) -> ObjectValue([])
+        _ -> NullValue
+      }
+  }
+}
