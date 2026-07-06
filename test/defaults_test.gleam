@@ -467,3 +467,134 @@ pub fn new_array_item_scalar_without_default_test() {
   defaults.new_array_item(item)
   |> should.equal(NullValue)
 }
+
+// --- ensure_min_items --------------------------------------------------------
+
+fn props_of(schema_json: String) -> List(#(String, types.SchemaProperty)) {
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  schema.properties
+}
+
+const min_items_schema = "{
+  \"type\": \"object\",
+  \"properties\": {
+    \"tags\": {
+      \"type\": \"array\",
+      \"minItems\": 2,
+      \"items\": {\"type\": \"string\", \"default\": \"x\"}
+    }
+  }
+}"
+
+const conditional_lesions_schema = "{
+  \"type\": \"object\",
+  \"properties\": {
+    \"zones\": {
+      \"type\": \"array\",
+      \"items\": {
+        \"type\": \"object\",
+        \"properties\": {\"affected\": {\"type\": \"boolean\"}},
+        \"allOf\": [
+          {
+            \"if\": {\"properties\": {\"affected\": {\"const\": true}}},
+            \"then\": {
+              \"properties\": {
+                \"lesions\": {
+                  \"type\": \"array\",
+                  \"minItems\": 1,
+                  \"items\": {
+                    \"type\": \"object\",
+                    \"properties\": {
+                      \"diffuse\": {\"type\": \"boolean\", \"default\": false}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}"
+
+pub fn ensure_min_items_creates_missing_array_test() {
+  defaults.ensure_min_items(props_of(min_items_schema), ObjectValue([]))
+  |> should.equal(
+    ObjectValue([#("tags", ArrayValue([StringValue("x"), StringValue("x")]))]),
+  )
+}
+
+pub fn ensure_min_items_tops_up_partial_array_test() {
+  defaults.ensure_min_items(
+    props_of(min_items_schema),
+    ObjectValue([#("tags", ArrayValue([StringValue("a")]))]),
+  )
+  |> should.equal(
+    ObjectValue([#("tags", ArrayValue([StringValue("a"), StringValue("x")]))]),
+  )
+}
+
+pub fn ensure_min_items_idempotent_test() {
+  let once =
+    defaults.ensure_min_items(props_of(min_items_schema), ObjectValue([]))
+  defaults.ensure_min_items(props_of(min_items_schema), once)
+  |> should.equal(once)
+}
+
+pub fn ensure_min_items_never_removes_surplus_rows_test() {
+  let values =
+    ObjectValue([
+      #(
+        "tags",
+        ArrayValue([StringValue("a"), StringValue("b"), StringValue("c")]),
+      ),
+    ])
+  defaults.ensure_min_items(props_of(min_items_schema), values)
+  |> should.equal(values)
+}
+
+pub fn ensure_min_items_leaves_unconstrained_arrays_test() {
+  let schema =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}
+    }
+  }"
+  defaults.ensure_min_items(props_of(schema), ObjectValue([]))
+  |> should.equal(ObjectValue([]))
+}
+
+pub fn ensure_min_items_creates_conditionally_revealed_array_test() {
+  let values =
+    ObjectValue([
+      #(
+        "zones",
+        ArrayValue([
+          ObjectValue([#("affected", BooleanValue(True))]),
+          ObjectValue([#("affected", BooleanValue(False))]),
+        ]),
+      ),
+    ])
+  let result =
+    defaults.ensure_min_items(props_of(conditional_lesions_schema), values)
+
+  // Row 0 (affected): lesions created with one default-hydrated row.
+  path.get_at_path(result, [
+    path.PropertySegment("zones"),
+    path.ArraySegment(0),
+    path.PropertySegment("lesions"),
+  ])
+  |> should.equal(
+    Some(ArrayValue([ObjectValue([#("diffuse", BooleanValue(False))])])),
+  )
+
+  // Row 1 (not affected): no lesions key at all.
+  path.get_at_path(result, [
+    path.PropertySegment("zones"),
+    path.ArraySegment(1),
+    path.PropertySegment("lesions"),
+  ])
+  |> should.equal(None)
+}
