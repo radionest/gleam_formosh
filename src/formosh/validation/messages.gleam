@@ -20,6 +20,8 @@ pub type ValidationFailure {
   ExclusiveMaximum(max: Float)
   InvalidEnum
   PatternMismatch
+  MinItems(min: Int)
+  MaxItems(max: Int)
 }
 
 /// Render the message text for a validation failure.
@@ -40,6 +42,8 @@ pub fn format(failure: ValidationFailure) -> String {
     ExclusiveMaximum(max) -> "Must be less than " <> float.to_string(max)
     InvalidEnum -> "Value is not one of the allowed options"
     PatternMismatch -> "Does not match the required format"
+    MinItems(min) -> "At least " <> int.to_string(min) <> " item(s) required"
+    MaxItems(max) -> "At most " <> int.to_string(max) <> " item(s) allowed"
   }
 }
 
@@ -61,5 +65,7 @@ pub fn rule_of(failure: ValidationFailure) -> String {
     ExclusiveMaximum(_) -> "exclusiveMaximum"
     InvalidEnum -> "enum"
     PatternMismatch -> "pattern"
+    MinItems(_) -> "minItems"
+    MaxItems(_) -> "maxItems"
   }
 }
