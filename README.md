@@ -177,6 +177,12 @@ component.element([
 }
 ```
 
+`minItems` / `maxItems` bound the row count: the form auto-creates rows (with
+item-field defaults applied) up to `minItems`, hides the remove button when
+shrinking would violate `minItems`, and hides the add button once `maxItems`
+is reached. Violations coming from externally supplied values are reported
+as validation errors on the array itself.
+
 ### Conditional fields (if/then/else)
 
 Fields appear/disappear based on other field values:
@@ -287,19 +293,21 @@ The widget is chosen automatically based on schema:
 ### JSON Schema keywords
 
 - **Types:** `string`, `number`, `integer`, `boolean`, `array`, `object`, `null`
-- **Structure:** `properties`, `items`, `required`, `$defs`/`definitions`, `$ref`
+- **Structure:** `properties`, `items` (objects and arrays nest to any depth, including arrays inside array items), `required`, `$defs`/`definitions`, `$ref`
 - **Metadata:** `title`, `description`, `default`, `readOnly`
 - **Enum:** `enum`, `const` (converted to single-value enum)
 - **Composition:** `oneOf` (with const+title options), `allOf` (for conditional extraction)
 - **Conditional:** `if`/`then`/`else` — fully dynamic, re-evaluated on every field change
 - **String constraints:** `minLength`, `maxLength`, `format` (date, email, url/uri, time, datetime, uuid)
 - **Number constraints:** `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
+- **Array constraints:** `minItems`, `maxItems` — length validation, add/remove button gating, and auto-created rows up to `minItems`
 
 ### Validation
 
 - Required field checks
 - String length bounds (minLength, maxLength)
 - Number bounds (min, max, exclusive, multipleOf)
+- Array length bounds (minItems, maxItems)
 - Basic format validation: email (checks `@` and `.`), url (checks `http(s)://` prefix)
 
 ### Other
@@ -318,13 +326,11 @@ The widget is chosen automatically based on schema:
 - `anyOf` — parsed but not processed
 - `not`
 - `pattern` — stored but regex validation not wired up (no regex library)
-- `minItems`, `maxItems` — array length constraints
 - `additionalProperties`, `patternProperties`
 - `dependencies`, `dependentRequired`, `dependentSchemas`
 - `prefixItems` (tuple validation)
 - `minProperties`, `maxProperties`
 - `discriminator`
-- Nested arrays within objects (shows error message)
 - GET submission method
 - Enum value validation (function stub exists, always passes)
 - RFC-compliant email/URL format validation
