@@ -223,6 +223,14 @@ Also supports multiple conditionals via `allOf`:
 }
 ```
 
+Conditionals compose with array constraints: declare a whole array inside `then`
+with `minItems` to make it appear — pre-populated with its first default-hydrated
+row — only once the condition is met. See
+[`demo/schemas/carcinomatosis_radiology.json`](demo/schemas/carcinomatosis_radiology.json)
+for a worked example (`lesions` appears per-zone when `affected` is true).
+Note: `$ref` is not resolved inside `then`/`else` branches — inline the
+definition there.
+
 ### $ref and $defs
 
 ```json
