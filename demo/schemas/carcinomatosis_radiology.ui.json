@@ -1,0 +1,12 @@
+{
+  "zones": {
+    "ui:addable": false,
+    "ui:removable": false,
+    "ui:orderable": false,
+    "items": {
+      "lesions": {
+        "ui:orderable": false
+      }
+    }
+  }
+}

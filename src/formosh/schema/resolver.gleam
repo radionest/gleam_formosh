@@ -216,6 +216,10 @@ fn merge_properties(
       referencing.number_constraints,
       referenced.number_constraints,
     ),
+    array_constraints: option.or(
+      referencing.array_constraints,
+      referenced.array_constraints,
+    ),
     items: option.or(referencing.items, referenced.items),
     properties: option.or(referencing.properties, referenced.properties),
     required: case referencing.required {

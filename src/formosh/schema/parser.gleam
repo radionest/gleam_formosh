@@ -1,13 +1,14 @@
 import formosh/ffi/dynamic_object
 import formosh/schema/resolver
 import formosh/schema/types.{
-  type ConditionalRule, type FieldType, type JsonSchema, type NumberConstraints,
-  type ParseError, type SchemaProperty, type StringConstraints, type Value,
-  ArrayType, BooleanType, BooleanValue, ConditionalRule, CustomFormat,
-  DecodingError, EmailFormat, IntegerType, IntegerValue, InvalidJson, JsonSchema,
-  NullType, NullValue, NumberConstraints, NumberType, NumberValue, ObjectType,
-  SchemaProperty, StringConstraints, StringType, StringValue, UnexpectedValue,
-  UrlFormat, UuidFormat, empty_property,
+  type ArrayConstraints, type ConditionalRule, type FieldType, type JsonSchema,
+  type NumberConstraints, type ParseError, type SchemaProperty,
+  type StringConstraints, type Value, ArrayConstraints, ArrayType, BooleanType,
+  BooleanValue, ConditionalRule, CustomFormat, DecodingError, EmailFormat,
+  IntegerType, IntegerValue, InvalidJson, JsonSchema, NullType, NullValue,
+  NumberConstraints, NumberType, NumberValue, ObjectType, SchemaProperty,
+  StringConstraints, StringType, StringValue, UnexpectedValue, UrlFormat,
+  UuidFormat, empty_property,
 }
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
@@ -291,6 +292,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // Extract constraints from the dynamic data
   let string_constraints = extract_string_constraints(dynamic_data)
   let number_constraints = extract_number_constraints(dynamic_data)
+  let array_constraints = extract_array_constraints(dynamic_data)
 
   // Extract readOnly annotation
   let read_only = extract_read_only(dynamic_data)
@@ -324,6 +326,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     ref: ref,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
+    array_constraints: array_constraints,
     items: items,
     properties: properties,
     required: required,
@@ -454,6 +457,32 @@ fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
         exclusive_maximum: exclusive_maximum,
         multiple_of: multiple_of,
       ))
+  }
+}
+
+/// Extract array validation constraints (minItems / maxItems) from
+/// dynamic JSON data.
+///
+/// ## Returns
+/// - `Some(ArrayConstraints)` if any constraint was found
+/// - `None` if neither keyword is present
+fn extract_array_constraints(data: Dynamic) -> Option(ArrayConstraints) {
+  let min_items =
+    decode.run(data, decode.at(["minItems"], decode.int))
+    |> option.from_result()
+
+  let max_items =
+    decode.run(data, decode.at(["maxItems"], decode.int))
+    |> option.from_result()
+
+  case min_items, max_items {
+    None, None -> None
+    // minItems > maxItems is unsatisfiable; normalize so minItems wins —
+    // otherwise the reconcile pass tops the array up past maxItems and
+    // wedges the form (both buttons hidden, submit permanently blocked).
+    Some(min), Some(max) if min > max ->
+      Some(ArrayConstraints(min_items: Some(min), max_items: Some(min)))
+    _, _ -> Some(ArrayConstraints(min_items: min_items, max_items: max_items))
   }
 }
 

@@ -5,8 +5,9 @@
 //// applied at init and reset time; once the user starts editing, conditional
 //// branches and array items hydrate without re-running this pass.
 
+import formosh/schema/conditional_resolver
 import formosh/schema/types.{
-  type SchemaProperty, type Value, ArrayValue, NullValue, ObjectType,
+  type SchemaProperty, type Value, ArrayType, ArrayValue, NullValue, ObjectType,
   ObjectValue,
 }
 import gleam/list
@@ -138,5 +139,131 @@ fn map_array_item_defaults(
         }),
       )
     option.None -> ArrayValue(items)
+  }
+}
+
+/// Build a fresh array row from the array's `items` schema: object items
+/// get an `ObjectValue` with field `default`s applied (empty object when
+/// no default exists anywhere), scalar items get their `default` or
+/// `NullValue`. Shared by the add-item handler and `ensure_min_items` so
+/// manual and auto-created rows hydrate identically.
+pub fn new_array_item(item_schema: SchemaProperty) -> Value {
+  case defaults_for_missing(item_schema) {
+    option.Some(v) -> v
+    option.None ->
+      case item_schema.field_type {
+        option.Some(ObjectType) -> ObjectValue([])
+        _ -> NullValue
+      }
+  }
+}
+
+/// Top up every array in the value tree to its `minItems` row count,
+/// walking values in parallel with the (resolved-)schema `properties`.
+/// At each array row the item schema is re-resolved against the row's
+/// own values (mirroring the validator and renderer), so arrays revealed
+/// by per-row `if/then` conditionals are created too.
+///
+/// Idempotent. Never removes surplus rows and never mutates existing
+/// rows — it only appends `new_array_item` rows, and creates the array
+/// value itself when a `minItems > 0` array has no value yet. Same root
+/// invariant as `apply_schema_defaults`: the form root is one ObjectValue.
+pub fn ensure_min_items(
+  properties: List(#(String, SchemaProperty)),
+  values: Value,
+) -> Value {
+  let assert ObjectValue(fields) = values
+  ObjectValue(ensure_fields(properties, fields))
+}
+
+// Fold the declared properties over the current fields; undeclared keys
+// pass through untouched, keys are only (re)written when the subtree
+// walk produced a value.
+fn ensure_fields(
+  properties: List(#(String, SchemaProperty)),
+  fields: List(#(String, Value)),
+) -> List(#(String, Value)) {
+  list.fold(properties, fields, fn(acc, pair) {
+    let #(name, property) = pair
+    let current = option.from_result(list.key_find(acc, name))
+    case ensure_property(property, current) {
+      option.Some(new_value) -> list.key_set(acc, name, new_value)
+      option.None -> acc
+    }
+  })
+}
+
+// None = leave the key alone (absent keys stay absent); Some = write.
+fn ensure_property(
+  property: SchemaProperty,
+  current: option.Option(Value),
+) -> option.Option(Value) {
+  case property.field_type {
+    option.Some(ArrayType) -> ensure_array(property, current)
+    option.Some(ObjectType) ->
+      case current, property.properties {
+        option.Some(ObjectValue(fields)), option.Some(sub_props) ->
+          option.Some(ObjectValue(ensure_fields(sub_props, fields)))
+        _, _ -> option.None
+      }
+    _ -> option.None
+  }
+}
+
+fn ensure_array(
+  property: SchemaProperty,
+  current: option.Option(Value),
+) -> option.Option(Value) {
+  case property.items {
+    option.None -> option.None
+    option.Some(item_schema) -> {
+      let existing = case current {
+        option.Some(ArrayValue(items)) -> items
+        _ -> []
+      }
+      let walked = list.map(existing, ensure_row(item_schema, _))
+      let min = case property.array_constraints {
+        option.Some(c) -> option.unwrap(c.min_items, 0)
+        option.None -> 0
+      }
+      let missing = min - list.length(walked)
+      let topped = case missing > 0 {
+        True ->
+          list.append(
+            walked,
+            list.repeat(
+              ensure_row(item_schema, new_array_item(item_schema)),
+              missing,
+            ),
+          )
+        False -> walked
+      }
+      case current {
+        // An existing array is rewritten (row walk may have topped up
+        // nested arrays); a missing/non-array value is only created when
+        // minItems actually demands rows.
+        option.Some(ArrayValue(_)) -> option.Some(ArrayValue(topped))
+        _ ->
+          case topped {
+            [] -> option.None
+            _ -> option.Some(ArrayValue(topped))
+          }
+      }
+    }
+  }
+}
+
+// Walk one array row: resolve the item schema against the row's own
+// values, then recurse into the row's fields so nested arrays (including
+// conditionally revealed ones) are topped up too. Fresh rows built by
+// `new_array_item` go through the same walk, so defaults that satisfy a
+// condition immediately hydrate what the condition reveals.
+fn ensure_row(item_schema: SchemaProperty, row: Value) -> Value {
+  let resolved =
+    conditional_resolver.resolve_conditional_property(item_schema, row)
+  case row, resolved.properties {
+    ObjectValue(fields), option.Some(sub_props) ->
+      ObjectValue(ensure_fields(sub_props, fields))
+    _, _ -> row
   }
 }

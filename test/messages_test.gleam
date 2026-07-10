@@ -60,3 +60,23 @@ pub fn pattern_mismatch_rule_test() {
   messages.rule_of(messages.PatternMismatch)
   |> should.equal("pattern")
 }
+
+pub fn min_items_format_test() {
+  messages.format(messages.MinItems(2))
+  |> should.equal("At least 2 item(s) required")
+}
+
+pub fn min_items_rule_test() {
+  messages.rule_of(messages.MinItems(2))
+  |> should.equal("minItems")
+}
+
+pub fn max_items_format_test() {
+  messages.format(messages.MaxItems(5))
+  |> should.equal("At most 5 item(s) allowed")
+}
+
+pub fn max_items_rule_test() {
+  messages.rule_of(messages.MaxItems(5))
+  |> should.equal("maxItems")
+}

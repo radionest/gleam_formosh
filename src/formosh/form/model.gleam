@@ -5,6 +5,7 @@ import formosh/form/path.{type FieldPath}
 import formosh/form/widget_msg.{
   type ExitDir, type ImageUploadEvent, type SwipeReviewEvent, type WidgetMsg,
 }
+import formosh/schema/conditional_resolver
 import formosh/schema/properties
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ObjectValue,
@@ -229,6 +230,7 @@ pub fn init_with_full_config(
   let initial_value = ObjectValue(dict.to_list(initial_values))
   let values_with_defaults =
     defaults.apply_schema_defaults(schema.properties, initial_value)
+    |> defaults.ensure_min_items(schema.properties, _)
   FormModel(
     schema: schema,
     resolved_schema: schema,
@@ -312,7 +314,8 @@ pub fn reset(model: FormModel) -> FormModel {
     values: defaults.apply_schema_defaults(
       model.schema.properties,
       ObjectValue([]),
-    ),
+    )
+      |> defaults.ensure_min_items(model.schema.properties, _),
     errors: dict.new(),
     is_submitting: False,
     is_dirty: False,
@@ -486,6 +489,78 @@ fn walk_into_property(
       case property.items {
         option.Some(items_schema) ->
           walk_into_property(items_schema, rest_after_array)
+        option.None -> Error(Nil)
+      }
+  }
+}
+
+/// Like `find_property_at_path`, but resolves item-level conditionals
+/// against the actual row values while crossing each `ArraySegment`, so
+/// properties revealed by per-row `if/then` (e.g. a conditional nested
+/// array) are found. Falls back to the unresolved item schema when the
+/// row value is absent.
+pub fn find_resolved_property_at_path(
+  model: FormModel,
+  field_path: FieldPath,
+) -> Result(SchemaProperty, Nil) {
+  lookup_property_resolved(
+    model.resolved_schema.properties,
+    option.Some(model.values),
+    field_path,
+  )
+}
+
+fn lookup_property_resolved(
+  props: List(#(String, SchemaProperty)),
+  value: Option(Value),
+  field_path: FieldPath,
+) -> Result(SchemaProperty, Nil) {
+  case field_path {
+    [path.PropertySegment(name), ..rest] ->
+      case properties.get(props, name) {
+        option.Some(prop) -> {
+          let child_value = case value {
+            option.Some(ObjectValue(fields)) ->
+              option.from_result(list.key_find(fields, name))
+            _ -> option.None
+          }
+          walk_into_property_resolved(prop, child_value, rest)
+        }
+        option.None -> Error(Nil)
+      }
+    _ -> Error(Nil)
+  }
+}
+
+fn walk_into_property_resolved(
+  property: SchemaProperty,
+  value: Option(Value),
+  rest: FieldPath,
+) -> Result(SchemaProperty, Nil) {
+  case rest {
+    [] -> Ok(property)
+    [path.PropertySegment(_), ..] ->
+      case property.properties {
+        option.Some(sub) -> lookup_property_resolved(sub, value, rest)
+        option.None -> Error(Nil)
+      }
+    [path.ArraySegment(index), ..rest_after_array] ->
+      case property.items {
+        option.Some(items_schema) -> {
+          let row_value = case value {
+            option.Some(v) -> path.get_at_path(v, [path.ArraySegment(index)])
+            option.None -> option.None
+          }
+          let resolved = case row_value {
+            option.Some(row) ->
+              conditional_resolver.resolve_conditional_property(
+                items_schema,
+                row,
+              )
+            option.None -> items_schema
+          }
+          walk_into_property_resolved(resolved, row_value, rest_after_array)
+        }
         option.None -> Error(Nil)
       }
   }

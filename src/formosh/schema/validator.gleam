@@ -422,6 +422,41 @@ fn validate_resolved_props(
   }
 }
 
+/// Validate an array's length against its `minItems`/`maxItems` constraints.
+///
+/// Mirrors JSON Schema semantics: the check only applies when the value
+/// actually is an array. Absent values are the `required` rule's territory.
+/// The error is keyed at the array's own path (the container node).
+fn validate_array_length(
+  field_path: FieldPath,
+  constraints: Option(types.ArrayConstraints),
+  value: Option(Value),
+) -> List(ValidationError) {
+  case constraints, value {
+    Some(c), Some(ArrayValue(items)) -> {
+      let count = list.length(items)
+      let min_errors = case c.min_items {
+        Some(min) ->
+          case count < min {
+            True -> [error.from_failure(field_path, messages.MinItems(min))]
+            False -> []
+          }
+        None -> []
+      }
+      let max_errors = case c.max_items {
+        Some(max) ->
+          case count > max {
+            True -> [error.from_failure(field_path, messages.MaxItems(max))]
+            False -> []
+          }
+        None -> []
+      }
+      list.append(min_errors, max_errors)
+    }
+    _, _ -> []
+  }
+}
+
 /// Recurse into nested object/array structures and collect their errors.
 pub fn validate_nested(
   prefix: FieldPath,
@@ -431,8 +466,13 @@ pub fn validate_nested(
   case field_prop.field_type, field_prop.items {
     Some(types.ArrayType), Some(item_subschema) -> {
       let av = option.unwrap(field_value, NullValue)
-      validate_array_items(prefix, item_subschema, av)
+      list.append(
+        validate_array_length(prefix, field_prop.array_constraints, field_value),
+        validate_array_items(prefix, item_subschema, av),
+      )
     }
+    Some(types.ArrayType), None ->
+      validate_array_length(prefix, field_prop.array_constraints, field_value)
     Some(types.ObjectType), _ ->
       case field_value {
         Some(ObjectValue(fields)) ->

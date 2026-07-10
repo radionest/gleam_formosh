@@ -16,6 +16,10 @@ demo/priv/
 # Dev notes (centralized storage via symlink)
 dev-notes
 
+# Superpowers session artifacts (plans, specs, SDD briefs/reports/diffs)
+.superpowers/
+docs/superpowers/
+
 # Claude Code local settings
 .claude/settings.local.json
 .claude/worktrees/

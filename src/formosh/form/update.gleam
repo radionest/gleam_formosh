@@ -1,6 +1,7 @@
 // Update functions for form MVU
 
 import formosh/ffi/image_upload as image_upload_ffi
+import formosh/form/defaults
 import formosh/form/json_utils
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, ClearFieldPath, CustomSubmit,
@@ -62,11 +63,13 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       let new_values = path.set_at_path(model.values, field_path, value)
       let resolved_schema =
         conditional_resolver.resolve_recursive(model.schema, new_values)
+      let reconciled_values =
+        defaults.ensure_min_items(resolved_schema.properties, new_values)
       let touched_model = model.mark_field_touched(model, field_path)
       let new_model =
         model.FormModel(
           ..touched_model,
-          values: new_values,
+          values: reconciled_values,
           resolved_schema: resolved_schema,
           is_dirty: True,
         )
@@ -78,11 +81,13 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       let new_values = path.remove_at_path(model.values, field_path)
       let resolved_schema =
         conditional_resolver.resolve_recursive(model.schema, new_values)
+      let reconciled_values =
+        defaults.ensure_min_items(resolved_schema.properties, new_values)
       let touched_model = model.mark_field_touched(model, field_path)
       let new_model =
         model.FormModel(
           ..touched_model,
-          values: new_values,
+          values: reconciled_values,
           resolved_schema: resolved_schema,
           is_dirty: True,
           // Re-opening a zone (swipe-review undo / summary correction) cancels
@@ -96,14 +101,25 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     }
 
     AddArrayItemPath(field_path) -> {
+      // Build the new row from the item schema so manual rows carry the
+      // same field defaults as auto-created ones. The value-resolved
+      // lookup also finds arrays revealed by per-row conditionals.
+      let new_item = case
+        model.find_resolved_property_at_path(model, field_path)
+      {
+        Ok(prop) ->
+          case prop.items {
+            Some(item_schema) -> defaults.new_array_item(item_schema)
+            None -> types.ObjectValue([])
+          }
+        Error(_) -> types.ObjectValue([])
+      }
       let new_values =
-        path.add_array_item_at_path(
-          model.values,
-          field_path,
-          types.ObjectValue([]),
-        )
+        path.add_array_item_at_path(model.values, field_path, new_item)
+      let reconciled_values =
+        defaults.ensure_min_items(model.resolved_schema.properties, new_values)
       let new_model =
-        model.FormModel(..model, values: new_values, is_dirty: True)
+        model.FormModel(..model, values: reconciled_values, is_dirty: True)
       let validated_model = validate_all_fields(new_model)
       #(validated_model, effect.none())
     }
@@ -297,6 +313,8 @@ fn apply_answers(
     })
   let resolved_schema =
     conditional_resolver.resolve_recursive(model.schema, new_values)
+  let reconciled_values =
+    defaults.ensure_min_items(resolved_schema.properties, new_values)
   let touched_model =
     list.fold(answers, model, fn(m, pair) {
       model.mark_field_touched(m, pair.0)
@@ -304,7 +322,7 @@ fn apply_answers(
   let new_model =
     model.FormModel(
       ..touched_model,
-      values: new_values,
+      values: reconciled_values,
       resolved_schema: resolved_schema,
       is_dirty: True,
     )

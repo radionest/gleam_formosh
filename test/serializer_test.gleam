@@ -884,3 +884,47 @@ pub fn no_widget_no_x_fields_serialized_test() {
   |> string.contains("x-max-file-size")
   |> should.be_false()
 }
+
+pub fn serialize_array_constraints_test() {
+  let schema =
+    JsonSchema(
+      title: None,
+      description: None,
+      field_type: ObjectType,
+      properties: [
+        #(
+          "tags",
+          SchemaProperty(
+            ..empty_property(),
+            field_type: Some(ArrayType),
+            array_constraints: Some(types.ArrayConstraints(
+              min_items: Some(1),
+              max_items: Some(5),
+            )),
+            items: Some(
+              SchemaProperty(..empty_property(), field_type: Some(StringType)),
+            ),
+          ),
+        ),
+      ],
+      required: [],
+      defs: None,
+      conditionals: [],
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  let json_string = json.to_string(serializer.schema_to_json(schema))
+
+  json_string |> string.contains("\"minItems\":1") |> should.be_true()
+  json_string |> string.contains("\"maxItems\":5") |> should.be_true()
+}
+
+pub fn array_constraints_round_trip_test() {
+  let json_input =
+    "{\"type\": \"object\", \"properties\": {\"tags\": {\"type\": \"array\", \"minItems\": 2, \"maxItems\": 4, \"items\": {\"type\": \"string\"}}}}"
+  let assert Ok(schema) = parser.parse_schema(json_input)
+  let json_string = json.to_string(serializer.schema_to_json(schema))
+  json_string |> string.contains("\"minItems\":2") |> should.be_true()
+  json_string |> string.contains("\"maxItems\":4") |> should.be_true()
+}

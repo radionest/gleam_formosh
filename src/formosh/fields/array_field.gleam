@@ -45,13 +45,25 @@ pub fn render_container(
     None -> []
   }
 
+  let count = list.length(items)
+  let #(min_items, max_items) = case ctx.property.array_constraints {
+    Some(c) -> #(option.unwrap(c.min_items, 0), c.max_items)
+    None -> #(0, None)
+  }
+
   // `resolve_hints` always wraps `addable`/`removable` in `Some`
   // (UiSchema override or `SchemaProperty.addable` Bool fallback), so the
   // outer `option.unwrap` default below is just a defensive no-op.
-  let addable = option.unwrap(ctx.hints.addable, True)
-  let removable = option.unwrap(ctx.hints.removable, True)
+  // minItems/maxItems gate on top: the add button is hidden once the array
+  // is full, per-row remove is hidden once shrinking would violate minItems.
+  let addable =
+    option.unwrap(ctx.hints.addable, True)
+    && case max_items {
+      Some(max) -> count < max
+      None -> True
+    }
+  let removable = option.unwrap(ctx.hints.removable, True) && count > min_items
   let orderable = option.unwrap(ctx.hints.orderable, True)
-  let count = list.length(items)
 
   html.div([class("array-field")], [
     field_common.render_container_label(

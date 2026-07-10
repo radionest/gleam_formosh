@@ -595,3 +595,80 @@ pub fn union_type_null_only_resolves_to_null_type_test() {
   let assert Ok(prop) = list.key_find(schema.properties, "nothing")
   should.equal(prop.field_type, Some(types.NullType))
 }
+
+pub fn array_constraints_parsed_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"tags\": {
+        \"type\": \"array\",
+        \"minItems\": 1,
+        \"maxItems\": 5,
+        \"items\": {\"type\": \"string\"}
+      }
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(#(_, tags)) =
+    list.find(schema.properties, fn(entry) { entry.0 == "tags" })
+  tags.array_constraints
+  |> should.equal(
+    Some(types.ArrayConstraints(min_items: Some(1), max_items: Some(5))),
+  )
+}
+
+pub fn array_constraints_min_only_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"tags\": {\"type\": \"array\", \"minItems\": 2, \"items\": {\"type\": \"string\"}}
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(#(_, tags)) =
+    list.find(schema.properties, fn(entry) { entry.0 == "tags" })
+  tags.array_constraints
+  |> should.equal(
+    Some(types.ArrayConstraints(min_items: Some(2), max_items: None)),
+  )
+}
+
+pub fn array_constraints_absent_is_none_test() {
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(#(_, tags)) =
+    list.find(schema.properties, fn(entry) { entry.0 == "tags" })
+  tags.array_constraints |> should.equal(None)
+}
+
+pub fn array_constraints_min_above_max_normalizes_test() {
+  // minItems > maxItems is unsatisfiable; the parser normalizes it so
+  // minItems wins — otherwise reconcile tops the array up past maxItems
+  // and wedges the form (both buttons hidden, submit blocked).
+  let json =
+    "{
+    \"type\": \"object\",
+    \"properties\": {
+      \"tags\": {\"type\": \"array\", \"minItems\": 3, \"maxItems\": 1, \"items\": {\"type\": \"string\"}}
+    }
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(#(_, tags)) =
+    list.find(schema.properties, fn(entry) { entry.0 == "tags" })
+  tags.array_constraints
+  |> should.equal(
+    Some(types.ArrayConstraints(min_items: Some(3), max_items: Some(3))),
+  )
+}

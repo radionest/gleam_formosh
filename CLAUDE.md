@@ -77,6 +77,7 @@ Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segme
 - **Paths**: Always use `path.gleam` utilities for nested fields, never string concatenation
 - **Validation timing**: Check `touched_fields` before displaying errors
 - **Array indexing**: Reindex array fields after any add/remove operation
+- **Array reconcile (`defaults.ensure_min_items`)**: runs after every values recompute that precedes validation — init, reset, `UpdateFieldPath`, `ClearFieldPath`, `AddArrayItemPath`, `apply_answers`, component re-init — topping arrays up to `minItems`. Deliberately NOT run on `RemoveArrayItemPath`/`MoveArrayItemPath` or in `ValidateForm` (don't fight the user; validation reports under-min instead). New values-recompute paths must call it too
 - **Circular $refs**: Resolver maintains visited set — do not bypass it
 - **View refactors**: Required-asterisk (` *` with `class="required"`) and error wrappers are easy to drop when unifying renderers. Use `field_common.render_required_marker` and let the field dispatcher own error display — re-render the marker explicitly per container, not «implicitly via the parent»
 
