@@ -30,3 +30,9 @@ pub fn from_failure(
     rule: messages.rule_of(failure),
   )
 }
+
+/// True for array-length errors (`minItems`/`maxItems`). The rule strings
+/// mirror `messages.rule_of` by construction.
+pub fn is_array_length(error: ValidationError) -> Bool {
+  error.rule == "minItems" || error.rule == "maxItems"
+}

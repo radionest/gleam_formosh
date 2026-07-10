@@ -199,7 +199,7 @@ pub fn conditional_min_items_no_error_when_hidden_test() {
 
 // --- Rendering: button gating ------------------------------------------------
 
-fn render_array(m: model.FormModel, field_name: String) -> String {
+fn render_field(m: model.FormModel, field_name: String) -> String {
   let assert Ok(prop) =
     model.find_property_at_path(m, [PropertySegment(field_name)])
   let ctx =
@@ -222,25 +222,25 @@ fn tags_values(tags: List(String)) -> types.Value {
 
 pub fn add_button_hidden_at_max_items_test() {
   let m = model_with_values(tags_schema, tags_values(["a", "b", "c"]))
-  string.contains(render_array(m, "tags"), "add-array-item")
+  string.contains(render_field(m, "tags"), "add-array-item")
   |> should.be_false()
 }
 
 pub fn add_button_visible_below_max_items_test() {
   let m = model_with_values(tags_schema, tags_values(["a", "b"]))
-  string.contains(render_array(m, "tags"), "add-array-item")
+  string.contains(render_field(m, "tags"), "add-array-item")
   |> should.be_true()
 }
 
 pub fn remove_button_hidden_at_min_items_test() {
   let m = model_with_values(tags_schema, tags_values(["a", "b"]))
-  string.contains(render_array(m, "tags"), "remove-array-item")
+  string.contains(render_field(m, "tags"), "remove-array-item")
   |> should.be_false()
 }
 
 pub fn remove_button_visible_above_min_items_test() {
   let m = model_with_values(tags_schema, tags_values(["a", "b", "c"]))
-  string.contains(render_array(m, "tags"), "remove-array-item")
+  string.contains(render_field(m, "tags"), "remove-array-item")
   |> should.be_true()
 }
 
@@ -250,18 +250,46 @@ pub fn ui_removable_false_composes_with_min_items_test() {
   let assert Ok(ui) = ui_parser.parse("{\"tags\": {\"ui:removable\": false}}")
   let m0 = model.init_with_full_config(schema, None, False, dict.new(), ui)
   let m = FormModel(..m0, values: tags_values(["a", "b", "c"]))
-  string.contains(render_array(m, "tags"), "remove-array-item")
+  string.contains(render_field(m, "tags"), "remove-array-item")
   |> should.be_false()
 }
 
-// Errors keyed to the array container render through the standard
-// touched-gated error wrapper (no extra code — regression guard).
+// Errors keyed to the array container render through the standard error
+// wrapper on the touched path (regression guard).
 pub fn array_container_error_renders_when_touched_test() {
   let m = model_with_values(tags_schema, tags_values(["a"]))
   let m2 = model.mark_field_touched(m, [PropertySegment("tags")])
-  let html = render_array(m2, "tags")
+  let html = render_field(m2, "tags")
   string.contains(html, "data-error") |> should.be_true()
   string.contains(html, "At least 2 item(s) required") |> should.be_true()
+}
+
+// Length errors bypass the touched gate: add/remove gating makes min/max
+// violations unreachable through the UI, so they only ever arrive with
+// externally injected values — where the error text is the only visible
+// explanation for a disabled submit button.
+pub fn array_length_error_renders_without_touch_test() {
+  let m = model_with_values(tags_schema, tags_values(["a", "b", "c", "d"]))
+  let html = render_field(m, "tags")
+  string.contains(html, "data-error") |> should.be_true()
+  string.contains(html, "At most 3 item(s) allowed") |> should.be_true()
+}
+
+pub fn non_length_errors_stay_touch_gated_test() {
+  // The bypass is scoped to minItems/maxItems — other rules still wait
+  // for the field to be touched.
+  let m =
+    model_with_values(
+      "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"name\": {\"type\": \"string\", \"minLength\": 5}
+      }
+    }",
+      types.ObjectValue([#("name", types.StringValue("ab"))]),
+    )
+  dict.has_key(m.errors, "name") |> should.be_true()
+  string.contains(render_field(m, "name"), "data-error") |> should.be_false()
 }
 
 // --- AddArrayItemPath: manual rows carry item defaults -----------------------
@@ -393,6 +421,54 @@ pub fn update_reveals_and_tops_up_conditional_array_test() {
   )
   // The auto-created row satisfies minItems — no error on the array.
   dict.has_key(m2.errors, "zones.[0].lesions") |> should.be_false()
+}
+
+pub fn min_above_max_does_not_wedge_form_test() {
+  // minItems > maxItems is normalized at parse time (minItems wins):
+  // reconcile tops up to 3 rows, no maxItems violation, and the array
+  // renders as fixed-size instead of wedging the form.
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"tags\": {
+          \"type\": \"array\",
+          \"minItems\": 3,
+          \"maxItems\": 1,
+          \"items\": {\"type\": \"string\"}
+        }
+      }
+    }",
+    )
+  let m = model.init(schema)
+  let assert Some(types.ArrayValue(rows)) =
+    path.get_at_path(m.values, [PropertySegment("tags")])
+  list.length(rows) |> should.equal(3)
+  let #(m2, _) = update.update(m, model.ValidateForm)
+  dict.has_key(m2.errors, "tags") |> should.be_false()
+  let html = render_field(m2, "tags")
+  string.contains(html, "add-array-item") |> should.be_false()
+  string.contains(html, "remove-array-item") |> should.be_false()
+}
+
+pub fn min_items_zero_creates_no_rows_test() {
+  // minItems: 0 is a real value, not "absent": no top-up, no array
+  // materialization at init, and an absent array is not a length error.
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"tags\": {\"type\": \"array\", \"minItems\": 0, \"maxItems\": 2, \"items\": {\"type\": \"string\"}}
+      }
+    }",
+    )
+  let m = model.init(schema)
+  path.get_at_path(m.values, [PropertySegment("tags")])
+  |> should.equal(None)
+  let #(m2, _) = update.update(m, model.ValidateForm)
+  dict.has_key(m2.errors, "tags") |> should.be_false()
 }
 
 pub fn remove_below_min_is_not_fought_test() {

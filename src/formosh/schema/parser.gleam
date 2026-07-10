@@ -477,6 +477,11 @@ fn extract_array_constraints(data: Dynamic) -> Option(ArrayConstraints) {
 
   case min_items, max_items {
     None, None -> None
+    // minItems > maxItems is unsatisfiable; normalize so minItems wins —
+    // otherwise the reconcile pass tops the array up past maxItems and
+    // wedges the form (both buttons hidden, submit permanently blocked).
+    Some(min), Some(max) if min > max ->
+      Some(ArrayConstraints(min_items: Some(min), max_items: Some(min)))
     _, _ -> Some(ArrayConstraints(min_items: min_items, max_items: max_items))
   }
 }

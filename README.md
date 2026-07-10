@@ -181,7 +181,12 @@ component.element([
 item-field defaults applied) up to `minItems`, hides the remove button when
 shrinking would violate `minItems`, and hides the add button once `maxItems`
 is reached. Violations coming from externally supplied values are reported
-as validation errors on the array itself.
+as validation errors on the array itself and are always visible (they skip
+the usual touched gate — button gating means they can never be caused by
+form interaction, so the message is the only explanation for a blocked
+submit). A schema with `minItems > maxItems` (unsatisfiable) is normalized
+at parse time so `minItems` wins: the array renders as fixed-size at
+`minItems` rows.
 
 ### Conditional fields (if/then/else)
 

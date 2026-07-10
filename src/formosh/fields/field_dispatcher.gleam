@@ -51,17 +51,18 @@ pub fn render_field_at_path(
 fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   let is_touched = model.is_field_touched(model, ctx.path)
   let errors = model.get_errors_at_path(model, ctx.path)
-  let has_errors = errors != []
+  // Array-length errors bypass the touched gate: add/remove gating makes
+  // them unreachable through the UI, so they only arise from externally
+  // injected values — where they are the only visible explanation for a
+  // blocked submit.
+  let visible_errors = case is_touched {
+    True -> errors
+    False -> list.filter(errors, error.is_array_length)
+  }
 
   let field_element = render_widget(ctx, model)
 
-  wrap_with_errors(
-    field_element,
-    errors,
-    is_touched,
-    has_errors,
-    ctx.is_readonly,
-  )
+  wrap_with_errors(field_element, visible_errors, ctx.is_readonly)
 }
 
 fn render_widget(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
@@ -97,11 +98,9 @@ fn render_widget(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
 fn wrap_with_errors(
   field_element: Element(FormMsg),
   errors: List(ValidationError),
-  is_touched: Bool,
-  has_errors: Bool,
   is_readonly: Bool,
 ) -> Element(FormMsg) {
-  let show_error = has_errors && is_touched
+  let show_error = errors != []
   let base_attrs = [
     attribute.class("formosh-field"),
     attribute.attribute("part", "field"),

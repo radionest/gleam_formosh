@@ -17,12 +17,16 @@ model.errors : Dict(String, List(ValidationError))
    ▼
 model.touched_fields : List(FieldPath)
    │   gate: errors stay hidden until the field is touched.
+   │   exception: array-length errors (minItems/maxItems) always render —
+   │   add/remove button gating makes them unreachable via the UI, so they
+   │   only come from externally injected values, where the message is the
+   │   only explanation for a blocked submit (error.is_array_length).
    │   set by model.mark_field_touched/2 — called from update.gleam on
-   │   field change/blur, and bulk-set on submit.
+   │   field change/blur and on swipe-review answer commits.
    ▼
 field_dispatcher.gleam : applies the gate
-   │   `case has_errors && is_touched -> render_field_errors(errors)`
-   │   (see field_dispatcher.gleam:198)
+   │   touched fields render all their errors; untouched fields render
+   │   only those passing `error.is_array_length` (see render_visible)
    ▼
 field_common.render_field_errors(errors: List(ValidationError))
    pure formatter — receives a pre-filtered error list, no gating logic
@@ -35,9 +39,10 @@ field_common.render_field_errors(errors: List(ValidationError))
   `formosh/path_format.gleam`.
 - The touched-gate lives in `field_dispatcher.gleam`, not in
   `field_common.render_field_errors`. The latter is a pure formatter that
-  trusts its caller. Never call it without first checking
-  `model.is_field_touched(field_path)` and `get_errors_at_path` —
-  otherwise errors leak on untouched fields.
+  trusts its caller. Never call it with an unfiltered error list — gate on
+  `model.is_field_touched(field_path)` (the dispatcher's length-error
+  bypass is the one sanctioned exception), otherwise errors leak on
+  untouched fields.
 - Add/clear errors via `model.{add_error_at_path, clear_errors_at_path}`,
   not by rebuilding the Dict manually — `is_valid` is derived from dict size.
 - `mark_field_touched` lives in `update.gleam`, not in field renderers —
