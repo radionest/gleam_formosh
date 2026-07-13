@@ -1,5 +1,6 @@
 // Update functions for form MVU
 
+import formosh/ffi/console
 import formosh/ffi/image_upload as image_upload_ffi
 import formosh/form/defaults
 import formosh/form/json_utils
@@ -181,9 +182,10 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 
           #(submitting_model, submit_effect)
         }
-        False -> {
-          #(validated_model, effect.none())
-        }
+        False -> #(
+          validated_model,
+          warn_only_hidden_blocks_effect(validated_model),
+        )
       }
     }
 
@@ -606,6 +608,67 @@ fn serialize_values(m: FormModel) -> String {
   m.values
   |> json_utils.value_to_json
   |> json.to_string
+}
+
+/// Diagnostic effect for the strict submit gate: when the only blocking
+/// errors are on UI-suppressed paths, the user sees a disabled submit
+/// button with no associated message anywhere on the page. Emit a single
+/// `console.warn` listing the offending paths so the developer can locate
+/// the schema bug (typically a hidden / readOnly-suppressed field that is
+/// `required` but has no `default` and no programmatic value).
+///
+/// Called from two sites. The primary one is `component`'s form
+/// (re)initialisation: the submit button is rendered `disabled` whenever
+/// `!can_submit`, so a hidden-only block disables it from the first render
+/// and `FormSubmit` is never dispatched. The warn therefore has to fire when
+/// the blocked state is *entered* (init / re-init), not on a click that can
+/// never happen. It is also emitted from the `FormSubmit` handler for
+/// headless embeddings that dispatch `FormSubmit` directly against
+/// `model.init` (no disabled-button gate in front of it).
+///
+/// Fires only when `is_valid_for_submit` holds (every visible error clear)
+/// and the hidden-error slice is non-empty, so a `default` that satisfies
+/// the required field — applied before `validate_all_fields` — keeps the
+/// warn silent on the happy path.
+///
+/// Polymorphic in the message type (`Effect(a)`): the effect never
+/// dispatches, so it slots into both the component's `Effect(Msg)` and the
+/// form's `Effect(FormMsg)`. Wrapping `console.warn` in an `Effect` keeps the
+/// update function pure. The visibility walker runs at most once — its result
+/// is shared between the permissive-gate check and the hidden-error slice via
+/// the `_with` model helpers.
+pub fn warn_only_hidden_blocks_effect(model: FormModel) -> Effect(a) {
+  let invisible = model.invisible_paths(model)
+  case model.is_valid_for_submit_with(model, invisible) {
+    False -> effect.none()
+    True -> {
+      let hidden = model.hidden_errors_with(model, invisible)
+      case dict.is_empty(hidden) {
+        True -> effect.none()
+        False -> {
+          let message = format_hidden_errors_warning(hidden)
+          effect.from(fn(_dispatch) { console.warn(message) })
+        }
+      }
+    }
+  }
+}
+
+fn format_hidden_errors_warning(
+  hidden: dict.Dict(String, List(error.ValidationError)),
+) -> String {
+  let lines =
+    hidden
+    |> dict.to_list
+    |> list.flat_map(fn(entry) {
+      let #(path_key, errors) = entry
+      list.map(errors, fn(err) { "  - " <> path_key <> ": " <> err.message })
+    })
+  "[formosh] Submit blocked by errors on UI-suppressed fields:\n"
+  <> string.join(lines, "\n")
+  <> "\nThese paths are hidden (`x-widget`/`ui:widget: \"hidden\"`) or"
+  <> " readOnly with `show_readonly_fields: false`. Supply a JSON Schema"
+  <> " `default`, set the value programmatically, or drop `required`."
 }
 
 /// Create an effect for form submission.

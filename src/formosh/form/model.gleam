@@ -2,6 +2,7 @@
 
 import formosh/form/defaults
 import formosh/form/path.{type FieldPath}
+import formosh/form/visibility
 import formosh/form/widget_msg.{
   type ExitDir, type ImageUploadEvent, type SwipeReviewEvent, type WidgetMsg,
 }
@@ -16,6 +17,7 @@ import formosh/validation/error.{type ValidationError}
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option}
+import gleam/set.{type Set}
 
 /// Configuration for form submission behavior.
 /// 
@@ -633,6 +635,11 @@ pub fn clear_errors_at_path(
 /// currently being submitted. `is_dirty` is **not** checked — a form with
 /// valid defaults can be submitted without any user interaction.
 ///
+/// Strict gate: any error blocks submit, including errors on UI-suppressed
+/// paths (`x-widget: "hidden"`, `readOnly` with `show_readonly_fields:
+/// False`). Callers that want a permissive variant — ignoring errors a user
+/// cannot see — should consult `is_valid_for_submit` instead.
+///
 /// ## Parameters
 /// - `model`: The form model to check
 ///
@@ -640,4 +647,72 @@ pub fn clear_errors_at_path(
 /// True if the form can be submitted, False otherwise
 pub fn can_submit(model: FormModel) -> Bool {
   model.is_valid && !model.is_submitting
+}
+
+/// Compute the set of canonical path keys whose fields are suppressed from
+/// the UI for the current `resolved_schema` / `ui_schema` / `values`.
+///
+/// Delegates to `visibility.invisible_paths`. Computed on demand — there is
+/// no cached field on `FormModel`. When a single code path needs both
+/// `is_valid_for_submit` and `hidden_errors` (as
+/// `update.warn_only_hidden_blocks_effect` does), call this once and feed the
+/// result to `is_valid_for_submit_with` / `hidden_errors_with` to avoid
+/// walking the schema twice.
+pub fn invisible_paths(model: FormModel) -> Set(String) {
+  visibility.invisible_paths(
+    model.resolved_schema,
+    model.ui_schema,
+    model.values,
+    model.show_readonly_fields,
+  )
+}
+
+/// Errors keyed by canonical path that fall on UI-suppressed fields.
+///
+/// Formats the diagnostic `console.warn` for a submit blocked solely by
+/// required-errors a user cannot address. The submit flow itself calls
+/// `hidden_errors_with` (sharing one walker pass with `is_valid_for_submit_with`
+/// inside `update.warn_only_hidden_blocks_effect`); this standalone variant
+/// computes its own invisible-paths set for external callers.
+pub fn hidden_errors(model: FormModel) -> Dict(String, List(ValidationError)) {
+  hidden_errors_with(model, invisible_paths(model))
+}
+
+/// Variant of `hidden_errors` that takes a pre-computed invisible-paths set.
+///
+/// Use this when both `is_valid_for_submit_with` and `hidden_errors_with`
+/// are called in the same flow — share one walker invocation between them.
+pub fn hidden_errors_with(
+  model: FormModel,
+  invisible: Set(String),
+) -> Dict(String, List(ValidationError)) {
+  dict.filter(model.errors, fn(key, _errors) { set.contains(invisible, key) })
+}
+
+/// Permissive submit gate — `True` when every error a user can see is clear.
+///
+/// Errors on UI-suppressed paths are ignored. This is the opt-in alternative
+/// to `can_submit` for callers who want submit to proceed when the only
+/// remaining blockers are out of reach for the user (e.g. backend supplies
+/// the hidden value, not the JSON Schema).
+pub fn is_valid_for_submit(model: FormModel) -> Bool {
+  is_valid_for_submit_with(model, invisible_paths(model))
+}
+
+/// Variant of `is_valid_for_submit` that takes a pre-computed invisible
+/// paths set. See `hidden_errors_with`.
+pub fn is_valid_for_submit_with(
+  model: FormModel,
+  invisible: Set(String),
+) -> Bool {
+  case model.is_submitting {
+    True -> False
+    False -> {
+      let visible_errors =
+        dict.filter(model.errors, fn(key, _errors) {
+          !set.contains(invisible, key)
+        })
+      dict.is_empty(visible_errors)
+    }
+  }
 }
