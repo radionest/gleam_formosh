@@ -617,17 +617,27 @@ fn serialize_values(m: FormModel) -> String {
 /// the schema bug (typically a hidden / readOnly-suppressed field that is
 /// `required` but has no `default` and no programmatic value).
 ///
-/// Runs after `validate_all_fields`, which runs after schema defaults are
-/// applied at `init_with_full_config`: a `default` that satisfies the
-/// required field clears the error before the gate is checked, so the warn
-/// stays silent for the happy path.
+/// Called from two sites. The primary one is `component`'s form
+/// (re)initialisation: the submit button is rendered `disabled` whenever
+/// `!can_submit`, so a hidden-only block disables it from the first render
+/// and `FormSubmit` is never dispatched. The warn therefore has to fire when
+/// the blocked state is *entered* (init / re-init), not on a click that can
+/// never happen. It is also emitted from the `FormSubmit` handler for
+/// headless embeddings that dispatch `FormSubmit` directly against
+/// `model.init` (no disabled-button gate in front of it).
 ///
-/// Wraps the `console.warn` call in an `Effect` so the update function
-/// remains pure — matches the rest of the MVU pipeline (`submit_form_effect`
-/// etc.). The visibility walker runs at most once: its result is shared
-/// between the permissive-gate check and the hidden-error slice via the
-/// `_with` model helpers.
-fn warn_only_hidden_blocks_effect(model: FormModel) -> Effect(FormMsg) {
+/// Fires only when `is_valid_for_submit` holds (every visible error clear)
+/// and the hidden-error slice is non-empty, so a `default` that satisfies
+/// the required field — applied before `validate_all_fields` — keeps the
+/// warn silent on the happy path.
+///
+/// Polymorphic in the message type (`Effect(a)`): the effect never
+/// dispatches, so it slots into both the component's `Effect(Msg)` and the
+/// form's `Effect(FormMsg)`. Wrapping `console.warn` in an `Effect` keeps the
+/// update function pure. The visibility walker runs at most once — its result
+/// is shared between the permissive-gate check and the hidden-error slice via
+/// the `_with` model helpers.
+pub fn warn_only_hidden_blocks_effect(model: FormModel) -> Effect(a) {
   let invisible = model.invisible_paths(model)
   case model.is_valid_for_submit_with(model, invisible) {
     False -> effect.none()

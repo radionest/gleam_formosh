@@ -5,6 +5,7 @@
 /// are used by `model.is_valid_for_submit` / `model.hidden_errors` to decide
 /// whether a blocked submit is caused only by errors a user cannot see.
 import formosh/form/visibility
+import formosh/schema/conditional_resolver
 import formosh/schema/types
 import formosh/schema/ui_schema
 import gleam/option.{None, Some}
@@ -301,4 +302,78 @@ pub fn ui_schema_readonly_suppressed_test() {
       False,
     )
   result |> should.equal(set.from_list(["x"]))
+}
+
+// A conditional that reveals a hidden field flips the invisible set. The
+// walker holds no state of its own — it reads whatever `resolved_schema` the
+// update loop hands it — so running it against the resolved schema for each
+// branch is what proves an if/then/else switch changes visibility (issue #23
+// requirement 4). `resolve_recursive` is the same entry the update loop calls
+// on every value change.
+pub fn conditional_branch_flips_visibility_test() {
+  let if_condition =
+    types.SchemaProperty(
+      ..types.empty_property(),
+      properties: Some([
+        #(
+          "trigger",
+          types.SchemaProperty(
+            ..types.empty_property(),
+            enum_values: Some([types.StringValue("yes")]),
+          ),
+        ),
+      ]),
+    )
+  let then_schema =
+    types.SchemaProperty(
+      ..types.empty_property(),
+      properties: Some([#("secret", hidden_string_prop())]),
+    )
+  let schema =
+    types.JsonSchema(
+      ..schema_with([#("trigger", string_prop())], []),
+      conditionals: [
+        types.ConditionalRule(
+          if_schema: if_condition,
+          then_schema: Some(then_schema),
+          else_schema: None,
+        ),
+      ],
+    )
+
+  // Branch active: `secret` is added to the resolved schema and hidden.
+  let on_values = types.ObjectValue([#("trigger", types.StringValue("yes"))])
+  conditional_resolver.resolve_recursive(schema, on_values)
+  |> visibility.invisible_paths(ui_schema.empty_ui_schema(), on_values, False)
+  |> should.equal(set.from_list(["secret"]))
+
+  // Branch inactive: `secret` is absent from the resolved schema — nothing
+  // is suppressed.
+  let off_values = types.ObjectValue([#("trigger", types.StringValue("no"))])
+  conditional_resolver.resolve_recursive(schema, off_values)
+  |> visibility.invisible_paths(ui_schema.empty_ui_schema(), off_values, False)
+  |> should.equal(set.new())
+}
+
+// `CustomWidget("Hidden")` — the typo case for `x-widget: "hidden"` — is a
+// registered custom widget, not suppression. It renders normally and must
+// stay out of the invisible set: only the `HiddenWidget` enum value hides
+// (issue #23 requirement 6).
+pub fn custom_widget_is_not_hidden_test() {
+  let typo =
+    types.SchemaProperty(
+      ..string_prop(),
+      render_hints: types.RenderHints(
+        ..types.empty_hints(),
+        widget: Some(types.CustomWidget("Hidden")),
+      ),
+    )
+  let schema = schema_with([#("x", typo)], ["x"])
+  visibility.invisible_paths(
+    schema,
+    ui_schema.empty_ui_schema(),
+    types.ObjectValue([]),
+    False,
+  )
+  |> should.equal(set.new())
 }

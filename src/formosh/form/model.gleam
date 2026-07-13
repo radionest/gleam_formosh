@@ -654,9 +654,10 @@ pub fn can_submit(model: FormModel) -> Bool {
 ///
 /// Delegates to `visibility.invisible_paths`. Computed on demand — there is
 /// no cached field on `FormModel`. When a single code path needs both
-/// `is_valid_for_submit` and `hidden_errors` (as `update.FormSubmit` does),
-/// call this once and feed the result to `is_valid_for_submit_with` /
-/// `hidden_errors_with` to avoid walking the schema twice.
+/// `is_valid_for_submit` and `hidden_errors` (as
+/// `update.warn_only_hidden_blocks_effect` does), call this once and feed the
+/// result to `is_valid_for_submit_with` / `hidden_errors_with` to avoid
+/// walking the schema twice.
 pub fn invisible_paths(model: FormModel) -> Set(String) {
   visibility.invisible_paths(
     model.resolved_schema,
@@ -668,8 +669,11 @@ pub fn invisible_paths(model: FormModel) -> Set(String) {
 
 /// Errors keyed by canonical path that fall on UI-suppressed fields.
 ///
-/// Used by `update.FormSubmit` to format the diagnostic `console.warn` when
-/// a submit is blocked solely by required-errors a user cannot address.
+/// Formats the diagnostic `console.warn` for a submit blocked solely by
+/// required-errors a user cannot address. The submit flow itself calls
+/// `hidden_errors_with` (sharing one walker pass with `is_valid_for_submit_with`
+/// inside `update.warn_only_hidden_blocks_effect`); this standalone variant
+/// computes its own invisible-paths set for external callers.
 pub fn hidden_errors(model: FormModel) -> Dict(String, List(ValidationError)) {
   hidden_errors_with(model, invisible_paths(model))
 }

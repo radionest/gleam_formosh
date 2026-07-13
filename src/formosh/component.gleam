@@ -338,6 +338,19 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
   Model(..model, form_model: Some(validated_form))
 }
 
+/// Diagnostic warn for a form that (re)initialised into the "blocked only by
+/// hidden errors" state (see `update.warn_only_hidden_blocks_effect`). The
+/// submit button is disabled from the first render in that state, so
+/// `FormSubmit` never fires — the warn has to be emitted here, where the
+/// fresh `validate_all_fields` of `reinitialize_form_with_schema` just ran,
+/// rather than from the submit handler.
+fn hidden_blocks_warn(model: Model) -> Effect(Msg) {
+  case model.form_model {
+    Some(form_model) -> update.warn_only_hidden_blocks_effect(form_model)
+    None -> effect.none()
+  }
+}
+
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     SchemaChanged(schema) -> {
@@ -345,13 +358,17 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       let new_model = reinitialize_form_with_schema(model, schema)
       #(
         new_model,
-        // Emit a ready event to notify parent
-        event.emit(
-          "formosh-ready",
-          json.object([
-            #("schema", json.string("loaded")),
-          ]),
-        ),
+        effect.batch([
+          // Emit a ready event to notify parent
+          event.emit(
+            "formosh-ready",
+            json.object([
+              #("schema", json.string("loaded")),
+            ]),
+          ),
+          // Diagnose a form that loaded already blocked by hidden-field errors.
+          hidden_blocks_warn(new_model),
+        ]),
       )
     }
 
@@ -390,7 +407,8 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           reinitialize_form_with_schema(new_model, form_model.schema)
         None -> new_model
       }
-      #(final_model, effect.none())
+      // New initial values can introduce or clear hidden-field errors.
+      #(final_model, hidden_blocks_warn(final_model))
     }
 
     ShowReadonlyFieldsChanged(show) -> {
@@ -400,7 +418,8 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           reinitialize_form_with_schema(new_model, form_model.schema)
         None -> new_model
       }
-      #(final_model, effect.none())
+      // Toggling show=false can newly suppress a readOnly required field.
+      #(final_model, hidden_blocks_warn(final_model))
     }
 
     ReadOnlyChanged(read_only) -> {
