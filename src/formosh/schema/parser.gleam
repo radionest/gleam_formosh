@@ -1,4 +1,5 @@
 import formosh/ffi/dynamic_object
+import formosh/schema/composer
 import formosh/schema/resolver
 import formosh/schema/types.{
   type ArrayConstraints, type ConditionalRule, type FieldType, type JsonSchema,
@@ -55,9 +56,11 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
     }),
   )
 
-  // Resolve all $ref references in the schema
+  // Resolve all $ref references in the schema, then flatten allOf
+  // composition members into plain merged keywords.
   parsed_schema
   |> resolver.resolve_refs()
+  |> result.map(composer.flatten_schema)
   |> result.map_error(fn(error) {
     case error {
       resolver.ReferenceNotFound(ref) ->
@@ -114,7 +117,10 @@ fn schema_decoder() -> Decoder(JsonSchema) {
   let number_constraints = extract_number_constraints(dynamic_data)
 
   // Extract conditional rules
-  let conditionals = extract_conditionals(dynamic_data)
+  let conditionals = extract_single_conditional(dynamic_data)
+
+  // Extract allOf composition members
+  let all_of = extract_all_of(dynamic_data)
 
   decode.success(JsonSchema(
     title: title,
@@ -124,7 +130,7 @@ fn schema_decoder() -> Decoder(JsonSchema) {
     required: required,
     defs: defs,
     conditionals: conditionals,
-    all_of: None,
+    all_of: all_of,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
   ))
@@ -311,11 +317,16 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // Extract oneOf composition keyword
   let one_of = extract_one_of(dynamic_data)
 
+  // Extract allOf composition members
+  let all_of = extract_all_of(dynamic_data)
+
   // Extract presentation hints from x- extensions
   let render_hints = extract_render_hints(dynamic_data)
 
-  // Extract property-level conditional rules (if/then/else, allOf)
-  let conditionals = extract_conditionals(dynamic_data)
+  // Extract property-level direct conditional rule (if/then/else). Rules
+  // declared inside allOf members ride on the member schemas and are
+  // lifted to this node by composer.flatten_schema/flatten_property.
+  let conditionals = extract_single_conditional(dynamic_data)
 
   decode.success(SchemaProperty(
     field_type: field_type,
@@ -324,7 +335,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     default: default,
     enum_values: enum_values_with_const,
     one_of: one_of,
-    all_of: None,
+    all_of: all_of,
     ref: ref,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
@@ -370,6 +381,20 @@ fn extract_const_value(data: Dynamic) -> Option(List(Value)) {
 /// - `None` if no oneOf keyword is found
 fn extract_one_of(data: Dynamic) -> Option(List(SchemaProperty)) {
   decode.run(data, decode.at(["oneOf"], decode.list(property_decoder())))
+  |> option.from_result()
+}
+
+/// Extract allOf composition members from dynamic JSON data.
+///
+/// Every member is parsed as an ordinary sub-schema: plain keywords ride on
+/// the member record, a member's own if/then/else lands in the member's
+/// `conditionals`, and a nested allOf recurses into the member's `all_of`.
+/// Members are merged into the parent by `composer.flatten_schema` after
+/// $ref resolution. Lenient like `extract_one_of`: an undecodable member
+/// list (e.g. a boolean schema member) yields `None` and composition is
+/// skipped for this node.
+fn extract_all_of(data: Dynamic) -> Option(List(SchemaProperty)) {
+  decode.run(data, decode.at(["allOf"], decode.list(property_decoder())))
   |> option.from_result()
 }
 
@@ -488,51 +513,12 @@ fn extract_array_constraints(data: Dynamic) -> Option(ArrayConstraints) {
   }
 }
 
-/// Extract conditional rules from a JSON Schema.
+/// Extract a single DIRECT if/then/else conditional from dynamic data.
 ///
-/// Parses if/then/else keywords or allOf array with conditionals to create
-/// conditional rules that can dynamically modify the schema based on runtime values.
-///
-/// Supports both:
-/// - Direct if/then/else at the top level
-/// - allOf array containing multiple if/then/else conditions
-/// Parses if/then/else keywords or allOf array with conditionals to create
-/// conditional rules that can dynamically modify the schema based on runtime values.
-///
-/// Supports both:
-/// - Direct if/then/else at the top level
-/// - allOf array containing multiple if/then/else conditions
-fn extract_conditionals(data: Dynamic) -> List(ConditionalRule) {
-  // First, check if there's an allOf array
-  case decode.run(data, decode.at(["allOf"], decode.list(decode.dynamic))) {
-    Ok(allof_items) -> extract_allof_conditionals(allof_items)
-    Error(_) -> extract_single_conditional(data)
-  }
-}
-
-/// Extract multiple conditional rules from an allOf array.
-///
-/// Iterates through each item in the allOf array and attempts to extract
-/// if/then/else conditional rules.
-fn extract_allof_conditionals(items: List(Dynamic)) -> List(ConditionalRule) {
-  list.filter_map(items, fn(item) { extract_single_conditional_result(item) })
-}
-
-/// Extract a single conditional rule from dynamic data, returning a Result.
-///
-/// This is used by extract_allof_conditionals for filter_map.
-fn extract_single_conditional_result(
-  data: Dynamic,
-) -> Result(ConditionalRule, Nil) {
-  case extract_single_conditional(data) {
-    [rule] -> Ok(rule)
-    _ -> Error(Nil)
-  }
-}
-
-/// Extract a single if/then/else conditional from dynamic data.
-///
-/// Returns a list with 0 or 1 conditional rules.
+/// Returns a list with 0 or 1 conditional rules. Rules declared inside
+/// allOf members ride on the member schemas (see `extract_all_of`) and are
+/// lifted to the parent by `composer.flatten_schema` — including when a
+/// direct rule and allOf coexist on the same node.
 fn extract_single_conditional(data: Dynamic) -> List(ConditionalRule) {
   // Check if there's an "if" field at the top level
   let if_result = decode.run(data, decode.at(["if"], decode.dynamic))

@@ -2,6 +2,7 @@
 /// Unit level: composer.flatten_property / flatten_schema on constructed
 /// records. Integration level (Task 5): parser.parse_schema on JSON.
 import formosh/schema/composer
+import formosh/schema/parser
 import formosh/schema/properties
 import formosh/schema/resolver
 import formosh/schema/types.{
@@ -9,6 +10,7 @@ import formosh/schema/types.{
   StringConstraints, StringType,
 }
 import gleam/dict
+import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
 
@@ -343,4 +345,119 @@ pub fn resolver_circular_ref_inside_all_of_errors_test() {
     )
 
   resolver.resolve_refs(schema) |> should.be_error
+}
+
+// --- Integration: parser.parse_schema (specs/schema-composition) ---
+
+pub fn parse_allof_plain_members_issue54_repro_test() {
+  let json =
+    "{ \"type\": \"object\", \"allOf\": [ { \"properties\": { \"a\": { \"type\": \"string\" } } }, { \"properties\": { \"b\": { \"type\": \"string\" } } } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  properties.keys(schema.properties) |> should.equal(["a", "b"])
+  schema.all_of |> should.equal(None)
+}
+
+pub fn parse_allof_ref_base_plus_extras_test() {
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"base\": { \"type\": \"object\", \"properties\": { \"id\": { \"type\": \"integer\" } }, \"required\": [\"id\"] } }, \"allOf\": [ { \"$ref\": \"#/$defs/base\" }, { \"properties\": { \"extra\": { \"type\": \"string\" } } } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  properties.keys(schema.properties) |> should.equal(["id", "extra"])
+  schema.required |> should.equal(["id"])
+}
+
+pub fn parse_allof_two_ref_mixins_test() {
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"a\": { \"properties\": { \"a1\": { \"type\": \"string\" } }, \"required\": [\"a1\"] }, \"b\": { \"properties\": { \"b1\": { \"type\": \"string\" } }, \"required\": [\"b1\"] } }, \"allOf\": [ { \"$ref\": \"#/$defs/a\" }, { \"$ref\": \"#/$defs/b\" } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  properties.keys(schema.properties) |> should.equal(["a1", "b1"])
+  schema.required |> should.equal(["a1", "b1"])
+}
+
+pub fn parse_allof_title_override_keeps_base_type_test() {
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"base\": { \"properties\": { \"name\": { \"type\": \"string\", \"minLength\": 2 } } } }, \"allOf\": [ { \"$ref\": \"#/$defs/base\" } ], \"properties\": { \"name\": { \"title\": \"Custom\" } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(name) = properties.get(schema.properties, "name")
+  name.title |> should.equal(Some("Custom"))
+  name.field_type |> should.equal(Some(StringType))
+  let assert Some(sc) = name.string_constraints
+  sc.min_length |> should.equal(Some(2))
+}
+
+pub fn parse_allof_conditional_member_lifted_and_plain_merged_test() {
+  // Mixed member: if/then AND plain properties both contribute.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"kind\": { \"type\": \"string\" } }, \"allOf\": [ { \"if\": { \"properties\": { \"kind\": { \"const\": \"x\" } } }, \"then\": { \"properties\": { \"extra\": { \"type\": \"string\" } } }, \"properties\": { \"always\": { \"type\": \"string\" } } } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  properties.has_key(schema.properties, "always") |> should.be_true
+  schema.conditionals |> list.length |> should.equal(1)
+}
+
+pub fn parse_direct_if_beside_allof_kept_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"kind\": { \"type\": \"string\" } }, \"if\": { \"properties\": { \"kind\": { \"const\": \"a\" } } }, \"then\": { \"properties\": { \"direct\": { \"type\": \"string\" } } }, \"allOf\": [ { \"if\": { \"properties\": { \"kind\": { \"const\": \"b\" } } }, \"then\": { \"properties\": { \"member\": { \"type\": \"string\" } } } } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  // Member rule first (lifted), direct rule last.
+  schema.conditionals |> list.length |> should.equal(2)
+}
+
+pub fn parse_allof_inside_then_branch_flattened_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"kind\": { \"type\": \"string\" } }, \"if\": { \"properties\": { \"kind\": { \"const\": \"x\" } } }, \"then\": { \"allOf\": [ { \"properties\": { \"revealed\": { \"type\": \"string\" } } } ] } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert [rule] = schema.conditionals
+  let assert Some(then_schema) = rule.then_schema
+  let assert Some(props) = then_schema.properties
+  properties.keys(props) |> should.equal(["revealed"])
+}
+
+pub fn parse_property_level_allof_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"nested\": { \"type\": \"object\", \"allOf\": [ { \"properties\": { \"x\": { \"type\": \"string\" } } }, { \"properties\": { \"y\": { \"type\": \"string\" } } } ] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(nested) = properties.get(schema.properties, "nested")
+  // Spec: no residual composition state at ANY depth post-parse.
+  nested.all_of |> should.equal(None)
+  let assert Some(props) = nested.properties
+  properties.keys(props) |> should.equal(["x", "y"])
+}
+
+pub fn parse_array_items_allof_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"rows\": { \"type\": \"array\", \"items\": { \"type\": \"object\", \"allOf\": [ { \"properties\": { \"cell\": { \"type\": \"string\" } } } ] } } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(rows) = properties.get(schema.properties, "rows")
+  let assert Some(items) = rows.items
+  let assert Some(props) = items.properties
+  properties.keys(props) |> should.equal(["cell"])
+}
+
+pub fn parse_circular_ref_through_allof_errors_test() {
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"node\": { \"allOf\": [ { \"$ref\": \"#/$defs/node\" } ] } }, \"properties\": { \"root\": { \"$ref\": \"#/$defs/node\" } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_empty_allof_noop_test() {
+  let json =
+    "{ \"type\": \"object\", \"allOf\": [], \"properties\": { \"a\": { \"type\": \"string\" } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  properties.keys(schema.properties) |> should.equal(["a"])
+}
+
+pub fn parse_required_union_across_members_test() {
+  let json =
+    "{ \"type\": \"object\", \"required\": [\"a\", \"c\"], \"allOf\": [ { \"properties\": { \"a\": { \"type\": \"string\" }, \"b\": { \"type\": \"string\" }, \"c\": { \"type\": \"string\" } }, \"required\": [\"a\", \"b\"] } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema.required |> should.equal(["a", "b", "c"])
+}
+
+pub fn parse_allof_boolean_member_skips_composition_leniently_test() {
+  // Boolean schemas are out of scope: one undecodable member makes the
+  // whole allOf extraction yield None (one_of parity, design.md D8) —
+  // the schema itself still parses.
+  let json =
+    "{ \"type\": \"object\", \"allOf\": [ true, { \"properties\": { \"a\": { \"type\": \"string\" } } } ], \"properties\": { \"local\": { \"type\": \"string\" } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  properties.keys(schema.properties) |> should.equal(["local"])
 }
