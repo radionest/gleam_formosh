@@ -41,6 +41,7 @@ fn limits_schema() -> JsonSchema {
     required: ["total_limit"],
     defs: None,
     conditionals: [],
+    all_of: None,
     string_constraints: None,
     number_constraints: None,
   )

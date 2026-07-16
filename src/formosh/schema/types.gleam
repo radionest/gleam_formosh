@@ -144,6 +144,11 @@ pub type SchemaProperty {
     enum_values: Option(List(Value)),
     // oneOf composition keyword - list of sub-schemas
     one_of: Option(List(SchemaProperty)),
+    // allOf composition members. Populated by the parser, $ref-resolved by
+    // the resolver, merged into this node and cleared by composer.flatten —
+    // always None after parse_schema returns. Exception: $defs entries stay
+    // raw source material (like their unresolved $refs) and may retain it.
+    all_of: Option(List(SchemaProperty)),
     // Reference to another schema definition
     ref: Option(String),
     // Type-specific constraints
@@ -215,6 +220,9 @@ pub type JsonSchema {
     defs: Option(Dict(String, SchemaProperty)),
     // Conditional rules for dynamic schema behavior
     conditionals: List(ConditionalRule),
+    // allOf composition members at the root (same lifecycle as
+    // SchemaProperty.all_of — always None after parse_schema).
+    all_of: Option(List(SchemaProperty)),
     // Root-level constraints
     string_constraints: Option(StringConstraints),
     number_constraints: Option(NumberConstraints),
@@ -286,6 +294,7 @@ pub fn empty_property() -> SchemaProperty {
     default: None,
     enum_values: None,
     one_of: None,
+    all_of: None,
     ref: None,
     string_constraints: None,
     number_constraints: None,

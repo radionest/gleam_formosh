@@ -1,0 +1,35 @@
+{
+  "title": "Composition Test (allOf)",
+  "description": "Base fields come from $defs via allOf; the mixin and local overrides compose on top. Issue #54.",
+  "type": "object",
+  "$defs": {
+    "person": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "title": "Name", "minLength": 2 },
+        "email": { "type": "string", "format": "email", "title": "Email" }
+      },
+      "required": ["name"]
+    },
+    "employment": {
+      "type": "object",
+      "properties": {
+        "company": { "type": "string", "title": "Company" },
+        "role": { "type": "string", "title": "Role", "enum": ["engineer", "designer", "manager"] }
+      },
+      "required": ["company"]
+    }
+  },
+  "allOf": [
+    { "$ref": "#/$defs/person" },
+    { "$ref": "#/$defs/employment" },
+    {
+      "if": { "properties": { "role": { "const": "manager" } } },
+      "then": { "properties": { "reports": { "type": "integer", "title": "Direct reports", "minimum": 1 } } }
+    }
+  ],
+  "properties": {
+    "name": { "title": "Full name" },
+    "notes": { "type": "string", "title": "Notes" }
+  }
+}

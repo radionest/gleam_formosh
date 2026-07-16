@@ -1,6 +1,7 @@
 // Tests for JSON Schema $ref and $defs support
 
 import formosh/schema/parser
+import formosh/schema/resolver
 import formosh/schema/types
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -732,4 +733,41 @@ pub fn ref_preserves_nested_property_order_test() {
   nested
   |> list.map(fn(entry) { entry.0 })
   |> should.equal(["street", "apartment", "city", "zip"])
+}
+
+/// `disabled`/`readonly` OR-merge: `Some(False)` on either side must not
+/// re-enable a `Some(True)` from the other (the `ui:disabled` contract).
+pub fn merge_render_hints_disabled_readonly_or_merge_test() {
+  let on =
+    types.RenderHints(
+      ..types.empty_hints(),
+      disabled: Some(True),
+      readonly: Some(True),
+    )
+  let off =
+    types.RenderHints(
+      ..types.empty_hints(),
+      disabled: Some(False),
+      readonly: Some(False),
+    )
+
+  let merged = resolver.merge_render_hints(off, on)
+  merged.disabled |> should.equal(Some(True))
+  merged.readonly |> should.equal(Some(True))
+
+  let flipped = resolver.merge_render_hints(on, off)
+  flipped.disabled |> should.equal(Some(True))
+  flipped.readonly |> should.equal(Some(True))
+}
+
+/// A $ref-bearing node's local `items` passes through nested-$ref
+/// resolution before the merge — it must not survive it unresolved.
+pub fn ref_with_local_items_ref_resolves_test() {
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"arr\": { \"type\": \"array\" }, \"item\": { \"type\": \"string\", \"title\": \"Item\" } }, \"properties\": { \"x\": { \"$ref\": \"#/$defs/arr\", \"items\": { \"$ref\": \"#/$defs/item\" } } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(x) = list.key_find(schema.properties, "x")
+  let assert Some(items) = x.items
+  items.title |> should.equal(Some("Item"))
+  items.ref |> should.equal(None)
 }
