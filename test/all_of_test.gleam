@@ -283,6 +283,46 @@ pub fn flatten_schema_lifts_members_to_root_test() {
   flat.required |> should.equal(["from_member", "local"])
 }
 
+pub fn flatten_items_vs_items_collision_merges_test() {
+  let m1 =
+    prop_with(fn(p) {
+      SchemaProperty(
+        ..p,
+        items: Some(
+          prop_with(fn(i) {
+            SchemaProperty(
+              ..i,
+              field_type: Some(ObjectType),
+              properties: Some([#("a", types.empty_property())]),
+            )
+          }),
+        ),
+      )
+    })
+  let m2 =
+    prop_with(fn(p) {
+      SchemaProperty(
+        ..p,
+        items: Some(
+          prop_with(fn(i) {
+            SchemaProperty(
+              ..i,
+              title: Some("Row"),
+              properties: Some([#("b", types.empty_property())]),
+            )
+          }),
+        ),
+      )
+    })
+  let node = prop_with(fn(p) { SchemaProperty(..p, all_of: Some([m1, m2])) })
+
+  let assert Some(items) = composer.flatten_property(node).items
+  items.title |> should.equal(Some("Row"))
+  items.field_type |> should.equal(Some(ObjectType))
+  let assert Some(props) = items.properties
+  properties.keys(props) |> should.equal(["a", "b"])
+}
+
 pub fn resolver_expands_ref_inside_all_of_test() {
   let base_def =
     prop_with(fn(p) {
@@ -398,7 +438,13 @@ pub fn parse_direct_if_beside_allof_kept_test() {
     "{ \"type\": \"object\", \"properties\": { \"kind\": { \"type\": \"string\" } }, \"if\": { \"properties\": { \"kind\": { \"const\": \"a\" } } }, \"then\": { \"properties\": { \"direct\": { \"type\": \"string\" } } }, \"allOf\": [ { \"if\": { \"properties\": { \"kind\": { \"const\": \"b\" } } }, \"then\": { \"properties\": { \"member\": { \"type\": \"string\" } } } } ] }"
   let assert Ok(schema) = parser.parse_schema(json)
   // Member rule first (lifted), direct rule last.
-  schema.conditionals |> list.length |> should.equal(2)
+  let assert [member_rule, direct_rule] = schema.conditionals
+  let assert Some(member_then) = member_rule.then_schema
+  let assert Some(member_props) = member_then.properties
+  properties.has_key(member_props, "member") |> should.be_true
+  let assert Some(direct_then) = direct_rule.then_schema
+  let assert Some(direct_props) = direct_then.properties
+  properties.has_key(direct_props, "direct") |> should.be_true
 }
 
 pub fn parse_allof_inside_then_branch_flattened_test() {
@@ -460,4 +506,14 @@ pub fn parse_allof_boolean_member_skips_composition_leniently_test() {
     "{ \"type\": \"object\", \"allOf\": [ true, { \"properties\": { \"a\": { \"type\": \"string\" } } } ], \"properties\": { \"local\": { \"type\": \"string\" } } }"
   let assert Ok(schema) = parser.parse_schema(json)
   properties.keys(schema.properties) |> should.equal(["local"])
+}
+
+pub fn parse_ref_to_def_carrying_allof_test() {
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"d\": { \"type\": \"object\", \"allOf\": [ { \"properties\": { \"inner\": { \"type\": \"string\" } } } ] } }, \"properties\": { \"x\": { \"$ref\": \"#/$defs/d\" } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(x) = properties.get(schema.properties, "x")
+  x.all_of |> should.equal(None)
+  let assert Some(props) = x.properties
+  properties.keys(props) |> should.equal(["inner"])
 }
