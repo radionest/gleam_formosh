@@ -69,6 +69,18 @@ pub fn resolve_refs(schema: JsonSchema) -> Result(JsonSchema, ResolveError) {
   )
 }
 
+/// Resolve `$ref`s in a standalone property tree against a `$defs` context.
+/// Same recursive walk and visited-set cycle protection as `resolve_refs`;
+/// used by the parser for the document root, which parses as a
+/// `SchemaProperty` so type absence stays representable until composition
+/// has run.
+pub fn resolve_property(
+  property: SchemaProperty,
+  defs: option.Option(Dict(String, SchemaProperty)),
+) -> Result(SchemaProperty, ResolveError) {
+  resolve_property_ref(property, option.unwrap(defs, dict.new()), [])
+}
+
 /// Resolve references in an ordered list of properties, preserving key order.
 fn resolve_properties_refs(
   properties: List(#(String, SchemaProperty)),
