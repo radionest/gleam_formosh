@@ -155,8 +155,8 @@ fn flatten_rule(
 }
 
 /// Deep-merge two properties: `overlay` wins per field, `base` fills gaps.
-/// Fallible: a disjoint type intersection is unsatisfiable and fails the
-/// parse (Task 5 extends this to bounds crossed by the merge).
+/// Fallible: a disjoint type intersection or bounds crossed by the merge
+/// (string/number/array) are unsatisfiable and fail the parse.
 fn merge_pair(
   base: SchemaProperty,
   overlay: SchemaProperty,
@@ -167,6 +167,24 @@ fn merge_pair(
     overlay.field_type,
     path,
   ))
+  use string_constraints <- result.try(
+    merge_string_constraints(
+      base.string_constraints,
+      overlay.string_constraints,
+    )
+    |> check_string_constraints(path),
+  )
+  use number_constraints <- result.try(
+    merge_number_constraints(
+      base.number_constraints,
+      overlay.number_constraints,
+    )
+    |> check_number_constraints(path),
+  )
+  use array_constraints <- result.try(
+    merge_array_constraints(base.array_constraints, overlay.array_constraints)
+    |> check_array_constraints(path),
+  )
   use items <- result.try(case base.items, overlay.items {
     Some(b), Some(o) -> merge_pair(b, o, ["items", ..path]) |> result.map(Some)
     b, o -> Ok(option.or(o, b))
@@ -187,18 +205,9 @@ fn merge_pair(
     enum_values: option.or(overlay.enum_values, base.enum_values),
     one_of: option.or(overlay.one_of, base.one_of),
     ref: option.or(overlay.ref, base.ref),
-    string_constraints: merge_string_constraints(
-      base.string_constraints,
-      overlay.string_constraints,
-    ),
-    number_constraints: merge_number_constraints(
-      base.number_constraints,
-      overlay.number_constraints,
-    ),
-    array_constraints: merge_array_constraints(
-      base.array_constraints,
-      overlay.array_constraints,
-    ),
+    string_constraints: string_constraints,
+    number_constraints: number_constraints,
+    array_constraints: array_constraints,
     items: items,
     properties: merged_properties,
     required: list.append(base.required, overlay.required) |> list.unique(),
@@ -238,6 +247,27 @@ fn merge_string_constraints(
   }
 }
 
+/// Reject a merged string constraint pair that validates nothing (minLength
+/// > maxLength) instead of silently shipping an unsatisfiable form.
+fn check_string_constraints(
+  c: Option(types.StringConstraints),
+  path: List(String),
+) -> Result(Option(types.StringConstraints), ParseError) {
+  case c {
+    Some(StringConstraints(min_length: Some(min), max_length: Some(max), ..))
+      if min > max
+    ->
+      Error(unsatisfiable(
+        path,
+        "minLength "
+          <> int.to_string(min)
+          <> " > maxLength "
+          <> int.to_string(max),
+      ))
+    _ -> Ok(c)
+  }
+}
+
 fn merge_number_constraints(
   base: Option(types.NumberConstraints),
   overlay: Option(types.NumberConstraints),
@@ -263,23 +293,73 @@ fn merge_number_constraints(
   }
 }
 
+/// Reject a merged number constraint pair that validates nothing (minimum
+/// > maximum, or touching exclusive bounds) instead of silently shipping an
+/// unsatisfiable form.
+fn check_number_constraints(
+  c: Option(types.NumberConstraints),
+  path: List(String),
+) -> Result(Option(types.NumberConstraints), ParseError) {
+  case c {
+    Some(NumberConstraints(minimum: Some(min), maximum: Some(max), ..))
+      if min >. max
+    ->
+      Error(unsatisfiable(
+        path,
+        "minimum "
+          <> float.to_string(min)
+          <> " > maximum "
+          <> float.to_string(max),
+      ))
+    Some(NumberConstraints(
+      exclusive_minimum: Some(emin),
+      exclusive_maximum: Some(emax),
+      ..,
+    ))
+      if emin >=. emax
+    ->
+      Error(unsatisfiable(
+        path,
+        "exclusiveMinimum "
+          <> float.to_string(emin)
+          <> " >= exclusiveMaximum "
+          <> float.to_string(emax),
+      ))
+    _ -> Ok(c)
+  }
+}
+
 fn merge_array_constraints(
   base: Option(types.ArrayConstraints),
   overlay: Option(types.ArrayConstraints),
 ) -> Option(types.ArrayConstraints) {
   case base, overlay {
-    Some(b), Some(o) -> {
-      let min_items = combine(b.min_items, o.min_items, int.max)
-      let max_items = combine(b.max_items, o.max_items, int.min)
-      // Unsatisfiable after combining: minItems wins — same normalization
-      // as the parser, otherwise ensure_min_items wedges the form.
-      case min_items, max_items {
-        Some(min), Some(max) if min > max ->
-          Some(ArrayConstraints(min_items: Some(min), max_items: Some(min)))
-        _, _ ->
-          Some(ArrayConstraints(min_items: min_items, max_items: max_items))
-      }
-    }
+    Some(b), Some(o) ->
+      Some(ArrayConstraints(
+        min_items: combine(b.min_items, o.min_items, int.max),
+        max_items: combine(b.max_items, o.max_items, int.min),
+      ))
     b, o -> option.or(o, b)
+  }
+}
+
+/// Reject a merged array constraint pair that validates nothing (minItems
+/// > maxItems) instead of silently shipping an unsatisfiable form.
+fn check_array_constraints(
+  c: Option(types.ArrayConstraints),
+  path: List(String),
+) -> Result(Option(types.ArrayConstraints), ParseError) {
+  case c {
+    Some(ArrayConstraints(min_items: Some(min), max_items: Some(max)))
+      if min > max
+    ->
+      Error(unsatisfiable(
+        path,
+        "minItems "
+          <> int.to_string(min)
+          <> " > maxItems "
+          <> int.to_string(max),
+      ))
+    _ -> Ok(c)
   }
 }

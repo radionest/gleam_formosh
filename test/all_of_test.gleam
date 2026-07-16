@@ -191,7 +191,9 @@ pub fn flatten_disjoint_string_constraints_combine_test() {
   sc.max_length |> should.equal(Some(10))
 }
 
-pub fn flatten_crossed_array_bounds_renormalize_test() {
+pub fn flatten_crossed_array_bounds_is_error_test() {
+  // minItems 5 ∧ maxItems 3 validates nothing — reject at parse instead of
+  // renormalizing into a form the backend's real allOf validation refuses.
   let m1 =
     prop_with(fn(p) {
       SchemaProperty(
@@ -213,14 +215,54 @@ pub fn flatten_crossed_array_bounds_renormalize_test() {
       )
     })
   let node = prop_with(fn(p) { SchemaProperty(..p, all_of: Some([m1, m2])) })
+  composer.flatten_property(node) |> should.be_error
+}
 
-  // minItems wins on unsatisfiable bounds — same normalization as the
-  // parser's extract_array_constraints, or ensure_min_items wedges the form.
-  let assert Ok(flat) = composer.flatten_property(node)
-  flat.array_constraints
-  |> should.equal(
-    Some(ArrayConstraints(min_items: Some(5), max_items: Some(5))),
-  )
+pub fn parse_crossed_array_bounds_is_error_test() {
+  // The spec scenario at parse level: cross-member minItems/maxItems.
+  // (Single-member-authored crossings never reach the composer for arrays —
+  // the decoder normalizes them first, grandfathered #63 behavior.)
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"allOf\": [ { \"minItems\": 5 }, { \"maxItems\": 3 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_crossed_string_bounds_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"allOf\": [ { \"minLength\": 5 }, { \"maxLength\": 3 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_crossed_number_bounds_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"number\", \"allOf\": [ { \"minimum\": 10 }, { \"maximum\": 5 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_crossed_exclusive_bounds_is_error_test() {
+  // exclusiveMinimum 5 ∧ exclusiveMaximum 5 admits no value.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"number\", \"allOf\": [ { \"exclusiveMinimum\": 5 }, { \"exclusiveMaximum\": 5 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_empty_allof_skips_satisfiability_test() {
+  // No effective members → pure no-op: authored crossed bounds keep
+  // lenient single-schema semantics (grandfathered; runtime validation
+  // still reports them).
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"minLength\": 5, \"maxLength\": 3, \"allOf\": [] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(x) = properties.get(schema.properties, "x")
+  let assert Some(sc) = x.string_constraints
+  sc.min_length |> should.equal(Some(5))
+  sc.max_length |> should.equal(Some(3))
+}
+
+pub fn parse_true_only_allof_skips_satisfiability_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"minLength\": 5, \"maxLength\": 3, \"allOf\": [ true ] } } }"
+  parser.parse_schema(json) |> should.be_ok
 }
 
 pub fn flatten_lifts_member_conditionals_test() {
