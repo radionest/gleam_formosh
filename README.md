@@ -309,7 +309,7 @@ The widget is chosen automatically based on schema:
 - **Structure:** `properties`, `items` (objects and arrays nest to any depth, including arrays inside array items), `required`, `$defs`/`definitions`, `$ref`
 - **Metadata:** `title`, `description`, `default`, `readOnly`
 - **Enum:** `enum`, `const` (converted to single-value enum)
-- **Composition:** `oneOf` (with const+title options), `allOf` (for conditional extraction)
+- **Composition:** `oneOf` (with const+title options), `allOf` (deep-merges member schemas — properties, required, bounds, `$ref` mixins — at parse time, and lifts member conditionals to the parent)
 - **Conditional:** `if`/`then`/`else` — fully dynamic, re-evaluated on every field change
 - **String constraints:** `minLength`, `maxLength`, `format` (date, email, url/uri, time, datetime, uuid)
 - **Number constraints:** `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
