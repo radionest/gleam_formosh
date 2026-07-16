@@ -317,7 +317,9 @@ fn merge_properties(
 /// in `ui_resolver.resolve_hints` and feeds the other `RenderHints` fields
 /// (`placeholder`, `help`, etc.), so here they are always `None` on both
 /// sides and `option.or` is a no-op for them.
-fn merge_render_hints(
+///
+/// Also reused by `composer` for allOf member merging (first argument wins).
+pub fn merge_render_hints(
   referencing: types.RenderHints,
   referenced: types.RenderHints,
 ) -> types.RenderHints {
