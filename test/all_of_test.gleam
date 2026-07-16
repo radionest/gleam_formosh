@@ -42,7 +42,7 @@ pub fn flatten_merges_member_properties_in_order_test() {
       )
     })
 
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
 
   flat.all_of |> should.equal(None)
   let assert Some(props) = flat.properties
@@ -87,7 +87,7 @@ pub fn flatten_collision_merges_field_by_field_test() {
       )
     })
 
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
   let assert Some(props) = flat.properties
   let assert Some(name) = properties.get(props, "name")
 
@@ -105,7 +105,8 @@ pub fn flatten_required_unions_test() {
       SchemaProperty(..p, required: ["a", "c"], all_of: Some([m1, m2]))
     })
 
-  composer.flatten_property(node).required |> should.equal(["a", "b", "c"])
+  let assert Ok(flat) = composer.flatten_property(node)
+  flat.required |> should.equal(["a", "b", "c"])
 }
 
 pub fn flatten_bounds_stricter_wins_test() {
@@ -144,7 +145,8 @@ pub fn flatten_bounds_stricter_wins_test() {
       )
     })
 
-  let assert Some(nc) = composer.flatten_property(node).number_constraints
+  let assert Ok(flat) = composer.flatten_property(node)
+  let assert Some(nc) = flat.number_constraints
   nc.minimum |> should.equal(Some(18.0))
   nc.maximum |> should.equal(Some(65.0))
 }
@@ -183,7 +185,8 @@ pub fn flatten_disjoint_string_constraints_combine_test() {
       )
     })
 
-  let assert Some(sc) = composer.flatten_property(node).string_constraints
+  let assert Ok(flat) = composer.flatten_property(node)
+  let assert Some(sc) = flat.string_constraints
   sc.min_length |> should.equal(Some(2))
   sc.max_length |> should.equal(Some(10))
 }
@@ -213,7 +216,8 @@ pub fn flatten_crossed_array_bounds_renormalize_test() {
 
   // minItems wins on unsatisfiable bounds — same normalization as the
   // parser's extract_array_constraints, or ensure_min_items wedges the form.
-  composer.flatten_property(node).array_constraints
+  let assert Ok(flat) = composer.flatten_property(node)
+  flat.array_constraints
   |> should.equal(
     Some(ArrayConstraints(min_items: Some(5), max_items: Some(5))),
   )
@@ -239,7 +243,7 @@ pub fn flatten_lifts_member_conditionals_test() {
     })
 
   // Member rules first, the node's own rules last.
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
   flat.conditionals |> should.equal([rule, direct_rule])
 }
 
@@ -251,7 +255,7 @@ pub fn flatten_nested_member_allof_collapses_test() {
   let member = prop_with(fn(p) { SchemaProperty(..p, all_of: Some([inner])) })
   let node = prop_with(fn(p) { SchemaProperty(..p, all_of: Some([member])) })
 
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
   flat.all_of |> should.equal(None)
   let assert Some(props) = flat.properties
   properties.keys(props) |> should.equal(["deep"])
@@ -299,7 +303,8 @@ pub fn flatten_items_vs_items_collision_merges_test() {
     })
   let node = prop_with(fn(p) { SchemaProperty(..p, all_of: Some([m1, m2])) })
 
-  let assert Some(items) = composer.flatten_property(node).items
+  let assert Ok(flat) = composer.flatten_property(node)
+  let assert Some(items) = flat.items
   items.title |> should.equal(Some("Row"))
   items.field_type |> should.equal(Some(ObjectType))
   let assert Some(props) = items.properties
@@ -343,7 +348,7 @@ pub fn flatten_collision_keeps_own_childs_allof_test() {
       )
     })
 
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
   let assert Some(props) = flat.properties
   let assert Some(child) = properties.get(props, "child")
   child.all_of |> should.equal(None)
@@ -644,4 +649,34 @@ pub fn parse_root_ref_circular_is_error_test() {
   let json =
     "{ \"$ref\": \"#/$defs/a\", \"$defs\": { \"a\": { \"$ref\": \"#/$defs/a\" } } }"
   parser.parse_schema(json) |> should.be_error
+}
+
+// --- Strict type intersection (issue #68 follow-on) ---
+
+pub fn parse_root_type_conflict_is_error_test() {
+  // Disjoint intersection validates nothing — same class as a false member.
+  let json = "{ \"type\": \"object\", \"allOf\": [ { \"type\": \"string\" } ] }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_property_type_conflict_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"allOf\": [ { \"type\": \"boolean\" } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_number_member_refines_root_to_integer_test() {
+  let json =
+    "{ \"type\": \"number\", \"allOf\": [ { \"type\": \"integer\" } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema.field_type |> should.equal(IntegerType)
+}
+
+pub fn parse_integer_refinement_at_property_level_test() {
+  // Both orders must narrow, not conflict and not stay number.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"n\": { \"type\": \"integer\", \"allOf\": [ { \"type\": \"number\" } ] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(n) = properties.get(schema.properties, "n")
+  n.field_type |> should.equal(Some(IntegerType))
 }

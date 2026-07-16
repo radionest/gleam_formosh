@@ -70,7 +70,8 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
     }),
   )
 
-  Ok(to_json_schema(composer.flatten_property(resolved), defs))
+  use flattened <- result.try(composer.flatten_property(resolved))
+  Ok(to_json_schema(flattened, defs))
 }
 
 /// Decode the document root as a `SchemaProperty` plus its `$defs`.

@@ -16,53 +16,171 @@
 import formosh/schema/properties
 import formosh/schema/resolver
 import formosh/schema/types.{
-  type ConditionalRule, type SchemaProperty, ArrayConstraints, ConditionalRule,
-  NumberConstraints, SchemaProperty, StringConstraints,
+  type ConditionalRule, type FieldType, type ParseError, type SchemaProperty,
+  ArrayConstraints, ConditionalRule, IntegerType, NumberConstraints, NumberType,
+  SchemaProperty, StringConstraints, UnsatisfiableSchema,
 }
 import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/string
+
+/// Format the descent path (accumulated head-first) as a JSON-pointer-ish
+/// breadcrumb for error messages.
+fn path_string(path: List(String)) -> String {
+  case path {
+    [] -> "#"
+    segments -> "#/" <> string.join(list.reverse(segments), "/")
+  }
+}
+
+fn unsatisfiable(path: List(String), reason: String) -> ParseError {
+  UnsatisfiableSchema(
+    "unsatisfiable schema at " <> path_string(path) <> ": " <> reason,
+  )
+}
+
+/// Traverse an Option through a fallible function, preserving None.
+fn try_optional(
+  value: Option(a),
+  f: fn(a) -> Result(b, ParseError),
+) -> Result(Option(b), ParseError) {
+  case value {
+    Some(v) -> result.map(f(v), Some)
+    None -> Ok(None)
+  }
+}
+
+/// Intersect two optional type declarations by instance-set semantics:
+/// absence fills, equal keeps, number ∧ integer narrows to integer
+/// (integer instances satisfy both), disjoint pairs validate nothing —
+/// the same class as a `false` member, so they fail the parse.
+fn intersect_types(
+  base: Option(FieldType),
+  overlay: Option(FieldType),
+  path: List(String),
+) -> Result(Option(FieldType), ParseError) {
+  case base, overlay {
+    None, t -> Ok(t)
+    t, None -> Ok(t)
+    Some(a), Some(b) if a == b -> Ok(Some(a))
+    Some(NumberType), Some(IntegerType) | Some(IntegerType), Some(NumberType) ->
+      Ok(Some(IntegerType))
+    Some(a), Some(b) ->
+      Error(unsatisfiable(
+        path,
+        "conflicting types " <> string.inspect(a) <> " vs " <> string.inspect(b),
+      ))
+  }
+}
 
 /// Flatten a property subtree: descend into children first so every side of
 /// the merge is already composition-free, then collapse this node's members
-/// and merge the node's own keywords last. Descending BEFORE the merge
-/// matters: on a same-key collision `merge_pair` clears `all_of`, so a
-/// child that still carried unmerged members would lose them silently.
-pub fn flatten_property(prop: SchemaProperty) -> SchemaProperty {
+/// and merge the node's own keywords last. Fallible: unsatisfiable
+/// compositions (disjoint types, crossed bounds) fail the parse.
+pub fn flatten_property(
+  prop: SchemaProperty,
+) -> Result(SchemaProperty, ParseError) {
+  do_flatten(prop, [])
+}
+
+fn do_flatten(
+  prop: SchemaProperty,
+  path: List(String),
+) -> Result(SchemaProperty, ParseError) {
+  use flat_properties <- result.try(
+    try_optional(prop.properties, fn(props) {
+      list.try_map(props, fn(entry) {
+        do_flatten(entry.1, [entry.0, ..path])
+        |> result.map(fn(p) { #(entry.0, p) })
+      })
+    }),
+  )
+  use flat_items <- result.try(
+    try_optional(prop.items, do_flatten(_, ["items", ..path])),
+  )
+  use flat_one_of <- result.try(
+    try_optional(prop.one_of, list.try_map(_, do_flatten(_, ["oneOf", ..path]))),
+  )
+  use flat_conditionals <- result.try(
+    list.try_map(prop.conditionals, flatten_rule(_, path)),
+  )
   let flattened =
     SchemaProperty(
       ..prop,
-      properties: option.map(prop.properties, fn(props) {
-        list.map(props, fn(entry) { #(entry.0, flatten_property(entry.1)) })
-      }),
-      items: option.map(prop.items, flatten_property),
-      one_of: option.map(prop.one_of, list.map(_, flatten_property)),
-      conditionals: list.map(prop.conditionals, flatten_rule),
+      properties: flat_properties,
+      items: flat_items,
+      one_of: flat_one_of,
+      conditionals: flat_conditionals,
       all_of: None,
     )
 
-  prop.all_of
-  |> option.unwrap([])
-  |> list.map(flatten_property)
-  |> list.fold(types.empty_property(), merge_pair)
-  |> merge_pair(flattened)
+  case option.unwrap(prop.all_of, []) {
+    // No effective members (absent, `[]`, or all `true` no-ops): pure no-op.
+    // The node's own keywords are not a composition — they keep lenient
+    // single-schema semantics and skip the satisfiability checks.
+    [] -> Ok(flattened)
+    members -> {
+      use flat_members <- result.try(list.try_map(members, do_flatten(_, path)))
+      use folded <- result.try(
+        list.try_fold(flat_members, types.empty_property(), fn(acc, m) {
+          merge_pair(acc, m, path)
+        }),
+      )
+      merge_pair(folded, flattened, path)
+    }
+  }
 }
 
 /// Flatten composition inside a conditional's branches so `then: {allOf}` /
 /// `if: {allOf}` are already merged when the runtime resolver fires.
-fn flatten_rule(rule: ConditionalRule) -> ConditionalRule {
-  ConditionalRule(
-    if_schema: flatten_property(rule.if_schema),
-    then_schema: option.map(rule.then_schema, flatten_property),
-    else_schema: option.map(rule.else_schema, flatten_property),
+fn flatten_rule(
+  rule: ConditionalRule,
+  path: List(String),
+) -> Result(ConditionalRule, ParseError) {
+  use if_flat <- result.try(do_flatten(rule.if_schema, ["if", ..path]))
+  use then_flat <- result.try(
+    try_optional(rule.then_schema, do_flatten(_, ["then", ..path])),
   )
+  use else_flat <- result.try(
+    try_optional(rule.else_schema, do_flatten(_, ["else", ..path])),
+  )
+  Ok(ConditionalRule(
+    if_schema: if_flat,
+    then_schema: then_flat,
+    else_schema: else_flat,
+  ))
 }
 
 /// Deep-merge two properties: `overlay` wins per field, `base` fills gaps.
-fn merge_pair(base: SchemaProperty, overlay: SchemaProperty) -> SchemaProperty {
-  SchemaProperty(
-    field_type: option.or(overlay.field_type, base.field_type),
+/// Fallible: a disjoint type intersection is unsatisfiable and fails the
+/// parse (Task 5 extends this to bounds crossed by the merge).
+fn merge_pair(
+  base: SchemaProperty,
+  overlay: SchemaProperty,
+  path: List(String),
+) -> Result(SchemaProperty, ParseError) {
+  use field_type <- result.try(intersect_types(
+    base.field_type,
+    overlay.field_type,
+    path,
+  ))
+  use items <- result.try(case base.items, overlay.items {
+    Some(b), Some(o) -> merge_pair(b, o, ["items", ..path]) |> result.map(Some)
+    b, o -> Ok(option.or(o, b))
+  })
+  use merged_properties <- result.try(case base.properties, overlay.properties {
+    Some(b), Some(o) ->
+      properties.merge_with(b, o, fn(key, bp, op) {
+        merge_pair(bp, op, [key, ..path])
+      })
+      |> result.map(Some)
+    b, o -> Ok(option.or(o, b))
+  })
+  Ok(SchemaProperty(
+    field_type: field_type,
     title: option.or(overlay.title, base.title),
     description: option.or(overlay.description, base.description),
     default: option.or(overlay.default, base.default),
@@ -81,14 +199,8 @@ fn merge_pair(base: SchemaProperty, overlay: SchemaProperty) -> SchemaProperty {
       base.array_constraints,
       overlay.array_constraints,
     ),
-    items: case base.items, overlay.items {
-      Some(b), Some(o) -> Some(merge_pair(b, o))
-      b, o -> option.or(o, b)
-    },
-    properties: case base.properties, overlay.properties {
-      Some(b), Some(o) -> Some(properties.merge_with(b, o, merge_pair))
-      b, o -> option.or(o, b)
-    },
+    items: items,
+    properties: merged_properties,
     required: list.append(base.required, overlay.required) |> list.unique(),
     read_only: base.read_only || overlay.read_only,
     addable: base.addable && overlay.addable,
@@ -99,7 +211,7 @@ fn merge_pair(base: SchemaProperty, overlay: SchemaProperty) -> SchemaProperty {
     ),
     conditionals: list.append(base.conditionals, overlay.conditionals),
     all_of: None,
-  )
+  ))
 }
 
 /// Combine two optional values with `pick` when both are present.
