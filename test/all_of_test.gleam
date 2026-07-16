@@ -8,7 +8,7 @@ import formosh/schema/resolver
 import formosh/schema/serializer
 import formosh/schema/types.{
   ArrayConstraints, IntegerType, NumberConstraints, ObjectType, SchemaProperty,
-  StringConstraints, StringType,
+  StringConstraints, StringType, UnsatisfiableSchema,
 }
 import gleam/dict
 import gleam/json
@@ -705,6 +705,16 @@ pub fn parse_property_type_conflict_is_error_test() {
   let json =
     "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"allOf\": [ { \"type\": \"boolean\" } ] } } }"
   parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_property_type_conflict_names_path_test() {
+  // The spec requires the unsatisfiable-schema error to name the offending
+  // property's path; pin the variant and the #/x breadcrumb so an unrelated
+  // future parse failure can't keep this green.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"allOf\": [ { \"type\": \"boolean\" } ] } } }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg |> string.contains("#/x") |> should.be_true
 }
 
 pub fn parse_number_member_refines_root_to_integer_test() {
