@@ -30,19 +30,23 @@ pub fn flatten_schema(schema: JsonSchema) -> JsonSchema {
     |> list.map(flatten_property)
     |> list.fold(types.empty_property(), merge_pair)
 
+  // Flatten root-local properties BEFORE the collision merge — merge_pair
+  // clears all_of, so an unflattened local child would lose its members.
+  let local_properties =
+    list.map(schema.properties, fn(entry) {
+      #(entry.0, flatten_property(entry.1))
+    })
   let merged_properties = case m.properties {
     Some(member_props) ->
-      properties.merge_with(member_props, schema.properties, merge_pair)
-    None -> schema.properties
+      properties.merge_with(member_props, local_properties, merge_pair)
+    None -> local_properties
   }
 
   JsonSchema(
     ..schema,
     title: option.or(schema.title, m.title),
     description: option.or(schema.description, m.description),
-    properties: list.map(merged_properties, fn(entry) {
-      #(entry.0, flatten_property(entry.1))
-    }),
+    properties: merged_properties,
     required: list.append(m.required, schema.required) |> list.unique(),
     conditionals: list.append(m.conditionals, schema.conditionals)
       |> list.map(flatten_rule),
@@ -58,25 +62,29 @@ pub fn flatten_schema(schema: JsonSchema) -> JsonSchema {
   )
 }
 
-/// Flatten a property subtree: collapse this node's members bottom-up,
-/// merge the node's own keywords last, then descend into children.
+/// Flatten a property subtree: descend into children first so every side of
+/// the merge is already composition-free, then collapse this node's members
+/// and merge the node's own keywords last. Descending BEFORE the merge
+/// matters: on a same-key collision `merge_pair` clears `all_of`, so a
+/// child that still carried unmerged members would lose them silently.
 pub fn flatten_property(prop: SchemaProperty) -> SchemaProperty {
-  let node =
-    prop.all_of
-    |> option.unwrap([])
-    |> list.map(flatten_property)
-    |> list.fold(types.empty_property(), merge_pair)
-    |> merge_pair(SchemaProperty(..prop, all_of: None))
+  let flattened =
+    SchemaProperty(
+      ..prop,
+      properties: option.map(prop.properties, fn(props) {
+        list.map(props, fn(entry) { #(entry.0, flatten_property(entry.1)) })
+      }),
+      items: option.map(prop.items, flatten_property),
+      one_of: option.map(prop.one_of, list.map(_, flatten_property)),
+      conditionals: list.map(prop.conditionals, flatten_rule),
+      all_of: None,
+    )
 
-  SchemaProperty(
-    ..node,
-    properties: option.map(node.properties, fn(props) {
-      list.map(props, fn(entry) { #(entry.0, flatten_property(entry.1)) })
-    }),
-    items: option.map(node.items, flatten_property),
-    one_of: option.map(node.one_of, list.map(_, flatten_property)),
-    conditionals: list.map(node.conditionals, flatten_rule),
-  )
+  prop.all_of
+  |> option.unwrap([])
+  |> list.map(flatten_property)
+  |> list.fold(types.empty_property(), merge_pair)
+  |> merge_pair(flattened)
 }
 
 /// Flatten composition inside a conditional's branches so `then: {allOf}` /

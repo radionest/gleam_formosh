@@ -323,6 +323,51 @@ pub fn flatten_items_vs_items_collision_merges_test() {
   properties.keys(props) |> should.equal(["a", "b"])
 }
 
+pub fn flatten_collision_keeps_own_childs_allof_test() {
+  let member =
+    prop_with(fn(p) {
+      SchemaProperty(
+        ..p,
+        properties: Some([
+          #(
+            "child",
+            SchemaProperty(
+              ..types.empty_property(),
+              properties: Some([#("x", types.empty_property())]),
+            ),
+          ),
+        ]),
+      )
+    })
+  let own_child_mixin =
+    prop_with(fn(p) {
+      SchemaProperty(..p, properties: Some([#("y", types.empty_property())]))
+    })
+  let node =
+    prop_with(fn(p) {
+      SchemaProperty(
+        ..p,
+        properties: Some([
+          #(
+            "child",
+            SchemaProperty(
+              ..types.empty_property(),
+              all_of: Some([own_child_mixin]),
+            ),
+          ),
+        ]),
+        all_of: Some([member]),
+      )
+    })
+
+  let flat = composer.flatten_property(node)
+  let assert Some(props) = flat.properties
+  let assert Some(child) = properties.get(props, "child")
+  child.all_of |> should.equal(None)
+  let assert Some(child_props) = child.properties
+  properties.keys(child_props) |> should.equal(["x", "y"])
+}
+
 pub fn resolver_expands_ref_inside_all_of_test() {
   let base_def =
     prop_with(fn(p) {
@@ -516,4 +561,16 @@ pub fn parse_ref_to_def_carrying_allof_test() {
   x.all_of |> should.equal(None)
   let assert Some(props) = x.properties
   properties.keys(props) |> should.equal(["inner"])
+}
+
+pub fn parse_collision_local_property_with_allof_test() {
+  // Root-level collision: a member declares addr.street; the parent's own
+  // addr carries a nested allOf mixin adding city. Both must survive.
+  let json =
+    "{ \"type\": \"object\", \"allOf\": [ { \"properties\": { \"addr\": { \"type\": \"object\", \"properties\": { \"street\": { \"type\": \"string\" } } } } } ], \"properties\": { \"addr\": { \"allOf\": [ { \"properties\": { \"city\": { \"type\": \"string\" } } } ] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(addr) = properties.get(schema.properties, "addr")
+  addr.all_of |> should.equal(None)
+  let assert Some(props) = addr.properties
+  properties.keys(props) |> should.equal(["street", "city"])
 }
