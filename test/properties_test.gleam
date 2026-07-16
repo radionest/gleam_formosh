@@ -120,3 +120,51 @@ pub fn merge_override_with_duplicate_in_additions_test() {
   merged |> properties.keys |> should.equal(["alpha", "beta"])
   properties.get(merged, "beta") |> should.equal(Some(prop("first")))
 }
+
+// merge_with --------------------------------------------------------------
+
+pub fn merge_with_combines_collisions_test() {
+  let base = [
+    #(
+      "name",
+      types.SchemaProperty(..types.empty_property(), title: Some("Base")),
+    ),
+    #("age", types.empty_property()),
+  ]
+  let additions = [
+    #(
+      "name",
+      types.SchemaProperty(
+        ..types.empty_property(),
+        description: Some("from additions"),
+      ),
+    ),
+    #("email", types.empty_property()),
+  ]
+  let combine = fn(old: types.SchemaProperty, new: types.SchemaProperty) {
+    types.SchemaProperty(..old, description: new.description)
+  }
+  let merged = properties.merge_with(base, additions, combine)
+
+  properties.keys(merged) |> should.equal(["name", "age", "email"])
+  let assert Some(name) = properties.get(merged, "name")
+  name.title |> should.equal(Some("Base"))
+  name.description |> should.equal(Some("from additions"))
+}
+
+pub fn merge_with_dedups_additions_test() {
+  let additions = [
+    #(
+      "dup",
+      types.SchemaProperty(..types.empty_property(), title: Some("first")),
+    ),
+    #(
+      "dup",
+      types.SchemaProperty(..types.empty_property(), title: Some("second")),
+    ),
+  ]
+  let merged = properties.merge_with([], additions, fn(_old, new) { new })
+  properties.keys(merged) |> should.equal(["dup"])
+  let assert Some(dup) = properties.get(merged, "dup")
+  dup.title |> should.equal(Some("first"))
+}
