@@ -245,8 +245,23 @@ fn parse_ref_path(ref_path: String) -> Result(String, ResolveError) {
   }
 }
 
+/// Append two optional allOf member lists. Both sides' members apply when
+/// a $ref-bearing node and its referenced definition each carry allOf —
+/// composer.flatten collapses the combined list after resolution.
+fn append_all_of(
+  left: option.Option(List(SchemaProperty)),
+  right: option.Option(List(SchemaProperty)),
+) -> option.Option(List(SchemaProperty)) {
+  case left, right {
+    None, None -> None
+    Some(l), None -> Some(l)
+    None, Some(r) -> Some(r)
+    Some(l), Some(r) -> Some(list.append(l, r))
+  }
+}
+
 /// Merge two properties, with the referencing property taking precedence
-/// 
+///
 /// This allows local overrides of referenced definitions
 fn merge_properties(
   referencing: SchemaProperty,
@@ -260,6 +275,7 @@ fn merge_properties(
     default: option.or(referencing.default, referenced.default),
     enum_values: option.or(referencing.enum_values, referenced.enum_values),
     one_of: option.or(referencing.one_of, referenced.one_of),
+    all_of: append_all_of(referencing.all_of, referenced.all_of),
     ref: None,
     // Clear the ref since it's been resolved
     string_constraints: option.or(

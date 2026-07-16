@@ -24,6 +24,7 @@ fn schema_with(
     required: required,
     defs: None,
     conditionals: [],
+    all_of: None,
     string_constraints: None,
     number_constraints: None,
   )

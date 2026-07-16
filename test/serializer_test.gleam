@@ -32,6 +32,7 @@ pub fn serialize_basic_string_schema_test() {
       required: ["name"],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -88,6 +89,7 @@ pub fn serialize_string_with_constraints_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -139,6 +141,7 @@ pub fn serialize_number_with_constraints_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -192,6 +195,7 @@ pub fn serialize_enum_field_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -240,6 +244,7 @@ pub fn serialize_array_field_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -302,6 +307,7 @@ pub fn serialize_nested_object_test() {
       required: ["address"],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -366,6 +372,7 @@ pub fn serialize_ref_field_test() {
         ]),
       ),
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -437,6 +444,7 @@ pub fn serialize_conditional_schema_test() {
           else_schema: None,
         ),
       ],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -478,6 +486,7 @@ pub fn serialize_boolean_field_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -523,6 +532,7 @@ pub fn serialize_date_format_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -565,6 +575,7 @@ pub fn serialize_exclusive_constraints_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -665,6 +676,7 @@ pub fn serialize_multiple_conditionals_test() {
           else_schema: None,
         ),
       ],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -709,6 +721,7 @@ pub fn serialize_one_of_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -770,6 +783,7 @@ pub fn image_upload_serialization_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -864,6 +878,7 @@ pub fn no_widget_no_x_fields_serialized_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -910,6 +925,7 @@ pub fn serialize_array_constraints_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )

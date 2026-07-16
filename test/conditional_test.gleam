@@ -74,6 +74,7 @@ pub fn conditional_field_appears_when_condition_met_test() {
       required: [],
       defs: None,
       conditionals: [conditional_rule],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -180,6 +181,7 @@ pub fn conditional_else_branch_test() {
       required: [],
       defs: None,
       conditionals: [conditional_rule],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -272,6 +274,7 @@ pub fn is_field_visible_test() {
       required: [],
       defs: None,
       conditionals: [conditional_rule],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -1480,6 +1483,7 @@ fn nested_payment_schema() -> JsonSchema {
     required: [],
     defs: None,
     conditionals: [],
+    all_of: None,
     string_constraints: None,
     number_constraints: None,
   )
@@ -1623,6 +1627,7 @@ pub fn then_branch_introduces_nested_object_with_own_conditionals_test() {
           else_schema: None,
         ),
       ],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -1706,6 +1711,7 @@ pub fn array_items_recursion_preserves_items_schema_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -1794,6 +1800,7 @@ pub fn resolve_recursive_top_level_regression_test() {
           else_schema: None,
         ),
       ],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )
@@ -1878,6 +1885,7 @@ pub fn nested_object_conditional_else_branch_test() {
       required: [],
       defs: None,
       conditionals: [],
+      all_of: None,
       string_constraints: None,
       number_constraints: None,
     )

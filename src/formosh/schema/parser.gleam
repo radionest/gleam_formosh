@@ -124,6 +124,7 @@ fn schema_decoder() -> Decoder(JsonSchema) {
     required: required,
     defs: defs,
     conditionals: conditionals,
+    all_of: None,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
   ))
@@ -323,6 +324,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
     default: default,
     enum_values: enum_values_with_const,
     one_of: one_of,
+    all_of: None,
     ref: ref,
     string_constraints: string_constraints,
     number_constraints: number_constraints,
