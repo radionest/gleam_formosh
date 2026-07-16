@@ -543,14 +543,35 @@ pub fn parse_required_union_across_members_test() {
   schema.required |> should.equal(["a", "b", "c"])
 }
 
-pub fn parse_allof_boolean_member_skips_composition_leniently_test() {
-  // Boolean schemas are out of scope: one undecodable member makes the
-  // whole allOf extraction yield None (one_of parity, design.md D8) —
-  // the schema itself still parses.
+pub fn parse_allof_true_member_is_noop_test() {
+  // `true` is the JSON Schema no-op member (design.md D8): it is skipped
+  // and the remaining members still compose.
   let json =
     "{ \"type\": \"object\", \"allOf\": [ true, { \"properties\": { \"a\": { \"type\": \"string\" } } } ], \"properties\": { \"local\": { \"type\": \"string\" } } }"
   let assert Ok(schema) = parser.parse_schema(json)
-  properties.keys(schema.properties) |> should.equal(["local"])
+  properties.keys(schema.properties) |> should.equal(["a", "local"])
+}
+
+pub fn parse_allof_false_member_is_parse_error_test() {
+  // `false` makes the composition unsatisfiable — reject loudly instead of
+  // rendering a form the backend's real allOf validation would refuse.
+  let json =
+    "{ \"type\": \"object\", \"allOf\": [ false, { \"properties\": { \"a\": { \"type\": \"string\" } } } ] }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_allof_malformed_member_is_parse_error_test() {
+  // A member that is no schema at all fails the parse (design.md D8) —
+  // silently dropping it would silently drop its validation constraints.
+  let json = "{ \"type\": \"object\", \"allOf\": [ 42 ] }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_property_level_allof_false_member_is_parse_error_test() {
+  // Same strictness through the property-decoder call site.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"object\", \"allOf\": [ false ] } } }"
+  parser.parse_schema(json) |> should.be_error
 }
 
 pub fn parse_ref_to_def_carrying_allof_test() {
@@ -573,4 +594,27 @@ pub fn parse_collision_local_property_with_allof_test() {
   addr.all_of |> should.equal(None)
   let assert Some(props) = addr.properties
   properties.keys(props) |> should.equal(["street", "city"])
+}
+
+pub fn parse_ref_and_local_allof_local_member_wins_test() {
+  // Both the $ref-bearing node and its referenced definition carry allOf:
+  // referenced members merge first, so local members override — the same
+  // local-over-referenced precedence as plain $ref keyword merging.
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"a\": { \"type\": \"string\", \"allOf\": [ { \"title\": \"def-mixin\" } ] } }, \"properties\": { \"x\": { \"$ref\": \"#/$defs/a\", \"allOf\": [ { \"title\": \"local-mixin\" } ] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(x) = properties.get(schema.properties, "x")
+  x.title |> should.equal(Some("local-mixin"))
+}
+
+pub fn parse_ref_with_local_allof_ref_member_resolves_test() {
+  // A $ref-bearing node's own allOf members pass through nested-$ref
+  // resolution before merging — otherwise the unresolved ref reaches the
+  // composer and resurrects a `ref` on the flattened node.
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"a\": { \"type\": \"string\" }, \"b\": { \"title\": \"from-b\" } }, \"properties\": { \"x\": { \"$ref\": \"#/$defs/a\", \"allOf\": [ { \"$ref\": \"#/$defs/b\" } ] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(x) = properties.get(schema.properties, "x")
+  x.title |> should.equal(Some("from-b"))
+  x.ref |> should.equal(None)
 }

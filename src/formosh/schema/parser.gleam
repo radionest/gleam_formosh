@@ -119,21 +119,38 @@ fn schema_decoder() -> Decoder(JsonSchema) {
   // Extract conditional rules
   let conditionals = extract_single_conditional(dynamic_data)
 
-  // Extract allOf composition members
-  let all_of = extract_all_of(dynamic_data)
-
-  decode.success(JsonSchema(
-    title: title,
-    description: description,
-    field_type: field_type,
-    properties: properties,
-    required: required,
-    defs: defs,
-    conditionals: conditionals,
-    all_of: all_of,
-    string_constraints: string_constraints,
-    number_constraints: number_constraints,
-  ))
+  // Extract allOf composition members — a malformed member fails the parse
+  case extract_all_of(dynamic_data) {
+    Error(_) ->
+      decode.failure(
+        JsonSchema(
+          title: None,
+          description: None,
+          field_type: ObjectType,
+          properties: [],
+          required: [],
+          defs: None,
+          conditionals: [],
+          all_of: None,
+          string_constraints: None,
+          number_constraints: None,
+        ),
+        "allOf",
+      )
+    Ok(all_of) ->
+      decode.success(JsonSchema(
+        title: title,
+        description: description,
+        field_type: field_type,
+        properties: properties,
+        required: required,
+        defs: defs,
+        conditionals: conditionals,
+        all_of: all_of,
+        string_constraints: string_constraints,
+        number_constraints: number_constraints,
+      ))
+  }
 }
 
 /// Single source of truth for a JSON Schema `type` string → FieldType.
@@ -317,7 +334,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // Extract oneOf composition keyword
   let one_of = extract_one_of(dynamic_data)
 
-  // Extract allOf composition members
+  // Extract allOf composition members — a malformed member fails the parse
   let all_of = extract_all_of(dynamic_data)
 
   // Extract presentation hints from x- extensions
@@ -328,27 +345,31 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // lifted to this node by composer.flatten_schema/flatten_property.
   let conditionals = extract_single_conditional(dynamic_data)
 
-  decode.success(SchemaProperty(
-    field_type: field_type,
-    title: title,
-    description: description,
-    default: default,
-    enum_values: enum_values_with_const,
-    one_of: one_of,
-    all_of: all_of,
-    ref: ref,
-    string_constraints: string_constraints,
-    number_constraints: number_constraints,
-    array_constraints: array_constraints,
-    items: items,
-    properties: properties,
-    required: required,
-    read_only: read_only,
-    addable: addable,
-    removable: removable,
-    render_hints: render_hints,
-    conditionals: conditionals,
-  ))
+  case all_of {
+    Error(_) -> decode.failure(empty_property(), "allOf")
+    Ok(all_of) ->
+      decode.success(SchemaProperty(
+        field_type: field_type,
+        title: title,
+        description: description,
+        default: default,
+        enum_values: enum_values_with_const,
+        one_of: one_of,
+        all_of: all_of,
+        ref: ref,
+        string_constraints: string_constraints,
+        number_constraints: number_constraints,
+        array_constraints: array_constraints,
+        items: items,
+        properties: properties,
+        required: required,
+        read_only: read_only,
+        addable: addable,
+        removable: removable,
+        render_hints: render_hints,
+        conditionals: conditionals,
+      ))
+  }
 }
 
 /// Extract const value from dynamic JSON data.
@@ -390,12 +411,32 @@ fn extract_one_of(data: Dynamic) -> Option(List(SchemaProperty)) {
 /// the member record, a member's own if/then/else lands in the member's
 /// `conditionals`, and a nested allOf recurses into the member's `all_of`.
 /// Members are merged into the parent by `composer.flatten_schema` after
-/// $ref resolution. Lenient like `extract_one_of`: an undecodable member
-/// list (e.g. a boolean schema member) yields `None` and composition is
-/// skipped for this node.
-fn extract_all_of(data: Dynamic) -> Option(List(SchemaProperty)) {
-  decode.run(data, decode.at(["allOf"], decode.list(property_decoder())))
-  |> option.from_result()
+/// $ref resolution. Strict, unlike `extract_one_of`: a `true` member is the
+/// spec no-op and is skipped, while `false` or a malformed member fails the
+/// parse — silently dropping members would weaken validation.
+fn extract_all_of(data: Dynamic) -> Result(Option(List(SchemaProperty)), Nil) {
+  case decode.run(data, decode.at(["allOf"], decode.dynamic)) {
+    Error(_) -> Ok(None)
+    Ok(members) ->
+      decode.run(members, decode.list(all_of_member_decoder()))
+      |> result.map(fn(members) { Some(option.values(members)) })
+      |> result.replace_error(Nil)
+  }
+}
+
+/// Decode a single allOf member. `true` is the JSON Schema no-op — decoded
+/// to `None` and dropped by `extract_all_of`; `false` (nothing validates)
+/// and non-schema values fail the decode.
+fn all_of_member_decoder() -> Decoder(Option(SchemaProperty)) {
+  decode.one_of(property_decoder() |> decode.map(Some), [
+    decode.bool
+    |> decode.then(fn(is_permissive) {
+      case is_permissive {
+        True -> decode.success(None)
+        False -> decode.failure(None, "allOf member")
+      }
+    }),
+  ])
 }
 
 /// Extract string validation constraints from dynamic JSON data.

@@ -112,8 +112,19 @@ fn resolve_property_ref(
                 new_visited,
               ))
 
+              // Resolve refs nested in the referencing node's own subtree
+              // (items, properties, allOf members, conditionals) before the
+              // merge — an unresolved local ref would otherwise survive it.
+              // `visited` (not `new_visited`): a local member re-referencing
+              // the same definition is reuse, not a cycle.
+              use resolved_local <- result.try(resolve_nested_refs(
+                property,
+                context,
+                visited,
+              ))
+
               // Merge the resolved property with any local overrides
-              Ok(merge_properties(property, resolved))
+              Ok(merge_properties(resolved_local, resolved))
             }
             Error(_) -> Error(ReferenceNotFound(ref_path))
           }
@@ -264,7 +275,9 @@ fn parse_ref_path(ref_path: String) -> Result(String, ResolveError) {
 
 /// Append two optional allOf member lists. Both sides' members apply when
 /// a $ref-bearing node and its referenced definition each carry allOf —
-/// composer.flatten collapses the combined list after resolution.
+/// composer.flatten_schema collapses the combined list after resolution.
+/// Referenced members go first: the composer fold is later-wins, so the
+/// referencing node's local members keep the local-override precedence.
 fn append_all_of(
   left: option.Option(List(SchemaProperty)),
   right: option.Option(List(SchemaProperty)),
@@ -292,7 +305,7 @@ fn merge_properties(
     default: option.or(referencing.default, referenced.default),
     enum_values: option.or(referencing.enum_values, referenced.enum_values),
     one_of: option.or(referencing.one_of, referenced.one_of),
-    all_of: append_all_of(referencing.all_of, referenced.all_of),
+    all_of: append_all_of(referenced.all_of, referencing.all_of),
     ref: None,
     // Clear the ref since it's been resolved
     string_constraints: option.or(
@@ -326,16 +339,20 @@ fn merge_properties(
   )
 }
 
-/// Merge two `RenderHints`, with the referencing side winning per-field.
+/// Merge two `RenderHints`, with the referencing side winning per-field —
+/// except `disabled`/`readonly`, which OR-merge: a `false` on one side must
+/// not re-enable a `true` from the other, mirroring `SchemaProperty.read_only`
+/// and the UiSchema `ui:disabled` contract.
 ///
-/// Runs only during `$ref` resolution, so the inputs carry hints from JSON
+/// Runs during `$ref` resolution, so the inputs carry hints from JSON
 /// Schema `x-*` extensions on the referencing/referenced nodes — currently
 /// `x-widget`, `x-accept`, `x-max-file-size`. UiSchema merging happens later
 /// in `ui_resolver.resolve_hints` and feeds the other `RenderHints` fields
 /// (`placeholder`, `help`, etc.), so here they are always `None` on both
-/// sides and `option.or` is a no-op for them.
+/// sides.
 ///
-/// Also reused by `composer` for allOf member merging (first argument wins).
+/// Also reused by `composer` for allOf member merging (first argument wins
+/// on the per-field picks).
 pub fn merge_render_hints(
   referencing: types.RenderHints,
   referenced: types.RenderHints,
@@ -350,8 +367,8 @@ pub fn merge_render_hints(
     placeholder: option.or(referencing.placeholder, referenced.placeholder),
     help: option.or(referencing.help, referenced.help),
     autofocus: option.or(referencing.autofocus, referenced.autofocus),
-    disabled: option.or(referencing.disabled, referenced.disabled),
-    readonly: option.or(referencing.readonly, referenced.readonly),
+    disabled: or_hint(referencing.disabled, referenced.disabled),
+    readonly: or_hint(referencing.readonly, referenced.readonly),
     title: option.or(referencing.title, referenced.title),
     description: option.or(referencing.description, referenced.description),
     order: option.or(referencing.order, referenced.order),
@@ -359,4 +376,16 @@ pub fn merge_render_hints(
     removable: option.or(referencing.removable, referenced.removable),
     orderable: option.or(referencing.orderable, referenced.orderable),
   )
+}
+
+/// OR-combine two optional boolean hints: `Some(False)` must not override
+/// `Some(True)` from the other side.
+fn or_hint(
+  a: option.Option(Bool),
+  b: option.Option(Bool),
+) -> option.Option(Bool) {
+  case a, b {
+    Some(x), Some(y) -> Some(x || y)
+    _, _ -> option.or(a, b)
+  }
 }
