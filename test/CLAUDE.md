@@ -34,7 +34,7 @@ gleam test
 | `complex_schema_test.gleam` | Integration | 121 | Complex nested schemas (medical form), enum parsing |
 | `basic_leak_signs_test.gleam` | Integration | 114 | File-based schema loading, conditional resolution with real schemas |
 | `formosh_test.gleam` | — | 13 | Placeholder (hello_world only) |
-| `all_of_test.gleam` | `schema/composer`, `schema/parser`, `schema/resolver` | 576 | allOf composition: member merging, $ref mixins, collision deep-merge, stricter bounds, unified conditionals, nested/degenerate cases |
+| `all_of_test.gleam` | `schema/composer`, `schema/parser`, `schema/resolver` | 724 | allOf composition: member merging, $ref mixins, collision deep-merge, stricter bounds, unified conditionals, nested/degenerate cases, root typing (member-typed/typeless/authored), root $ref, type conflicts, crossed bounds |
 
 ## Coverage Gaps
 
