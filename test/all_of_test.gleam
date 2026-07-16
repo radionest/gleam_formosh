@@ -3,10 +3,12 @@
 /// records. Integration level (Task 5): parser.parse_schema on JSON.
 import formosh/schema/composer
 import formosh/schema/properties
+import formosh/schema/resolver
 import formosh/schema/types.{
   ArrayConstraints, IntegerType, NumberConstraints, ObjectType, SchemaProperty,
   StringConstraints, StringType,
 }
+import gleam/dict
 import gleam/option.{None, Some}
 import gleeunit/should
 
@@ -277,4 +279,68 @@ pub fn flatten_schema_lifts_members_to_root_test() {
   flat.all_of |> should.equal(None)
   properties.keys(flat.properties) |> should.equal(["from_member", "local"])
   flat.required |> should.equal(["from_member", "local"])
+}
+
+pub fn resolver_expands_ref_inside_all_of_test() {
+  let base_def =
+    prop_with(fn(p) {
+      SchemaProperty(
+        ..p,
+        field_type: Some(ObjectType),
+        properties: Some([#("from_base", types.empty_property())]),
+      )
+    })
+  let schema =
+    types.JsonSchema(
+      title: None,
+      description: None,
+      field_type: ObjectType,
+      properties: [],
+      required: [],
+      defs: Some(dict.from_list([#("base", base_def)])),
+      conditionals: [],
+      all_of: Some([
+        prop_with(fn(p) { SchemaProperty(..p, ref: Some("#/$defs/base")) }),
+      ]),
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  let assert Ok(resolved) = resolver.resolve_refs(schema)
+  let assert Some([member]) = resolved.all_of
+  member.ref |> should.equal(None)
+  let assert Some(props) = member.properties
+  properties.keys(props) |> should.equal(["from_base"])
+}
+
+pub fn resolver_circular_ref_inside_all_of_errors_test() {
+  let looping =
+    prop_with(fn(p) {
+      SchemaProperty(
+        ..p,
+        all_of: Some([
+          prop_with(fn(q) { SchemaProperty(..q, ref: Some("#/$defs/loop")) }),
+        ]),
+      )
+    })
+  let schema =
+    types.JsonSchema(
+      title: None,
+      description: None,
+      field_type: ObjectType,
+      properties: [
+        #(
+          "field",
+          prop_with(fn(p) { SchemaProperty(..p, ref: Some("#/$defs/loop")) }),
+        ),
+      ],
+      required: [],
+      defs: Some(dict.from_list([#("loop", looping)])),
+      conditionals: [],
+      all_of: None,
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  resolver.resolve_refs(schema) |> should.be_error
 }

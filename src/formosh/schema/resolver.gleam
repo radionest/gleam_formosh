@@ -51,11 +51,20 @@ pub fn resolve_refs(schema: JsonSchema) -> Result(JsonSchema, ResolveError) {
     list.try_map(schema.conditionals, resolve_conditional_rule(_, context, [])),
   )
 
+  // Resolve references inside root-level allOf members
+  use resolved_all_of <- result.try(
+    resolve_optional(
+      schema.all_of,
+      list.try_map(_, resolve_property_ref(_, context, [])),
+    ),
+  )
+
   Ok(
     types.JsonSchema(
       ..schema,
       properties: resolved_properties,
       conditionals: resolved_conditionals,
+      all_of: resolved_all_of,
     ),
   )
 }
@@ -163,6 +172,13 @@ fn resolve_nested_refs(
     )),
   )
 
+  use resolved_all_of <- result.try(
+    resolve_optional(
+      property.all_of,
+      list.try_map(_, resolve_property_ref(_, context, visited)),
+    ),
+  )
+
   Ok(
     types.SchemaProperty(
       ..property,
@@ -170,6 +186,7 @@ fn resolve_nested_refs(
       items: resolved_items,
       one_of: resolved_one_of,
       conditionals: resolved_conditionals,
+      all_of: resolved_all_of,
     ),
   )
 }
