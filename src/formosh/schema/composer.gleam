@@ -1,10 +1,12 @@
 /// allOf composition flattening.
 ///
-/// Runs once inside `parser.parse_schema`, after `resolver.resolve_refs`:
-/// every node's `all_of` members are deep-merged into the node and the field
+/// Runs once inside `parser.parse_schema`, after `$ref` resolution: every
+/// node's `all_of` members are deep-merged into the node and the field
 /// cleared, so downstream modules only ever see plain merged properties.
+/// The document root goes through the same path — it parses as a
+/// `SchemaProperty` and is converted to `JsonSchema` afterwards.
 ///
-/// Merge contract (design.md D3-D6): members fold in array order and the
+/// Merge contract (design D3-D6): members fold in array order and the
 /// node's own keywords override last (mirrors the $ref local-override
 /// precedent); same-key properties merge field-by-field recursively; bounds
 /// combine stricter-wins; `required` unions; conditionals append with member
@@ -14,61 +16,13 @@
 import formosh/schema/properties
 import formosh/schema/resolver
 import formosh/schema/types.{
-  type ConditionalRule, type JsonSchema, type SchemaProperty, ArrayConstraints,
-  ConditionalRule, JsonSchema, NumberConstraints, SchemaProperty,
-  StringConstraints,
+  type ConditionalRule, type SchemaProperty, ArrayConstraints, ConditionalRule,
+  NumberConstraints, SchemaProperty, StringConstraints,
 }
 import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
-
-/// Flatten every `allOf` in the schema tree into plain merged keywords.
-/// Total: never fails; unsatisfiable bound combinations are re-normalized.
-/// The root keeps its `field_type` and `defs` (D6): a scalar-typed member
-/// cannot retype the root object form, and member bits a root object form
-/// cannot hold (items, enum, defaults, hints) are dropped.
-pub fn flatten_schema(schema: JsonSchema) -> JsonSchema {
-  let m =
-    schema.all_of
-    |> option.unwrap([])
-    |> list.map(flatten_property)
-    |> list.fold(types.empty_property(), merge_pair)
-
-  // Flatten root-local properties BEFORE the collision merge — merge_pair
-  // clears all_of, so an unflattened local child would lose its members.
-  let local_properties =
-    list.map(schema.properties, fn(entry) {
-      #(entry.0, flatten_property(entry.1))
-    })
-  let merged_properties = case m.properties {
-    Some(member_props) ->
-      properties.merge_with(member_props, local_properties, merge_pair)
-    None -> local_properties
-  }
-
-  JsonSchema(
-    ..schema,
-    title: option.or(schema.title, m.title),
-    description: option.or(schema.description, m.description),
-    properties: merged_properties,
-    required: list.append(m.required, schema.required) |> list.unique(),
-    // m.conditionals were already flattened by the member pass above.
-    conditionals: list.append(
-      m.conditionals,
-      list.map(schema.conditionals, flatten_rule),
-    ),
-    string_constraints: merge_string_constraints(
-      m.string_constraints,
-      schema.string_constraints,
-    ),
-    number_constraints: merge_number_constraints(
-      m.number_constraints,
-      schema.number_constraints,
-    ),
-    all_of: None,
-  )
-}
 
 /// Flatten a property subtree: descend into children first so every side of
 /// the merge is already composition-free, then collapse this node's members

@@ -287,7 +287,7 @@ fn parse_ref_path(ref_path: String) -> Result(String, ResolveError) {
 
 /// Append two optional allOf member lists. Both sides' members apply when
 /// a $ref-bearing node and its referenced definition each carry allOf —
-/// composer.flatten_schema collapses the combined list after resolution.
+/// composer.flatten_property collapses the combined list after resolution.
 /// Referenced members go first: the composer fold is later-wins, so the
 /// referencing node's local members keep the local-override precedence.
 fn append_all_of(

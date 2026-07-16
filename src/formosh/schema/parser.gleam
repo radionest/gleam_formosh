@@ -42,9 +42,9 @@ import gleam/result
 /// }
 /// ```
 pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
-  use parsed_schema <- result.try(
+  use #(root, defs) <- result.try(
     json_string
-    |> json.parse(using: schema_decoder())
+    |> json.parse(using: root_decoder())
     |> result.map_error(fn(error) {
       case error {
         json.UnableToDecode(errors) -> DecodingError(errors)
@@ -56,101 +56,65 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
     }),
   )
 
-  // Resolve all $ref references in the schema, then flatten allOf
-  // composition members into plain merged keywords.
-  parsed_schema
-  |> resolver.resolve_refs()
-  |> result.map(composer.flatten_schema)
-  |> result.map_error(fn(error) {
-    case error {
-      resolver.ReferenceNotFound(ref) ->
-        UnexpectedValue("Reference not found: " <> ref)
-      resolver.CircularReference(ref) ->
-        UnexpectedValue("Circular reference detected: " <> ref)
-      resolver.InvalidReference(ref) ->
-        UnexpectedValue("Invalid reference format: " <> ref)
-    }
-  })
+  use resolved <- result.try(
+    resolver.resolve_property(root, defs)
+    |> result.map_error(fn(error) {
+      case error {
+        resolver.ReferenceNotFound(ref) ->
+          UnexpectedValue("Reference not found: " <> ref)
+        resolver.CircularReference(ref) ->
+          UnexpectedValue("Circular reference detected: " <> ref)
+        resolver.InvalidReference(ref) ->
+          UnexpectedValue("Invalid reference format: " <> ref)
+      }
+    }),
+  )
+
+  Ok(to_json_schema(composer.flatten_property(resolved), defs))
 }
 
-/// Main schema decoder for the root JSON Schema object.
-/// 
-/// This decoder handles the top-level schema properties including title,
-/// description, type, properties, required fields, and any root-level
-/// validation constraints.
-fn schema_decoder() -> Decoder(JsonSchema) {
-  use title <- decode.optional_field(
-    "title",
-    None,
-    decode.optional(decode.string),
-  )
-  use description <- decode.optional_field(
-    "description",
-    None,
-    decode.optional(decode.string),
-  )
-  use field_type <- decode.optional_field(
-    "type",
-    ObjectType,
-    field_type_decoder(),
-  )
-  use properties <- decode.optional_field(
-    "properties",
-    [],
-    properties_decoder(),
-  )
-  use required <- decode.optional_field(
-    "required",
-    [],
-    decode.list(decode.string),
-  )
+/// Decode the document root as a `SchemaProperty` plus its `$defs`.
+///
+/// The root is a schema like any other node — parsing it through the full
+/// property decoder keeps type absence representable (`Option(FieldType)`)
+/// until composition has run; `to_json_schema` applies the object default
+/// afterwards (issue #70). Uses `full_property_decoder` directly, NOT
+/// `property_decoder`: the bare-string shorthand fallback must not make a
+/// non-object document (e.g. `"hello"`) parse as an empty schema.
+fn root_decoder() -> Decoder(
+  #(SchemaProperty, Option(Dict(String, SchemaProperty))),
+) {
+  use root <- decode.then(full_property_decoder())
   use defs <- decode.optional_field(
     "$defs",
     None,
     decode.optional(definitions_decoder()),
   )
+  decode.success(#(root, defs))
+}
 
-  // Try to extract constraints from the top level
-  use dynamic_data <- decode.then(decode.dynamic)
-
-  let string_constraints = extract_string_constraints(dynamic_data)
-  let number_constraints = extract_number_constraints(dynamic_data)
-
-  // Extract conditional rules
-  let conditionals = extract_single_conditional(dynamic_data)
-
-  // Extract allOf composition members — a malformed member fails the parse
-  case extract_all_of(dynamic_data) {
-    Error(_) ->
-      decode.failure(
-        JsonSchema(
-          title: None,
-          description: None,
-          field_type: ObjectType,
-          properties: [],
-          required: [],
-          defs: None,
-          conditionals: [],
-          all_of: None,
-          string_constraints: None,
-          number_constraints: None,
-        ),
-        "allOf",
-      )
-    Ok(all_of) ->
-      decode.success(JsonSchema(
-        title: title,
-        description: description,
-        field_type: field_type,
-        properties: properties,
-        required: required,
-        defs: defs,
-        conditionals: conditionals,
-        all_of: all_of,
-        string_constraints: string_constraints,
-        number_constraints: number_constraints,
-      ))
-  }
+/// Materialize the public root type from the flattened root property.
+/// The `ObjectType` default lands here — after composition — so a type
+/// supplied only by an allOf member survives. Fields `JsonSchema` cannot
+/// hold (items, enum, default, oneOf, array constraints, readOnly,
+/// addable/removable, render hints) are dropped: the root of a form is
+/// structurally an object unless the composition says otherwise (D6).
+fn to_json_schema(
+  root: SchemaProperty,
+  defs: Option(Dict(String, SchemaProperty)),
+) -> JsonSchema {
+  JsonSchema(
+    title: root.title,
+    description: root.description,
+    field_type: option.unwrap(root.field_type, ObjectType),
+    properties: option.unwrap(root.properties, []),
+    required: root.required,
+    defs: defs,
+    conditionals: root.conditionals,
+    all_of: None,
+    string_constraints: root.string_constraints,
+    number_constraints: root.number_constraints,
+  )
 }
 
 /// Single source of truth for a JSON Schema `type` string → FieldType.
@@ -342,7 +306,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
 
   // Extract property-level direct conditional rule (if/then/else). Rules
   // declared inside allOf members ride on the member schemas and are
-  // lifted to this node by composer.flatten_schema/flatten_property.
+  // lifted to this node by composer.flatten_property.
   let conditionals = extract_single_conditional(dynamic_data)
 
   case all_of {
@@ -410,7 +374,7 @@ fn extract_one_of(data: Dynamic) -> Option(List(SchemaProperty)) {
 /// Every member is parsed as an ordinary sub-schema: plain keywords ride on
 /// the member record, a member's own if/then/else lands in the member's
 /// `conditionals`, and a nested allOf recurses into the member's `all_of`.
-/// Members are merged into the parent by `composer.flatten_schema` after
+/// Members are merged into the parent by `composer.flatten_property` after
 /// $ref resolution. Strict, unlike `extract_one_of`: a `true` member is the
 /// spec no-op and is skipped, while `false` or a malformed member fails the
 /// parse — silently dropping members would weaken validation.
@@ -558,7 +522,7 @@ fn extract_array_constraints(data: Dynamic) -> Option(ArrayConstraints) {
 ///
 /// Returns a list with 0 or 1 conditional rules. Rules declared inside
 /// allOf members ride on the member schemas (see `extract_all_of`) and are
-/// lifted to the parent by `composer.flatten_schema` — including when a
+/// lifted to the parent by `composer.flatten_property` — including when a
 /// direct rule and allOf coexist on the same node.
 fn extract_single_conditional(data: Dynamic) -> List(ConditionalRule) {
   // Check if there's an "if" field at the top level

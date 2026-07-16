@@ -291,14 +291,20 @@ pub fn invalid_json_test() {
   should.be_error(result)
 }
 
-/// `properties` must be a JSON object — strings, arrays, null, etc. should
-/// surface a decoding error instead of silently producing an empty form.
+/// `properties` must be a JSON object — non-null wrong types (strings,
+/// arrays, etc.) surface a decoding error instead of silently producing an
+/// empty form.
 pub fn properties_must_be_object_test() {
   parser.parse_schema("{\"type\": \"object\", \"properties\": \"oops\"}")
   |> should.be_error()
 
-  parser.parse_schema("{\"type\": \"object\", \"properties\": null}")
-  |> should.be_error()
+  // JSON null is "absent" for compound fields (stdlib decode.optional never
+  // invokes the inner decoder on null). Nested properties always behaved
+  // this way; since the root shares the node decoder (#70 unification), the
+  // root now matches. Non-null wrong types below still fail the parse.
+  let assert Ok(schema) =
+    parser.parse_schema("{\"type\": \"object\", \"properties\": null}")
+  schema.properties |> should.equal([])
 
   parser.parse_schema("{\"type\": \"object\", \"properties\": [1, 2, 3]}")
   |> should.be_error()
