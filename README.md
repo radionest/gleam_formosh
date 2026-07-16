@@ -338,6 +338,8 @@ The widget is chosen automatically based on schema:
 
 - `anyOf` — parsed but not processed
 - `not`
+- `allOf` enum/`oneOf` intersection — colliding `enum`/`oneOf` values take the later member's list wholesale
+- `allOf` inside a `$defs` entry does not survive schema serialization round-trip (`$defs` stay raw; the serializer re-emits flattened schemas)
 - `pattern` — stored but regex validation not wired up (no regex library)
 - `additionalProperties`, `patternProperties`
 - `dependencies`, `dependentRequired`, `dependentSchemas`

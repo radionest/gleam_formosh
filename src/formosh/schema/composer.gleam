@@ -8,7 +8,9 @@
 /// node's own keywords override last (mirrors the $ref local-override
 /// precedent); same-key properties merge field-by-field recursively; bounds
 /// combine stricter-wins; `required` unions; conditionals append with member
-/// rules first.
+/// rules first. Scalar keywords (`title`, `default`, `enum`, `oneOf`,
+/// `pattern`, `format`, `multipleOf`) take the later value wholesale —
+/// enum/oneOf are overridden, not intersected (D5).
 import formosh/schema/properties
 import formosh/schema/resolver
 import formosh/schema/types.{
@@ -23,6 +25,9 @@ import gleam/option.{type Option, None, Some}
 
 /// Flatten every `allOf` in the schema tree into plain merged keywords.
 /// Total: never fails; unsatisfiable bound combinations are re-normalized.
+/// The root keeps its `field_type` and `defs` (D6): a scalar-typed member
+/// cannot retype the root object form, and member bits a root object form
+/// cannot hold (items, enum, defaults, hints) are dropped.
 pub fn flatten_schema(schema: JsonSchema) -> JsonSchema {
   let m =
     schema.all_of
@@ -48,8 +53,11 @@ pub fn flatten_schema(schema: JsonSchema) -> JsonSchema {
     description: option.or(schema.description, m.description),
     properties: merged_properties,
     required: list.append(m.required, schema.required) |> list.unique(),
-    conditionals: list.append(m.conditionals, schema.conditionals)
-      |> list.map(flatten_rule),
+    // m.conditionals were already flattened by the member pass above.
+    conditionals: list.append(
+      m.conditionals,
+      list.map(schema.conditionals, flatten_rule),
+    ),
     string_constraints: merge_string_constraints(
       m.string_constraints,
       schema.string_constraints,
