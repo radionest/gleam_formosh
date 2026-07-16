@@ -233,8 +233,8 @@ with `minItems` to make it appear — pre-populated with its first default-hydra
 row — only once the condition is met. See
 [`demo/schemas/carcinomatosis_radiology.json`](demo/schemas/carcinomatosis_radiology.json)
 for a worked example (`lesions` appears per-zone when `affected` is true).
-Note: `$ref` is not resolved inside `then`/`else` branches — inline the
-definition there.
+`$ref` is resolved inside `if`/`then`/`else` branches, so conditional branches
+can reference `$defs` definitions directly.
 
 ### $ref and $defs
 
@@ -309,7 +309,7 @@ The widget is chosen automatically based on schema:
 - **Structure:** `properties`, `items` (objects and arrays nest to any depth, including arrays inside array items), `required`, `$defs`/`definitions`, `$ref`
 - **Metadata:** `title`, `description`, `default`, `readOnly`
 - **Enum:** `enum`, `const` (converted to single-value enum)
-- **Composition:** `oneOf` (with const+title options), `allOf` (deep-merges member schemas — properties, required, bounds, `$ref` mixins — at parse time, and lifts member conditionals to the parent)
+- **Composition:** `oneOf` (with const+title options), `allOf` (deep-merges member schemas — properties, required, bounds, `$ref` mixins — at parse time, and lifts member conditionals to the parent; see [`demo/schemas/composition_test.json`](demo/schemas/composition_test.json) for a worked example)
 - **Conditional:** `if`/`then`/`else` — fully dynamic, re-evaluated on every field change
 - **String constraints:** `minLength`, `maxLength`, `format` (date, email, url/uri, time, datetime, uuid)
 - **Number constraints:** `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
