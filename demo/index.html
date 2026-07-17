@@ -727,10 +727,17 @@
 
         /* ── Two-pane workbench: form beside its source schema ─────────── */
         .workbench.two-pane {
-            /* Break out of the 960px text column, centered on the viewport. */
-            width: min(1240px, calc(100vw - 32px));
-            margin-left: 50%;
-            transform: translateX(-50%);
+            /* Break out of the 960px column by widening symmetrically around the
+               .page (which margin:auto centers within the scrollbar-excluded body),
+               so the centering never depends on 100vw counting the scrollbar.
+               --bleed = extra width per side, capped to never exceed 1240px total
+               nor the viewport (the 32px keeps clear of a classic scrollbar). */
+            --bleed: max(0px, min(
+                calc((1240px - 100%) / 2),
+                calc((100vw - 100% - 32px) / 2)
+            ));
+            width: calc(100% + 2 * var(--bleed));
+            margin-inline: calc(-1 * var(--bleed));
         }
         .split {
             display: grid;
@@ -743,8 +750,7 @@
             .split { grid-template-columns: minmax(0, 1fr); }
             .workbench.two-pane {
                 width: auto;
-                margin-left: 0;
-                transform: none;
+                margin-inline: 0;
             }
         }
 
