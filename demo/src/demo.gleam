@@ -7,6 +7,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import json_highlight
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -286,20 +287,23 @@ fn submission_banner(result: String) -> Element(Msg) {
 fn form_section(model: Model) -> Element(Msg) {
   case model.schema_content {
     Some(schema_json) ->
-      html.div([attribute.class("workbench")], [
+      html.div([attribute.class("workbench two-pane")], [
         transform_bar(option.unwrap(model.selected_schema, "schema.json")),
         html.div([attribute.class("workbench-body")], [
           info_chips(model),
-          html.div([attribute.id("form-mount-point")], [
-            element.element(
-              "formosh-form",
-              form_attributes(
-                schema_json,
-                model.ui_schema_content,
-                model.selected_schema,
+          html.div([attribute.class("split")], [
+            html.div([attribute.id("form-mount-point")], [
+              element.element(
+                "formosh-form",
+                form_attributes(
+                  schema_json,
+                  model.ui_schema_content,
+                  model.selected_schema,
+                ),
+                [],
               ),
-              [],
-            ),
+            ]),
+            schema_pane(model),
           ]),
         ]),
       ])
@@ -342,6 +346,28 @@ fn chip(key: String, value: String) -> Element(Msg) {
   html.span([attribute.class("chip")], [
     html.span([attribute.class("chip-key")], [html.text(key)]),
     html.text(value),
+  ])
+}
+
+fn schema_pane(model: Model) -> Element(Msg) {
+  let schema_block = case model.schema_content {
+    Some(json) -> [code_block("schema", json)]
+    None -> []
+  }
+  let ui_block = case model.ui_schema_content {
+    Some(json) -> [code_block("ui-schema", json)]
+    None -> []
+  }
+  html.div(
+    [attribute.class("schema-pane")],
+    list.flatten([schema_block, ui_block]),
+  )
+}
+
+fn code_block(label: String, json: String) -> Element(Msg) {
+  html.div([attribute.class("code-block")], [
+    html.span([attribute.class("code-label")], [html.text(label)]),
+    html.pre([attribute.class("schema-code")], json_highlight.to_spans(json)),
   ])
 }
 
