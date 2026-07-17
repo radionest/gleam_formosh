@@ -34,6 +34,14 @@ jobs:
           gleam deps download
           gleam build --target javascript
 
+      # The demo is a separate Gleam project, so root test.yml never runs its
+      # tests. Run them here (build-only on PRs still catches breakage).
+      - name: Test demo
+        working-directory: demo
+        run: |
+          gleam test
+          gleam format --check src test
+
       - name: Assemble site
         run: |
           mkdir -p _site/build/dev
