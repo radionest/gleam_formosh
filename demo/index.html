@@ -725,6 +725,73 @@
         [part="swipe-review-zone"] { color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
         [part="swipe-review-answer"] { flex-shrink: 0; font-weight: 700; color: var(--magenta-ink); }
 
+        /* ── Two-pane workbench: form beside its source schema ─────────── */
+        .workbench.two-pane {
+            /* Break out of the 960px text column, centered on the viewport. */
+            width: min(1240px, calc(100vw - 32px));
+            margin-left: 50%;
+            transform: translateX(-50%);
+        }
+        .split {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: clamp(16px, 3vw, 28px);
+            align-items: start;
+        }
+        /* Below this width the two panes stack, form first. */
+        @media (max-width: 900px) {
+            .split { grid-template-columns: minmax(0, 1fr); }
+            .workbench.two-pane {
+                width: auto;
+                margin-left: 0;
+                transform: none;
+            }
+        }
+
+        .schema-pane {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-width: 0;
+        }
+        .code-block {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            border: 1.5px solid var(--line);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--surface-2);
+        }
+        .code-label {
+            padding: 8px 14px;
+            background: var(--ink);
+            color: var(--faff);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+        pre.schema-code {
+            margin: 0;
+            padding: 14px 16px;
+            max-height: 560px;
+            overflow: auto;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            line-height: 1.55;
+            color: var(--ink-soft);
+            white-space: pre;
+            tab-size: 2;
+        }
+
+        /* JSON token colors (from the faff-pink palette) */
+        .schema-code .jk { color: var(--magenta-ink); font-weight: 500; }  /* keys */
+        .schema-code .js { color: var(--ink); }                            /* string values */
+        .schema-code .jn { color: var(--magenta); }                        /* numbers */
+        .schema-code .jl { color: var(--ok); font-weight: 500; }           /* literals */
+        .schema-code .jp { color: var(--muted); }                          /* punctuation */
+
         @media (prefers-reduced-motion: reduce) {
             * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
             .caret { animation: none; }
