@@ -141,10 +141,14 @@ pub fn merge_with_combines_collisions_test() {
     ),
     #("email", types.empty_property()),
   ]
-  let combine = fn(old: types.SchemaProperty, new: types.SchemaProperty) {
-    types.SchemaProperty(..old, description: new.description)
+  let combine = fn(
+    _key: String,
+    old: types.SchemaProperty,
+    new: types.SchemaProperty,
+  ) {
+    Ok(types.SchemaProperty(..old, description: new.description))
   }
-  let merged = properties.merge_with(base, additions, combine)
+  let assert Ok(merged) = properties.merge_with(base, additions, combine)
 
   properties.keys(merged) |> should.equal(["name", "age", "email"])
   let assert Some(name) = properties.get(merged, "name")
@@ -163,7 +167,8 @@ pub fn merge_with_dedups_additions_test() {
       types.SchemaProperty(..types.empty_property(), title: Some("second")),
     ),
   ]
-  let merged = properties.merge_with([], additions, fn(_old, new) { new })
+  let assert Ok(merged) =
+    properties.merge_with([], additions, fn(_key, _old, new) { Ok(new) })
   properties.keys(merged) |> should.equal(["dup"])
   let assert Some(dup) = properties.get(merged, "dup")
   dup.title |> should.equal(Some("first"))

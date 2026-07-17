@@ -76,29 +76,34 @@ pub fn merge(base: PropertyList, additions: PropertyList) -> PropertyList {
 /// Merge two ordered property lists, combining collisions.
 ///
 /// Like `merge`, but a key present in both sides produces
-/// `combine(base_value, addition_value)` instead of the addition winning
-/// wholesale. Base keys keep their position; addition-only keys are
-/// appended in their relative order, deduplicated (first occurrence wins).
+/// `combine(key, base_value, addition_value)` instead of the addition
+/// winning wholesale; a combine error aborts the whole merge. Base keys
+/// keep their position; addition-only keys are appended in their relative
+/// order, deduplicated (first occurrence wins).
 pub fn merge_with(
   base: PropertyList,
   additions: PropertyList,
-  combine: fn(SchemaProperty, SchemaProperty) -> SchemaProperty,
-) -> PropertyList {
+  combine: fn(String, SchemaProperty, SchemaProperty) ->
+    Result(SchemaProperty, e),
+) -> Result(PropertyList, e) {
   let deduped_additions = dedup_by_key(additions)
-  let #(base_keys, updated_base) =
-    list.map_fold(base, [], fn(seen, entry) {
+  let base_keys = list.map(base, fn(entry) { entry.0 })
+  use updated_base <- result.try(
+    list.try_map(base, fn(entry) {
       let #(key, base_prop) = entry
-      let merged = case list.key_find(deduped_additions, key) {
-        Ok(new_prop) -> #(key, combine(base_prop, new_prop))
-        Error(_) -> entry
+      case list.key_find(deduped_additions, key) {
+        Ok(new_prop) ->
+          combine(key, base_prop, new_prop)
+          |> result.map(fn(merged) { #(key, merged) })
+        Error(_) -> Ok(entry)
       }
-      #([key, ..seen], merged)
-    })
+    }),
+  )
   let new_only =
     list.filter(deduped_additions, fn(entry) {
       !list.contains(base_keys, entry.0)
     })
-  list.append(updated_base, new_only)
+  Ok(list.append(updated_base, new_only))
 }
 
 /// Reorder an ordered key/value list according to a `ui:order` list.

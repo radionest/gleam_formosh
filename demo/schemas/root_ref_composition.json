@@ -1,0 +1,25 @@
+{
+  "title": "Root $ref composition",
+  "description": "The document root is a bare $ref into $defs — resolved through the same pipeline as any nested node (issue #70 follow-up). The referenced base mixes in audit fields via its own allOf; member fields render first, base fields after, required lists union.",
+  "$ref": "#/$defs/device_intake",
+  "$defs": {
+    "device_intake": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/audit_fields" }],
+      "properties": {
+        "device_name": { "type": "string", "title": "Device name", "minLength": 2 },
+        "serial": { "type": "string", "title": "Serial number", "pattern": "^[A-Z]{2}-[0-9]{4}$", "description": "Format: XX-0000" },
+        "power_w": { "type": "number", "title": "Power draw (W)", "minimum": 0, "maximum": 500 }
+      },
+      "required": ["device_name", "serial"]
+    },
+    "audit_fields": {
+      "type": "object",
+      "properties": {
+        "registered_by": { "type": "string", "title": "Registered by" },
+        "urgent": { "type": "boolean", "title": "Urgent intake" }
+      },
+      "required": ["registered_by"]
+    }
+  }
+}

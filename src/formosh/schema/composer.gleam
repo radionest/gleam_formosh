@@ -1,10 +1,12 @@
 /// allOf composition flattening.
 ///
-/// Runs once inside `parser.parse_schema`, after `resolver.resolve_refs`:
-/// every node's `all_of` members are deep-merged into the node and the field
+/// Runs once inside `parser.parse_schema`, after `$ref` resolution: every
+/// node's `all_of` members are deep-merged into the node and the field
 /// cleared, so downstream modules only ever see plain merged properties.
+/// The document root goes through the same path — it parses as a
+/// `SchemaProperty` and is converted to `JsonSchema` afterwards.
 ///
-/// Merge contract (design.md D3-D6): members fold in array order and the
+/// Merge contract (design D3-D6): members fold in array order and the
 /// node's own keywords override last (mirrors the $ref local-override
 /// precedent); same-key properties merge field-by-field recursively; bounds
 /// combine stricter-wins; `required` unions; conditionals append with member
@@ -14,127 +16,213 @@
 import formosh/schema/properties
 import formosh/schema/resolver
 import formosh/schema/types.{
-  type ConditionalRule, type JsonSchema, type SchemaProperty, ArrayConstraints,
-  ConditionalRule, JsonSchema, NumberConstraints, SchemaProperty,
-  StringConstraints,
+  type ConditionalRule, type FieldType, type ParseError, type SchemaProperty,
+  ArrayConstraints, ArrayType, BooleanType, ConditionalRule, IntegerType,
+  NullType, NumberConstraints, NumberType, ObjectType, SchemaProperty,
+  StringConstraints, StringType, UnsatisfiableSchema,
 }
 import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/string
 
-/// Flatten every `allOf` in the schema tree into plain merged keywords.
-/// Total: never fails; unsatisfiable bound combinations are re-normalized.
-/// The root keeps its `field_type` and `defs` (D6): a scalar-typed member
-/// cannot retype the root object form, and member bits a root object form
-/// cannot hold (items, enum, defaults, hints) are dropped.
-pub fn flatten_schema(schema: JsonSchema) -> JsonSchema {
-  let m =
-    schema.all_of
-    |> option.unwrap([])
-    |> list.map(flatten_property)
-    |> list.fold(types.empty_property(), merge_pair)
-
-  // Flatten root-local properties BEFORE the collision merge — merge_pair
-  // clears all_of, so an unflattened local child would lose its members.
-  let local_properties =
-    list.map(schema.properties, fn(entry) {
-      #(entry.0, flatten_property(entry.1))
-    })
-  let merged_properties = case m.properties {
-    Some(member_props) ->
-      properties.merge_with(member_props, local_properties, merge_pair)
-    None -> local_properties
+/// Format the descent path (accumulated head-first) as a JSON-pointer-ish
+/// breadcrumb for error messages.
+fn path_string(path: List(String)) -> String {
+  case path {
+    [] -> "#"
+    segments -> "#/" <> string.join(list.reverse(segments), "/")
   }
+}
 
-  JsonSchema(
-    ..schema,
-    title: option.or(schema.title, m.title),
-    description: option.or(schema.description, m.description),
-    properties: merged_properties,
-    required: list.append(m.required, schema.required) |> list.unique(),
-    // m.conditionals were already flattened by the member pass above.
-    conditionals: list.append(
-      m.conditionals,
-      list.map(schema.conditionals, flatten_rule),
-    ),
-    string_constraints: merge_string_constraints(
-      m.string_constraints,
-      schema.string_constraints,
-    ),
-    number_constraints: merge_number_constraints(
-      m.number_constraints,
-      schema.number_constraints,
-    ),
-    all_of: None,
+fn unsatisfiable(path: List(String), reason: String) -> ParseError {
+  UnsatisfiableSchema(
+    "unsatisfiable schema at " <> path_string(path) <> ": " <> reason,
   )
+}
+
+/// JSON Schema name for a field type — error messages speak the schema
+/// author's vocabulary ("string"), not Gleam constructor names ("StringType").
+fn field_type_name(t: FieldType) -> String {
+  case t {
+    StringType -> "string"
+    NumberType -> "number"
+    IntegerType -> "integer"
+    BooleanType -> "boolean"
+    ObjectType -> "object"
+    ArrayType -> "array"
+    NullType -> "null"
+  }
+}
+
+/// Intersect two optional type declarations by instance-set semantics:
+/// absence fills, equal keeps, number ∧ integer narrows to integer
+/// (integer instances satisfy both), disjoint pairs validate nothing —
+/// the same class as a `false` member, so they fail the parse.
+fn intersect_types(
+  base: Option(FieldType),
+  overlay: Option(FieldType),
+  path: List(String),
+) -> Result(Option(FieldType), ParseError) {
+  case base, overlay {
+    None, t -> Ok(t)
+    t, None -> Ok(t)
+    Some(a), Some(b) if a == b -> Ok(Some(a))
+    Some(NumberType), Some(IntegerType) | Some(IntegerType), Some(NumberType) ->
+      Ok(Some(IntegerType))
+    Some(a), Some(b) ->
+      Error(unsatisfiable(
+        path,
+        "conflicting types "
+          <> field_type_name(a)
+          <> " vs "
+          <> field_type_name(b),
+      ))
+  }
 }
 
 /// Flatten a property subtree: descend into children first so every side of
 /// the merge is already composition-free, then collapse this node's members
-/// and merge the node's own keywords last. Descending BEFORE the merge
-/// matters: on a same-key collision `merge_pair` clears `all_of`, so a
-/// child that still carried unmerged members would lose them silently.
-pub fn flatten_property(prop: SchemaProperty) -> SchemaProperty {
+/// and merge the node's own keywords last. Fallible: unsatisfiable
+/// compositions (disjoint types, crossed bounds) fail the parse.
+pub fn flatten_property(
+  prop: SchemaProperty,
+) -> Result(SchemaProperty, ParseError) {
+  do_flatten(prop, [])
+}
+
+fn do_flatten(
+  prop: SchemaProperty,
+  path: List(String),
+) -> Result(SchemaProperty, ParseError) {
+  use flat_properties <- result.try(
+    resolver.try_optional(prop.properties, fn(props) {
+      list.try_map(props, fn(entry) {
+        do_flatten(entry.1, [entry.0, ..path])
+        |> result.map(fn(p) { #(entry.0, p) })
+      })
+    }),
+  )
+  use flat_items <- result.try(
+    resolver.try_optional(prop.items, do_flatten(_, ["items", ..path])),
+  )
+  use flat_one_of <- result.try(
+    resolver.try_optional(prop.one_of, fn(members) {
+      members
+      |> list.index_map(fn(m, i) {
+        do_flatten(m, [int.to_string(i), "oneOf", ..path])
+      })
+      |> result.all
+    }),
+  )
+  use flat_conditionals <- result.try(
+    list.try_map(prop.conditionals, flatten_rule(_, path)),
+  )
   let flattened =
     SchemaProperty(
       ..prop,
-      properties: option.map(prop.properties, fn(props) {
-        list.map(props, fn(entry) { #(entry.0, flatten_property(entry.1)) })
-      }),
-      items: option.map(prop.items, flatten_property),
-      one_of: option.map(prop.one_of, list.map(_, flatten_property)),
-      conditionals: list.map(prop.conditionals, flatten_rule),
+      properties: flat_properties,
+      items: flat_items,
+      one_of: flat_one_of,
+      conditionals: flat_conditionals,
       all_of: None,
     )
 
-  prop.all_of
-  |> option.unwrap([])
-  |> list.map(flatten_property)
-  |> list.fold(types.empty_property(), merge_pair)
-  |> merge_pair(flattened)
+  case option.unwrap(prop.all_of, []) {
+    // No effective members (absent, `[]`, or all `true` no-ops): pure no-op.
+    // The node's own keywords are not a composition — they keep lenient
+    // single-schema semantics and skip the satisfiability checks.
+    [] -> Ok(flattened)
+    members -> {
+      use flat_members <- result.try(list.try_map(members, do_flatten(_, path)))
+      use folded <- result.try(
+        list.try_fold(flat_members, types.empty_property(), fn(acc, m) {
+          merge_pair(acc, m, path)
+        }),
+      )
+      merge_pair(folded, flattened, path)
+    }
+  }
 }
 
 /// Flatten composition inside a conditional's branches so `then: {allOf}` /
 /// `if: {allOf}` are already merged when the runtime resolver fires.
-fn flatten_rule(rule: ConditionalRule) -> ConditionalRule {
-  ConditionalRule(
-    if_schema: flatten_property(rule.if_schema),
-    then_schema: option.map(rule.then_schema, flatten_property),
-    else_schema: option.map(rule.else_schema, flatten_property),
+fn flatten_rule(
+  rule: ConditionalRule,
+  path: List(String),
+) -> Result(ConditionalRule, ParseError) {
+  use if_flat <- result.try(do_flatten(rule.if_schema, ["if", ..path]))
+  use then_flat <- result.try(
+    resolver.try_optional(rule.then_schema, do_flatten(_, ["then", ..path])),
   )
+  use else_flat <- result.try(
+    resolver.try_optional(rule.else_schema, do_flatten(_, ["else", ..path])),
+  )
+  Ok(ConditionalRule(
+    if_schema: if_flat,
+    then_schema: then_flat,
+    else_schema: else_flat,
+  ))
 }
 
 /// Deep-merge two properties: `overlay` wins per field, `base` fills gaps.
-fn merge_pair(base: SchemaProperty, overlay: SchemaProperty) -> SchemaProperty {
-  SchemaProperty(
-    field_type: option.or(overlay.field_type, base.field_type),
+/// Fallible: a disjoint type intersection or bounds crossed by the merge
+/// (string/number/array) are unsatisfiable and fail the parse.
+fn merge_pair(
+  base: SchemaProperty,
+  overlay: SchemaProperty,
+  path: List(String),
+) -> Result(SchemaProperty, ParseError) {
+  use field_type <- result.try(intersect_types(
+    base.field_type,
+    overlay.field_type,
+    path,
+  ))
+  use string_constraints <- result.try(
+    merge_string_constraints(
+      base.string_constraints,
+      overlay.string_constraints,
+    )
+    |> check_string_constraints(path),
+  )
+  use number_constraints <- result.try(
+    merge_number_constraints(
+      base.number_constraints,
+      overlay.number_constraints,
+    )
+    |> check_number_constraints(path),
+  )
+  use array_constraints <- result.try(
+    merge_array_constraints(base.array_constraints, overlay.array_constraints)
+    |> check_array_constraints(path),
+  )
+  use items <- result.try(case base.items, overlay.items {
+    Some(b), Some(o) -> merge_pair(b, o, ["items", ..path]) |> result.map(Some)
+    b, o -> Ok(option.or(o, b))
+  })
+  use merged_properties <- result.try(case base.properties, overlay.properties {
+    Some(b), Some(o) ->
+      properties.merge_with(b, o, fn(key, bp, op) {
+        merge_pair(bp, op, [key, ..path])
+      })
+      |> result.map(Some)
+    b, o -> Ok(option.or(o, b))
+  })
+  Ok(SchemaProperty(
+    field_type: field_type,
     title: option.or(overlay.title, base.title),
     description: option.or(overlay.description, base.description),
     default: option.or(overlay.default, base.default),
     enum_values: option.or(overlay.enum_values, base.enum_values),
     one_of: option.or(overlay.one_of, base.one_of),
     ref: option.or(overlay.ref, base.ref),
-    string_constraints: merge_string_constraints(
-      base.string_constraints,
-      overlay.string_constraints,
-    ),
-    number_constraints: merge_number_constraints(
-      base.number_constraints,
-      overlay.number_constraints,
-    ),
-    array_constraints: merge_array_constraints(
-      base.array_constraints,
-      overlay.array_constraints,
-    ),
-    items: case base.items, overlay.items {
-      Some(b), Some(o) -> Some(merge_pair(b, o))
-      b, o -> option.or(o, b)
-    },
-    properties: case base.properties, overlay.properties {
-      Some(b), Some(o) -> Some(properties.merge_with(b, o, merge_pair))
-      b, o -> option.or(o, b)
-    },
+    string_constraints: string_constraints,
+    number_constraints: number_constraints,
+    array_constraints: array_constraints,
+    items: items,
+    properties: merged_properties,
     required: list.append(base.required, overlay.required) |> list.unique(),
     read_only: base.read_only || overlay.read_only,
     addable: base.addable && overlay.addable,
@@ -145,7 +233,7 @@ fn merge_pair(base: SchemaProperty, overlay: SchemaProperty) -> SchemaProperty {
     ),
     conditionals: list.append(base.conditionals, overlay.conditionals),
     all_of: None,
-  )
+  ))
 }
 
 /// Combine two optional values with `pick` when both are present.
@@ -169,6 +257,27 @@ fn merge_string_constraints(
         format: option.or(o.format, b.format),
       ))
     b, o -> option.or(o, b)
+  }
+}
+
+/// Reject a merged string constraint pair that validates nothing (minLength
+/// > maxLength) instead of silently shipping an unsatisfiable form.
+fn check_string_constraints(
+  c: Option(types.StringConstraints),
+  path: List(String),
+) -> Result(Option(types.StringConstraints), ParseError) {
+  case c {
+    Some(StringConstraints(min_length: Some(min), max_length: Some(max), ..))
+      if min > max
+    ->
+      Error(unsatisfiable(
+        path,
+        "minLength "
+          <> int.to_string(min)
+          <> " > maxLength "
+          <> int.to_string(max),
+      ))
+    _ -> Ok(c)
   }
 }
 
@@ -197,23 +306,101 @@ fn merge_number_constraints(
   }
 }
 
+/// Reject a merged number constraint pair that validates nothing (minimum
+/// > maximum, or touching exclusive bounds) instead of silently shipping an
+/// unsatisfiable form.
+fn check_number_constraints(
+  c: Option(types.NumberConstraints),
+  path: List(String),
+) -> Result(Option(types.NumberConstraints), ParseError) {
+  case c {
+    Some(NumberConstraints(minimum: Some(min), maximum: Some(max), ..))
+      if min >. max
+    ->
+      Error(unsatisfiable(
+        path,
+        "minimum "
+          <> float.to_string(min)
+          <> " > maximum "
+          <> float.to_string(max),
+      ))
+    Some(NumberConstraints(
+      exclusive_minimum: Some(emin),
+      exclusive_maximum: Some(emax),
+      ..,
+    ))
+      if emin >=. emax
+    ->
+      Error(unsatisfiable(
+        path,
+        "exclusiveMinimum "
+          <> float.to_string(emin)
+          <> " >= exclusiveMaximum "
+          <> float.to_string(emax),
+      ))
+    Some(NumberConstraints(
+      minimum: Some(min),
+      exclusive_maximum: Some(emax),
+      ..,
+    ))
+      if min >=. emax
+    ->
+      Error(unsatisfiable(
+        path,
+        "minimum "
+          <> float.to_string(min)
+          <> " >= exclusiveMaximum "
+          <> float.to_string(emax),
+      ))
+    Some(NumberConstraints(
+      exclusive_minimum: Some(emin),
+      maximum: Some(max),
+      ..,
+    ))
+      if emin >=. max
+    ->
+      Error(unsatisfiable(
+        path,
+        "exclusiveMinimum "
+          <> float.to_string(emin)
+          <> " >= maximum "
+          <> float.to_string(max),
+      ))
+    _ -> Ok(c)
+  }
+}
+
 fn merge_array_constraints(
   base: Option(types.ArrayConstraints),
   overlay: Option(types.ArrayConstraints),
 ) -> Option(types.ArrayConstraints) {
   case base, overlay {
-    Some(b), Some(o) -> {
-      let min_items = combine(b.min_items, o.min_items, int.max)
-      let max_items = combine(b.max_items, o.max_items, int.min)
-      // Unsatisfiable after combining: minItems wins — same normalization
-      // as the parser, otherwise ensure_min_items wedges the form.
-      case min_items, max_items {
-        Some(min), Some(max) if min > max ->
-          Some(ArrayConstraints(min_items: Some(min), max_items: Some(min)))
-        _, _ ->
-          Some(ArrayConstraints(min_items: min_items, max_items: max_items))
-      }
-    }
+    Some(b), Some(o) ->
+      Some(ArrayConstraints(
+        min_items: combine(b.min_items, o.min_items, int.max),
+        max_items: combine(b.max_items, o.max_items, int.min),
+      ))
     b, o -> option.or(o, b)
+  }
+}
+
+/// Reject a merged array constraint pair that validates nothing (minItems
+/// > maxItems) instead of silently shipping an unsatisfiable form.
+fn check_array_constraints(
+  c: Option(types.ArrayConstraints),
+  path: List(String),
+) -> Result(Option(types.ArrayConstraints), ParseError) {
+  case c {
+    Some(ArrayConstraints(min_items: Some(min), max_items: Some(max)))
+      if min > max
+    ->
+      Error(unsatisfiable(
+        path,
+        "minItems "
+          <> int.to_string(min)
+          <> " > maxItems "
+          <> int.to_string(max),
+      ))
+    _ -> Ok(c)
   }
 }

@@ -1,17 +1,20 @@
 /// Tests for allOf composition merging (issue #54).
-/// Unit level: composer.flatten_property / flatten_schema on constructed
-/// records. Integration level (Task 5): parser.parse_schema on JSON.
+/// Unit level: composer.flatten_property on constructed records.
+/// Integration level: parser.parse_schema on JSON.
 import formosh/schema/composer
 import formosh/schema/parser
 import formosh/schema/properties
 import formosh/schema/resolver
+import formosh/schema/serializer
 import formosh/schema/types.{
   ArrayConstraints, IntegerType, NumberConstraints, ObjectType, SchemaProperty,
-  StringConstraints, StringType,
+  StringConstraints, StringType, UnsatisfiableSchema,
 }
 import gleam/dict
+import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
 
 fn prop_with(
@@ -39,7 +42,7 @@ pub fn flatten_merges_member_properties_in_order_test() {
       )
     })
 
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
 
   flat.all_of |> should.equal(None)
   let assert Some(props) = flat.properties
@@ -84,7 +87,7 @@ pub fn flatten_collision_merges_field_by_field_test() {
       )
     })
 
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
   let assert Some(props) = flat.properties
   let assert Some(name) = properties.get(props, "name")
 
@@ -102,7 +105,8 @@ pub fn flatten_required_unions_test() {
       SchemaProperty(..p, required: ["a", "c"], all_of: Some([m1, m2]))
     })
 
-  composer.flatten_property(node).required |> should.equal(["a", "b", "c"])
+  let assert Ok(flat) = composer.flatten_property(node)
+  flat.required |> should.equal(["a", "b", "c"])
 }
 
 pub fn flatten_bounds_stricter_wins_test() {
@@ -141,7 +145,8 @@ pub fn flatten_bounds_stricter_wins_test() {
       )
     })
 
-  let assert Some(nc) = composer.flatten_property(node).number_constraints
+  let assert Ok(flat) = composer.flatten_property(node)
+  let assert Some(nc) = flat.number_constraints
   nc.minimum |> should.equal(Some(18.0))
   nc.maximum |> should.equal(Some(65.0))
 }
@@ -180,12 +185,15 @@ pub fn flatten_disjoint_string_constraints_combine_test() {
       )
     })
 
-  let assert Some(sc) = composer.flatten_property(node).string_constraints
+  let assert Ok(flat) = composer.flatten_property(node)
+  let assert Some(sc) = flat.string_constraints
   sc.min_length |> should.equal(Some(2))
   sc.max_length |> should.equal(Some(10))
 }
 
-pub fn flatten_crossed_array_bounds_renormalize_test() {
+pub fn flatten_crossed_array_bounds_is_error_test() {
+  // minItems 5 ∧ maxItems 3 validates nothing — reject at parse instead of
+  // renormalizing into a form the backend's real allOf validation refuses.
   let m1 =
     prop_with(fn(p) {
       SchemaProperty(
@@ -207,13 +215,54 @@ pub fn flatten_crossed_array_bounds_renormalize_test() {
       )
     })
   let node = prop_with(fn(p) { SchemaProperty(..p, all_of: Some([m1, m2])) })
+  composer.flatten_property(node) |> should.be_error
+}
 
-  // minItems wins on unsatisfiable bounds — same normalization as the
-  // parser's extract_array_constraints, or ensure_min_items wedges the form.
-  composer.flatten_property(node).array_constraints
-  |> should.equal(
-    Some(ArrayConstraints(min_items: Some(5), max_items: Some(5))),
-  )
+pub fn parse_crossed_array_bounds_is_error_test() {
+  // The spec scenario at parse level: cross-member minItems/maxItems.
+  // (Single-member-authored crossings never reach the composer for arrays —
+  // the decoder normalizes them first, grandfathered #63 behavior.)
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"allOf\": [ { \"minItems\": 5 }, { \"maxItems\": 3 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_crossed_string_bounds_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"allOf\": [ { \"minLength\": 5 }, { \"maxLength\": 3 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_crossed_number_bounds_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"number\", \"allOf\": [ { \"minimum\": 10 }, { \"maximum\": 5 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_crossed_exclusive_bounds_is_error_test() {
+  // exclusiveMinimum 5 ∧ exclusiveMaximum 5 admits no value.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"number\", \"allOf\": [ { \"exclusiveMinimum\": 5 }, { \"exclusiveMaximum\": 5 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_empty_allof_skips_satisfiability_test() {
+  // No effective members → pure no-op: authored crossed bounds keep
+  // lenient single-schema semantics (grandfathered; runtime validation
+  // still reports them).
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"minLength\": 5, \"maxLength\": 3, \"allOf\": [] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(x) = properties.get(schema.properties, "x")
+  let assert Some(sc) = x.string_constraints
+  sc.min_length |> should.equal(Some(5))
+  sc.max_length |> should.equal(Some(3))
+}
+
+pub fn parse_true_only_allof_skips_satisfiability_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"minLength\": 5, \"maxLength\": 3, \"allOf\": [ true ] } } }"
+  parser.parse_schema(json) |> should.be_ok
 }
 
 pub fn flatten_lifts_member_conditionals_test() {
@@ -236,7 +285,7 @@ pub fn flatten_lifts_member_conditionals_test() {
     })
 
   // Member rules first, the node's own rules last.
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
   flat.conditionals |> should.equal([rule, direct_rule])
 }
 
@@ -248,39 +297,19 @@ pub fn flatten_nested_member_allof_collapses_test() {
   let member = prop_with(fn(p) { SchemaProperty(..p, all_of: Some([inner])) })
   let node = prop_with(fn(p) { SchemaProperty(..p, all_of: Some([member])) })
 
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
   flat.all_of |> should.equal(None)
   let assert Some(props) = flat.properties
   properties.keys(props) |> should.equal(["deep"])
 }
 
-pub fn flatten_schema_lifts_members_to_root_test() {
-  let member =
-    prop_with(fn(p) {
-      SchemaProperty(
-        ..p,
-        properties: Some([#("from_member", types.empty_property())]),
-        required: ["from_member"],
-      )
-    })
-  let schema =
-    types.JsonSchema(
-      title: None,
-      description: None,
-      field_type: ObjectType,
-      properties: [#("local", types.empty_property())],
-      required: ["local"],
-      defs: None,
-      conditionals: [],
-      all_of: Some([member]),
-      string_constraints: None,
-      number_constraints: None,
-    )
-
-  let flat = composer.flatten_schema(schema)
-  flat.all_of |> should.equal(None)
-  properties.keys(flat.properties) |> should.equal(["from_member", "local"])
-  flat.required |> should.equal(["from_member", "local"])
+pub fn parse_lifts_members_to_root_test() {
+  let json =
+    "{ \"type\": \"object\", \"required\": [\"local\"], \"properties\": { \"local\": { \"type\": \"string\" } }, \"allOf\": [ { \"properties\": { \"from_member\": { \"type\": \"string\" } }, \"required\": [\"from_member\"] } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  properties.keys(schema.properties)
+  |> should.equal(["from_member", "local"])
+  schema.required |> should.equal(["from_member", "local"])
 }
 
 pub fn flatten_items_vs_items_collision_merges_test() {
@@ -316,7 +345,8 @@ pub fn flatten_items_vs_items_collision_merges_test() {
     })
   let node = prop_with(fn(p) { SchemaProperty(..p, all_of: Some([m1, m2])) })
 
-  let assert Some(items) = composer.flatten_property(node).items
+  let assert Ok(flat) = composer.flatten_property(node)
+  let assert Some(items) = flat.items
   items.title |> should.equal(Some("Row"))
   items.field_type |> should.equal(Some(ObjectType))
   let assert Some(props) = items.properties
@@ -360,7 +390,7 @@ pub fn flatten_collision_keeps_own_childs_allof_test() {
       )
     })
 
-  let flat = composer.flatten_property(node)
+  let assert Ok(flat) = composer.flatten_property(node)
   let assert Some(props) = flat.properties
   let assert Some(child) = properties.get(props, "child")
   child.all_of |> should.equal(None)
@@ -617,4 +647,115 @@ pub fn parse_ref_with_local_allof_ref_member_resolves_test() {
   let assert Some(x) = properties.get(schema.properties, "x")
   x.title |> should.equal(Some("from-b"))
   x.ref |> should.equal(None)
+}
+
+// --- Root-as-SchemaProperty (issue #70) ---
+
+pub fn parse_allof_scalar_member_types_root_test() {
+  // Issue #70: the ObjectType default must land AFTER composition. The
+  // serializer is the root type's only consumer — assert the round-trip.
+  let json = "{ \"allOf\": [ { \"type\": \"string\", \"minLength\": 3 } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema.field_type |> should.equal(StringType)
+  let assert Some(sc) = schema.string_constraints
+  sc.min_length |> should.equal(Some(3))
+  serializer.schema_to_json(schema)
+  |> json.to_string
+  |> string.contains("\"type\":\"string\"")
+  |> should.be_true
+}
+
+pub fn parse_typeless_composition_defaults_object_test() {
+  let json =
+    "{ \"allOf\": [ { \"properties\": { \"a\": { \"type\": \"string\" } } } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema.field_type |> should.equal(ObjectType)
+  properties.has_key(schema.properties, "a") |> should.be_true
+}
+
+pub fn parse_authored_root_type_kept_test() {
+  let json =
+    "{ \"type\": \"object\", \"allOf\": [ { \"properties\": { \"a\": { \"type\": \"string\" } } } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema.field_type |> should.equal(ObjectType)
+}
+
+pub fn parse_root_ref_resolves_test() {
+  let json =
+    "{ \"$ref\": \"#/$defs/base\", \"$defs\": { \"base\": { \"type\": \"object\", \"properties\": { \"a\": { \"type\": \"string\" } } } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  properties.has_key(schema.properties, "a") |> should.be_true
+}
+
+pub fn parse_root_ref_circular_is_error_test() {
+  let json =
+    "{ \"$ref\": \"#/$defs/a\", \"$defs\": { \"a\": { \"$ref\": \"#/$defs/a\" } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+// --- Strict type intersection (issue #68 follow-on) ---
+
+pub fn parse_root_type_conflict_is_error_test() {
+  // Disjoint intersection validates nothing — same class as a false member.
+  let json = "{ \"type\": \"object\", \"allOf\": [ { \"type\": \"string\" } ] }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_property_type_conflict_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"allOf\": [ { \"type\": \"boolean\" } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_property_type_conflict_names_path_test() {
+  // The spec requires the unsatisfiable-schema error to name the offending
+  // property's path; pin the variant and the #/x breadcrumb so an unrelated
+  // future parse failure can't keep this green.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"allOf\": [ { \"type\": \"boolean\" } ] } } }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg |> string.contains("#/x") |> should.be_true
+  msg |> string.contains("string") |> should.be_true
+  msg |> string.contains("boolean") |> should.be_true
+}
+
+pub fn parse_number_member_refines_root_to_integer_test() {
+  let json =
+    "{ \"type\": \"number\", \"allOf\": [ { \"type\": \"integer\" } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema.field_type |> should.equal(IntegerType)
+}
+
+pub fn parse_integer_refinement_at_property_level_test() {
+  // Both orders must narrow, not conflict and not stay number.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"n\": { \"type\": \"integer\", \"allOf\": [ { \"type\": \"number\" } ] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(n) = properties.get(schema.properties, "n")
+  n.field_type |> should.equal(Some(IntegerType))
+}
+
+// --- Mixed plain/exclusive bound crossings (post-PR review follow-on) ---
+
+pub fn parse_crossed_min_exclusive_max_is_error_test() {
+  // minimum 10 ∧ exclusiveMaximum 5 admits no value (x >= 10 and x < 5).
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"number\", \"allOf\": [ { \"minimum\": 10 }, { \"exclusiveMaximum\": 5 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_crossed_exclusive_min_max_is_error_test() {
+  // exclusiveMinimum 5 ∧ maximum 5 admits no value (x > 5 and x <= 5).
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"number\", \"allOf\": [ { \"exclusiveMinimum\": 5 }, { \"maximum\": 5 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_authored_crossed_bounds_with_member_is_error_test() {
+  // Any effective member (even one touching nothing) opts the node into
+  // strict satisfiability of its MERGED constraints — including bounds the
+  // node authored itself. Only an empty/true-only allOf stays lenient.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"minLength\": 5, \"maxLength\": 3, \"allOf\": [ { \"title\": \"t\" } ] } } }"
+  parser.parse_schema(json) |> should.be_error
 }

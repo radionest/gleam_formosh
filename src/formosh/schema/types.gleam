@@ -345,4 +345,8 @@ pub type ParseError {
   InvalidType(String)
   UnexpectedValue(String)
   DecodingError(List(decode.DecodeError))
+  /// The composition validates nothing (disjoint types, crossed bounds) —
+  /// rejected at parse time, mirroring the `false`-member policy. Message
+  /// carries a `#/path/to/node` breadcrumb.
+  UnsatisfiableSchema(String)
 }

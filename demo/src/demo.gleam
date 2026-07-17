@@ -78,6 +78,7 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
     "array_readonly_test_full.json",
     "hidden_fields_test.json",
     "composition_test.json",
+    "root_ref_composition.json",
     "budget_split.json",
     "date_range.json",
     "password_confirm.json",

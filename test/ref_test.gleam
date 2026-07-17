@@ -3,6 +3,7 @@
 import formosh/schema/parser
 import formosh/schema/resolver
 import formosh/schema/types
+import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -770,4 +771,21 @@ pub fn ref_with_local_items_ref_resolves_test() {
   let assert Some(items) = x.items
   items.title |> should.equal(Some("Item"))
   items.ref |> should.equal(None)
+}
+
+pub fn resolve_property_standalone_test() {
+  let base =
+    types.SchemaProperty(
+      ..types.empty_property(),
+      field_type: option.Some(types.StringType),
+    )
+  let referencing =
+    types.SchemaProperty(
+      ..types.empty_property(),
+      ref: option.Some("#/$defs/base"),
+    )
+  let defs = option.Some(dict.from_list([#("base", base)]))
+  let assert Ok(resolved) = resolver.resolve_property(referencing, defs)
+  resolved.field_type |> should.equal(option.Some(types.StringType))
+  resolved.ref |> should.equal(option.None)
 }
