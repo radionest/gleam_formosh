@@ -715,6 +715,8 @@ pub fn parse_property_type_conflict_names_path_test() {
     "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"allOf\": [ { \"type\": \"boolean\" } ] } } }"
   let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
   msg |> string.contains("#/x") |> should.be_true
+  msg |> string.contains("string") |> should.be_true
+  msg |> string.contains("boolean") |> should.be_true
 }
 
 pub fn parse_number_member_refines_root_to_integer_test() {
@@ -731,4 +733,29 @@ pub fn parse_integer_refinement_at_property_level_test() {
   let assert Ok(schema) = parser.parse_schema(json)
   let assert Some(n) = properties.get(schema.properties, "n")
   n.field_type |> should.equal(Some(IntegerType))
+}
+
+// --- Mixed plain/exclusive bound crossings (post-PR review follow-on) ---
+
+pub fn parse_crossed_min_exclusive_max_is_error_test() {
+  // minimum 10 ∧ exclusiveMaximum 5 admits no value (x >= 10 and x < 5).
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"number\", \"allOf\": [ { \"minimum\": 10 }, { \"exclusiveMaximum\": 5 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_crossed_exclusive_min_max_is_error_test() {
+  // exclusiveMinimum 5 ∧ maximum 5 admits no value (x > 5 and x <= 5).
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"number\", \"allOf\": [ { \"exclusiveMinimum\": 5 }, { \"maximum\": 5 } ] } } }"
+  parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_authored_crossed_bounds_with_member_is_error_test() {
+  // Any effective member (even one touching nothing) opts the node into
+  // strict satisfiability of its MERGED constraints — including bounds the
+  // node authored itself. Only an empty/true-only allOf stays lenient.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"minLength\": 5, \"maxLength\": 3, \"allOf\": [ { \"title\": \"t\" } ] } } }"
+  parser.parse_schema(json) |> should.be_error
 }

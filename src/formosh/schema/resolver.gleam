@@ -53,7 +53,7 @@ pub fn resolve_refs(schema: JsonSchema) -> Result(JsonSchema, ResolveError) {
 
   // Resolve references inside root-level allOf members
   use resolved_all_of <- result.try(
-    resolve_optional(
+    try_optional(
       schema.all_of,
       list.try_map(_, resolve_property_ref(_, context, [])),
     ),
@@ -146,18 +146,13 @@ fn resolve_property_ref(
   }
 }
 
-/// Traverse an `Option` through a fallible function, preserving `None`.
-///
-/// Equivalent to `Option.traverse` over `Result` — when `value` is `Some(v)`
-/// the resolver runs and its `Result` is re-wrapped in `Some`; `None` short
-/// circuits to `Ok(None)`. Used wherever `SchemaProperty` carries optional
-/// sub-schemas (`items`, `one_of`, `then_schema`, `else_schema`).
-fn resolve_optional(
+/// Traverse an Option through a fallible function, preserving None.
+pub fn try_optional(
   value: option.Option(a),
-  resolver: fn(a) -> Result(b, ResolveError),
-) -> Result(option.Option(b), ResolveError) {
+  f: fn(a) -> Result(b, e),
+) -> Result(option.Option(b), e) {
   case value {
-    Some(v) -> result.map(resolver(v), Some)
+    Some(v) -> result.map(f(v), Some)
     None -> Ok(None)
   }
 }
@@ -169,7 +164,7 @@ fn resolve_nested_refs(
   visited: List(String),
 ) -> Result(SchemaProperty, ResolveError) {
   use resolved_properties <- result.try(
-    resolve_optional(property.properties, resolve_properties_refs(
+    try_optional(property.properties, resolve_properties_refs(
       _,
       context,
       visited,
@@ -177,11 +172,11 @@ fn resolve_nested_refs(
   )
 
   use resolved_items <- result.try(
-    resolve_optional(property.items, resolve_property_ref(_, context, visited)),
+    try_optional(property.items, resolve_property_ref(_, context, visited)),
   )
 
   use resolved_one_of <- result.try(
-    resolve_optional(
+    try_optional(
       property.one_of,
       list.try_map(_, resolve_property_ref(_, context, visited)),
     ),
@@ -196,7 +191,7 @@ fn resolve_nested_refs(
   )
 
   use resolved_all_of <- result.try(
-    resolve_optional(
+    try_optional(
       property.all_of,
       list.try_map(_, resolve_property_ref(_, context, visited)),
     ),
@@ -227,14 +222,8 @@ fn resolve_conditional_rule(
 ) -> Result(ConditionalRule, ResolveError) {
   let resolve_one = resolve_property_ref(_, context, visited)
   use if_resolved <- result.try(resolve_one(rule.if_schema))
-  use then_resolved <- result.try(resolve_optional(
-    rule.then_schema,
-    resolve_one,
-  ))
-  use else_resolved <- result.try(resolve_optional(
-    rule.else_schema,
-    resolve_one,
-  ))
+  use then_resolved <- result.try(try_optional(rule.then_schema, resolve_one))
+  use else_resolved <- result.try(try_optional(rule.else_schema, resolve_one))
   Ok(types.ConditionalRule(
     if_schema: if_resolved,
     then_schema: then_resolved,

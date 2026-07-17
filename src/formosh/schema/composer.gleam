@@ -17,8 +17,9 @@ import formosh/schema/properties
 import formosh/schema/resolver
 import formosh/schema/types.{
   type ConditionalRule, type FieldType, type ParseError, type SchemaProperty,
-  ArrayConstraints, ConditionalRule, IntegerType, NumberConstraints, NumberType,
-  SchemaProperty, StringConstraints, UnsatisfiableSchema,
+  ArrayConstraints, ArrayType, BooleanType, ConditionalRule, IntegerType,
+  NullType, NumberConstraints, NumberType, ObjectType, SchemaProperty,
+  StringConstraints, StringType, UnsatisfiableSchema,
 }
 import gleam/float
 import gleam/int
@@ -42,14 +43,17 @@ fn unsatisfiable(path: List(String), reason: String) -> ParseError {
   )
 }
 
-/// Traverse an Option through a fallible function, preserving None.
-fn try_optional(
-  value: Option(a),
-  f: fn(a) -> Result(b, ParseError),
-) -> Result(Option(b), ParseError) {
-  case value {
-    Some(v) -> result.map(f(v), Some)
-    None -> Ok(None)
+/// JSON Schema name for a field type — error messages speak the schema
+/// author's vocabulary ("string"), not Gleam constructor names ("StringType").
+fn field_type_name(t: FieldType) -> String {
+  case t {
+    StringType -> "string"
+    NumberType -> "number"
+    IntegerType -> "integer"
+    BooleanType -> "boolean"
+    ObjectType -> "object"
+    ArrayType -> "array"
+    NullType -> "null"
   }
 }
 
@@ -71,7 +75,10 @@ fn intersect_types(
     Some(a), Some(b) ->
       Error(unsatisfiable(
         path,
-        "conflicting types " <> string.inspect(a) <> " vs " <> string.inspect(b),
+        "conflicting types "
+          <> field_type_name(a)
+          <> " vs "
+          <> field_type_name(b),
       ))
   }
 }
@@ -91,7 +98,7 @@ fn do_flatten(
   path: List(String),
 ) -> Result(SchemaProperty, ParseError) {
   use flat_properties <- result.try(
-    try_optional(prop.properties, fn(props) {
+    resolver.try_optional(prop.properties, fn(props) {
       list.try_map(props, fn(entry) {
         do_flatten(entry.1, [entry.0, ..path])
         |> result.map(fn(p) { #(entry.0, p) })
@@ -99,10 +106,16 @@ fn do_flatten(
     }),
   )
   use flat_items <- result.try(
-    try_optional(prop.items, do_flatten(_, ["items", ..path])),
+    resolver.try_optional(prop.items, do_flatten(_, ["items", ..path])),
   )
   use flat_one_of <- result.try(
-    try_optional(prop.one_of, list.try_map(_, do_flatten(_, ["oneOf", ..path]))),
+    resolver.try_optional(prop.one_of, fn(members) {
+      members
+      |> list.index_map(fn(m, i) {
+        do_flatten(m, [int.to_string(i), "oneOf", ..path])
+      })
+      |> result.all
+    }),
   )
   use flat_conditionals <- result.try(
     list.try_map(prop.conditionals, flatten_rule(_, path)),
@@ -142,10 +155,10 @@ fn flatten_rule(
 ) -> Result(ConditionalRule, ParseError) {
   use if_flat <- result.try(do_flatten(rule.if_schema, ["if", ..path]))
   use then_flat <- result.try(
-    try_optional(rule.then_schema, do_flatten(_, ["then", ..path])),
+    resolver.try_optional(rule.then_schema, do_flatten(_, ["then", ..path])),
   )
   use else_flat <- result.try(
-    try_optional(rule.else_schema, do_flatten(_, ["else", ..path])),
+    resolver.try_optional(rule.else_schema, do_flatten(_, ["else", ..path])),
   )
   Ok(ConditionalRule(
     if_schema: if_flat,
@@ -324,6 +337,34 @@ fn check_number_constraints(
           <> float.to_string(emin)
           <> " >= exclusiveMaximum "
           <> float.to_string(emax),
+      ))
+    Some(NumberConstraints(
+      minimum: Some(min),
+      exclusive_maximum: Some(emax),
+      ..,
+    ))
+      if min >=. emax
+    ->
+      Error(unsatisfiable(
+        path,
+        "minimum "
+          <> float.to_string(min)
+          <> " >= exclusiveMaximum "
+          <> float.to_string(emax),
+      ))
+    Some(NumberConstraints(
+      exclusive_minimum: Some(emin),
+      maximum: Some(max),
+      ..,
+    ))
+      if emin >=. max
+    ->
+      Error(unsatisfiable(
+        path,
+        "exclusiveMinimum "
+          <> float.to_string(emin)
+          <> " >= maximum "
+          <> float.to_string(max),
       ))
     _ -> Ok(c)
   }
