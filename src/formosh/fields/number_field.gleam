@@ -164,6 +164,11 @@ fn handle_number_input(
 /// ## Exclusive Constraints
 /// Since HTML doesn't support exclusive min/max directly, we adjust
 /// the values by a small epsilon (0.000001) to approximate the constraint.
+///
+/// ## Step Base Alignment
+/// HTML steps from `min` while multipleOf anchors at 0 — with a positive
+/// multipleOf the rendered lower bound is raised to the smallest satisfying
+/// multiple so the native stepper only produces schema-valid values.
 fn get_number_constraints_attributes(
   property: types.SchemaProperty,
 ) -> List(attribute.Attribute(FormMsg)) {
@@ -171,8 +176,19 @@ fn get_number_constraints_attributes(
     Some(constraints) -> {
       let attrs = []
 
+      let step_base = case constraints.multiple_of {
+        Some(multiple) if multiple >. 0.0 -> Some(multiple)
+        _ -> None
+      }
+
       let attrs = case constraints.minimum {
-        Some(min) -> list.append(attrs, [attribute.min(float.to_string(min))])
+        Some(min) -> {
+          let rendered = case step_base {
+            Some(multiple) -> align_lower_bound(min, multiple, exclusive: False)
+            None -> min
+          }
+          list.append(attrs, [attribute.min(float.to_string(rendered))])
+        }
         None -> attrs
       }
 
@@ -184,9 +200,12 @@ fn get_number_constraints_attributes(
       // For exclusive constraints, we adjust the min/max slightly
       let attrs = case constraints.exclusive_minimum {
         Some(min) -> {
-          // Use slightly higher value for HTML min attribute
-          let adjusted = min +. 0.000001
-          list.append(attrs, [attribute.min(float.to_string(adjusted))])
+          let rendered = case step_base {
+            Some(multiple) -> align_lower_bound(min, multiple, exclusive: True)
+            // Use slightly higher value for HTML min attribute
+            None -> min +. 0.000001
+          }
+          list.append(attrs, [attribute.min(float.to_string(rendered))])
         }
         None -> attrs
       }
@@ -209,5 +228,26 @@ fn get_number_constraints_attributes(
       attrs
     }
     None -> []
+  }
+}
+
+// HTML computes stepping from the `min` attribute (the step base), while
+// JSON Schema anchors multipleOf at 0 — rendering the raw bound as `min`
+// makes the native stepper produce values that are never multiples
+// (minimum 1 + multipleOf 2 would step 1, 3, 5…). Raise `min` to the
+// smallest multiple satisfying the bound; no valid value is lost because
+// values between the bound and that multiple violate multipleOf anyway.
+// The integrality check shares the validator's 1e-8 tolerance.
+fn align_lower_bound(
+  bound: Float,
+  multiple: Float,
+  exclusive exclusive: Bool,
+) -> Float {
+  let ratio = bound /. multiple
+  let nearest = int.to_float(float.round(ratio))
+  case float.loosely_equals(ratio, nearest, tolerating: 1.0e-8), exclusive {
+    True, False -> bound
+    True, True -> { nearest +. 1.0 } *. multiple
+    False, _ -> float.ceiling(ratio) *. multiple
   }
 }

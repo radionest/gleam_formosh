@@ -10,6 +10,7 @@ import formosh/validation/error.{type ValidationError}
 import formosh/validation/field_requirements
 import formosh/validation/messages
 import gleam/dict.{type Dict}
+import gleam/float
 import gleam/int
 import gleam/io
 import gleam/list
@@ -288,6 +289,26 @@ fn validate_number_constraints(
           }
         }
         None -> errors
+      }
+
+      // Tolerant multipleOf (Ajv `multipleOfPrecision: 8` / rjsf default):
+      // browsers step number inputs in decimal arithmetic, so exact float
+      // division would reject values the stepper itself produces (19.99 at
+      // step 0.01). Quotients within 1e-8 of an integer pass. Non-positive
+      // multipleOf violates the spec (> 0 required) — skipped as a schema bug.
+      let errors = case c.multiple_of {
+        Some(multiple) if multiple >. 0.0 -> {
+          let ratio = value /. multiple
+          let nearest = int.to_float(float.round(ratio))
+          case float.loosely_equals(ratio, nearest, tolerating: 1.0e-8) {
+            True -> errors
+            False ->
+              list.append(errors, [
+                error.from_failure(field_path, messages.MultipleOf(multiple)),
+              ])
+          }
+        }
+        _ -> errors
       }
 
       errors
