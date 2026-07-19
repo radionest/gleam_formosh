@@ -80,3 +80,13 @@ pub fn max_items_rule_test() {
   messages.rule_of(messages.MaxItems(5))
   |> should.equal("maxItems")
 }
+
+pub fn multiple_of_format_test() {
+  messages.format(messages.MultipleOf(5.0))
+  |> should.equal("Must be a multiple of 5.0")
+}
+
+pub fn multiple_of_rule_test() {
+  messages.rule_of(messages.MultipleOf(5.0))
+  |> should.equal("multipleOf")
+}

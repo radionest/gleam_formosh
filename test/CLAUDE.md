@@ -44,7 +44,7 @@ The following areas have **no test coverage**:
 - **Form update logic** (`form/update.gleam`): field value updates, validation triggering, conditional re-resolution
 - **View rendering** (`form/view.gleam`): field type routing, error display, readonly handling
 - **Field renderers** (`fields/`): widget selection rules (radio vs select, textarea threshold), HTML attributes
-- **Validator** (`schema/validator.gleam`): constraint validation, format checks
+- **Validator** (`schema/validator.gleam`): numeric bounds (minimum/maximum/exclusive*), string length, email/url format checks — pattern, enum, and multipleOf are covered in `validator_test.gleam`
 - **Array operations**: add/remove/reorder in update context
 - **Form submission**: HTTP submission lifecycle, CustomSubmit, error handling
 - **Web Component** (`component.gleam`): attribute handling, event emission

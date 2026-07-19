@@ -18,6 +18,7 @@ pub type ValidationFailure {
   Maximum(max: Float)
   ExclusiveMinimum(min: Float)
   ExclusiveMaximum(max: Float)
+  MultipleOf(multiple: Float)
   InvalidEnum
   PatternMismatch
   MinItems(min: Int)
@@ -40,6 +41,8 @@ pub fn format(failure: ValidationFailure) -> String {
     Maximum(max) -> "Must be at most " <> float.to_string(max)
     ExclusiveMinimum(min) -> "Must be greater than " <> float.to_string(min)
     ExclusiveMaximum(max) -> "Must be less than " <> float.to_string(max)
+    MultipleOf(multiple) ->
+      "Must be a multiple of " <> float.to_string(multiple)
     InvalidEnum -> "Value is not one of the allowed options"
     PatternMismatch -> "Does not match the required format"
     MinItems(min) -> "At least " <> int.to_string(min) <> " item(s) required"
@@ -63,6 +66,7 @@ pub fn rule_of(failure: ValidationFailure) -> String {
     Maximum(_) -> "maximum"
     ExclusiveMinimum(_) -> "exclusiveMinimum"
     ExclusiveMaximum(_) -> "exclusiveMaximum"
+    MultipleOf(_) -> "multipleOf"
     InvalidEnum -> "enum"
     PatternMismatch -> "pattern"
     MinItems(_) -> "minItems"
