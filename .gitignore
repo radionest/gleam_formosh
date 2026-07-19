@@ -27,3 +27,11 @@ docs/superpowers/
 .claude/hooks/
 .claude/agents/
 .claude/settings.json
+
+# CLI-generated OpenSpec tooling (regenerated; not reviewed)
+.claude/commands/opsx/
+.claude/skills/openspec-*/
+.claude/plans/
+
+# OpenSpec local spec store (Claude working memory, synced via doc-review gate)
+/openspec
