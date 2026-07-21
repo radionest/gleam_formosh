@@ -331,7 +331,10 @@ pub fn make_field_ctx(
     path: field_path,
     property: property,
     value: model.get_value_at_path(model, field_path),
-    is_required: is_required,
+    // Nullable fields always accept empty (submitted as `null`), so the
+    // required marker is misleading — suppress it even when the field is
+    // named in the schema's `required` list.
+    is_required: is_required && !property.nullable,
     is_disabled: is_disabled || option.unwrap(hints.disabled, False),
     is_readonly: is_readonly || option.unwrap(hints.readonly, False),
     hints: hints,
@@ -348,7 +351,9 @@ pub fn make_field_ctx(
 ///   makes every descendant readonly, regardless of the child's own flag)
 /// - `is_required` is supplied by the caller, since required-membership is
 ///   per-child (parent's `required` list naming the child, or a row-resolved
-///   list after `if/then/else`)
+///   list after `if/then/else`) — then ANDed with `!child_prop.nullable`,
+///   since a nullable child always accepts empty and should never show the
+///   required marker
 ///
 /// All v0.7+ ctx fields that should inherit by default flow via `..parent`,
 /// so adding a new field (e.g. `ui_options`) does not require touching
@@ -365,7 +370,8 @@ pub fn make_child_ctx(
     path: child_path,
     property: child_prop,
     value: model.get_value_at_path(model, child_path),
-    is_required: child_required,
+    // Same nullable-suppresses-required-marker rule as make_field_ctx.
+    is_required: child_required && !child_prop.nullable,
     is_disabled: parent.is_disabled || option.unwrap(hints.disabled, False),
     is_readonly: parent.is_readonly
       || child_prop.read_only

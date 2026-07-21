@@ -10,6 +10,7 @@ import formosh/schema/types.{
 import formosh/validation/error.{type ValidationError}
 import formosh/validation/field_requirements
 import formosh/validation/messages
+import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/float
 import gleam/int
@@ -33,6 +34,18 @@ pub fn validate_field(
   is_required: Bool,
   effective_widget: Option(Widget),
 ) -> List(ValidationError) {
+  // A nullable field (anyOf null member or a "null" type-array entry) can
+  // always submit empty as `null` — an empty value is satisfied regardless
+  // of `required`/type/constraints. Reuses the same emptiness predicate the
+  // required-rule itself is built on (`field_requirements.is_empty_value`:
+  // None, NullValue, or an empty string), so "empty" means the same thing
+  // here as it does for the required check below. A filled nullable value
+  // still runs the full type/constraint checks (falls through to the case
+  // below untouched).
+  use <- bool.guard(
+    property.nullable && field_requirements.is_empty_value(value),
+    [],
+  )
   case effective_widget {
     Some(types.ImageUploadWidget) ->
       validate_image_upload(field_path, value, is_required)
