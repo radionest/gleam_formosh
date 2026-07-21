@@ -68,7 +68,11 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           model.selected_branches,
         )
       let reconciled_values =
-        defaults.ensure_min_items(resolved_schema.properties, new_values)
+        defaults.ensure_min_items(
+          resolved_schema.properties,
+          new_values,
+          model.selected_branches,
+        )
       let touched_model = model.mark_field_touched(model, field_path)
       let new_model =
         model.FormModel(
@@ -90,7 +94,11 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           model.selected_branches,
         )
       let reconciled_values =
-        defaults.ensure_min_items(resolved_schema.properties, new_values)
+        defaults.ensure_min_items(
+          resolved_schema.properties,
+          new_values,
+          model.selected_branches,
+        )
       let touched_model = model.mark_field_touched(model, field_path)
       let new_model =
         model.FormModel(
@@ -125,7 +133,11 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       let new_values =
         path.add_array_item_at_path(model.values, field_path, new_item)
       let reconciled_values =
-        defaults.ensure_min_items(model.resolved_schema.properties, new_values)
+        defaults.ensure_min_items(
+          model.resolved_schema.properties,
+          new_values,
+          model.selected_branches,
+        )
       let new_model =
         model.FormModel(..model, values: reconciled_values, is_dirty: True)
       let validated_model = validate_all_fields(new_model)
@@ -327,7 +339,11 @@ fn apply_answers(
       model.selected_branches,
     )
   let reconciled_values =
-    defaults.ensure_min_items(resolved_schema.properties, new_values)
+    defaults.ensure_min_items(
+      resolved_schema.properties,
+      new_values,
+      model.selected_branches,
+    )
   let touched_model =
     list.fold(answers, model, fn(m, pair) {
       model.mark_field_touched(m, pair.0)
@@ -565,7 +581,12 @@ pub fn validate_all_fields(model: FormModel) -> FormModel {
       let field_path = path.from_field_name(field_name)
       let field_value = path.get_at_path(acc.values, field_path)
       let nested_errors =
-        validator.validate_nested(field_path, property, field_value)
+        validator.validate_nested(
+          field_path,
+          property,
+          field_value,
+          acc.selected_branches,
+        )
       list.fold(nested_errors, acc, fn(m, err) {
         model.add_error_at_path(m, err.field, err)
       })

@@ -236,7 +236,7 @@ pub fn init_with_full_config(
   let initial_value = ObjectValue(dict.to_list(initial_values))
   let values_with_defaults =
     defaults.apply_schema_defaults(schema.properties, initial_value)
-    |> defaults.ensure_min_items(schema.properties, _)
+    |> defaults.ensure_min_items(schema.properties, _, [])
   FormModel(
     schema: schema,
     resolved_schema: schema,
@@ -339,7 +339,7 @@ pub fn reset(model: FormModel) -> FormModel {
       model.schema.properties,
       ObjectValue([]),
     )
-      |> defaults.ensure_min_items(model.schema.properties, _),
+      |> defaults.ensure_min_items(model.schema.properties, _, []),
     errors: dict.new(),
     is_submitting: False,
     is_dirty: False,
@@ -519,11 +519,12 @@ fn walk_into_property(
   }
 }
 
-/// Like `find_property_at_path`, but resolves item-level conditionals
-/// against the actual row values while crossing each `ArraySegment`, so
-/// properties revealed by per-row `if/then` (e.g. a conditional nested
-/// array) are found. Falls back to the unresolved item schema when the
-/// row value is absent.
+/// Like `find_property_at_path`, but resolves item-level unions and
+/// conditionals against the actual row values while crossing each
+/// `ArraySegment` (union first, then conditionals — design D4), so
+/// properties revealed by a per-row `anyOf`/`if-then` (e.g. a
+/// union-materialized nested array) are found. Falls back to the unresolved
+/// item schema when the row value is absent.
 pub fn find_resolved_property_at_path(
   model: FormModel,
   field_path: FieldPath,
@@ -531,14 +532,18 @@ pub fn find_resolved_property_at_path(
   lookup_property_resolved(
     model.resolved_schema.properties,
     option.Some(model.values),
+    [],
     field_path,
+    model.selected_branches,
   )
 }
 
 fn lookup_property_resolved(
   props: List(#(String, SchemaProperty)),
   value: Option(Value),
+  parent_path: FieldPath,
   field_path: FieldPath,
+  selected: List(#(FieldPath, Int)),
 ) -> Result(SchemaProperty, Nil) {
   case field_path {
     [path.PropertySegment(name), ..rest] ->
@@ -549,7 +554,14 @@ fn lookup_property_resolved(
               option.from_result(list.key_find(fields, name))
             _ -> option.None
           }
-          walk_into_property_resolved(prop, child_value, rest)
+          let node_path = list.append(parent_path, [path.PropertySegment(name)])
+          walk_into_property_resolved(
+            prop,
+            child_value,
+            node_path,
+            rest,
+            selected,
+          )
         }
         option.None -> Error(Nil)
       }
@@ -560,13 +572,16 @@ fn lookup_property_resolved(
 fn walk_into_property_resolved(
   property: SchemaProperty,
   value: Option(Value),
+  node_path: FieldPath,
   rest: FieldPath,
+  selected: List(#(FieldPath, Int)),
 ) -> Result(SchemaProperty, Nil) {
   case rest {
     [] -> Ok(property)
     [path.PropertySegment(_), ..] ->
       case property.properties {
-        option.Some(sub) -> lookup_property_resolved(sub, value, rest)
+        option.Some(sub) ->
+          lookup_property_resolved(sub, value, node_path, rest, selected)
         option.None -> Error(Nil)
       }
     [path.ArraySegment(index), ..rest_after_array] ->
@@ -576,15 +591,24 @@ fn walk_into_property_resolved(
             option.Some(v) -> path.get_at_path(v, [path.ArraySegment(index)])
             option.None -> option.None
           }
+          let item_path = list.append(node_path, [path.ArraySegment(index)])
           let resolved = case row_value {
             option.Some(row) ->
-              conditional_resolver.resolve_conditional_property(
+              union_resolver.resolve_effective_property(
                 items_schema,
                 row,
+                item_path,
+                selected,
               )
             option.None -> items_schema
           }
-          walk_into_property_resolved(resolved, row_value, rest_after_array)
+          walk_into_property_resolved(
+            resolved,
+            row_value,
+            item_path,
+            rest_after_array,
+            selected,
+          )
         }
         option.None -> Error(Nil)
       }

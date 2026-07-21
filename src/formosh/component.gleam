@@ -327,7 +327,11 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
       form_model.selected_branches,
     )
   let reconciled_values =
-    defaults.ensure_min_items(resolved_schema.properties, form_model.values)
+    defaults.ensure_min_items(
+      resolved_schema.properties,
+      form_model.values,
+      form_model.selected_branches,
+    )
   let form_model_resolved =
     FormModel(
       ..form_model,

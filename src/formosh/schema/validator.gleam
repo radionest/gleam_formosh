@@ -1,6 +1,7 @@
 // Validation functions for form fields
 
 import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
+import formosh/form/union_resolver
 import formosh/schema/conditional_resolver
 import formosh/schema/types.{
   type SchemaProperty, type Value, type Widget, ArrayValue, BooleanValue,
@@ -357,25 +358,34 @@ fn validate_url(url: String) -> Bool {
 ///
 /// `array_path` is the path to the array itself (e.g. `[lesions]` for a
 /// top-level array, or `[outer, [2], inner]` for nested arrays). Item-level
-/// `if/then/else` and `allOf` rules are resolved against the row's own
-/// values, then every field of the resolved schema is validated. Errors
-/// carry the path `[..array_path, ArraySegment(index), PropertySegment(field)]`.
+/// unions and `if/then/else`/`allOf` rules are resolved against the row's
+/// own values (union first, then conditionals — design D4), then every field
+/// of the resolved schema is validated. `selected` carries the active union
+/// branch per field path. Errors carry the path
+/// `[..array_path, ArraySegment(index), PropertySegment(field)]`.
 pub fn validate_array_item(
   array_path: FieldPath,
   index: Int,
   item_schema: SchemaProperty,
   item_values: Dict(String, Value),
+  selected: List(#(FieldPath, Int)),
 ) -> List(ValidationError) {
-  validate_resolved_props(item_schema, item_values, fn(field_name) {
-    list.append(array_path, [ArraySegment(index), PropertySegment(field_name)])
-  })
+  let item_path = list.append(array_path, [ArraySegment(index)])
+  validate_resolved_props(
+    item_schema,
+    item_values,
+    item_path,
+    selected,
+    fn(field_name) { list.append(item_path, [PropertySegment(field_name)]) },
+  )
 }
 
-/// Validate every row of an array against item-level conditional rules.
+/// Validate every row of an array against item-level union/conditional rules.
 pub fn validate_array_items(
   array_path: FieldPath,
   item_schema: SchemaProperty,
   array_value: Value,
+  selected: List(#(FieldPath, Int)),
 ) -> List(ValidationError) {
   case array_value {
     ArrayValue(items) ->
@@ -384,7 +394,13 @@ pub fn validate_array_items(
           ObjectValue(fields) -> dict.from_list(fields)
           _ -> dict.new()
         }
-        validate_array_item(array_path, index, item_schema, item_values)
+        validate_array_item(
+          array_path,
+          index,
+          item_schema,
+          item_values,
+          selected,
+        )
       })
       |> list.flatten
     _ -> []
@@ -396,25 +412,39 @@ pub fn validate_object_fields(
   object_path: FieldPath,
   schema_prop: SchemaProperty,
   values: Dict(String, Value),
+  selected: List(#(FieldPath, Int)),
 ) -> List(ValidationError) {
-  validate_resolved_props(schema_prop, values, fn(field_name) {
-    list.append(object_path, [PropertySegment(field_name)])
-  })
+  validate_resolved_props(
+    schema_prop,
+    values,
+    object_path,
+    selected,
+    fn(field_name) { list.append(object_path, [PropertySegment(field_name)]) },
+  )
 }
 
 /// Shared core for `validate_array_item` / `validate_object_fields`.
+///
+/// `own_path` is `schema_prop`'s own absolute path (the row's path for an
+/// array item, the object's path for a nested object) — the key
+/// `union_resolver` needs to resolve `schema_prop`'s own union (if any) and
+/// every union nested inside its properties against `selected`.
 fn validate_resolved_props(
   schema_prop: SchemaProperty,
   values: Dict(String, Value),
+  own_path: FieldPath,
+  selected: List(#(FieldPath, Int)),
   key_for: fn(String) -> FieldPath,
 ) -> List(ValidationError) {
-  // `resolve_conditional_property` now operates on a `Value` tree. Wrap
+  // `resolve_effective_property` now operates on a `Value` tree. Wrap
   // the local Dict into the equivalent `ObjectValue`; broader Dict→Value
   // migration through this validator is left for a follow-up.
   let resolved =
-    conditional_resolver.resolve_conditional_property(
+    union_resolver.resolve_effective_property(
       schema_prop,
       ObjectValue(dict.to_list(values)),
+      own_path,
+      selected,
     )
 
   case resolved.properties {
@@ -436,7 +466,8 @@ fn validate_resolved_props(
             is_required,
             field_prop.render_hints.widget,
           )
-        let nested = validate_nested(field_path, field_prop, field_value)
+        let nested =
+          validate_nested(field_path, field_prop, field_value, selected)
         list.append(own_errors, nested)
       })
     None -> []
@@ -483,13 +514,14 @@ pub fn validate_nested(
   prefix: FieldPath,
   field_prop: SchemaProperty,
   field_value: Option(Value),
+  selected: List(#(FieldPath, Int)),
 ) -> List(ValidationError) {
   case field_prop.field_type, field_prop.items {
     Some(types.ArrayType), Some(item_subschema) -> {
       let av = option.unwrap(field_value, NullValue)
       list.append(
         validate_array_length(prefix, field_prop.array_constraints, field_value),
-        validate_array_items(prefix, item_subschema, av),
+        validate_array_items(prefix, item_subschema, av, selected),
       )
     }
     Some(types.ArrayType), None ->
@@ -497,7 +529,12 @@ pub fn validate_nested(
     Some(types.ObjectType), _ ->
       case field_value {
         Some(ObjectValue(fields)) ->
-          validate_object_fields(prefix, field_prop, dict.from_list(fields))
+          validate_object_fields(
+            prefix,
+            field_prop,
+            dict.from_list(fields),
+            selected,
+          )
         _ -> []
       }
     _, _ -> []

@@ -5,7 +5,8 @@
 //// applied at init and reset time; once the user starts editing, conditional
 //// branches and array items hydrate without re-running this pass.
 
-import formosh/schema/conditional_resolver
+import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
+import formosh/form/union_resolver
 import formosh/schema/types.{
   type SchemaProperty, type Value, ArrayType, ArrayValue, NullValue, ObjectType,
   ObjectValue,
@@ -168,12 +169,20 @@ pub fn new_array_item(item_schema: SchemaProperty) -> Value {
 /// rows — it only appends `new_array_item` rows, and creates the array
 /// value itself when a `minItems > 0` array has no value yet. Same root
 /// invariant as `apply_schema_defaults`: the form root is one ObjectValue.
+///
+/// `selected` carries the active union branch per field path (design D4,
+/// openspec/changes/add-anyof-union-support) — threaded down so a row whose
+/// `anyOf` member materializes to an array with its own `minItems` gets
+/// topped up too. An internal `parent_path` accumulator (extended with
+/// `PropertySegment`/`ArraySegment` as the walk descends) builds the
+/// absolute path each row/field needs to look itself up in `selected`.
 pub fn ensure_min_items(
   properties: List(#(String, SchemaProperty)),
   values: Value,
+  selected: List(#(FieldPath, Int)),
 ) -> Value {
   let assert ObjectValue(fields) = values
-  ObjectValue(ensure_fields(properties, fields))
+  ObjectValue(ensure_fields(properties, [], fields, selected))
 }
 
 // Fold the declared properties over the current fields; undeclared keys
@@ -181,12 +190,15 @@ pub fn ensure_min_items(
 // walk produced a value.
 fn ensure_fields(
   properties: List(#(String, SchemaProperty)),
+  parent_path: FieldPath,
   fields: List(#(String, Value)),
+  selected: List(#(FieldPath, Int)),
 ) -> List(#(String, Value)) {
   list.fold(properties, fields, fn(acc, pair) {
     let #(name, property) = pair
     let current = option.from_result(list.key_find(acc, name))
-    case ensure_property(property, current) {
+    let field_path = list.append(parent_path, [PropertySegment(name)])
+    case ensure_property(property, field_path, current, selected) {
       option.Some(new_value) -> list.key_set(acc, name, new_value)
       option.None -> acc
     }
@@ -196,14 +208,19 @@ fn ensure_fields(
 // None = leave the key alone (absent keys stay absent); Some = write.
 fn ensure_property(
   property: SchemaProperty,
+  field_path: FieldPath,
   current: option.Option(Value),
+  selected: List(#(FieldPath, Int)),
 ) -> option.Option(Value) {
   case property.field_type {
-    option.Some(ArrayType) -> ensure_array(property, current)
+    option.Some(ArrayType) ->
+      ensure_array(property, field_path, current, selected)
     option.Some(ObjectType) ->
       case current, property.properties {
         option.Some(ObjectValue(fields)), option.Some(sub_props) ->
-          option.Some(ObjectValue(ensure_fields(sub_props, fields)))
+          option.Some(
+            ObjectValue(ensure_fields(sub_props, field_path, fields, selected)),
+          )
         _, _ -> option.None
       }
     _ -> option.None
@@ -212,7 +229,9 @@ fn ensure_property(
 
 fn ensure_array(
   property: SchemaProperty,
+  field_path: FieldPath,
   current: option.Option(Value),
+  selected: List(#(FieldPath, Int)),
 ) -> option.Option(Value) {
   case property.items {
     option.None -> option.None
@@ -221,21 +240,35 @@ fn ensure_array(
         option.Some(ArrayValue(items)) -> items
         _ -> []
       }
-      let walked = list.map(existing, ensure_row(item_schema, _))
+      let walked =
+        list.index_map(existing, fn(item, idx) {
+          ensure_row(
+            item_schema,
+            list.append(field_path, [ArraySegment(idx)]),
+            item,
+            selected,
+          )
+        })
       let min = case property.array_constraints {
         option.Some(c) -> option.unwrap(c.min_items, 0)
         option.None -> 0
       }
       let missing = min - list.length(walked)
       let topped = case missing > 0 {
-        True ->
-          list.append(
-            walked,
-            list.repeat(
-              ensure_row(item_schema, new_array_item(item_schema)),
-              missing,
-            ),
-          )
+        True -> {
+          let base_index = list.length(walked)
+          let new_rows =
+            list.repeat(Nil, missing)
+            |> list.index_map(fn(_, i) {
+              ensure_row(
+                item_schema,
+                list.append(field_path, [ArraySegment(base_index + i)]),
+                new_array_item(item_schema),
+                selected,
+              )
+            })
+          list.append(walked, new_rows)
+        }
         False -> walked
       }
       case current {
@@ -254,16 +287,29 @@ fn ensure_array(
 }
 
 // Walk one array row: resolve the item schema against the row's own
-// values, then recurse into the row's fields so nested arrays (including
-// conditionally revealed ones) are topped up too. Fresh rows built by
-// `new_array_item` go through the same walk, so defaults that satisfy a
-// condition immediately hydrate what the condition reveals.
-fn ensure_row(item_schema: SchemaProperty, row: Value) -> Value {
+// values (union branch first, then conditionals — design D4), then recurse
+// into the row's fields so nested arrays (including conditionally/union
+// revealed ones) are topped up too. Fresh rows built by `new_array_item` go
+// through the same walk, so defaults that satisfy a condition immediately
+// hydrate what the condition reveals. `item_path` is the row's own absolute
+// path (ending in the `ArraySegment` that addresses it) — the key
+// `union_resolver` needs to look up `selected` and to build child paths.
+fn ensure_row(
+  item_schema: SchemaProperty,
+  item_path: FieldPath,
+  row: Value,
+  selected: List(#(FieldPath, Int)),
+) -> Value {
   let resolved =
-    conditional_resolver.resolve_conditional_property(item_schema, row)
+    union_resolver.resolve_effective_property(
+      item_schema,
+      row,
+      item_path,
+      selected,
+    )
   case row, resolved.properties {
     ObjectValue(fields), option.Some(sub_props) ->
-      ObjectValue(ensure_fields(sub_props, fields))
+      ObjectValue(ensure_fields(sub_props, item_path, fields, selected))
     _, _ -> row
   }
 }

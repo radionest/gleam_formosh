@@ -10,7 +10,7 @@ import formosh/form/model.{
   RemoveArrayItemPath,
 }
 import formosh/form/path
-import formosh/schema/conditional_resolver
+import formosh/form/union_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type SchemaProperty, type Value}
 import formosh/schema/ui_resolver
@@ -184,11 +184,11 @@ fn render_array_item_header(
 
 /// Render every child field of a single row.
 ///
-/// Resolves the item schema against the row's own values (so item-level
-/// `if/then/else` rules take effect), then dispatches every visible
-/// property through `render_child`. `is_disabled` is inherited as-is from
-/// the array container; `is_readonly` is OR-inherited with each child's
-/// own `read_only`.
+/// Resolves the item schema against the row's own values — active union
+/// branch first, then item-level `if/then/else` rules (design D4) — then
+/// dispatches every visible property through `render_child`. `is_disabled`
+/// is inherited as-is from the array container; `is_readonly` is
+/// OR-inherited with each child's own `read_only`.
 fn render_item_fields(
   ctx: FieldRenderCtx,
   item_schema: SchemaProperty,
@@ -197,9 +197,14 @@ fn render_item_fields(
   model: FormModel,
   render_child: fn(FieldRenderCtx, FormModel) -> Element(FormMsg),
 ) -> List(Element(FormMsg)) {
-  let resolved =
-    conditional_resolver.resolve_conditional_property(item_schema, item)
   let item_path = list.append(ctx.path, [path.ArraySegment(index)])
+  let resolved =
+    union_resolver.resolve_effective_property(
+      item_schema,
+      item,
+      item_path,
+      model.selected_branches,
+    )
 
   // For array items, the row order is controlled by the array's `items`
   // template, looked up via the row's path.

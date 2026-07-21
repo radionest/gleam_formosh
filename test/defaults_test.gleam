@@ -519,7 +519,7 @@ const conditional_lesions_schema = "{
 }"
 
 pub fn ensure_min_items_creates_missing_array_test() {
-  defaults.ensure_min_items(props_of(min_items_schema), ObjectValue([]))
+  defaults.ensure_min_items(props_of(min_items_schema), ObjectValue([]), [])
   |> should.equal(
     ObjectValue([#("tags", ArrayValue([StringValue("x"), StringValue("x")]))]),
   )
@@ -529,6 +529,7 @@ pub fn ensure_min_items_tops_up_partial_array_test() {
   defaults.ensure_min_items(
     props_of(min_items_schema),
     ObjectValue([#("tags", ArrayValue([StringValue("a")]))]),
+    [],
   )
   |> should.equal(
     ObjectValue([#("tags", ArrayValue([StringValue("a"), StringValue("x")]))]),
@@ -537,8 +538,8 @@ pub fn ensure_min_items_tops_up_partial_array_test() {
 
 pub fn ensure_min_items_idempotent_test() {
   let once =
-    defaults.ensure_min_items(props_of(min_items_schema), ObjectValue([]))
-  defaults.ensure_min_items(props_of(min_items_schema), once)
+    defaults.ensure_min_items(props_of(min_items_schema), ObjectValue([]), [])
+  defaults.ensure_min_items(props_of(min_items_schema), once, [])
   |> should.equal(once)
 }
 
@@ -550,7 +551,7 @@ pub fn ensure_min_items_never_removes_surplus_rows_test() {
         ArrayValue([StringValue("a"), StringValue("b"), StringValue("c")]),
       ),
     ])
-  defaults.ensure_min_items(props_of(min_items_schema), values)
+  defaults.ensure_min_items(props_of(min_items_schema), values, [])
   |> should.equal(values)
 }
 
@@ -562,7 +563,7 @@ pub fn ensure_min_items_leaves_unconstrained_arrays_test() {
       \"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}
     }
   }"
-  defaults.ensure_min_items(props_of(schema), ObjectValue([]))
+  defaults.ensure_min_items(props_of(schema), ObjectValue([]), [])
   |> should.equal(ObjectValue([]))
 }
 
@@ -578,7 +579,7 @@ pub fn ensure_min_items_creates_conditionally_revealed_array_test() {
       ),
     ])
   let result =
-    defaults.ensure_min_items(props_of(conditional_lesions_schema), values)
+    defaults.ensure_min_items(props_of(conditional_lesions_schema), values, [])
 
   // Row 0 (affected): lesions created with one default-hydrated row.
   path.get_at_path(result, [
