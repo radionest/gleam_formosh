@@ -12,17 +12,22 @@ element), skip ahead to [Web Component](web-component.md).
 
 ## 1. Add the dependency
 
-Formosh targets **JavaScript**. In your project's `gleam.toml`:
+Formosh targets **JavaScript** and is **not yet published on Hex** — add it
+as a path (or git) dependency. In your project's `gleam.toml`:
 
 ```toml
-[target]
-javascript = ["bun"]            # or "deno" / "node"
+target = "javascript"
 
 [dependencies]
 gleam_stdlib = ">= 0.44.0 and < 2.0.0"
 lustre = ">= 5.3.4 and < 6.0.0"
-formosh = ">= 0.8.0"            # pin to the version you've tested against
+# clone https://github.com/radionest/gleam_formosh next to your project:
+formosh = { path = "../gleam_formosh" }
 ```
+
+(On Gleam versions with git-dependency support you can use
+`formosh = { git = "https://github.com/radionest/gleam_formosh.git", ref = "<commit>" }`
+instead — pin a commit `ref` to keep builds reproducible.)
 
 Then download dependencies:
 
@@ -30,9 +35,9 @@ Then download dependencies:
 gleam deps download
 ```
 
-> **Alpha note.** Formosh's API is still moving. Pin a concrete version
-> (`formosh = "= 0.8.4"`) rather than a loose range if you want builds to
-> stay reproducible across minor bumps.
+> **Alpha note.** Formosh's API is still moving; a Hex release will come
+> once it stabilizes (see `ROADMAP.md`). Until then, pin the checkout you
+> tested against.
 
 ## 2. Write a schema
 
@@ -102,7 +107,6 @@ pub fn main() {
   let config =
     formosh.config(schema)
     |> formosh.with_submit_url("https://api.example.com/contacts")
-    |> formosh.with_show_errors_on_change(True)
     |> formosh.with_initial_values(dict.from_list([
       #("name", types.StringValue("Ada")),
     ]))

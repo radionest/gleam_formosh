@@ -14,10 +14,10 @@ There are three surfaces for customization, in increasing order of
 specificity. The first two only apply in web-component mode (Shadow DOM);
 the third applies everywhere.
 
-> **Plain Lustre app (no web component)?** Skip the first two sections.
-> Without the shadow root there are no `::part()` hooks; only plain class
-> selectors on `.formosh-*` work. That's the trade-off for inlining the
-> form directly in your view tree.
+> **Plain Lustre app (no web component)?** Skip section 1 — without the
+> shadow root there are no `::part()` hooks. The `data-*` state attributes
+> (section 2) still work everywhere: they are plain HTML attributes, so
+> combine them with class selectors (`.formosh-field[data-error]`).
 
 ## 1. `::part()` selectors — preferred
 
@@ -104,16 +104,13 @@ yet reachable through `ui:widget` — see `ROADMAP.md`.)
 
 ### Cascade order
 
-Adopted parent stylesheets and host-level `::part()` rules cascade by
-normal CSS specificity — neither wins automatically just by being "inside"
-or "outside" the shadow root. Concretely:
-
-- To **override a `.formosh-*` class rule** with a `::part()` rule, give
-  the `::part()` selector higher specificity or use a more specific
-  compound condition. For example, `::part(input):not(:disabled)` will
-  beat a plain `.formosh-input` rule.
-- `!important` works from the host document inside `::part()`; use it
-  sparingly.
+Host-document `::part()` rules and adopted (cloned-in) stylesheets live in
+different cascade contexts, and per CSS Scoping ("Shadow Cascading") the
+**outer context wins for normal declarations regardless of specificity** —
+a host `::part(input)` rule beats any adopted `.formosh-input` rule. For
+`!important` declarations the order inverts: an adopted `!important` rule
+beats a host `::part()` one. Specificity only breaks ties between rules in
+the *same* context (two adopted rules, or two host rules).
 
 ### No descendant combinator inside `::part()`
 
@@ -134,9 +131,13 @@ Workarounds when you need to differentiate:
 ### Plain Lustre app (no shadow root)
 
 When you start Formosh via `lustre.start(formosh.from_config(...), ...)` —
-no web component, no shadow root — only the class selectors (surface 3)
-apply. `::part()` and `data-*` hooks don't exist because there's no shadow
-boundary. If you need those hooks, switch to the web-component deployment.
+no web component, no shadow root — `::part()` selectors don't apply (there
+is no shadow boundary), but class selectors and the `data-*` state
+attributes still work:
+
+```css
+.formosh-field[data-error] { border-color: red; }
+```
 
 ## Reference
 

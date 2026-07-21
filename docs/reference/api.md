@@ -56,6 +56,8 @@ formosh.with_custom_submit(
 ) -> FormConfig
 
 // Presentation
+// NOTE: with_show_errors_on_change is currently a no-op — the flag is
+// stored on FormConfig but never read (see ROADMAP.md).
 formosh.with_show_errors_on_change(config, show: Bool) -> FormConfig
 formosh.with_show_readonly_fields(config, show: Bool) -> FormConfig
 formosh.with_initial_values(config, values: Dict(String, Value)) -> FormConfig
@@ -75,8 +77,7 @@ formosh.with_validator(
 See [Configuration](../guides/configuration.md) for prose on each, and
 [Schema Keywords](schema-keywords.md) for what the schema-driven validation
 covers. Cross-field validation semantics (precedence, gating, cost) are
-spelled out in the `with_validator` doc comment in
-`src/formosh.gleam:212-259`.
+spelled out in the `with_validator` doc comment in `src/formosh.gleam`.
 
 ## Reading form state
 
@@ -118,6 +119,7 @@ an HTML attribute on `<formosh-form>`):
 | `component.ui_schema_string(String)` | `ui-schema` | `with_ui_schema_json` |
 | `component.on_submit(fn(Dict) -> msg)` | — | `formosh-submit` listener |
 | `component.on_change(fn(Dict) -> msg)` | — | `formosh-change` listener |
+| `component.on_validate(fn(Bool) -> msg)` | — | listens for `formosh-validate`, which is **never emitted** — a no-op today (see `ROADMAP.md`) |
 
 See [Web Component](../guides/web-component.md) for the attribute table and
 custom-event detail shapes.
@@ -202,8 +204,8 @@ node (deprecated fallback). See [Widget Selection](widgets.md).
 ### `JsonSchema` and `SchemaProperty`
 
 The parsed schema tree. `JsonSchema` is the root; `SchemaProperty` is one
-field. Full field lists in `src/formosh/schema/types.gleam:138-230` — the
-relevant highlights:
+field. Full field lists on the `SchemaProperty` and `JsonSchema` types in
+`src/formosh/schema/types.gleam` — the relevant highlights:
 
 - `SchemaProperty` carries `field_type`, `title`, `description`, `default`,
   `enum_values`, `one_of`, `ref`, the three constraint records, `items`,

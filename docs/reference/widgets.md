@@ -11,38 +11,44 @@ automatically from the schema node's `type`, `enum` / `oneOf`, `format`,
 and constraints. This page documents the decision tree and the two override
 mechanisms (`ui:widget`, `x-widget`).
 
-> **Source of truth.** The dispatcher is
-> `src/formosh/fields/field_dispatcher.gleam:77-105`; per-type logic is in
+> **Source of truth.** The dispatcher is `render_widget` in
+> `src/formosh/fields/field_dispatcher.gleam`; per-type logic is in
 > `src/formosh/fields/string_field.gleam` and siblings. The merge of
 > `ui:widget` and `x-widget` into a single `RenderHints` record happens in
 > `src/formosh/schema/ui_resolver.gleam`.
 
 ## Selection priority
 
-The dispatcher tries sources in this fixed order. First match wins.
+Hidden fields are filtered out *before* the dispatcher runs (the
+suppression walker in `form/visibility` — the field still validates and
+gates submit). For everything visible, `render_widget` decides:
 
+```mermaid
+flowchart TD
+    F["visible field"] --> W{"hints.widget"}
+    W -- "ImageUploadWidget" --> IU["image upload"]
+    W -- "SwipeReviewWidget" --> SR["swipe-review"]
+    W -- "CustomWidget / none" --> T{"field_type"}
+    T -- "StringType" --> S["string field renderer<br/>(the only one that reads CustomWidget names)"]
+    T -- "NumberType / IntegerType" --> NUM["number input (step from multipleOf)"]
+    T -- "BooleanType" --> B["Yes/No radio group"]
+    T -- "ArrayType" --> A["add/remove list container"]
+    T -- "ObjectType" --> O["nested fieldset"]
+    T -- "none" --> E{"enum_values / one_of?"}
+    E -- "yes" --> EN["string enum (radio or select)"]
+    E -- "no" --> NONE["element.none()"]
 ```
-1.  UiSchema `ui:widget` (or deprecated `x-widget`) override
-        ├─ ImageUploadWidget   → image upload
-        ├─ SwipeReviewWidget   → swipe-review
-        ├─ HiddenWidget        → not rendered (still validates + gates submit)
-        └─ CustomWidget(name)  → name-based dispatch (see "Custom names")
-2.  field_type
-        ├─ StringType          → string field renderer (see below)
-        ├─ NumberType/Integer  → number input (step from multipleOf)
-        ├─ BooleanType         → Yes/No radio group
-        ├─ ArrayType           → add/remove list container
-        └─ ObjectType          → nested fieldset
-3.  enum_values / one_of (fallback for typeless nodes)
-        └─ renders as a string enum (radio or select)
-4.  (nothing matched) → element.none()
-```
 
-Two consequences of this order:
+Three consequences of this order:
 
-- A `ui:widget` override **always wins** over the type-derived widget.
+- `ImageUploadWidget` and `SwipeReviewWidget` overrides **always win** over
+  the type-derived widget.
+- `CustomWidget` names do **not** short-circuit dispatch — they ride along
+  into the type-based renderer, and only the **string** renderer reads them
+  (`"textarea"`, `"select"`, `"radio"`). `ui:widget: "textarea"` on a
+  number field is silently ignored.
 - If a property has no `type` but does have `enum` / `oneOf`, it still
-  renders as a string enum (step 3 is how typeless enums work).
+  renders as a string enum (the fallback branch is how typeless enums work).
 
 ## String field rendering
 
@@ -50,21 +56,20 @@ Strings have the richest sub-decision, because `format`, `enum`, `oneOf`,
 and `maxLength` all compete. From `string_field.render` →
 `render_string_or_enum`:
 
-```
-oneOf with const+title options?
-├─ yes → oneOf radio group (≤5 options) or oneOf select (>5)
-└─ no →
-    ui:widget override?
-    ├─ "textarea" → textarea
-    ├─ "select"   → enum as select (forces dropdown even for ≤5)
-    ├─ "radio"    → enum as radio (forces radios even for >5)
-    └─ none →
-        enum_values present?
-        ├─ yes → ≤5 options → radio group
-        │        >5 options → select dropdown
-        └─ no → maxLength > 100?
-                ├─ yes → textarea
-                └─ no → text input (type from format, see below)
+```mermaid
+flowchart TD
+    S["string field"] --> OO{"oneOf with<br/>const+title options?"}
+    OO -- "yes" --> OOW["oneOf radio group (≤5)<br/>or oneOf select (>5)"]
+    OO -- "no" --> UW{"ui:widget?"}
+    UW -- "textarea" --> TA["textarea"]
+    UW -- "select" --> SEL["enum as select<br/>(forces dropdown even for ≤5)"]
+    UW -- "radio" --> RAD["enum as radio<br/>(forces radios even for >5)"]
+    UW -- "none" --> EV{"enum_values present?"}
+    EV -- "yes, ≤5 options" --> R5["radio group"]
+    EV -- "yes, >5 options" --> S5["select dropdown"]
+    EV -- "no" --> ML{"maxLength > 100?"}
+    ML -- "yes" --> TA2["textarea"]
+    ML -- "no" --> TXT["text input<br/>(type from format, see below)"]
 ```
 
 ### HTML input type from `format`

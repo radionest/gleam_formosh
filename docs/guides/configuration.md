@@ -31,7 +31,7 @@ lustre.start(app, "#app", Nil)
 | Field | Default |
 |-------|---------|
 | `submit_config` | `NoSubmit` (read values manually) |
-| `show_errors_on_change` | `False` (errors surface on blur) |
+| `show_errors_on_change` | `False` — **currently a no-op**, see [Error visibility](#error-visibility) |
 | `show_readonly_fields` | `False` (`readOnly` fields hidden) |
 | `initial_values` | empty dict |
 | `ui_schema` | empty UiSchema |
@@ -99,17 +99,16 @@ let values: types.Value = formosh.get_values(model)
 
 ## Error visibility
 
-```gleam
-|> formosh.with_show_errors_on_change(True)
-```
+Errors are gated by **touch tracking**: a field's validation error stays
+hidden until the user interacts with that field (touches it). This avoids
+a wall of red on first paint.
 
-- **Default (`False`)** — a field's validation error is hidden until the
-  user interacts with that field (touches it). This avoids a wall of red
-  on first paint.
-- **`True`** — errors appear as the user types. Useful for short forms and
-  inline-edit scenarios where the user wants immediate feedback.
+> **`with_show_errors_on_change` is currently a no-op.** The builder stores
+> the flag on `FormConfig`, but `create_form_with_config` never forwards it
+> to the model and nothing reads it — behaviour is always "errors after
+> touch". Tracked in `ROADMAP.md`.
 
-The one exception in both modes is **array-length violations**: an array
+The one exception to the touch gate is **array-length violations**: an array
 that violates `minItems` / `maxItems` (e.g. from externally supplied values)
 is always shown, because the gating buttons can't cause it and the message
 is the only explanation for a blocked submit. See the README "Arrays"
@@ -233,7 +232,6 @@ pub fn main() {
     |> formosh.with_http_submit("https://api.example.com/forms", "POST", [
       #("Authorization", "Bearer " <> token),
     ])
-    |> formosh.with_show_errors_on_change(True)
     |> formosh.with_show_readonly_fields(True)
     |> formosh.with_initial_values(dict.from_list([
       #("patient_id", types.StringValue("12345")),

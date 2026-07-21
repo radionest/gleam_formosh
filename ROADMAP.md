@@ -38,6 +38,11 @@ do"):
   `uuid` to typed variants; `DateFormat` / `TimeFormat` / `DateTimeFormat`
   and their `get_input_type` mappings exist but are unreachable from parsed
   schemas. Extend `format_decoder` to get native pickers.
+- [ ] **`with_show_errors_on_change` is a no-op.** The flag is stored on
+  `FormConfig`, but `create_form_with_config` never forwards it to
+  `model.init_with_full_config` and nothing under `src/` reads it — errors
+  always follow the touch gate. Wire it into the model (or drop the
+  builder).
 
 ---
 
@@ -317,6 +322,8 @@ production-ready with no manual CSS.
   recomputation — a baseline is required).
 - [ ] **CHANGELOG.md and SemVer** — overdue. Every breaking change gets a
   major bump.
+- [ ] **Publish to Hex** — installation currently requires a path/git
+  dependency; publish once the API stabilizes enough for outside users.
 
 ---
 

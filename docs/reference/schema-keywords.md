@@ -31,7 +31,7 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | Keyword | Status | Notes |
 |---------|--------|-------|
 | `type` (`string`, `number`, `integer`, `boolean`, `array`, `object`, `null`) | ✅ | Drives widget selection ([Widget Selection](widgets.md)). `null` is accepted but renders nothing useful. |
-| `enum` | ✅ | Renders as radio (≤5 options) or select (>5). **Value validated** against the allowed list (`validator.gleam:331`). |
+| `enum` | ✅ | Renders as radio (≤5 options) or select (>5). **Value validated** against the allowed list (`validate_enum` in `validator.gleam`). |
 | `const` | ✅ | Converted to a single-value `enum` at parse time. |
 
 ## Metadata
@@ -72,7 +72,7 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 (unsatisfiable) is normalized at parse time so `minItems` wins — the array
 renders as fixed-size at `minItems` rows. Array-length violations coming
 from externally supplied values are always shown (they bypass the
-field-touched gate; see `fields/field_dispatcher.gleam:67-70`).
+field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 
 ## String constraints
 
@@ -81,7 +81,7 @@ field-touched gate; see `fields/field_dispatcher.gleam:67-70`).
 | `minLength` | ✅ | Enforced. Skipped for empty optional fields (clearing ≠ too-short). |
 | `maxLength` | ✅ | Enforced. `> 100` also flips the widget to a textarea. |
 | `format` | see below | Some formats enforced, some parse-only. |
-| `pattern` | ✅ | **Enforced** via `gleam_regexp` (`regexp.check`, partial-match per draft §6.3.3). An invalid regex is logged and the check skipped — see `validator.gleam:185-204`. |
+| `pattern` | ✅ | **Enforced** via `gleam_regexp` (`regexp.check`, partial-match per draft §6.3.3). An invalid regex is logged and the check skipped — see the `pattern` branch in `validator.gleam`. |
 
 ### `format` support
 
