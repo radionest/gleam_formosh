@@ -11,6 +11,7 @@ import formosh/schema/types.{
   type SchemaProperty, type Value, ArrayType, ArrayValue, NullValue, ObjectType,
   ObjectValue,
 }
+import formosh/validation/field_requirements
 import gleam/list
 import gleam/option
 
@@ -310,6 +311,134 @@ fn ensure_row(
   case row, resolved.properties {
     ObjectValue(fields), option.Some(sub_props) ->
       ObjectValue(ensure_fields(sub_props, item_path, fields, selected))
+    _, _ -> row
+  }
+}
+
+/// Write `NullValue` at every nullable path whose value is absent or empty
+/// (Task 9's `field_requirements.is_empty_value` predicate — reused, not
+/// re-derived), so the submitted JSON carries `"field": null` instead of
+/// omitting the key. Non-nullable fields are left untouched: an absent key
+/// stays absent, matching the pre-existing behaviour.
+///
+/// Walks nested objects the same way `ensure_fields`/`ensure_property` do,
+/// and array rows via `union_resolver.resolve_effective_property` — mirrors
+/// `ensure_row` so a union row's *active branch* nullable field is the one
+/// checked, not the unresolved `anyOf` node.
+///
+/// Called once at the submit site (`update.submit_form_effect`), not at
+/// init/reset/every keystroke like `ensure_min_items` — this pass actively
+/// overwrites emptiness with an explicit `null`, which would fight the user
+/// if it ran while they were still filling the form in.
+pub fn inject_nullable_nulls(
+  properties: List(#(String, SchemaProperty)),
+  values: Value,
+  selected: List(#(FieldPath, Int)),
+) -> Value {
+  let assert ObjectValue(fields) = values
+  ObjectValue(inject_fields(properties, [], fields, selected))
+}
+
+// Fold the declared properties over the current fields — same shape as
+// `ensure_fields`: undeclared keys pass through untouched, keys are only
+// (re)written when `inject_property` produces a value.
+fn inject_fields(
+  properties: List(#(String, SchemaProperty)),
+  parent_path: FieldPath,
+  fields: List(#(String, Value)),
+  selected: List(#(FieldPath, Int)),
+) -> List(#(String, Value)) {
+  list.fold(properties, fields, fn(acc, pair) {
+    let #(name, property) = pair
+    let current = option.from_result(list.key_find(acc, name))
+    let field_path = list.append(parent_path, [PropertySegment(name)])
+    case inject_property(property, field_path, current, selected) {
+      option.Some(new_value) -> list.key_set(acc, name, new_value)
+      option.None -> acc
+    }
+  })
+}
+
+// A nullable field whose value is absent/empty is written as NullValue
+// outright — this check fires before the type dispatch below, so a nullable
+// object/array with no value at all submits `null` rather than being
+// recursed into. Otherwise: object and array fields recurse to find
+// nullable fields at depth; every other case is None (leave the key alone),
+// covering both "non-nullable and empty" (stays absent) and "nullable and
+// already holds a real value" (stays as-is).
+fn inject_property(
+  property: SchemaProperty,
+  field_path: FieldPath,
+  current: option.Option(Value),
+  selected: List(#(FieldPath, Int)),
+) -> option.Option(Value) {
+  case property.nullable && field_requirements.is_empty_value(current) {
+    True -> option.Some(NullValue)
+    False ->
+      case property.field_type {
+        option.Some(ObjectType) ->
+          case current, property.properties {
+            option.Some(ObjectValue(fields)), option.Some(sub_props) ->
+              option.Some(
+                ObjectValue(inject_fields(
+                  sub_props,
+                  field_path,
+                  fields,
+                  selected,
+                )),
+              )
+            _, _ -> option.None
+          }
+        option.Some(ArrayType) ->
+          inject_array(property, field_path, current, selected)
+        _ -> option.None
+      }
+  }
+}
+
+fn inject_array(
+  property: SchemaProperty,
+  field_path: FieldPath,
+  current: option.Option(Value),
+  selected: List(#(FieldPath, Int)),
+) -> option.Option(Value) {
+  case property.items, current {
+    option.Some(item_schema), option.Some(ArrayValue(items)) ->
+      option.Some(
+        ArrayValue(
+          list.index_map(items, fn(item, idx) {
+            inject_row(
+              item_schema,
+              list.append(field_path, [ArraySegment(idx)]),
+              item,
+              selected,
+            )
+          }),
+        ),
+      )
+    _, _ -> option.None
+  }
+}
+
+// Resolve the row's effective property (union branch, design D4) before
+// walking its fields — mirrors `ensure_row` exactly, so a union row's active
+// branch is what gets checked for nullable fields, not the raw `anyOf` node.
+fn inject_row(
+  item_schema: SchemaProperty,
+  item_path: FieldPath,
+  row: Value,
+  selected: List(#(FieldPath, Int)),
+) -> Value {
+  let resolved =
+    union_resolver.resolve_effective_property(
+      item_schema,
+      row,
+      item_path,
+      selected,
+    )
+  case row, resolved.properties {
+    ObjectValue(fields), option.Some(sub_props) ->
+      ObjectValue(inject_fields(sub_props, item_path, fields, selected))
     _, _ -> row
   }
 }

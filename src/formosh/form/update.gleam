@@ -725,8 +725,15 @@ fn format_hidden_errors_warning(
 fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
   case model.submit_config {
     Some(HttpSubmit(url, method, _headers)) -> {
-      // Convert form values to JSON
-      let json_data = values_to_json(model.get_resolved_values(model))
+      // Convert form values to JSON, writing `null` for empty nullable
+      // fields (schema-aware — walks nested objects and array rows) before
+      // serializing.
+      let json_data =
+        values_to_json(defaults.inject_nullable_nulls(
+          model.resolved_schema.properties,
+          model.get_resolved_values(model),
+          model.selected_branches,
+        ))
       // Make HTTP request based on method
       case method {
         "POST" ->
