@@ -311,3 +311,99 @@ pub fn clear_subtree_error_key_boundary_test() {
   list.contains(cleared.touched_fields, [path.PropertySegment("lesionsExtra")])
   |> should.be_true()
 }
+
+// --- Task 12: array remove/move reindexes selected_branches ---
+//
+// Spec: openspec/changes/add-anyof-union-support/specs/union-branch-selector/
+// spec.md, requirement "Array operations reindex branch state".
+
+fn row_value_path(index: Int) -> path.FieldPath {
+  [
+    path.PropertySegment("items"),
+    path.ArraySegment(index),
+    path.PropertySegment("value"),
+  ]
+}
+
+// Rows carry a distinct IntegerValue marker (not `ObjectValue([])`
+// placeholders) so a reordered array is never structurally equal to the
+// original — `MoveArrayItemPath` no-ops (values, touched, and now selected
+// branches all left alone) when `new_values == model.values`, exactly like
+// `update_test.init_array_model`'s distinct "a"/"b"/"c" tags avoid the same
+// guard for `touched_fields`.
+fn init_row_union_model(row_count: Int) -> model.FormModel {
+  let assert Ok(schema) = parser.parse_schema(row_union_schema)
+  let rows =
+    list.range(0, row_count - 1)
+    |> list.map(fn(i) { types.ObjectValue([#("value", types.IntegerValue(i))]) })
+  model.FormModel(
+    ..model.init(schema),
+    values: types.ObjectValue([#("items", types.ArrayValue(rows))]),
+  )
+}
+
+/// Scenario: Removing a row shifts later selections. Rows 0 and 1 both hold
+/// unions; row 1 has branch 1 (string) selected. Removing row 0 must move
+/// the selection to the row-0 path (and drop the stale row-1 entry), while a
+/// selection outside the array is untouched — mirrors
+/// `form_storage_test.remove_array_item_reindexes_touched_fields_test`.
+pub fn remove_array_item_reindexes_selected_branches_test() {
+  let unrelated_path = [path.PropertySegment("name")]
+  let m =
+    model.FormModel(..init_row_union_model(2), selected_branches: [
+      #(row_value_path(1), 1),
+      #(unrelated_path, 1),
+    ])
+
+  let #(after, _effect) =
+    update.update(
+      m,
+      model.RemoveArrayItemPath([path.PropertySegment("items")], 0),
+    )
+
+  // Former row 1's selection now lives at row 0, still branch 1.
+  list.key_find(after.selected_branches, row_value_path(0))
+  |> should.equal(Ok(1))
+  // The stale row-1 entry is gone (only one row remains after removal).
+  list.key_find(after.selected_branches, row_value_path(1))
+  |> should.be_error()
+  // A selection outside the affected array is untouched.
+  list.key_find(after.selected_branches, unrelated_path)
+  |> should.equal(Ok(1))
+
+  // The reindexed selection actually renders branch 1 (string) at row 0.
+  let assert Ok(prop) =
+    model.find_resolved_property_at_path(after, row_value_path(0))
+  prop.field_type |> should.equal(Some(types.StringType))
+}
+
+/// Mirror test for move: reordering array rows reindexes branch selections
+/// the same way `touched_fields` already does
+/// (`update_test.move_array_item_reindexes_touched_test`). Row 0's
+/// selection follows the row to its new index 2; a selection outside the
+/// array is untouched.
+pub fn move_array_item_reindexes_selected_branches_test() {
+  let unrelated_path = [path.PropertySegment("name")]
+  let m =
+    model.FormModel(..init_row_union_model(3), selected_branches: [
+      #(row_value_path(0), 1),
+      #(unrelated_path, 1),
+    ])
+
+  let #(after, _effect) =
+    update.update(
+      m,
+      model.MoveArrayItemPath([path.PropertySegment("items")], 0, 2),
+    )
+
+  list.key_find(after.selected_branches, row_value_path(2))
+  |> should.equal(Ok(1))
+  list.key_find(after.selected_branches, row_value_path(0))
+  |> should.be_error()
+  list.key_find(after.selected_branches, unrelated_path)
+  |> should.equal(Ok(1))
+
+  let assert Ok(prop) =
+    model.find_resolved_property_at_path(after, row_value_path(2))
+  prop.field_type |> should.equal(Some(types.StringType))
+}

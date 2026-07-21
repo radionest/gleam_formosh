@@ -187,11 +187,19 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
             None -> Error(Nil)
           }
         })
+      let new_selected =
+        list.filter_map(model.selected_branches, fn(entry) {
+          case path.reindex_after_array_removal(entry.0, field_path, index) {
+            Some(new_p) -> Ok(#(new_p, entry.1))
+            None -> Error(Nil)
+          }
+        })
       let new_model =
         model.FormModel(
           ..model,
           values: new_values,
           touched_fields: new_touched,
+          selected_branches: new_selected,
           is_dirty: True,
         )
       let validated_model = validate_all_fields(new_model)
@@ -209,11 +217,19 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         list.map(model.touched_fields, fn(p) {
           path.reindex_after_array_move(p, field_path, from, to)
         })
+      let new_selected =
+        list.map(model.selected_branches, fn(entry) {
+          #(
+            path.reindex_after_array_move(entry.0, field_path, from, to),
+            entry.1,
+          )
+        })
       let new_model =
         model.FormModel(
           ..model,
           values: new_values,
           touched_fields: new_touched,
+          selected_branches: new_selected,
           is_dirty: True,
         )
       let validated_model = validate_all_fields(new_model)
