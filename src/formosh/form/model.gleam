@@ -2,6 +2,7 @@
 
 import formosh/form/defaults
 import formosh/form/path.{type FieldPath}
+import formosh/form/union_resolver
 import formosh/form/visibility
 import formosh/form/widget_msg.{
   type ExitDir, type ImageUploadEvent, type SwipeReviewEvent, type WidgetMsg,
@@ -56,6 +57,9 @@ pub type FormModel {
     is_valid: Bool,
     // Touched fields (for showing errors)
     touched_fields: List(FieldPath),
+    // Active union branch per field path. Mirrors touched_fields: FieldPath
+    // keys reindex with the same path helpers on array remove/move.
+    selected_branches: List(#(FieldPath, Int)),
     // Disabled fields
     disabled_fields: List(FieldPath),
     // Form submission result
@@ -242,6 +246,7 @@ pub fn init_with_full_config(
     is_dirty: False,
     is_valid: True,
     touched_fields: [],
+    selected_branches: [],
     disabled_fields: [],
     submission_result: option.None,
     submit_config: submit_config,
@@ -255,6 +260,23 @@ pub fn init_with_full_config(
     swipe_hide_answered: True,
     swipe_exiting: [],
   )
+}
+
+/// Recompute `resolved_schema` for a schema/values/selected-branches triple.
+///
+/// The single entry point for every `resolved_schema` recompute site: union
+/// resolution runs first, materializing each `any_of` node to its active
+/// branch (stored `selected` entry, else inferred from `values`, else
+/// branch 0), then conditional resolution (`if/then/else`) sees the
+/// materialized branches — a conditional declared inside the active branch
+/// must see it already materialized (design D4).
+pub fn recompute_resolved_schema(
+  schema: JsonSchema,
+  values: Value,
+  selected: List(#(FieldPath, Int)),
+) -> JsonSchema {
+  union_resolver.resolve_form_schema(schema, values, selected)
+  |> conditional_resolver.resolve_recursive(values)
 }
 
 /// Check if a field at a path has been touched (focused and then blurred).
@@ -323,6 +345,7 @@ pub fn reset(model: FormModel) -> FormModel {
     is_dirty: False,
     is_valid: True,
     touched_fields: [],
+    selected_branches: [],
     disabled_fields: [],
     submission_result: option.None,
     submit_config: model.submit_config,

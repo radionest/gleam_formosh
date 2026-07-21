@@ -16,7 +16,6 @@ import formosh/form/widget_msg.{
   ExitRight, FillRemaining, ImageCompleted, ImageFailed, ImageRemoved,
   ImageRequested, ImageStarted, ImageUpload, SwipeReview, ToggleHideAnswered,
 }
-import formosh/schema/conditional_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type Value}
 import formosh/schema/ui_resolver
@@ -63,7 +62,11 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     UpdateFieldPath(field_path, value) -> {
       let new_values = path.set_at_path(model.values, field_path, value)
       let resolved_schema =
-        conditional_resolver.resolve_recursive(model.schema, new_values)
+        model.recompute_resolved_schema(
+          model.schema,
+          new_values,
+          model.selected_branches,
+        )
       let reconciled_values =
         defaults.ensure_min_items(resolved_schema.properties, new_values)
       let touched_model = model.mark_field_touched(model, field_path)
@@ -81,7 +84,11 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     ClearFieldPath(field_path) -> {
       let new_values = path.remove_at_path(model.values, field_path)
       let resolved_schema =
-        conditional_resolver.resolve_recursive(model.schema, new_values)
+        model.recompute_resolved_schema(
+          model.schema,
+          new_values,
+          model.selected_branches,
+        )
       let reconciled_values =
         defaults.ensure_min_items(resolved_schema.properties, new_values)
       let touched_model = model.mark_field_touched(model, field_path)
@@ -302,9 +309,9 @@ fn handle_swipe_review_event(
   }
 }
 
-/// Set each `#(path, code)` zone answer, re-resolve conditionals, mark the
-/// paths touched, and re-validate — the shared commit path for bulk-finish and
-/// a past-threshold swipe release.
+/// Set each `#(path, code)` zone answer, re-resolve unions and conditionals,
+/// mark the paths touched, and re-validate — the shared commit path for
+/// bulk-finish and a past-threshold swipe release.
 fn apply_answers(
   model: FormModel,
   answers: List(#(path.FieldPath, String)),
@@ -314,7 +321,11 @@ fn apply_answers(
       path.set_at_path(acc, pair.0, types.StringValue(pair.1))
     })
   let resolved_schema =
-    conditional_resolver.resolve_recursive(model.schema, new_values)
+    model.recompute_resolved_schema(
+      model.schema,
+      new_values,
+      model.selected_branches,
+    )
   let reconciled_values =
     defaults.ensure_min_items(resolved_schema.properties, new_values)
   let touched_model =
