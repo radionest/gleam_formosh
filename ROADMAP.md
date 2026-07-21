@@ -33,6 +33,11 @@ do"):
 - [ ] **Configurable CSS class prefix** — claimed in the README but never
   implemented (claim removed). Decide: implement or drop for good (partially
   covered by the Theming pack).
+- [ ] **`format: "date" / "time" / "datetime"` render as plain text.**
+  `format_decoder` (`parser.gleam`) wires only `email` / `url`+`uri` /
+  `uuid` to typed variants; `DateFormat` / `TimeFormat` / `DateTimeFormat`
+  and their `get_input_type` mappings exist but are unreachable from parsed
+  schemas. Extend `format_decoder` to get native pickers.
 
 ---
 

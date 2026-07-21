@@ -150,8 +150,13 @@ matters for rendering and must round-trip through serialization.
 
 ```gleam
 pub type FieldType {
-  StringType, NumberType, IntegerType, BooleanType,
-  ArrayType, ObjectType, NullType
+  StringType
+  NumberType
+  IntegerType
+  BooleanType
+  ArrayType
+  ObjectType
+  NullType
 }
 ```
 
@@ -159,16 +164,26 @@ pub type FieldType {
 
 ```gleam
 pub type StringFormat {
-  DateFormat, DateTimeFormat, TimeFormat,
-  EmailFormat, UriFormat, UrlFormat, UuidFormat,
+  DateFormat
+  DateTimeFormat
+  TimeFormat
+  EmailFormat
+  UriFormat
+  UrlFormat
+  UuidFormat
   CustomFormat(String)
 }
 ```
 
 Maps to the HTML input `type` attribute in `string_field.get_input_type`
-(`email` → `email`, `url`/`uri` → `url`, `date` → `date`, `time` → `time`,
-`datetime` → `datetime-local`; `uuid` and `CustomFormat` fall back to
-`text`).
+(`EmailFormat` → `email`, `UrlFormat`/`UriFormat` → `url`, `DateFormat` →
+`date`, `TimeFormat` → `time`, `DateTimeFormat` → `datetime-local`;
+`UuidFormat` and `CustomFormat` fall back to `text`).
+
+> **Reachability caveat.** The parser's `format_decoder` only ever produces
+> `EmailFormat`, `UrlFormat`, `UuidFormat`, and `CustomFormat` — the
+> date/time variants are currently unreachable from a parsed schema, so
+> `format: "date"` renders as a plain text input (see `ROADMAP.md`).
 
 ### `Widget` — widget overrides
 

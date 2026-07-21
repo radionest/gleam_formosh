@@ -89,9 +89,7 @@ field-touched gate; see `fields/field_dispatcher.gleam:67-70`).
 |--------|--------|-----------|-----------|
 | `email` | ✅ | `<input type="email">` | checks `@` and `.` present (not RFC-compliant) |
 | `url` / `uri` | ✅ | `<input type="url">` | checks `http://` / `https://` prefix |
-| `date` | ✅ | `<input type="date">` | not validated |
-| `time` | ✅ | `<input type="time">` | not validated |
-| `datetime` | ✅ | `<input type="datetime-local">` | not validated |
+| `date` / `time` / `datetime` | 🟡 | `<input type="text">` — the parser maps them to `CustomFormat`, so native pickers are **not** wired up (see `ROADMAP.md`) | not validated |
 | `uuid` | 🟡 | `<input type="text">` | not validated |
 | anything else | 🟡 | `<input type="text">` (`CustomFormat`) | not validated |
 
@@ -154,3 +152,4 @@ probably one of these:
 3. **`anyOf` / polymorphic `oneOf`** are parsed but not rendered as choice widgets.
 4. **No `additionalProperties` / `patternProperties`** — extra object keys are simply ignored at the data layer.
 5. **No tuple validation** (`prefixItems`).
+6. **No native date/time pickers** — `format: "date"` / `"time"` / `"datetime"` render as plain text inputs (see the format table).

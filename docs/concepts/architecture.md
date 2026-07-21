@@ -15,24 +15,25 @@ in the first place is a separate concern that runs once up front.
 
 ## The three layers
 
-```
-        ┌─────────────────────────────────────────────────────────┐
-        │                    Schema pipeline                       │
-        │   JSON string                                           │
-        │     └─ parser ─┬─ resolver  ($ref / $defs)               │
-        │                 ├─ composer  (allOf deep-merge)          │
-        │                 ├─ ui_parser (ui:* presentation hints)   │
-        │                 └─► typed JsonSchema tree                │
-        └───────────────────────────┬─────────────────────────────┘
-                                     │ (one-time, at form creation)
-                                     ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │                       MVU loop (per interaction)             │
-   │                                                               │
-   │    FormMsg ──►  update()  ──► FormModel  ──►  view()  ──► DOM │
-   │       ▲                                       │               │
-   │       └──────────── user event ───────────────┘               │
-   └───────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph SP["Schema pipeline — runs once, at form creation"]
+        J["JSON string"] --> PA["parser"]
+        PA --> RS["resolver ($ref / $defs)"]
+        PA --> CO["composer (allOf deep-merge)"]
+        PA --> UI["ui_parser (ui:* presentation hints)"]
+        RS --> TR["typed JsonSchema tree"]
+        CO --> TR
+        UI --> TR
+    end
+    subgraph LOOP["MVU loop — per interaction"]
+        MSG["FormMsg"] --> UPD["update()"]
+        UPD --> MOD["FormModel"]
+        MOD --> VW["view()"]
+        VW --> DOM["DOM"]
+        DOM -- "user event" --> MSG
+    end
+    TR -- "one-time init" --> MOD
 ```
 
 The schema pipeline runs once when the form is created (or when the schema
@@ -128,7 +129,8 @@ differs:
    `lustre.App` and `lustre.start` it yourself. Covered in
    [Quickstart](../guides/quickstart.md).
 2. **Web Component** (`component.register` → `<formosh-form>`) — Lustre's
-   server-component layer wraps the same MVU app and exposes attributes +
+   component layer (`lustre.component` + `lustre.register`, a client-side
+   custom element) wraps the same MVU app and exposes attributes +
    custom events. Covered in [Web Component](../guides/web-component.md).
 3. **Lustre component** (`component.element([...])`) — embed inside another
    Lustre app without the custom-element ceremony.

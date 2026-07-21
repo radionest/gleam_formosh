@@ -76,12 +76,15 @@ When a string renders as a plain `<input>`, its `type` attribute comes from
 |----------|---------------------|
 | `email` | `email` |
 | `url` or `uri` | `url` |
-| `date` | `date` |
-| `time` | `time` |
-| `datetime` | `datetime-local` |
+| `date`, `time`, `datetime` | `text` — **native pickers not wired up** (see below) |
 | `uuid`, custom, none | `text` |
 
-This is what gets you the mobile-optimised keyboard and the native picker.
+The typed inputs are what get you the mobile-optimised keyboard.
+`get_input_type` does carry `DateFormat`/`TimeFormat`/`DateTimeFormat` →
+`date`/`time`/`datetime-local` mappings, but the parser's `format_decoder`
+only ever produces `EmailFormat`, `UrlFormat`, `UuidFormat`, and
+`CustomFormat` — so those date/time mappings are unreachable from a parsed
+schema and the fields render as plain text (see `ROADMAP.md`).
 
 ## Number fields
 
