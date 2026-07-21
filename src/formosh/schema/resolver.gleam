@@ -306,6 +306,7 @@ fn merge_properties(
     default: option.or(referencing.default, referenced.default),
     enum_values: option.or(referencing.enum_values, referenced.enum_values),
     one_of: option.or(referencing.one_of, referenced.one_of),
+    any_of: None,
     all_of: append_all_of(referenced.all_of, referencing.all_of),
     ref: None,
     // Clear the ref since it's been resolved
@@ -329,6 +330,7 @@ fn merge_properties(
     },
     // readOnly is true if either property has it set
     read_only: referencing.read_only || referenced.read_only,
+    nullable: False,
     // x-addable / x-removable: AND-merge — most restrictive wins
     addable: referencing.addable && referenced.addable,
     removable: referencing.removable && referenced.removable,

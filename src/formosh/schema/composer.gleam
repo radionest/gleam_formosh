@@ -217,6 +217,7 @@ fn merge_pair(
     default: option.or(overlay.default, base.default),
     enum_values: option.or(overlay.enum_values, base.enum_values),
     one_of: option.or(overlay.one_of, base.one_of),
+    any_of: option.or(overlay.any_of, base.any_of),
     ref: option.or(overlay.ref, base.ref),
     string_constraints: string_constraints,
     number_constraints: number_constraints,
@@ -225,6 +226,7 @@ fn merge_pair(
     properties: merged_properties,
     required: list.append(base.required, overlay.required) |> list.unique(),
     read_only: base.read_only || overlay.read_only,
+    nullable: base.nullable || overlay.nullable,
     addable: base.addable && overlay.addable,
     removable: base.removable && overlay.removable,
     render_hints: resolver.merge_render_hints(
