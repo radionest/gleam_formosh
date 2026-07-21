@@ -20,4 +20,4 @@ update the affected page in the same PR.
 | Maintainer internals (stubs) | `docs/internals/` |
 
 Features deliberately absent from the API (do not document them as existing)
-are tracked in `ROADMAP.md` under «Долги API».
+are tracked in `ROADMAP.md` under "API debts".

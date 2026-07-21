@@ -1,331 +1,345 @@
 # Formosh — Roadmap
 
-Roadmap построен так: каждый этап даёт законченную ценность, минимизирует breaking changes для предыдущих, и кладёт фундамент для следующих. Размер — приблизительная оценка (S < 1 нед, M ≈ 1–2 нед, L ≈ 2–4 нед, XL > 1 мес для соло-разработки).
+Stages are ordered so that each delivers complete value on its own, minimizes
+breaking changes for the previous ones, and lays the foundation for the next.
+No version pinning — what matters is priority and dependency order, not
+release numbers. Sizes are rough estimates for solo development:
+S < 1 week, M ≈ 1–2 weeks, L ≈ 2–4 weeks, XL > 1 month.
 
-## Статус (июль 2026, v0.8.4)
-
-План ниже писался до выхода v0.7–v0.8, и номера версий разошлись с реальностью:
-
-- **v0.7 UI Schema — сделано** (вышло в v0.7): `ui:*`-ключи, атрибут `ui-schema`, deprecation `x-*`-расширений (удаление намечено на v0.9).
-- **v0.8 Widget Registry — не начато.** Линейка 0.8.x ушла на доработки UiSchema, swipe-review, read-only режим и закрытие валидаций.
-- Из **v0.9** уже сделано: `pattern` (через `gleam_regexp`, FFI не понадобился), `minItems`/`maxItems`, `multipleOf`, валидация `enum`. Остались: `anyOf`-схемы, `dependencies*`, `additionalProperties`, `not`, RFC-валидация email/url.
-
-## Долги API — из аудита документации (июль 2026)
-
-Найдены при сверке `docs/` с исходниками; из документации эти пункты удалены как несуществующие — здесь они ждут реализации (или осознанного отказа):
-
-- **`formosh-validate` не эмитится.** `component.on_validate` подписывается на событие, которое никто не шлёт (`component.gleam` эмитит только `formosh-ready` / `formosh-change` / `formosh-submitting` / `formosh-submit`). Либо эмитить при смене валидности, либо удалить хелпер.
-- **HTTP-заголовки недоступны из веб-компонента.** `with_http_submit` принимает headers, но атрибута (`submit-headers`) нет. Добавить атрибут с JSON-объектом заголовков.
-- **`ui:widget: "toggle"` не подключён.** `boolean_field.render_as_toggle` (и части `toggle`, `toggle-wrapper`, `toggle-slider`, `toggle-text`, `data-state`) существуют, но диспетчер всегда рендерит radio. Подключить через dispatcher; системно закрывается widget registry (v0.8).
-- **Нет реэкспортов из корневого модуля.** `formosh.StringValue` / `formosh.FormModel` не компилируются — Gleam не умеет реэкспорт конструкторов. Рассмотреть функции-обёртки (`formosh.string_value(...)`) для эргономики.
-- **Configurable CSS class prefix** — заявлялся в README, но никогда не был реализован (из README удалён). Решить: реализовать или окончательно отказаться (частично закрывается v0.15 theming).
+Checkboxes reflect the state as of July 2026 (v0.8.4).
 
 ---
 
-## v0.7 — UI Schema (фундамент)
+## API debts (docs audit, July 2026)
 
-**Цель.** Развести «данные» и «представление». Без этого все дальнейшие фичи будут тянуть `x-widget`-грязь в JSON Schema.
+Found while auditing `docs/` against `src/`; removed from the documentation
+as non-existent — they wait here for implementation (or a deliberate "won't
+do"):
 
-**Объём:** L. **Breaking:** да (минорный — `x-widget` всё ещё читается, но deprecated).
-
-### Что делаем
-
-- Ввести параллельную структуру `UiSchema` с тем же путём адресации, что и `FieldPath`. Хранить как `Dict(String, UiOptions)` либо как дерево, изоморфное JSON Schema.
-- Поддержать минимум: `ui:widget` (имя виджета), `ui:options` (произвольные key/value), `ui:order` (порядок полей в object), `ui:placeholder`, `ui:help`, `ui:autofocus`, `ui:disabled`, `ui:readonly`, `ui:hidden`, `ui:title` (override), `ui:description` (override).
-- Парсер `formosh/schema/ui_parser.gleam` — отдельный, не загрязняем `schema/parser.gleam`.
-- Конфиг билдер: `formosh.with_ui_schema(json_string)` и `formosh.with_ui_schema_dict(dict)`.
-- Web Component: новый атрибут `ui-schema='{...}'`.
-- Миграция: `x-widget: "hidden"` → `ui:widget: "hidden"`; парсер ещё 2 версии понимает обе формы, выдаёт console.warn.
-
-### Файлы
-
-- `src/formosh/schema/ui_schema.gleam` (новый) — типы `UiSchema`, `UiOptions`.
-- `src/formosh/schema/ui_parser.gleam` (новый).
-- `src/formosh/form/model.gleam` — добавить `ui_schema: UiSchema` в `FormModel`.
-- `src/formosh/fields/field_dispatcher.gleam` — выбор виджета: сначала `ui:widget`, потом fallback на правила из README.
-- `src/formosh/component.gleam` — атрибут `ui-schema`.
-
-### Acceptance
-
-- Та же data-схема + разные `ui:widget: "textarea" | "select"` дают разные виджеты.
-- `ui:order` меняет порядок полей в object без правки `properties`.
-- `x-widget: "hidden"` продолжает работать (с deprecation warning).
+- [ ] **Emit `formosh-validate`.** `component.on_validate` subscribes to an
+  event nothing sends (`component.gleam` emits only `formosh-ready` /
+  `formosh-change` / `formosh-submitting` / `formosh-submit`). Either emit
+  it on validity changes or delete the helper.
+- [ ] **HTTP headers from the web component.** `with_http_submit` accepts
+  headers, but there is no attribute for them. Add `submit-headers` taking a
+  JSON object.
+- [ ] **Wire `ui:widget: "toggle"`.** `boolean_field.render_as_toggle` (and
+  the `toggle`, `toggle-wrapper`, `toggle-slider`, `toggle-text` parts plus
+  `data-state`) exist, but the dispatcher always renders radios. Hook it up
+  in the dispatcher; systematically solved by the Widget Registry.
+- [ ] **No re-exports from the root module.** `formosh.StringValue` /
+  `formosh.FormModel` do not compile — Gleam cannot re-export constructors.
+  Consider wrapper functions (`formosh.string_value(...)`) for ergonomics.
+- [ ] **Configurable CSS class prefix** — claimed in the README but never
+  implemented (claim removed). Decide: implement or drop for good (partially
+  covered by the Theming pack).
 
 ---
 
-## v0.8 — Widget Registry
+## UI Schema (foundation) — shipped
 
-**Цель.** Дать пользователю зарегистрировать свой виджет без форка библиотеки. Это «второй слой фундамента» вместе с UI Schema.
+**Goal.** Separate "data" from "presentation". Without this, every further
+feature would drag `x-widget`-style dirt into the JSON Schema.
 
-**Объём:** L. **Breaking:** нет (дополнение API). **Зависит от:** v0.7.
+**Scope:** L. **Breaking:** minor (`x-widget` still read, but deprecated).
 
-### Что делаем
-
-- Тип `Widget(msg)` — record `{ name: String, render: fn(WidgetContext) -> Element(msg), parse_value: fn(String) -> Value }`.
-- `WidgetContext` — record с `path`, `schema_node`, `ui_options`, `current_value`, `errors`, `dispatch: fn(Msg) -> Nil`. Это публичный контракт.
-- Builder: `formosh.with_widget(name, widget)`, `formosh.with_widgets(list)`.
-- В рантайме: `field_dispatcher` сначала ищет в user registry, потом в default registry. Default registry содержит все встроенные виджеты, тоже выраженные через тот же контракт — съесть собачий корм.
-- Lifecycle hooks виджета: `on_mount`, `on_value_change`, `on_blur` (опциональные).
-
-### Файлы
-
-- `src/formosh/widgets/registry.gleam` (новый).
-- `src/formosh/widgets/context.gleam` (новый) — `WidgetContext`, `Msg` для виджетов.
-- Все `fields/*_field.gleam` переписать как реализации `Widget` (но рендеринг тот же). После этой переделки `field_dispatcher.gleam` ужмётся до dispatch-таблицы.
-- Документация: пример `examples/custom_widget` — простой color-picker через FFI к `<input type="color">`.
-
-### Acceptance
-
-- Пользователь регистрирует виджет, в `ui:widget: "my-widget"` он отображается.
-- Все встроенные поля используют тот же registry (нет двух путей рендеринга).
-- Кастомный виджет получает `dispatch` и может править `FormModel`.
+- [x] Parallel `UiSchema` structure with the same path addressing as
+  `FieldPath` (tree isomorphic to the JSON Schema)
+- [x] `ui:widget`, `ui:options`, `ui:order`, `ui:placeholder`, `ui:help`,
+  `ui:autofocus`, `ui:disabled`, `ui:readonly`, `ui:title`,
+  `ui:description` (plus `ui:addable`, `ui:removable`, `ui:orderable`,
+  `ui:accept`, `ui:maxFileSize`)
+- [x] Separate parser `formosh/schema/ui_parser.gleam` — `schema/parser.gleam`
+  stays clean
+- [x] Config builders: `with_ui_schema` / `with_ui_schema_json`
+- [x] Web component: `ui-schema='{...}'` attribute
+- [x] Migration: `x-widget: "hidden"` → `ui:widget: "hidden"`; `x-*` read as
+  deprecated fallback for two more versions
+- [ ] Remove the `x-*` fallback (scheduled after the deprecation window)
 
 ---
 
-## v0.9 — JSON Schema gap-closing
+## Widget Registry
 
-**Цель.** Закрыть базовые keywords стандарта, без которых formosh нельзя называть «JSON Schema form generator» без оговорок.
+**Goal.** Let users register their own widget without forking the library.
+The "second layer of the foundation" together with UI Schema.
 
-**Объём:** M. **Breaking:** нет. **Зависит от:** —.
+**Scope:** L. **Breaking:** no (API addition). **Depends on:** UI Schema.
 
-### Что делаем
+- [ ] `Widget(msg)` type — record
+  `{ name: String, render: fn(WidgetContext) -> Element(msg), parse_value: fn(String) -> Value }`
+- [ ] `WidgetContext` — record with `path`, `schema_node`, `ui_options`,
+  `current_value`, `errors`, `dispatch: fn(Msg) -> Nil`. This is the public
+  contract.
+- [ ] Builders: `formosh.with_widget(name, widget)`, `formosh.with_widgets(list)`
+- [ ] Runtime: `field_dispatcher` checks the user registry first, then the
+  default registry. Built-in widgets are expressed through the same contract
+  — eat the dog food.
+- [ ] Optional widget lifecycle hooks: `on_mount`, `on_value_change`, `on_blur`
+- [ ] Example `examples/custom_widget` — a simple color picker via FFI to
+  `<input type="color">`
 
-- **`pattern` (regex).** FFI к `RegExp` через `src/formosh/ffi/regex_ffi.mjs`: `pub fn test_regex(pattern: String, value: String) -> Bool`. Подключить в `validation/field_requirements.gleam`. Тесты — RFC-набор (email через pattern из draft, ИНН, телефон).
-- **`minItems` / `maxItems`.** В `array_field` блокировать удаление/добавление по достижению границ, добавить ошибку «нужно минимум N».
-- **`anyOf` со схемами (не только const).** Радио-вариант: показать селектор подсхемы, рендерить выбранную. Хранить выбор в отдельном `Dict(FieldPath, Int)`.
-- **`dependencies` / `dependentRequired` / `dependentSchemas`.** При изменении ключа A — пересчитать required/подсхему. Логика та же, что у `if/then/else`, переиспользовать `conditional_resolver.gleam`.
-- **`additionalProperties: false`** — отбрасывать в `get_values` ключи, не описанные в `properties`. `additionalProperties: { type: ... }` — рендерить key/value-редактор (как dict).
-- **`not`** — только в валидации (не в рендеринге). Negate любой проверки.
-- **Полноценная email/url валидация.** Через `pattern` из JSON Schema spec.
+**Files:** `src/formosh/widgets/registry.gleam` (new),
+`src/formosh/widgets/context.gleam` (new); rewrite all `fields/*_field.gleam`
+as `Widget` implementations (rendering unchanged) — after that
+`field_dispatcher.gleam` shrinks to a dispatch table.
 
-### Файлы
-
-- `src/formosh/ffi/regex_ffi.mjs` (новый).
-- `src/formosh/validation/field_requirements.gleam` — дописать `validate_pattern`, `validate_min_max_items`.
-- `src/formosh/schema/parser.gleam` — поддержать `anyOf`, `dependencies*`, `additionalProperties`, `not`.
-- `src/formosh/schema/conditional_resolver.gleam` — обобщить с `if/then/else` на `dependentSchemas`.
-- `src/formosh/fields/object_field.gleam` — рендерить `additionalProperties` как dict.
-
-### Acceptance
-
-- Все эти keywords пропускают валидный JSON Schema test suite (минимум — happy path для draft 2020-12).
-- README в секции «What's NOT Implemented» уменьшается на 60%.
-
----
-
-## v0.10 — Layouts
-
-**Цель.** Дать возможность строить формы сложнее «всё подряд сверху вниз».
-
-**Объём:** M. **Breaking:** нет. **Зависит от:** v0.7 (UI Schema).
-
-### Что делаем
-
-- В UI Schema поддержать layout-узлы (как в JSONForms): `{ "type": "VerticalLayout" | "HorizontalLayout" | "Group" | "Categorization", "elements": [...], "label"?: ... }`. Листья — `{ "type": "Control", "scope": "#/properties/foo" }`.
-- Если `ui_schema` отсутствует — fallback на текущий линейный рендер (back-compat).
-- `Group` — `<fieldset>` с легендой.
-- `HorizontalLayout` — CSS grid, равные колонки.
-- `Categorization` — табы (без wizard ещё).
-
-### Файлы
-
-- `src/formosh/schema/ui_schema.gleam` — добавить layout union type.
-- `src/formosh/fields/layout.gleam` (новый) — рендер `Vertical`, `Horizontal`, `Group`, `Categorization`.
-- `src/formosh/form/view.gleam` — точка ветвления: если в `ui_schema` есть root layout — рендерим его, иначе старый flow.
-
-### Acceptance
-
-- Демка: форма с 2 колонками (`HorizontalLayout`), вложенный `Group`, табы поверх 3 секций.
-- Без `ui_schema` всё работает как раньше.
+**Acceptance:** a user-registered widget renders via `ui:widget: "my-widget"`;
+all built-in fields go through the same registry (no second rendering path);
+a custom widget receives `dispatch` and can update the `FormModel`.
 
 ---
 
-## v0.11 — Wizard / Multi-step
+## JSON Schema gap-closing
 
-**Цель.** Длинные формы (анкета, оформление заказа) — пошаговый интерфейс с per-step валидацией.
+**Goal.** Close the basic standard keywords without which Formosh can't be
+called a "JSON Schema form generator" without disclaimers.
 
-**Объём:** M. **Breaking:** нет. **Зависит от:** v0.10 (Categorization уже даёт половину).
+**Scope:** M. **Breaking:** no.
 
-### Что делаем
+- [x] `pattern` — enforced via `gleam_regexp` (no FFI needed; partial-match
+  per draft 2020-12 §6.3.3)
+- [x] `minItems` / `maxItems` — length validation plus add/remove button
+  gating
+- [x] `multipleOf` — tolerant comparison (1e-8), also drives the `step`
+  attribute
+- [x] `enum` value validation
+- [ ] `anyOf` with schemas (not just const) — subschema selector, render the
+  chosen branch; store the choice in a separate `Dict(FieldPath, Int)`
+- [ ] `dependencies` / `dependentRequired` / `dependentSchemas` — recompute
+  required/subschema on key change; same logic as `if/then/else`, reuse
+  `conditional_resolver.gleam`
+- [ ] `additionalProperties: false` — drop keys not described in `properties`
+  from `get_values`; `additionalProperties: { type: ... }` — render a
+  key/value editor (dict-like)
+- [ ] `not` — validation only (not rendering); negate any check
+- [ ] RFC-grade email/url validation via the patterns from the JSON Schema
+  spec (current checks are lax substring tests)
 
-- Layout `Wizard` — частный случай `Categorization` с навигацией Prev/Next + Submit на последнем шаге.
-- Валидация шага: пользователь не уходит со step N, пока в видимых полях step N есть ошибки.
-- Прогресс-бар как отдельный part (`progress`, `progress-step`).
-- Опции в UI Schema: `linear: bool` (можно ли прыгать вперёд), `allow_back: bool`.
-- State в модели: `current_step: Int`, `visited_steps: Set(Int)`.
-
-### Файлы
-
-- `src/formosh/fields/wizard.gleam` (новый).
-- `src/formosh/form/model.gleam` — добавить wizard-state.
-- `src/formosh/form/update.gleam` — `NextStep`, `PrevStep`, `GoToStep(Int)`.
-
-### Acceptance
-
-- 3-step демка, ошибки на step 1 блокируют переход.
-- Submit запускается только с последнего шага.
-
----
-
-## v0.12 — Async / server-side validation
-
-**Цель.** «Email уже занят», «инн не найден в ЕГРЮЛ». Без этого нельзя делать регистрации и любые формы со справочниками.
-
-**Объём:** M. **Breaking:** нет.
-
-### Что делаем
-
-- API: `formosh.with_async_validator(field_path, validator)` где `validator: fn(Value) -> Effect(Result(Nil, String))`.
-- Debounce: дефолт 500 мс, перенастраивается через `ui:options.debounce_ms`.
-- В модели: `pending_validations: Set(FieldPath)`, в view — спиннер на поле.
-- Submit ждёт завершения всех pending.
-- Ошибка с бэка — отдельный канал `model.async_errors`, мерджится с `model.errors` при отображении.
-- Web Component: атрибут `async-validate-url='https://api/validate'`, который шлёт `{ field, value }` и принимает `{ valid: bool, message?: string }`.
-
-### Файлы
-
-- `src/formosh/validation/async.gleam` (новый).
-- `src/formosh/form/model.gleam` — `pending_validations`, `async_errors`.
-- `src/formosh/form/update.gleam` — debounce-логика, обработка ответов.
-
-### Acceptance
-
-- Демка: при вводе email-а через 500 мс улетает запрос, спиннер крутится, потом либо ✓ либо текст ошибки.
-- Если поле ещё проверяется — submit ждёт.
+**Acceptance:** these keywords pass the official JSON Schema Test Suite
+(at minimum the happy path for draft 2020-12); the README "What's NOT
+Implemented" section shrinks by ~60%.
 
 ---
 
-## v0.13 — Expressions / calculated fields / cross-field rules
+## Layouts
 
-**Цель.** Бизнес-логика форм: «итого = цена × количество», «дата окончания не раньше начала», «если выбрана опция А, поле B обязательно».
+**Goal.** Enable forms more complex than "everything top-to-bottom".
 
-**Объём:** XL. **Breaking:** нет. **Зависит от:** v0.7 (UI Schema несёт expressions).
+**Scope:** M. **Breaking:** no. **Depends on:** UI Schema.
 
-### Что делаем
+- [ ] Layout nodes in UI Schema (as in JSONForms):
+  `{ "type": "VerticalLayout" | "HorizontalLayout" | "Group" | "Categorization", "elements": [...], "label"?: ... }`;
+  leaves are `{ "type": "Control", "scope": "#/properties/foo" }`
+- [ ] No `ui_schema` → fall back to the current linear render (back-compat)
+- [ ] `Group` — `<fieldset>` with a legend
+- [ ] `HorizontalLayout` — CSS grid, equal columns
+- [ ] `Categorization` — tabs (no wizard yet)
 
-- Мини-DSL выражений (свой парсер, не eval). Грамматика:
-  - литералы: число, строка, bool, null;
-  - идентификаторы: `$.foo.bar` (путь от корня), `@.sibling` (относительно текущего);
-  - операторы: `+ - * / %`, `== != < <= > >=`, `&& ||`, `!`;
-  - функции: `iif(cond, a, b)`, `today()`, `sum($.items[*].price)`, `length($.items)`, `contains(str, sub)`.
-- Точки приложения в UI Schema:
-  - `ui:value_expression: "@.price * @.qty"` — поле вычисляется, ввод запрещён;
-  - `ui:visible_if: "$.type == 'company'"` — альтернатива `if/then/else`, проще;
-  - `ui:enabled_if`, `ui:required_if`.
-- Реактивность: при изменении любого пути собирается список зависимых выражений, они пересчитываются. Граф зависимостей строится один раз при парсинге UI Schema.
-- Циклы зависимостей — детектируем при парсинге, бросаем `ParseError`.
+**Files:** `src/formosh/schema/ui_schema.gleam` (layout union type),
+`src/formosh/fields/layout.gleam` (new), `src/formosh/form/view.gleam`
+(branch point: root layout present → render it, otherwise the old flow).
 
-### Файлы
-
-- `src/formosh/expr/parser.gleam` (новый) — lexer + recursive descent parser.
-- `src/formosh/expr/ast.gleam` (новый) — типы выражений.
-- `src/formosh/expr/eval.gleam` (новый) — интерпретатор поверх `FormModel.values`.
-- `src/formosh/expr/dependencies.gleam` (новый) — построение графа зависимостей.
-- `src/formosh/form/update.gleam` — после каждого `UpdateValue` пересчитываем зависимые поля.
-- Тестов отдельно: `test/expr_test.gleam` с матрицей операторов и приоритетов.
-
-### Acceptance
-
-- Демка: order form — qty, price, total (вычисляемый). Меняем qty — total обновляется.
-- Cross-field валидация: end_date >= start_date через `required_if` либо явный validator.
+**Acceptance:** demo with a 2-column layout, a nested `Group`, and tabs over
+3 sections; everything works as before without a `ui_schema`.
 
 ---
 
-## v0.14 — Generic file upload + async enum
+## Wizard / multi-step
 
-**Цель.** Унифицировать загрузку файлов (сейчас только image-upload, hardcoded, только верхний уровень). Дать typeahead для справочников.
+**Goal.** Long forms (surveys, checkout) — step-by-step UI with per-step
+validation.
 
-**Объём:** M. **Breaking:** да — `x-widget: "image-upload"` мигрирует на `ui:widget: "file"` с `ui:options.accept = "image/*"`.
+**Scope:** M. **Breaking:** no. **Depends on:** Layouts (`Categorization`
+already provides half of it).
 
-### Что делаем
+- [ ] `Wizard` layout — a special case of `Categorization` with Prev/Next
+  navigation and Submit on the last step
+- [ ] Step validation: the user cannot leave step N while its visible fields
+  have errors
+- [ ] Progress bar as dedicated parts (`progress`, `progress-step`)
+- [ ] UI Schema options: `linear: bool` (can the user jump ahead),
+  `allow_back: bool`
+- [ ] Model state: `current_step: Int`, `visited_steps: Set(Int)`
 
-- **File upload:** виджет `file`, через `WidgetRegistry` (зависит от v0.8). Опции: `accept`, `multiple`, `max_size`, `upload_url`, `headers`. Прогресс через `XMLHttpRequest.upload.onprogress`. Поддержка `format: "data-url"` (base64 inline) и `format: "binary"` (multipart upload).
-- **Image-upload** реализуется как пресет `file` + preview. Старый код выпиливается, его поведение покрывается ui-options.
-- **Async enum / typeahead:** виджет `autocomplete`, опции `data_source_url`, `query_param` (по дефолту `q`), `value_field`, `label_field`, `min_chars`, `debounce_ms`. Дебаунс — общий с async-validation.
-- В JSON Schema — без изменений, enum остаётся пустым, опции тянутся в рантайме.
+**Files:** `src/formosh/fields/wizard.gleam` (new), wizard state in
+`form/model.gleam`, `NextStep` / `PrevStep` / `GoToStep(Int)` in
+`form/update.gleam`.
 
-### Файлы
-
-- `src/formosh/widgets/file.gleam` (новый).
-- `src/formosh/widgets/autocomplete.gleam` (новый).
-- `src/formosh/ffi/upload_ffi.mjs` — XHR с прогрессом.
-- Удалить `src/formosh/fields/image_field.gleam`, мигрировать пример.
-
-### Acceptance
-
-- File-upload работает на любой глубине (внутри array/object).
-- Typeahead-демка: поиск города из списка из 10k записей через `/api/cities?q=...`.
-
----
-
-## v0.15 — Theming pack (Tailwind)
-
-**Цель.** «Работает красиво из коробки», без необходимости писать CSS с нуля.
-
-**Объём:** M. **Breaking:** нет.
-
-### Что делаем
-
-- Отдельный hex-пакет `formosh_theme_tailwind` (либо `formosh/themes/tailwind.gleam` внутри основного — но лучше отдельно, не тащить CSS в core).
-- Готовый CSS (или Tailwind preset) для всех `::part()`-имён.
-- Документация: «как подключить тему за 3 строки».
-- В перспективе — пакеты под Bootstrap, DaisyUI (можно потом, силами комьюнити).
-
-### Acceptance
-
-- Один `import` + один `<link>` — форма выглядит как production-ready форма, без ручного CSS.
+**Acceptance:** 3-step demo; errors on step 1 block the transition; Submit
+fires only from the last step.
 
 ---
 
-## v0.16 — i18n
+## Async / server-side validation
 
-**Цель.** Переводы лейблов и сообщений об ошибках.
+**Goal.** "Email already taken", "tax ID not found in the registry". Without
+this you can't build registrations or any form backed by reference data.
 
-**Объём:** S. **Breaking:** нет.
+**Scope:** M. **Breaking:** no.
 
-### Что делаем
+- [ ] API: `formosh.with_async_validator(field_path, validator)` where
+  `validator: fn(Value) -> Effect(Result(Nil, String))`
+- [ ] Debounce: 500 ms default, tunable via `ui:options.debounce_ms`
+- [ ] Model: `pending_validations: Set(FieldPath)`; spinner on the field in
+  the view
+- [ ] Submit waits for all pending validations to finish
+- [ ] Backend errors in a separate `model.async_errors` channel, merged with
+  `model.errors` at display time
+- [ ] Web component: `async-validate-url` attribute sending
+  `{ field, value }` and accepting `{ valid: bool, message?: string }`
 
-- `formosh.with_locale("ru")` — переключает встроенный словарь ошибок.
-- `formosh.with_messages(dict)` — кастомные переопределения.
-- Поддержать `errorMessage` keyword (Ajv-extension): прямо в schema можно положить `{ "errorMessage": { "minLength": "Слишком коротко" } }`.
-- Локали в репозитории: en (дефолт), ru. Остальные — PR-ами от комьюнити.
+**Files:** `src/formosh/validation/async.gleam` (new); debounce logic and
+response handling in `form/update.gleam`.
 
-### Файлы
-
-- `src/formosh/i18n/locales.gleam` (новый) — словари.
-- `src/formosh/validation/error.gleam` — пропускать через словарь.
-
-### Acceptance
-
-- Все встроенные ошибки переводятся одной строкой конфига.
-- `errorMessage` из schema перекрывает дефолт.
-
----
-
-## Сквозные задачи (не отдельные релизы)
-
-- **JSON Schema test suite** — подключить официальный набор JSON Schema Test Suite как submodule, прогонять часть «structural validation» в CI. Сразу будет видно, какие keywords мы реально поддерживаем.
-- **Accessibility audit** — пройтись axe-core по каждому виджету, расставить ARIA. Лучше делать на этапе v0.8 (когда виджеты переписываем под registry — заодно и a11y).
-- **Performance benchmarks** — отдельная папка `bench/`, замер времени рендера на форме из 100/500/1000 полей. Нужно сейчас, до v0.13 (expressions добавят пересчёты — нужно baseline).
-- **CHANGELOG.md и SemVer** — пора. После v0.7 каждый breaking — мажорный bump.
+**Acceptance:** demo where typing an email fires a request after 500 ms,
+spinner shows, then either ✓ or an error message; submit waits while a field
+is still being checked.
 
 ---
 
-## Чего НЕ делаем в этом roadmap (и почему)
+## Expressions / calculated fields / cross-field rules
 
-- **Visual form builder** в стиле SurveyJS Creator — это отдельный продукт на порядок больше core. Если делать — отдельным проектом `formosh-builder`.
-- **OpenAPI integration** — пользователь конвертит OpenAPI → JSON Schema чужими средствами; для нас это не приоритет.
-- **Markdown rich text widget, signature pad, geo-picker** — оставляем на comminuty через widget registry (для этого v0.8 и нужен).
-- **Server-side rendering** — Lustre его поддерживает; если будет запрос — отдельная итерация, но не в основном roadmap.
+**Goal.** Form business logic: "total = price × quantity", "end date not
+before start date", "if option A is selected, field B is required".
+
+**Scope:** XL. **Breaking:** no. **Depends on:** UI Schema (carries the
+expressions).
+
+- [ ] Expression mini-DSL (own parser, no eval). Grammar: number / string /
+  bool / null literals; identifiers `$.foo.bar` (from the root) and
+  `@.sibling` (relative); operators `+ - * / %`, `== != < <= > >=`,
+  `&& ||`, `!`; functions `iif(cond, a, b)`, `today()`,
+  `sum($.items[*].price)`, `length($.items)`, `contains(str, sub)`
+- [ ] Application points in UI Schema:
+  `ui:value_expression: "@.price * @.qty"` (computed field, input disabled),
+  `ui:visible_if: "$.type == 'company'"` (simpler alternative to
+  `if/then/else`), `ui:enabled_if`, `ui:required_if`
+- [ ] Reactivity: on any path change, collect dependent expressions and
+  recompute them; the dependency graph is built once while parsing the
+  UI Schema
+- [ ] Dependency cycles detected at parse time → `ParseError`
+
+**Files:** `src/formosh/expr/{parser,ast,eval,dependencies}.gleam` (all new);
+recompute hook in `form/update.gleam`; dedicated `test/expr_test.gleam` with
+an operator/precedence matrix.
+
+**Acceptance:** order-form demo — qty, price, computed total updating live;
+cross-field validation `end_date >= start_date` via `required_if` or an
+explicit validator.
 
 ---
 
-## Критический путь
+## Generic file upload + async enum
 
-`v0.7 (UI Schema)` → `v0.8 (Widget Registry)` — это **обязательная двойка**, всё остальное опирается на них. Если делать одно без другого, в v0.13 (expressions) выяснится, что значения из UI Schema некому передавать в кастомные виджеты, и придётся ломать API повторно.
+**Goal.** Unify file uploads (currently only image-upload, hardcoded,
+top-level only). Provide typeahead for reference data.
 
-Дальше две независимые ветки, которые можно делать параллельно:
-- **«Стандарт»:** v0.9 (JSON Schema closing) → v0.16 (i18n).
-- **«UX»:** v0.10 (Layouts) → v0.11 (Wizard) → v0.13 (Expressions).
+**Scope:** M. **Breaking:** yes — `x-widget: "image-upload"` migrates to
+`ui:widget: "file"` with `ui:options.accept = "image/*"`. **Depends on:**
+Widget Registry.
 
-v0.12 (async) и v0.14 (files) — самостоятельные, можно вклинить когда удобно.
+- [ ] `file` widget via the registry. Options: `accept`, `multiple`,
+  `max_size`, `upload_url`, `headers`. Progress via
+  `XMLHttpRequest.upload.onprogress`. Support `format: "data-url"` (base64
+  inline) and `format: "binary"` (multipart upload)
+- [ ] Image-upload reimplemented as a `file` preset + preview; old code
+  removed, its behaviour covered by ui-options (also fixes today's
+  "top-level properties only" limitation)
+- [ ] `autocomplete` typeahead widget: `data_source_url`, `query_param`
+  (default `q`), `value_field`, `label_field`, `min_chars`, `debounce_ms`
+  (debounce shared with async validation)
+- [ ] No JSON Schema changes — `enum` stays empty, options are fetched at
+  runtime
+
+**Files:** `src/formosh/widgets/file.gleam`,
+`src/formosh/widgets/autocomplete.gleam`, `src/formosh/ffi/upload_ffi.mjs`
+(XHR with progress); delete `src/formosh/fields/image_field.gleam` and
+migrate the example.
+
+**Acceptance:** file upload works at any depth (inside array/object);
+typeahead demo searching a city out of a 10k-record list via
+`/api/cities?q=...`.
+
+---
+
+## Theming pack (Tailwind)
+
+**Goal.** "Looks good out of the box" without writing CSS from scratch.
+
+**Scope:** M. **Breaking:** no.
+
+- [ ] Separate hex package `formosh_theme_tailwind` (keep CSS out of core)
+- [ ] Ready-made CSS (or a Tailwind preset) covering every `::part()` name
+- [ ] Docs: "connect a theme in 3 lines"
+- [ ] Later: Bootstrap / DaisyUI packs (community-driven)
+
+**Acceptance:** one `import` + one `<link>` — the form looks
+production-ready with no manual CSS.
+
+---
+
+## i18n
+
+**Goal.** Translated labels and error messages.
+
+**Scope:** S. **Breaking:** no.
+
+- [ ] `formosh.with_locale("ru")` — switches the built-in error dictionary
+- [ ] `formosh.with_messages(dict)` — custom overrides
+- [ ] `errorMessage` keyword (Ajv extension): put
+  `{ "errorMessage": { "minLength": "Too short" } }` right in the schema
+- [ ] Locales in the repo: en (default), ru; others via community PRs
+
+**Files:** `src/formosh/i18n/locales.gleam` (new); route
+`validation/error.gleam` messages through the dictionary.
+
+**Acceptance:** all built-in errors translate with one line of config;
+`errorMessage` from the schema overrides the default.
+
+---
+
+## Cross-cutting tasks (not separate releases)
+
+- [ ] **JSON Schema Test Suite** — wire the official suite in as a
+  submodule, run the "structural validation" part in CI. Instantly shows
+  which keywords are really supported.
+- [ ] **Accessibility audit** — run axe-core over every widget, add ARIA.
+  Best done together with the registry rewrite (widgets are being touched
+  anyway).
+- [ ] **Performance benchmarks** — a `bench/` folder measuring render time
+  on 100/500/1000-field forms. Needed before Expressions land (they add
+  recomputation — a baseline is required).
+- [ ] **CHANGELOG.md and SemVer** — overdue. Every breaking change gets a
+  major bump.
+
+---
+
+## Non-goals (and why)
+
+- **Visual form builder** à la SurveyJS Creator — a separate product an
+  order of magnitude bigger than the core. If ever, as a separate
+  `formosh-builder` project.
+- **OpenAPI integration** — users convert OpenAPI → JSON Schema with
+  external tools; not a priority for us.
+- **Markdown rich-text widget, signature pad, geo-picker** — left to the
+  community via the widget registry (that's what it's for).
+- **Server-side rendering** — Lustre supports it; if demand appears, a
+  separate iteration, not part of this roadmap.
+
+---
+
+## Critical path
+
+**UI Schema (done) → Widget Registry** is the mandatory pair — everything
+else leans on it. Doing one without the other means Expressions would later
+have no way to pass UI Schema values into custom widgets, forcing a second
+API break.
+
+After that, two independent tracks that can run in parallel:
+
+- **"Standards" track:** JSON Schema gap-closing → i18n.
+- **"UX" track:** Layouts → Wizard → Expressions.
+
+Async validation and file upload are self-contained — slot them in whenever
+convenient.
