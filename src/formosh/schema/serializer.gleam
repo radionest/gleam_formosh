@@ -186,18 +186,66 @@ fn add_optional_one_of(
   |> option.unwrap(fields)
 }
 
+// Helper to add anyOf array if present, appending a null member when the
+// node itself is nullable (mirrors add_optional_one_of).
+fn add_optional_any_of(
+  fields: List(#(String, json.Json)),
+  any_of: option.Option(List(SchemaProperty)),
+  nullable: Bool,
+) -> List(#(String, json.Json)) {
+  any_of
+  |> option.map(fn(schemas) {
+    let members = list.map(schemas, property_to_json)
+    let members = case nullable {
+      True ->
+        list.append(members, [json.object([#("type", json.string("null"))])])
+      False -> members
+    }
+    add_fields(fields, [#("anyOf", json.preprocessed_array(members))])
+  })
+  |> option.unwrap(fields)
+}
+
+// Emit the "type" keyword: a nullable type array for a collapsed optional
+// scalar, the plain type string otherwise, or nothing at all when `anyOf`
+// is present (the union's members carry their own types).
+fn add_type_field(
+  fields: List(#(String, json.Json)),
+  prop: SchemaProperty,
+) -> List(#(String, json.Json)) {
+  case prop.any_of {
+    option.Some(_) -> fields
+    option.None ->
+      case prop.nullable, prop.field_type {
+        True, option.Some(ft) ->
+          add_fields(fields, [
+            #(
+              "type",
+              json.preprocessed_array([
+                json.string(field_type_to_string(ft)),
+                json.string("null"),
+              ]),
+            ),
+          ])
+        _, _ ->
+          add_optional_json_field(fields, "type", prop.field_type, fn(ft) {
+            json.string(field_type_to_string(ft))
+          })
+      }
+  }
+}
+
 /// Convert a SchemaProperty to JSON.
 fn property_to_json(prop: SchemaProperty) -> json.Json {
   []
   |> add_optional_json_field("$ref", prop.ref, json.string)
-  |> add_optional_json_field("type", prop.field_type, fn(ft) {
-    json.string(field_type_to_string(ft))
-  })
+  |> add_type_field(prop)
   |> add_optional_json_field("title", prop.title, json.string)
   |> add_optional_json_field("description", prop.description, json.string)
   |> add_optional_json_field("default", prop.default, value_to_json)
   |> add_optional_enum(prop.enum_values)
   |> add_optional_one_of(prop.one_of)
+  |> add_optional_any_of(prop.any_of, prop.nullable)
   |> fn(fields) {
     prop.string_constraints
     |> option.map(add_string_constraint_fields(fields, _))
