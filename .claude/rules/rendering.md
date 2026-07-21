@@ -16,3 +16,9 @@ When creating or modifying field renderers, follow these business logic rules:
 - Objects render as nested fieldset with proper indentation
 - Numbers with `multipleOf` set the step attribute
 - Fields with `description` get help text below the input
+
+## Docs
+
+- Widget decision tree + override mechanisms: `docs/reference/widgets.md`
+- Part-name catalog and styling surfaces: `docs/guides/styling.md`
+- `ui:*` keys consumed by renderers: `docs/reference/ui-schema.md`

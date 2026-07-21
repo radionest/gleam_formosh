@@ -47,3 +47,9 @@ field_common.render_field_errors(errors: List(ValidationError))
   not by rebuilding the Dict manually — `is_valid` is derived from dict size.
 - `mark_field_touched` lives in `update.gleam`, not in field renderers —
   views are pure and must not mutate touched state.
+
+## Docs
+
+- Error-visibility semantics (touch gate, array-length exception):
+  `docs/guides/configuration.md`
+- What is validated vs parse-only: `docs/reference/schema-keywords.md`

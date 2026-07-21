@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Formosh is a JSON Schema-based form generator library for Gleam/Lustre that creates dynamic, type-safe forms using the Model-View-Update (MVU) architecture. It parses JSON Schema (draft 2020-12) and generates fully functional forms with validation.
 
+## Documentation
+
+`docs/` (OKF bundle) is the **single source of truth** for library behaviour — this file and `.claude/rules/` only summarize and link. Start at `docs/index.md`; the per-topic map lives in `.claude/rules/docs.md`. When a change alters behaviour described in `docs/`, update the affected page in the same PR. Planned work and known API debts live in `ROADMAP.md`.
+
 ## Worktree Workflow
 
 - Feature development: always enter a worktree via `EnterWorktree` before making changes. Never `git checkout -b` on main — `block-branch-switch.sh` blocks it
@@ -68,7 +72,7 @@ to_string(path: FieldPath) -> String    // Convert to dot notation
 get_field_name(path: FieldPath) -> String  // Extract final segment
 ```
 
-Form values are stored as `Dict(String, Value)` with dot-notation keys (e.g. `"user.name"` → `StringValue("John")`). The same keys are used for `model.errors`.
+Form values live in `model.values` as a single hierarchical `Value` tree (always `ObjectValue` at the root); read/write via `path.get_at_path` / `path.set_at_path`, never a Dict↔Value conversion. `model.errors` is keyed by dot-notation strings produced by `path.to_string` (e.g. `"lesions[0].side"`).
 
 Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segment` + segment join rules). `path.to_string` delegates to it — treat `path_format.gleam` as the single source of truth and never re-implement the join elsewhere.
 
@@ -83,15 +87,15 @@ Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segme
 
 ## Web Component
 
-Registers as `<formosh-form>` custom element. Attributes: `schema`, `ui-schema`, `submit-url`, `submit-method`, `show-readonly-fields`, `read-only`, `upload-base-url`. Emits events: `formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`.
+Registers as `<formosh-form>` custom element. Attributes: `schema`, `ui-schema`, `submit-url`, `submit-method`, `initial-values`, `show-readonly-fields`, `read-only`, `upload-base-url`. Emits events: `formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`. Full guide: `docs/guides/web-component.md`.
 
 `read-only="true"` renders the whole form as a static label→value summary (review mode) instead of inputs, hiding Submit/Reset — distinct from `show-readonly-fields`, which only toggles visibility of schema `readOnly` fields in edit mode. Drives the `readonly_field` renderer (`src/formosh/fields/readonly_field.gleam`); exposes `::part(readonly-field|readonly-label|readonly-value|readonly-group|readonly-group-label|readonly-group-body|readonly-table|readonly-th|readonly-td)`.
 
-Styling: the component runs in open Shadow DOM, so target it via `::part()` selectors (`formosh-form::part(input)`, etc.) and `[part=field][data-error]` / `[part=field][data-readonly]` / `[part=toggle][data-state=on]` for field state. Parent stylesheets are also auto-adopted, so plain `.formosh-input { ... }` rules still apply inside the shadow root.
+Styling: the component runs in open Shadow DOM, so target it via `::part()` selectors (`formosh-form::part(input)`, etc.) and `[part=field][data-error]` / `[part=field][data-readonly]` for field state. Parent stylesheets are also auto-adopted, so plain `.formosh-input { ... }` rules still apply inside the shadow root. Part catalog: `docs/guides/styling.md`.
 
 ## UiSchema
 
-Presentation hints live in a parallel `UiSchema` (react-jsonschema-form-style JSON: `ui:widget`, `ui:order`, `ui:placeholder`, `ui:help`, `ui:autofocus`, `ui:disabled`, `ui:readonly`, `ui:title`, `ui:description`, `ui:options`, `ui:addable`, `ui:removable`, `ui:orderable`, `ui:accept`, `ui:maxFileSize`). Children are nested inline by field name; `items` is the array-element template. `lookup` (`formosh/schema/ui_resolver`) walks by `FieldPath` — `ArraySegment` ignores the index and descends into `items`.
+Presentation hints live in a parallel `UiSchema` (react-jsonschema-form-style JSON: `ui:widget`, `ui:order`, `ui:placeholder`, `ui:help`, `ui:autofocus`, `ui:disabled`, `ui:readonly`, `ui:title`, `ui:description`, `ui:options`, `ui:addable`, `ui:removable`, `ui:orderable`, `ui:accept`, `ui:maxFileSize`). Children are nested inline by field name; `items` is the array-element template. `lookup` (`formosh/schema/ui_resolver`) walks by `FieldPath` — `ArraySegment` ignores the index and descends into `items`. Full reference: `docs/reference/ui-schema.md`.
 
 - `x-widget` / `x-accept` / `x-max-file-size` / `x-addable` / `x-removable` extensions are **deprecated as of v0.7** and read as fallback only. They will be removed in **v0.9**. Use UiSchema instead.
 - `ui:disabled` and `ui:readonly` **OR-merge** with the parent / schema. `ui:disabled: false` on a child of a disabled container does NOT re-enable it — mirrors HTML's `disabled` inheritance and JSON Schema's `readOnly`. To selectively enable, hoist the disabled flag to the leaf instead of the container.

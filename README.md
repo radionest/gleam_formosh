@@ -4,11 +4,23 @@ JSON Schema form generator for Gleam. Parses JSON Schema (draft 2020-12) and ren
 
 > **Alpha / learning project.** API is unstable and will change. Use at your own risk.
 
+## Documentation
+
+Full documentation lives in [`docs/`](docs/index.md) — concepts, guides
+(quickstart, web component, styling, configuration), the API reference, and
+the JSON Schema support matrix. This README is a quick introduction;
+`docs/` is the source of truth. Planned work: [`ROADMAP.md`](ROADMAP.md).
+
 ## Installation
 
+Not yet published on Hex — add Formosh as a path (or git) dependency:
+
 ```toml
+target = "javascript"
+
 [dependencies]
-formosh = ">= 0.2.0"
+# clone https://github.com/radionest/gleam_formosh next to your project:
+formosh = { path = "../gleam_formosh" }
 ```
 
 ## Quick Start
@@ -41,15 +53,16 @@ Builder pattern for customizing form behavior:
 ```gleam
 import formosh
 import formosh/schema/parser
+import formosh/schema/types
+import gleam/dict
 
 let assert Ok(schema) = parser.parse_schema(json_string)
 
 let app = formosh.config(schema)
   |> formosh.with_submit_url("https://api.example.com/submit")
-  |> formosh.with_show_errors_on_change(True)
   |> formosh.with_show_readonly_fields(True)
   |> formosh.with_initial_values(dict.from_list([
-    #("patient_id", StringValue("12345")),
+    #("patient_id", types.StringValue("12345")),
   ]))
   |> formosh.from_config()
 
@@ -291,15 +304,13 @@ The widget is chosen automatically based on schema:
 | `string` + `oneOf` with const/title | radio buttons |
 | `string` + `format: "email"` | email input |
 | `string` + `format: "url"` or `"uri"` | url input |
-| `string` + `format: "date"` | date picker |
-| `string` + `format: "time"` | time input |
-| `string` + `format: "datetime"` | datetime-local input |
+| `string` + `format: "date"` / `"time"` / `"datetime"` | text input — native pickers not wired yet (see `ROADMAP.md`) |
 | `number` / `integer` | number input (with `step` from `multipleOf`) |
 | `boolean` | Yes/No radio buttons |
 | `array` | dynamic list with add/remove controls |
 | `object` | nested fieldset |
 | `readOnly: true` | hidden by default; shown as readonly input with `with_show_readonly_fields(True)` |
-| `object` + `ui:widget: "swipe-review"` | tap-based zone burndown (Phase A; swipe gestures pending) |
+| `object` + `ui:widget: "swipe-review"` | tap/swipe-based zone burndown |
 
 ## What's Implemented
 
@@ -328,7 +339,6 @@ The widget is chosen automatically based on schema:
 - HTTP form submission (POST, PUT) via [rsvp](https://hexdocs.pm/rsvp/)
 - Custom submission handlers
 - Web Component (`<formosh-form>`) with attribute listeners and custom events
-- Configurable CSS class prefix
 - Initial values pre-population
 - Touch tracking — errors shown only after field interaction
 - Conditional field visibility — fields appear/disappear based on form state
@@ -340,14 +350,12 @@ The widget is chosen automatically based on schema:
 - `not`
 - `allOf` enum/`oneOf` intersection — colliding `enum`/`oneOf` values take the later member's list wholesale
 - `allOf` inside a `$defs` entry does not survive schema serialization round-trip (`$defs` stay raw; the serializer re-emits flattened schemas)
-- `pattern` — stored but regex validation not wired up (no regex library)
 - `additionalProperties`, `patternProperties`
 - `dependencies`, `dependentRequired`, `dependentSchemas`
 - `prefixItems` (tuple validation)
 - `minProperties`, `maxProperties`
 - `discriminator`
 - GET submission method
-- Enum value validation (function stub exists, always passes)
 - RFC-compliant email/URL format validation
 
 ## Styling
@@ -363,13 +371,11 @@ The component runs inside an open Shadow DOM. There are three customization surf
    formosh-form::part(submit)        { background: #08a; color: white; }
    ```
 
-2. **`data-*` attributes for state** — error and readonly states on the field wrapper, on/off state on toggles:
+2. **`data-*` attributes for state** — error and readonly states on the field wrapper:
 
    ```css
    formosh-form::part(field)[data-error]    { border-color: red; }
    formosh-form::part(field)[data-readonly] { opacity: 0.6; }
-   formosh-form::part(toggle)[data-state=on]  { background: #0a8; }
-   formosh-form::part(toggle)[data-state=off] { background: #ccc; }
    ```
 
 3. **Parent stylesheets are auto-adopted** — Lustre clones the parent document's CSS into the shadow root, so plain class selectors still work:
@@ -379,7 +385,7 @@ The component runs inside an open Shadow DOM. There are three customization surf
    .formosh-error { color: red; }
    ```
 
-Part names available (one per styled element): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `toggle`, `toggle-wrapper`, `toggle-slider`, `toggle-text`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`.
+Part names available (one per styled element): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`.
 
 Notes:
 
@@ -417,12 +423,12 @@ formosh.from_config(config: FormConfig) -> App
 formosh.with_submit_url(config, url) -> FormConfig
 formosh.with_http_submit(config, url, method, headers) -> FormConfig
 formosh.with_custom_submit(config, handler) -> FormConfig
-formosh.with_show_errors_on_change(config, show) -> FormConfig
+formosh.with_show_errors_on_change(config, show) -> FormConfig  // currently a no-op, see ROADMAP.md
 formosh.with_show_readonly_fields(config, show) -> FormConfig
 formosh.with_initial_values(config, values) -> FormConfig
 
 // Read form state
-formosh.get_values(model: FormModel) -> Dict(String, Value)
+formosh.get_values(model: FormModel) -> Value   // tree, ObjectValue at root
 
 // Web Component
 component.register() -> Result(Nil, Error)
