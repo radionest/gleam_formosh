@@ -19,6 +19,7 @@ import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option}
 import gleam/set.{type Set}
+import gleam/string
 
 /// Configuration for form submission behavior.
 /// 
@@ -138,6 +139,7 @@ pub type FormMsg {
   AddArrayItemPath(path: FieldPath)
   RemoveArrayItemPath(path: FieldPath, index: Int)
   MoveArrayItemPath(path: FieldPath, from_index: Int, to_index: Int)
+  SelectUnionBranchPath(path: FieldPath, index: Int)
 
   // Form submission
   FormSubmit
@@ -674,6 +676,60 @@ pub fn clear_errors_at_path(
   let path_key = path.to_string(field_path)
   let new_errors = dict.delete(model.errors, path_key)
   FormModel(..model, errors: new_errors, is_valid: dict.size(new_errors) == 0)
+}
+
+/// Remove every value, error, and touched entry rooted at `field_path` —
+/// the reset step behind switching a union branch (`SelectUnionBranchPath`
+/// in `update.gleam`): the previous branch's data must not leak into the
+/// new branch's inferred defaults, its validation, or a submitted payload.
+///
+/// - `values`: `path.remove_at_path` deletes the whole subtree in one step
+///   — `values` is a tree, so dropping the parent key drops every
+///   descendant with it.
+/// - `errors` / `touched_fields`: flat collections keyed independently per
+///   path, so each descendant entry has to be filtered out on its own —
+///   `errors` by canonical-string key (`is_error_key_under_path`),
+///   `touched_fields` by structural `FieldPath` list-prefix
+///   (`has_path_prefix`). These are two different mechanisms; see each
+///   helper's doc.
+pub fn clear_subtree(model: FormModel, field_path: FieldPath) -> FormModel {
+  let new_errors =
+    dict.filter(model.errors, fn(key, _errors) {
+      !is_error_key_under_path(key, field_path)
+    })
+  FormModel(
+    ..model,
+    values: path.remove_at_path(model.values, field_path),
+    errors: new_errors,
+    touched_fields: list.filter(model.touched_fields, fn(touched) {
+      !has_path_prefix(field_path, touched)
+    }),
+    is_valid: dict.size(new_errors) == 0,
+  )
+}
+
+/// True when `candidate` is `prefix` itself or a structural descendant of
+/// it — e.g. `[value]` prefixes both `[value]` and `[value, city]`. Used
+/// for `touched_fields`, which is keyed by `FieldPath`, not by string.
+fn has_path_prefix(prefix: FieldPath, candidate: FieldPath) -> Bool {
+  case prefix, candidate {
+    [], _ -> True
+    [p, ..prefix_rest], [c, ..candidate_rest] ->
+      p == c && has_path_prefix(prefix_rest, candidate_rest)
+    _, _ -> False
+  }
+}
+
+/// True when the canonical `path.to_string` key `key` names `prefix`
+/// itself or a descendant of it: `key == path.to_string(prefix)`, or `key`
+/// continues past it with the `"."` join character. `path.to_string`
+/// (`formosh/path_format` owns the canonical format) separates every
+/// segment — property or array-index alike — with `"."`, so this single
+/// check covers both a nested property (`"value.city"`) and a nested array
+/// index (`"value.[0]"`); never re-implement the segment join here.
+fn is_error_key_under_path(key: String, prefix: FieldPath) -> Bool {
+  let prefix_key = path.to_string(prefix)
+  key == prefix_key || string.starts_with(key, prefix_key <> ".")
 }
 
 /// Check if the form can be submitted.

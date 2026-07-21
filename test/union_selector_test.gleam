@@ -13,7 +13,7 @@ import formosh/schema/types
 import formosh/schema/validator
 import gleam/dict
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleeunit/should
 
 const union_schema = "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"}]}}}"
@@ -165,4 +165,149 @@ pub fn find_resolved_property_at_path_through_union_in_row_test() {
 
   let assert Ok(prop) = model.find_resolved_property_at_path(m, value_path)
   prop.field_type |> should.equal(Some(types.StringType))
+}
+
+// --- Task 11: SelectUnionBranchPath + subtree clearing ---
+//
+// Spec: openspec/changes/add-anyof-union-support/specs/union-branch-selector/
+// spec.md, requirement "Switching branches clears the subtree and
+// re-establishes invariants" (3 scenarios) plus requirement "Branch
+// selection is model state"'s first scenario.
+
+/// Scenario: Selecting a branch switches the subform. The model records
+/// the index for that exact path and the effective property flips to the
+/// new branch's type.
+pub fn select_union_branch_records_index_and_flips_property_test() {
+  let assert Ok(schema) = parser.parse_schema(union_schema)
+  let m = model.init(schema)
+  let value_path = [path.PropertySegment("value")]
+
+  let #(updated, _effect) =
+    update.update(m, model.SelectUnionBranchPath(value_path, 1))
+
+  updated.selected_branches |> should.equal([#(value_path, 1)])
+  let assert Ok(prop) = model.find_property_at_path(updated, value_path)
+  prop.field_type |> should.equal(Some(types.StringType))
+}
+
+/// Scenario: Entered value does not survive a switch. Branch 0 (integer)
+/// holds `42`; switching to branch 1 (string) must clear it so it is
+/// absent from the model (and, by construction, from a subsequent
+/// submission — `path.remove_at_path` drops the key entirely rather than
+/// nulling it).
+pub fn select_union_branch_clears_entered_value_test() {
+  let assert Ok(schema) = parser.parse_schema(union_schema)
+  let m = model.init(schema)
+  let value_path = [path.PropertySegment("value")]
+  let #(with_int, _) =
+    update.update(m, model.UpdateFieldPath(value_path, types.IntegerValue(42)))
+  path.get_at_path(with_int.values, value_path)
+  |> should.equal(Some(types.IntegerValue(42)))
+
+  let #(switched, _) =
+    update.update(with_int, model.SelectUnionBranchPath(value_path, 1))
+
+  path.get_at_path(switched.values, value_path) |> should.equal(None)
+  let assert types.ObjectValue(fields) = switched.values
+  list.key_find(fields, "value") |> should.be_error()
+}
+
+const object_or_scalar_union_schema = "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"minLength\":3}}},{\"type\":\"integer\"}]}}}"
+
+/// Scenario: Object branch leaves no stale keys. Branch 0 is an object with
+/// a "city" field; fill it with a value that violates `minLength` (so both
+/// an error and a touched entry exist under the nested dot-notation path),
+/// then switch to branch 1 (scalar) — none of it should survive.
+pub fn select_union_branch_clears_nested_object_state_test() {
+  let assert Ok(schema) = parser.parse_schema(object_or_scalar_union_schema)
+  let m = model.init(schema)
+  let value_path = [path.PropertySegment("value")]
+  let city_path = [
+    path.PropertySegment("value"),
+    path.PropertySegment("city"),
+  ]
+  let #(filled, _) =
+    update.update(m, model.UpdateFieldPath(city_path, types.StringValue("Os")))
+
+  // Sanity: prove the pre-switch state actually has something to clear —
+  // otherwise the post-switch assertions below would pass vacuously.
+  model.has_errors_at_path(filled, city_path) |> should.be_true()
+  model.is_field_touched(filled, city_path) |> should.be_true()
+
+  let #(switched, _) =
+    update.update(filled, model.SelectUnionBranchPath(value_path, 1))
+
+  model.has_errors_at_path(switched, city_path) |> should.be_false()
+  model.is_field_touched(switched, city_path) |> should.be_false()
+  path.get_at_path(switched.values, city_path) |> should.equal(None)
+}
+
+const array_or_scalar_union_schema = "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"array\",\"minItems\":2,\"items\":{\"type\":\"string\"}}]}}}"
+
+/// Scenario: Array branch is topped up to minItems. Switching to branch 1
+/// (array, `minItems: 2`) must reconcile the array to two rows immediately
+/// — not just materialize an empty array.
+pub fn select_union_branch_tops_up_array_branch_test() {
+  let assert Ok(schema) = parser.parse_schema(array_or_scalar_union_schema)
+  let m = model.init(schema)
+  let value_path = [path.PropertySegment("value")]
+
+  let #(switched, _effect) =
+    update.update(m, model.SelectUnionBranchPath(value_path, 1))
+
+  let assert Some(types.ArrayValue(items)) =
+    path.get_at_path(switched.values, value_path)
+  list.length(items) |> should.equal(2)
+}
+
+/// Scenario (implicit in "clears the subtree and re-establishes
+/// invariants"): the union path itself is marked touched immediately after
+/// a switch, independent of any prior touched state.
+pub fn select_union_branch_marks_union_path_touched_test() {
+  let assert Ok(schema) = parser.parse_schema(union_schema)
+  let m = model.init(schema)
+  let value_path = [path.PropertySegment("value")]
+
+  let #(switched, _effect) =
+    update.update(m, model.SelectUnionBranchPath(value_path, 1))
+
+  model.is_field_touched(switched, value_path) |> should.be_true()
+}
+
+/// `clear_subtree`'s error-key matching must treat `"."` as the sole
+/// descendant boundary (the one join character `path_format.gleam` ever
+/// emits between segments — see `path_test.gleam`'s
+/// `"lesions.[0].measurements.[1].value"`): a prefix "lesions" must match
+/// the nested array-index key "lesions.[0].side" but must NOT match a
+/// sibling key that merely shares a string prefix, like "lesionsExtra".
+pub fn clear_subtree_error_key_boundary_test() {
+  let assert Ok(schema) = parser.parse_schema(union_schema)
+  let prefix = [path.PropertySegment("lesions")]
+  let base = model.init(schema)
+  let seeded =
+    model.FormModel(
+      ..base,
+      errors: dict.from_list([
+        #("lesions.[0].side", []),
+        #("lesions", []),
+        #("lesionsExtra", []),
+      ]),
+      touched_fields: [
+        [path.PropertySegment("lesions"), path.ArraySegment(0)],
+        [path.PropertySegment("lesionsExtra")],
+      ],
+    )
+
+  let cleared = model.clear_subtree(seeded, prefix)
+
+  dict.has_key(cleared.errors, "lesions.[0].side") |> should.be_false()
+  dict.has_key(cleared.errors, "lesions") |> should.be_false()
+  dict.has_key(cleared.errors, "lesionsExtra") |> should.be_true()
+  list.contains(cleared.touched_fields, [
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+  ])
+  |> should.be_false()
+  list.contains(cleared.touched_fields, [path.PropertySegment("lesionsExtra")])
+  |> should.be_true()
 }

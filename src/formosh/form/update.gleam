@@ -7,8 +7,9 @@ import formosh/form/json_utils
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, ClearFieldPath, CustomSubmit,
   FileUploadError, FileUploading, FormSubmit, FormSubmitted, HttpSubmit,
-  MoveArrayItemPath, NoSubmit, RemoveArrayItemPath, ResetForm, SubmissionError,
-  SubmissionSuccess, UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
+  MoveArrayItemPath, NoSubmit, RemoveArrayItemPath, ResetForm,
+  SelectUnionBranchPath, SubmissionError, SubmissionSuccess, UpdateFieldPath,
+  ValidateForm, WidgetEvent, image_msg,
 }
 import formosh/form/path
 import formosh/form/widget_msg.{
@@ -114,6 +115,38 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         )
       let validated_model = validate_all_fields(new_model)
       #(validated_model, effect.none())
+    }
+
+    SelectUnionBranchPath(field_path, index) -> {
+      let selected = list.key_set(model.selected_branches, field_path, index)
+      // Clear the subtree first so the schema/defaults recompute below
+      // never sees the previous branch's stale values, and reuse its
+      // result as the values baseline instead of a second
+      // `path.remove_at_path` call.
+      let cleared = model.clear_subtree(model, field_path)
+      let resolved_schema =
+        model.recompute_resolved_schema(model.schema, cleared.values, selected)
+      let with_defaults =
+        defaults.apply_schema_defaults(
+          resolved_schema.properties,
+          cleared.values,
+        )
+      let reconciled_values =
+        defaults.ensure_min_items(
+          resolved_schema.properties,
+          with_defaults,
+          selected,
+        )
+      let touched_model = model.mark_field_touched(cleared, field_path)
+      let new_model =
+        model.FormModel(
+          ..touched_model,
+          values: reconciled_values,
+          resolved_schema: resolved_schema,
+          selected_branches: selected,
+          is_dirty: True,
+        )
+      #(validate_all_fields(new_model), effect.none())
     }
 
     AddArrayItemPath(field_path) -> {
