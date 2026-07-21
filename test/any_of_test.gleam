@@ -2,6 +2,7 @@ import formosh/schema/parser
 import formosh/schema/types
 import gleam/list
 import gleam/option
+import gleam/string
 import gleeunit/should
 
 pub fn anyof_optional_scalar_collapses_test() {
@@ -58,4 +59,42 @@ pub fn anyof_empty_list_is_none_test() {
   let assert Ok(schema) = parser.parse_schema(schema_json)
   let assert Ok(#(_, value)) = list.first(schema.properties)
   value.any_of |> should.equal(option.None)
+}
+
+pub fn anyof_member_ref_resolves_test() {
+  // Resolver must walk into anyOf members: the $ref member is replaced by
+  // Sub's content (ref cleared, properties merged in), same as it already
+  // does for oneOf. The outer property still carries the raw any_of pair
+  // here (no collapse yet) — the object-with-Sub's-properties collapse at
+  // the `value` level is Task 4's composer work, asserted separately there.
+  let schema_json =
+    "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"$ref\":\"#/$defs/Sub\"},{\"type\":\"null\"}]}},\"$defs\":{\"Sub\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}}}}"
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let assert Ok(#(_, value)) = list.first(schema.properties)
+  let assert option.Some(members) = value.any_of
+  let assert [sub_member, null_member] = members
+
+  // The $ref member was resolved: ref cleared, Sub's content merged in.
+  sub_member.ref |> should.equal(option.None)
+  sub_member.field_type |> should.equal(option.Some(types.ObjectType))
+  let assert option.Some(sub_properties) = sub_member.properties
+  let assert Ok(name_property) = list.key_find(sub_properties, "name")
+  name_property.field_type |> should.equal(option.Some(types.StringType))
+
+  // The plain null member is untouched.
+  null_member.field_type |> should.equal(option.Some(types.NullType))
+}
+
+pub fn anyof_circular_ref_in_defs_errors_test() {
+  // A $defs entry whose own anyOf references itself must be caught by the
+  // same visited-set cycle protection as oneOf/allOf/properties — a parse
+  // error, not a hang.
+  let schema_json =
+    "{\"type\":\"object\",\"properties\":{\"node\":{\"$ref\":\"#/$defs/Node\"}},\"$defs\":{\"Node\":{\"type\":\"object\",\"anyOf\":[{\"$ref\":\"#/$defs/Node\"}]}}}"
+  case parser.parse_schema(schema_json) {
+    Error(types.UnexpectedValue(msg)) ->
+      should.equal(string.contains(msg, "Circular"), True)
+    Error(_) -> panic as "Expected UnexpectedValue circular reference error"
+    Ok(_) -> panic as "Expected a circular reference error, got Ok"
+  }
 }
