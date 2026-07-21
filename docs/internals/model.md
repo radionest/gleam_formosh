@@ -19,7 +19,7 @@ description: "FormModel internals: path-based field addressing, the value tree, 
 - Path addressing — how `["address", "street"]` maps to a nested value.
   Link to `form/path.gleam`.
 - Value tree representation (`Value` type: `StringValue`, `NumberValue`,
-  `BoolValue`, `ObjectValue`, `ArrayValue`, `NullValue`).
+  `IntegerValue`, `BooleanValue`, `ObjectValue`, `ArrayValue`, `NullValue`).
 - Auxiliary state: `touched` set, `errors` map, `visibility` map,
   `dirty` flag.
 - Why the model is immutable and how updates return a new model.

@@ -25,7 +25,7 @@ The dispatcher tries sources in this fixed order. First match wins.
 1.  UiSchema `ui:widget` (or deprecated `x-widget`) override
         ├─ ImageUploadWidget   → image upload
         ├─ SwipeReviewWidget   → swipe-review
-        ├─ HiddenWidget        → nothing (suppressed from UI + submit gate)
+        ├─ HiddenWidget        → not rendered (still validates + gates submit)
         └─ CustomWidget(name)  → name-based dispatch (see "Custom names")
 2.  field_type
         ├─ StringType          → string field renderer (see below)
@@ -95,7 +95,8 @@ the browser).
 ## Boolean fields
 
 Rendered as a Yes/No radio group, not a checkbox — the explicit No matters
-for tri-state clarity. Also available as a toggle via UiSchema.
+for tri-state clarity. (A toggle renderer exists in `boolean_field.gleam`
+but is not yet reachable via `ui:widget` — see `ROADMAP.md`.)
 
 ## Array fields
 
@@ -106,7 +107,7 @@ and UiSchema flags:
 |---------|-----------|
 | **Add** | `addable` (default true) **and** below `maxItems` (if set) |
 | **Remove** | `removable` (default true) **and** above `minItems` (if set) |
-| **Move up/down** | `orderable` (default false) |
+| **Move up/down** | `orderable` (default true) **and** more than one row |
 
 Rows auto-create up to `minItems` (with item-field defaults applied). Array
 items can themselves be objects or arrays — nesting to any depth — so the
@@ -121,8 +122,8 @@ hidden unless `show_readonly_fields` is on.
 
 ## Read-only (review) mode
 
-When the whole form is in review mode (`read-only="true"` on the component,
-or `with_show_readonly_fields` + UiSchema), rendering switches wholesale to
+When the whole form is in review mode (`read-only="true"` on the web
+component — there is no library-side builder for it), rendering switches wholesale to
 `readonly_field`: enums show their label, booleans show Yes/No, nested
 objects render as groups, arrays of flat objects render as **tables**.
 Submit/Reset are hidden. See [Styling](../guides/styling.md) for the
@@ -148,9 +149,8 @@ data schema:
 ```
 
 Recognised values: `"image-upload"`, `"swipe-review"`, `"hidden"`,
-`"textarea"`, `"select"`, `"radio"`, plus `"toggle"` for booleans. Unknown
-values fall through as `CustomWidget(raw)` so you can prototype without a
-parser change.
+`"textarea"`, `"select"`, `"radio"`. Unknown values fall through as
+`CustomWidget(raw)` so you can prototype without a parser change.
 
 ### `x-widget` (schema node) — deprecated fallback
 

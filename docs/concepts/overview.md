@@ -61,9 +61,10 @@ means:
 - The public API **will** change between minor versions. `get_values`, for
   example, recently switched from returning `Dict(String, Value)` to
   returning a `Value` tree. Expect more of this.
-- Some JSON Schema keywords are parsed but not enforced (notably `pattern`
-  and `enum` value validation). Don't rely on Formosh as your only line of
-  defense — validate on the server too.
+- Some JSON Schema keywords are parsed but not enforced (e.g. `uuid` and
+  custom `format` values, polymorphic `oneOf`/`anyOf`), and the `email` /
+  `url` checks are lax substring tests. Don't rely on Formosh as your only
+  line of defense — validate on the server too.
 - The set of supported schema features is deliberately small but growing.
   The [Schema Keywords](../reference/schema-keywords.md) page is the source
   of truth for what works today.

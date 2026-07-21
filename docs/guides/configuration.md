@@ -71,8 +71,8 @@ transforming the payload, talking to a store — provide a function:
 formosh.with_custom_submit(config, fn(model) {
   let values = formosh.get_values(model)   // Value tree (ObjectValue at root)
   case my_api.upsert(values) {
-    Ok(_)  -> Ok("Saved")
-    Err(_) -> Error("Something went wrong")
+    Ok(_)    -> Ok("Saved")
+    Error(_) -> Error("Something went wrong")
   }
 })
 ```
@@ -87,7 +87,9 @@ The default (`NoSubmit`). Use this when the parent application owns
 submission. Read values from the model whenever you need them:
 
 ```gleam
-let values: formosh.Value = formosh.get_values(model)
+import formosh/schema/types
+
+let values: types.Value = formosh.get_values(model)
 ```
 
 > **API note.** `get_values` used to return `Dict(String, Value)`; it now
@@ -125,25 +127,26 @@ display a server-generated `patient_id` or `created_at` that the user can
 see but not edit.
 
 There is a separate flag for **review mode** (render the whole form as a
-static summary), which is a presentation concern handled via UiSchema or
-the web-component's `read-only` attribute — see
-[Web Component](web-component.md).
+static summary) — the web-component's `read-only` attribute; it has no
+library-side builder — see [Web Component](web-component.md).
 
 ## Initial values
 
 ```gleam
+import formosh/schema/types
 import gleam/dict
 
 |> formosh.with_initial_values(dict.from_list([
-  #("patient_id", formosh.StringValue("12345")),
-  #("study_date", formosh.StringValue("2024-01-15")),
-  #("active", formosh.BooleanValue(True)),
+  #("patient_id", types.StringValue("12345")),
+  #("study_date", types.StringValue("2024-01-15")),
+  #("active", types.BooleanValue(True)),
 ]))
 ```
 
 Pre-populates the form. The keys are top-level property names; the values
-are `Value` variants (`StringValue`, `NumberValue`, `BooleanValue`,
-`ObjectValue`, `ArrayValue`, `NullValue`). Initial values flow through the
+are `Value` variants (`StringValue`, `NumberValue`, `IntegerValue`,
+`BooleanValue`, `ObjectValue`, `ArrayValue`, `NullValue`) from
+`formosh/schema/types`. Initial values flow through the
 same default-hydration pipeline as schema `default` values, so arrays are
 topped up to `minItems` and conditionals are resolved against them.
 
@@ -178,10 +181,11 @@ budget" or "end date must be after start date". For those, attach a
 cross-field validator:
 
 ```gleam
+import formosh/form/model.{type FormModel}
 import formosh/form/path.{PropertySegment}
 import formosh/validation/error.{ValidationError}
 
-fn check_budget(m: formosh.FormModel) -> List(ValidationError) {
+fn check_budget(m: FormModel) -> List(ValidationError) {
   case sum_categories(m) > total_budget(m) {
     True -> [ValidationError(
       field: [PropertySegment("total_budget")],
@@ -217,6 +221,7 @@ The web component exposes this via a `validator` JS property — see
 ```gleam
 import formosh
 import formosh/schema/parser
+import formosh/schema/types
 import gleam/dict
 import lustre
 
@@ -231,7 +236,7 @@ pub fn main() {
     |> formosh.with_show_errors_on_change(True)
     |> formosh.with_show_readonly_fields(True)
     |> formosh.with_initial_values(dict.from_list([
-      #("patient_id", formosh.StringValue("12345")),
+      #("patient_id", types.StringValue("12345")),
     ]))
     |> formosh.with_validator(check_budget)
     |> formosh.from_config()

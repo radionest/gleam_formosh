@@ -48,10 +48,6 @@ formosh-form::part(field)[data-error] { border-color: red; }
 
 /* A readOnly field rendered as disabled */
 formosh-form::part(field)[data-readonly] { opacity: 0.6; }
-
-/* Boolean toggle on/off */
-formosh-form::part(toggle)[data-state="on"]  { background: #0a8; }
-formosh-form::part(toggle)[data-state="off"] { background: #ccc; }
 ```
 
 ## 3. Parent stylesheets are auto-adopted
@@ -80,8 +76,11 @@ Every styled element exposes a part. Grouped by area:
 
 **Inputs (by widget):**
 `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`,
-`boolean`, `checkbox-wrapper`, `checkbox-group`, `toggle`, `toggle-wrapper`,
-`toggle-slider`, `toggle-text`.
+`boolean`, `checkbox-wrapper`, `checkbox-group`.
+
+(The source also assigns `toggle`, `toggle-wrapper`, `toggle-slider`,
+`toggle-text` and a `data-state` attribute in a toggle renderer that is not
+yet reachable through `ui:widget` — see `ROADMAP.md`.)
 
 **Image upload:**
 `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`,
@@ -97,9 +96,9 @@ Every styled element exposes a part. Grouped by area:
 `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`,
 `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`,
 `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`,
-`swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`,
-`swipe-review-list`, `swipe-review-row`, `swipe-review-zone`,
-`swipe-review-answer`.
+`swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`,
+`swipe-review-title`, `swipe-review-list`, `swipe-review-row`,
+`swipe-review-zone`, `swipe-review-answer`.
 
 ## Cascade and limitations
 

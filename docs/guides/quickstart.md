@@ -91,8 +91,8 @@ submission, initial values, and presentation tweaks. Use the builder:
 ```gleam
 import formosh
 import formosh/schema/parser
+import formosh/schema/types
 import gleam/dict
-import gleam/result
 import lustre
 
 pub fn main() {
@@ -104,7 +104,7 @@ pub fn main() {
     |> formosh.with_submit_url("https://api.example.com/contacts")
     |> formosh.with_show_errors_on_change(True)
     |> formosh.with_initial_values(dict.from_list([
-      #("name", formosh.StringValue("Ada")),
+      #("name", types.StringValue("Ada")),
     ]))
 
   let app = formosh.from_config(config)
@@ -112,7 +112,9 @@ pub fn main() {
 }
 ```
 
-> `formosh.StringValue` is the `Value` variant for strings — see
+> `types.StringValue` is the `Value` variant for strings; the `Value` type
+> and its constructors live in `formosh/schema/types` (Gleam has no
+> re-exports, so import that module directly) — see
 > [Public API](../reference/api.md) for the full `Value` type.
 
 The full set of builders is covered in [Configuration](configuration.md);
@@ -140,8 +142,9 @@ See [Styling](styling.md) for the full part catalog and cascade rules.
   use `formosh/form/json_utils.value_to_json`; for typed access use
   `formosh/form/path.get_at_path`.
 - **The schema must be valid JSON.** `from_json_string` returns
-  `Error(ParseError)` for malformed JSON or unknown keywords; always handle
-  the `Error` branch.
+  `Error(ParseError)` for malformed JSON or an unsatisfiable schema
+  (unknown keywords are ignored, not rejected); always handle the
+  `Error` branch.
 - **Target is JavaScript only.** There is no Erlang BEAM target — Lustre
   renders to the DOM.
 - **No server-side validation substitute.** Formosh validates for UX, not

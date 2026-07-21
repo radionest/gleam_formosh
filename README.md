@@ -328,7 +328,6 @@ The widget is chosen automatically based on schema:
 - HTTP form submission (POST, PUT) via [rsvp](https://hexdocs.pm/rsvp/)
 - Custom submission handlers
 - Web Component (`<formosh-form>`) with attribute listeners and custom events
-- Configurable CSS class prefix
 - Initial values pre-population
 - Touch tracking — errors shown only after field interaction
 - Conditional field visibility — fields appear/disappear based on form state
@@ -340,14 +339,12 @@ The widget is chosen automatically based on schema:
 - `not`
 - `allOf` enum/`oneOf` intersection — colliding `enum`/`oneOf` values take the later member's list wholesale
 - `allOf` inside a `$defs` entry does not survive schema serialization round-trip (`$defs` stay raw; the serializer re-emits flattened schemas)
-- `pattern` — stored but regex validation not wired up (no regex library)
 - `additionalProperties`, `patternProperties`
 - `dependencies`, `dependentRequired`, `dependentSchemas`
 - `prefixItems` (tuple validation)
 - `minProperties`, `maxProperties`
 - `discriminator`
 - GET submission method
-- Enum value validation (function stub exists, always passes)
 - RFC-compliant email/URL format validation
 
 ## Styling

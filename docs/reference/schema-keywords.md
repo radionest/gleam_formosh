@@ -16,7 +16,7 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 > `src/formosh/schema/validator.gleam` (what's enforced),
 > `src/formosh/schema/parser.gleam` (what's parsed), and
 > `src/formosh/schema/types.gleam` (what's stored). If the README and this
-> page disagree, this page wins — the README predates recent fixes.
+> page disagree, this page wins.
 
 ## Status legend
 
@@ -83,9 +83,6 @@ field-touched gate; see `fields/field_dispatcher.gleam:67-70`).
 | `format` | see below | Some formats enforced, some parse-only. |
 | `pattern` | ✅ | **Enforced** via `gleam_regexp` (`regexp.check`, partial-match per draft §6.3.3). An invalid regex is logged and the check skipped — see `validator.gleam:185-204`. |
 
-> The README lists `pattern` as "stored but not validated". That is stale
-> as of the current source — `pattern` is fully enforced.
-
 ### `format` support
 
 | Format | Status | Renders as | Validated |
@@ -146,7 +143,6 @@ serializer re-emits flattened schemas).
 | Schema serialization back to JSON | ✅ |
 | Cross-field validation (`with_validator`) | ✅ |
 | UiSchema (`ui:widget`, `ui:order`, …) | ✅ |
-| Configurable CSS class prefix | ✅ |
 
 ## Summary of gaps worth knowing about
 

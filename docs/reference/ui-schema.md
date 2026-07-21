@@ -124,7 +124,7 @@ default (or `x-*` extension where applicable)".
 |-----|------|---------|--------|
 | `ui:addable` | bool | `true` | Show/hide the "add row" button. |
 | `ui:removable` | bool | `true` | Show/hide the "remove row" button (also gated by `minItems`). |
-| `ui:orderable` | bool | `false` | Show/hide the move up/down buttons. |
+| `ui:orderable` | bool | `true` | Show/hide the move up/down buttons (auto-hidden when the array has ≤1 item). |
 
 `x-addable` / `x-removable` on the schema node are a deprecated fallback
 with the same meaning; UiSchema wins on collision.

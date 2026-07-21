@@ -117,7 +117,6 @@ an HTML attribute on `<formosh-form>`):
 | `component.upload_base_url(String)` | `upload-base-url` | image upload base |
 | `component.ui_schema_string(String)` | `ui-schema` | `with_ui_schema_json` |
 | `component.on_submit(fn(Dict) -> msg)` | — | `formosh-submit` listener |
-| `component.on_validate(fn(Bool) -> msg)` | — | `formosh-validate` listener |
 | `component.on_change(fn(Dict) -> msg)` | — | `formosh-change` listener |
 
 See [Web Component](../guides/web-component.md) for the attribute table and
@@ -125,7 +124,8 @@ custom-event detail shapes.
 
 ## Public types
 
-Defined in `formosh/schema/types.gleam` and re-exported where useful.
+Defined in `formosh/schema/types.gleam` — import that module to use them
+(see the [imports cheat-sheet](#imports-cheat-sheet) at the bottom).
 
 ### `Value` — the form data type
 
@@ -220,7 +220,7 @@ pub type FormConfig {
 }
 ```
 
-`SubmitConfig` is re-exported from `formosh/form/model` and has three
+`SubmitConfig` is defined in `formosh/form/model` and has three
 variants: `NoSubmit`, `HttpSubmit(url, method, headers)`,
 `CustomSubmit(handler)`.
 
@@ -262,16 +262,21 @@ pub type ParseError {
 nothing — conflicting `type`s or crossed bounds — rather than silently
 producing a schema that rejects everything.
 
-## Re-exports
+## Imports cheat-sheet
 
-`formosh` re-exports the following so you can refer to them without extra
-imports:
+Gleam has no re-export mechanism, so — apart from `formosh.ParseError`,
+which is a type **alias** defined in `src/formosh.gleam` — every type and
+constructor must be imported from its defining module. `formosh.StringValue`
+or `formosh.FormModel` will **not** compile:
 
-- `type ParseError` (from `formosh/schema/types`)
-- `type FormModel`, `type FormMsg`, `type SubmitConfig` and its variants
-  `NoSubmit`, `HttpSubmit`, `CustomSubmit` (from `formosh/form/model`)
-- `type JsonSchema`, `type Value` (from `formosh/schema/types`)
+| You need | Import |
+|----------|--------|
+| `Value` + constructors (`StringValue`, …), `JsonSchema`, `Widget`, `StringFormat`, `ParseError` | `formosh/schema/types` |
+| `FormModel`, `FormMsg`, `SubmitConfig` (`NoSubmit`, `HttpSubmit`, `CustomSubmit`) | `formosh/form/model` |
+| `FieldPath`, `PropertySegment`, `ArraySegment`, `get_at_path` | `formosh/form/path` |
+| `ValidationError` | `formosh/validation/error` |
+| `UiSchema` | `formosh/schema/ui_schema` |
+| `value_to_json` | `formosh/form/json_utils` |
 
-`Value` variant constructors (`StringValue`, `NumberValue`, …) live in
-`formosh/schema/types` — reference them as `formosh.StringValue` etc. via
-the re-exported type module, or `import formosh/schema/types`.
+(Ergonomic wrapper constructors on the root module are a candidate
+improvement — see `ROADMAP.md`.)

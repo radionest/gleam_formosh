@@ -44,12 +44,15 @@ HTML attributes (string values) — Formosh parses them internally.
 | `schema` | JSON string | The JSON Schema. **Required** — the form stays in "Waiting for schema…" until it's set. |
 | `submit-url` | string | `with_submit_url` |
 | `submit-method` | string (`"POST"`, `"PUT"`, …) | bundled with `submit-url` |
-| `submit-headers` | JSON string | bundled with `submit-url` |
 | `initial-values` | JSON string (object) | `with_initial_values` |
 | `show-readonly-fields` | `"true"` / `"false"` | `with_show_readonly_fields` |
 | `read-only` | `"true"` / `"false"` | Review mode — render the whole form as a static summary |
 | `upload-base-url` | string | Base URL for the image-upload widget (`POST {url}`, `DELETE {url}/{filename}`) |
 | `ui-schema` | JSON string | `with_ui_schema_json` — full format in [UiSchema](../reference/ui-schema.md) |
+
+> **No headers attribute.** Custom HTTP headers cannot be set through the
+> web component — they are only available via the Gleam builder
+> `with_http_submit` (see `ROADMAP.md` for the planned attribute).
 
 ### Changing attributes at runtime
 
@@ -122,7 +125,7 @@ fn my_view(model) {
 The `component.*` attribute helpers (`schema`, `schema_string`,
 `submit_url`, `submit_method`, `initial_values_string`,
 `show_readonly_fields`, `read_only`, `upload_base_url`,
-`ui_schema_string`, `on_submit`, `on_validate`, `on_change`) mirror the
+`ui_schema_string`, `on_submit`, `on_change`) mirror the
 HTML attributes one-for-one.
 
 ## Read-only (review) mode
