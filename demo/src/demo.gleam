@@ -83,6 +83,7 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
     "budget_split.json",
     "date_range.json",
     "password_confirm.json",
+    "union_branches.json",
   ]
 
   #(

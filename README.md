@@ -291,6 +291,60 @@ Supports `#/$defs/...` and `#/definitions/...` JSON Pointers. Circular reference
 }
 ```
 
+### anyOf (union types)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "contact": {
+      "title": "Contact",
+      "anyOf": [
+        { "type": "integer", "title": "Phone extension" },
+        { "type": "string", "title": "Note" },
+        { "$ref": "#/$defs/Address" }
+      ]
+    },
+    "optional_score": {
+      "anyOf": [
+        { "type": "integer" },
+        { "type": "null" }
+      ]
+    }
+  },
+  "$defs": {
+    "Address": {
+      "type": "object",
+      "title": "Address",
+      "properties": {
+        "street": { "type": "string" },
+        "city": { "type": "string" }
+      }
+    }
+  }
+}
+```
+
+Two or more non-null members (`contact` above) render as a branch chooser —
+radio buttons for ≤5 branches, a select dropdown for more (same threshold as
+`enum`; override with `ui:widget: "select"` or `"radio"`) — followed by the
+active branch's own widget. Each option's label is the member's `title`
+(`$ref` members inherit the referenced `$defs` title, so `Address` shows up
+correctly), falling back to the JSON type name, then `"Option N"`. Switching
+branches clears the field's previous value and re-applies the new branch's
+own defaults; inside an array row, switching only resets that row, not its
+neighbors. A **bare** `anyOf` directly as an array's `items` schema (no
+object wrapper) does not render a chooser — wrap it in an object property.
+
+A single non-null member alongside `{"type": "null"}` collapses into a plain
+nullable field instead of a chooser — this is what a Pydantic `Optional[int]`
+serializes to: `optional_score` above renders as an ordinary number input
+that happens to be nullable. Leaving it empty submits `null`, and it shows no
+required asterisk even when the field is named in `required`.
+
+`oneOf` does not get this treatment: only `const`+`title` options (above)
+render; general schema-variant `oneOf` is parsed but not selectable.
+
 ## Field Rendering Rules
 
 The widget is chosen automatically based on schema:
@@ -302,6 +356,8 @@ The widget is chosen automatically based on schema:
 | `string` + `enum` (≤5 options) | radio buttons |
 | `string` + `enum` (>5 options) | select dropdown |
 | `string` + `oneOf` with const/title | radio buttons |
+| `anyOf` (2+ non-null branches) | branch chooser (radio ≤5, select >5) + the active branch's own widget |
+| `anyOf` (one non-null branch + `null`, i.e. `Optional[X]`) | plain `X` widget — nullable, no required asterisk, empty submits `null` |
 | `string` + `format: "email"` | email input |
 | `string` + `format: "url"` or `"uri"` | url input |
 | `string` + `format: "date"` / `"time"` / `"datetime"` | text input — native pickers not wired yet (see `ROADMAP.md`) |
@@ -320,7 +376,7 @@ The widget is chosen automatically based on schema:
 - **Structure:** `properties`, `items` (objects and arrays nest to any depth, including arrays inside array items), `required`, `$defs`/`definitions`, `$ref`
 - **Metadata:** `title`, `description`, `default`, `readOnly`
 - **Enum:** `enum`, `const` (converted to single-value enum)
-- **Composition:** `oneOf` (with const+title options), `allOf` (deep-merges member schemas — properties, required, bounds, `$ref` mixins — at parse time, lifts member conditionals to the parent, and can type an otherwise-typeless schema root or resolve a root-level `$ref`; an unsatisfiable composition — conflicting `type`s or crossed bounds in a composed node's merged constraints — fails parsing with `UnsatisfiableSchema` rather than silently producing one that validates nothing; see [`demo/schemas/composition_test.json`](demo/schemas/composition_test.json) for a worked example)
+- **Composition:** `oneOf` (with const+title options), `allOf` (deep-merges member schemas — properties, required, bounds, `$ref` mixins — at parse time, lifts member conditionals to the parent, and can type an otherwise-typeless schema root or resolve a root-level `$ref`; an unsatisfiable composition — conflicting `type`s or crossed bounds in a composed node's merged constraints — fails parsing with `UnsatisfiableSchema` rather than silently producing one that validates nothing; see [`demo/schemas/composition_test.json`](demo/schemas/composition_test.json) for a worked example), `anyOf` (null members collapse into a `nullable` flag; a single surviving member merges into the node; 2+ surviving members render as a runtime branch chooser — see [anyOf (union types)](#anyof-union-types) above)
 - **Conditional:** `if`/`then`/`else` — fully dynamic, re-evaluated on every field change
 - **String constraints:** `minLength`, `maxLength`, `format` (date, email, url/uri, time, datetime, uuid)
 - **Number constraints:** `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
@@ -346,7 +402,8 @@ The widget is chosen automatically based on schema:
 
 ## What's NOT Implemented
 
-- `anyOf` — parsed but not processed
+- `oneOf` schema-variant (polymorphic) dispatch — only `const`+`title` options render as a choice widget; unlike `anyOf`, general `oneOf` schema branches are parsed but not selectable
+- A bare `anyOf` directly as an array's `items` schema (no object wrapper) — no branch chooser renders; wrap the union in an object property instead
 - `not`
 - `allOf` enum/`oneOf` intersection — colliding `enum`/`oneOf` values take the later member's list wholesale
 - `allOf` inside a `$defs` entry does not survive schema serialization round-trip (`$defs` stay raw; the serializer re-emits flattened schemas)
@@ -385,7 +442,7 @@ The component runs inside an open Shadow DOM. There are three customization surf
    .formosh-error { color: red; }
    ```
 
-Part names available (one per styled element): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`.
+Part names available (one per styled element): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `union`, `union-radio`, `union-select`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`.
 
 Notes:
 

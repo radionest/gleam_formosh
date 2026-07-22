@@ -110,7 +110,7 @@ field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 | `allOf` | ✅ | Deep-merged into the parent node at parse time by `schema/composer.gleam`: properties, required (union), bounds (stricter-wins), conditionals (appended). Scalar keywords (`title`, `default`, `enum`, `oneOf`, `pattern`, `format`, `multipleOf`) take the **later** member's value wholesale — enum/oneOf are overridden, not intersected. Conflicting types or crossed bounds in the merged result fail parsing with `UnsatisfiableSchema`. |
 | `oneOf` (with `const` + `title` options) | ✅ | Renders as a radio group of named constant options. |
 | `oneOf` (schema variants) | 🟡 | Parsed and stored, but not processed as polymorphic dispatch. |
-| `anyOf` | 🟡 | Parsed, not processed. |
+| `anyOf` | ✅ | Parsed, `$ref`-resolved inside members, and normalized at parse time (`schema/composer.gleam`): null members collapse into a `nullable` flag — an empty nullable field validates as satisfied and submits `null` (see [Web Component](../guides/web-component.md#nullable-fields)); a single surviving non-null member merges into the node itself (`Optional[X]` renders as a plain `X` field); 2+ surviving members stay in `any_of` and render as a runtime branch chooser (radio ≤5 branches / select >5, `ui:widget` override — see [Widget Selection](widgets.md)). Member extraction is lenient (malformed members dropped); a parent `type` disjoint from every surviving member is a `ParseError`. A **bare** `anyOf` directly as an array's `items` schema (no object wrapper) does not render a chooser. |
 | `not` | ❌ | Not parsed. |
 
 **`allOf` round-trip caveat.** `allOf` inside a `$defs` entry does not
@@ -149,7 +149,7 @@ probably one of these:
 
 1. **`email` / `url` validation is lax** — substring checks, not RFC. Always re-validate on the server.
 2. **`uuid` and custom formats** are accepted but not checked.
-3. **`anyOf` / polymorphic `oneOf`** are parsed but not rendered as choice widgets.
+3. **Polymorphic `oneOf`** (schema variants, as opposed to `const`+`title` options) is parsed but not rendered as a choice widget. `anyOf` does render one — see the Composition table above.
 4. **No `additionalProperties` / `patternProperties`** — extra object keys are simply ignored at the data layer.
 5. **No tuple validation** (`prefixItems`).
 6. **No native date/time pickers** — `format: "date"` / `"time"` / `"datetime"` render as plain text inputs (see the format table).

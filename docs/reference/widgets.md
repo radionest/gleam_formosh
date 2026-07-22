@@ -25,7 +25,9 @@ gates submit). For everything visible, `render_widget` decides:
 
 ```mermaid
 flowchart TD
-    F["visible field"] --> W{"hints.widget"}
+    F["visible field"] --> U{"any_of has<br/>2+ members?"}
+    U -- "yes" --> UC["union chooser<br/>(radio ≤5 / select >5)<br/>+ active branch's own widget"]
+    U -- "no" --> W{"hints.widget"}
     W -- "ImageUploadWidget" --> IU["image upload"]
     W -- "SwipeReviewWidget" --> SR["swipe-review"]
     W -- "CustomWidget / none" --> T{"field_type"}
@@ -39,8 +41,12 @@ flowchart TD
     E -- "no" --> NONE["element.none()"]
 ```
 
-Three consequences of this order:
+Four consequences of this order:
 
+- A 2+-member `any_of` **wins over everything else**, including
+  `ImageUploadWidget` / `SwipeReviewWidget` hints on the same node — the
+  `any_of` check runs before `hints.widget` is even inspected. See
+  [Union chooser](#union-chooser-anyof-2-branches) below.
 - `ImageUploadWidget` and `SwipeReviewWidget` overrides **always win** over
   the type-derived widget.
 - `CustomWidget` names do **not** short-circuit dispatch — they ride along
@@ -128,6 +134,34 @@ preserved from the schema (`properties` is a `List`, not a `Dict`) but can
 be overridden via `ui:order`. `readOnly` fields inside the object are
 hidden unless `show_readonly_fields` is on.
 
+## Union chooser (`anyOf`, 2+ branches)
+
+A node whose `anyOf` survives composer normalization with 2+ non-null
+members (see [Schema Keywords](schema-keywords.md#composition)) renders a
+branch chooser (`union_field.render`) ahead of everything else in the
+selection priority above. The chooser follows the same ≤5-radio / >5-select
+threshold as `enum`, and takes the same override: `ui:widget: "select"` or
+`"radio"` on the union's own path forces the style. Each option's label is
+the branch's `title` — a `$ref` member without its own title inherits the
+referenced `$defs` title — falling back to the capitalized JSON type name,
+then `"Option N"` (1-based).
+
+Picking a branch dispatches `SelectUnionBranchPath`, which clears the
+field's previous value, re-applies the new branch's own defaults, and
+re-renders that branch's widget beneath the chooser through the same
+`field_type` dispatch as any other field — so a branch can itself be an
+object, array, or nested union. Inside an array row, switching a row's union
+resets only that row's value (in place, not by removing the row) so sibling
+rows keep their index.
+
+A single non-null member alongside `{"type": "null"}` never reaches this
+widget: composer normalization already collapsed it into a plain nullable
+field before `field_dispatcher` sees it (see
+[Web Component](../guides/web-component.md#nullable-fields) for what that
+means for submission). A **bare** `anyOf` directly as an array's `items`
+schema (no object wrapper) does not render a chooser — wrap the union in an
+object property instead.
+
 ## Read-only (review) mode
 
 When the whole form is in review mode (`read-only="true"` on the web
@@ -190,6 +224,8 @@ renderer can read `ctx.hints.widget` and do its own dispatch from there.
 | HTML `type` from `format` | `string_field.get_input_type` |
 | Array container + add/remove gating | `src/formosh/fields/array_field.gleam` |
 | Object fieldset | `src/formosh/fields/object_field.gleam` |
+| Union chooser (`anyOf`, 2+ branches) | `src/formosh/fields/union_field.gleam` |
+| Branch resolution / materialization (`selected_branches`) | `src/formosh/form/union_resolver.gleam` |
 | Image upload | `src/formosh/fields/image_field.gleam` |
 | Swipe review | `src/formosh/fields/swipe_review_field.gleam` |
 | Read-only rendering | `src/formosh/fields/readonly_field.gleam` |
