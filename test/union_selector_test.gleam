@@ -10,6 +10,8 @@ import formosh/form/json_utils
 import formosh/form/model
 import formosh/form/path
 import formosh/form/update
+import formosh/form/view
+import formosh/form/visibility
 import formosh/schema/parser
 import formosh/schema/properties
 import formosh/schema/types
@@ -22,6 +24,7 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/set
 import gleam/string
 import gleeunit/should
 import lustre/element.{type Element}
@@ -835,4 +838,100 @@ pub fn dispatcher_falls_through_for_non_union_any_of_shapes_test() {
   let one_html = render_with(Some([single_member]))
   string.contains(one_html, "part=\"union\"") |> should.be_false
   string.contains(one_html, "part=\"input\"") |> should.be_true
+}
+
+// --- Task 14: readonly summary + visibility descent for union branches ---
+//
+// Spec: openspec/changes/add-anyof-union-support/specs/union-branch-selector/
+// spec.md, requirement "All schema walkers follow the active branch" —
+// scenarios "Readonly summary shows the active branch" and "Hidden-field
+// suppression descends the active branch". Both `readonly_field.gleam`'s
+// top-level property walk and `visibility.gleam`'s `invisible_paths` consume
+// `model.resolved_schema`, not the raw `model.schema` — and
+// `union_resolver.resolve_form_schema` (wired into every
+// `recompute_resolved_schema` call) already materializes every non-array
+// union node recursively before either walker ever sees it. All three tests
+// below passed on the first run with zero production changes (see
+// task-14-report.md for the RED/GREEN account) — they are regression pins,
+// not bug fixes.
+
+/// Scenario: Readonly summary shows the active branch (scalar case). No
+/// stored selection; the string value infers branch 1 (string) active per
+/// "Branch inference from incoming values" — the summary must show branch
+/// 1's value.
+pub fn readonly_summary_shows_active_scalar_branch_test() {
+  let assert Ok(schema) = parser.parse_schema(two_branch_union_schema)
+  let values = types.ObjectValue([#("value", types.StringValue("hello"))])
+  let m =
+    model.FormModel(
+      ..model.init(schema),
+      values: values,
+      resolved_schema: model.recompute_resolved_schema(schema, values, []),
+      read_only: True,
+    )
+
+  let html = view.view(m) |> element.to_string
+
+  string.contains(html, "hello") |> should.be_true
+  string.contains(html, "part=\"readonly-value\"") |> should.be_true
+  // Exactly one occurrence — regression guard against the summary
+  // double-rendering the active branch's content.
+  string.split(html, "hello") |> list.length |> should.equal(2)
+}
+
+/// Scenario: Readonly summary shows the active branch (object case). The
+/// branch chooser has no readonly analogue, so an object-typed active
+/// branch must render as ONE group carrying the branch's own fields, not a
+/// duplicated or chooser-shaped wrapper. Branch 0 (object, declares "city")
+/// is inferred active by key overlap — reuses `object_or_scalar_union_schema`
+/// from the Task 11 section above.
+pub fn readonly_summary_shows_active_object_branch_test() {
+  let assert Ok(schema) = parser.parse_schema(object_or_scalar_union_schema)
+  let values =
+    types.ObjectValue([
+      #("value", types.ObjectValue([#("city", types.StringValue("Berlin"))])),
+    ])
+  let m =
+    model.FormModel(
+      ..model.init(schema),
+      values: values,
+      resolved_schema: model.recompute_resolved_schema(schema, values, []),
+      read_only: True,
+    )
+
+  let html = view.view(m) |> element.to_string
+
+  string.contains(html, "Berlin") |> should.be_true
+  string.contains(html, "part=\"readonly-group\"") |> should.be_true
+  // Exactly one occurrence — a mis-walk that rendered both branches (or the
+  // same branch twice) would repeat the city value.
+  string.split(html, "Berlin") |> list.length |> should.equal(2)
+}
+
+const hidden_in_branch_schema = "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"object\",\"properties\":{\"secret\":{\"type\":\"string\"}}},{\"type\":\"object\",\"properties\":{\"other\":{\"type\":\"string\"}}}]}}}"
+
+/// Scenario: Hidden-field suppression descends the active branch. Branch 0
+/// (declares "secret") is inferred active by key overlap; its "secret"
+/// field is marked `ui:widget: "hidden"` and must land in `invisible_paths`
+/// exactly like a non-union hidden field. Branch 1's "other" field exists
+/// only in the inactive branch — it is absent from the materialized
+/// `resolved_schema` entirely (not merely unsuppressed), so it must NOT
+/// appear in the result either.
+pub fn hidden_field_inside_active_union_branch_is_suppressed_test() {
+  let assert Ok(schema) = parser.parse_schema(hidden_in_branch_schema)
+  let assert Ok(ui) =
+    ui_parser.parse("{\"value\":{\"secret\":{\"ui:widget\":\"hidden\"}}}")
+  let values =
+    types.ObjectValue([
+      #("value", types.ObjectValue([#("secret", types.StringValue("x"))])),
+    ])
+  let resolved = model.recompute_resolved_schema(schema, values, [])
+
+  let result = visibility.invisible_paths(resolved, ui, values, False)
+
+  set.contains(result, "value.secret") |> should.be_true
+  // Negative assertion: a field that exists only in the inactive branch
+  // must not appear, hidden-marked or not.
+  set.contains(result, "value.other") |> should.be_false
+  result |> should.equal(set.from_list(["value.secret"]))
 }
