@@ -332,16 +332,20 @@ pub fn mark_field_touched(model: FormModel, field_path: FieldPath) -> FormModel 
 /// ## Returns
 /// A new FormModel in initial state with the same schema
 pub fn reset(model: FormModel) -> FormModel {
+  // Re-apply schema defaults to stay consistent with init, then
+  // materialize `resolved_schema` through the same wrapper every other
+  // recompute site uses (union resolution + conditionals) — with no stored
+  // selection, each union node falls back to its branch-0 default (design
+  // D8) instead of staying raw.
+  let reset_values =
+    defaults.apply_schema_defaults(model.schema.properties, ObjectValue([]))
+    |> defaults.ensure_min_items(model.schema.properties, _, [])
+  let resolved_schema =
+    recompute_resolved_schema(model.schema, reset_values, [])
   FormModel(
     schema: model.schema,
-    resolved_schema: model.schema,
-    // Reset to base schema with no conditionals applied;
-    // re-apply schema defaults to stay consistent with init.
-    values: defaults.apply_schema_defaults(
-      model.schema.properties,
-      ObjectValue([]),
-    )
-      |> defaults.ensure_min_items(model.schema.properties, _, []),
+    resolved_schema: resolved_schema,
+    values: reset_values,
     errors: dict.new(),
     is_submitting: False,
     is_dirty: False,

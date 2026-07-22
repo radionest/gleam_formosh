@@ -65,6 +65,30 @@ pub fn selected_branches_empty_on_init_and_reset_test() {
   model.reset(dirtied).selected_branches |> should.equal([])
 }
 
+/// F1 (PR-gate blocker): `reset` must materialize `resolved_schema`, not
+/// just clear `selected_branches`. With a stored branch-1 selection wiped
+/// by reset, the union path's resolved property must fall back to branch 0
+/// (design D8 default) with `field_type` set and `any_of` still carrying
+/// both members — mirrors `union_defaults_to_branch_zero_test`'s
+/// assertions, but reached through `model.reset` instead of a bare
+/// `recompute_resolved_schema` call.
+pub fn reset_materializes_union_in_resolved_schema_test() {
+  let assert Ok(schema) = parser.parse_schema(union_schema)
+  let m = model.init(schema)
+  let dirtied =
+    model.FormModel(..m, selected_branches: [
+      #([path.PropertySegment("value")], 1),
+    ])
+
+  let reset_model = model.reset(dirtied)
+
+  let assert Ok(prop) =
+    model.find_property_at_path(reset_model, [path.PropertySegment("value")])
+  prop.field_type |> should.equal(Some(types.IntegerType))
+  let assert Some(members) = prop.any_of
+  list.length(members) |> should.equal(2)
+}
+
 /// The `UpdateFieldPath` handler in `update.gleam` recomputes
 /// `resolved_schema` through `model.recompute_resolved_schema` (not the
 /// bare `conditional_resolver.resolve_recursive`), so a union elsewhere in
