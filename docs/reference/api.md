@@ -208,9 +208,9 @@ field. Full field lists on the `SchemaProperty` and `JsonSchema` types in
 `src/formosh/schema/types.gleam` — the relevant highlights:
 
 - `SchemaProperty` carries `field_type`, `title`, `description`, `default`,
-  `enum_values`, `one_of`, `ref`, the three constraint records, `items`,
-  `properties` (order-preserving), `required`, `read_only`, `addable`,
-  `removable`, `render_hints`, and `conditionals`.
+  `enum_values`, `one_of`, `any_of`, `ref`, the three constraint records,
+  `items`, `properties` (order-preserving), `required`, `read_only`,
+  `nullable`, `addable`, `removable`, `render_hints`, and `conditionals`.
 - `JsonSchema` adds the root-level `defs` (`$defs` / `definitions`),
   root `conditionals`, and root `all_of` (always `None` after parsing).
 
@@ -275,9 +275,10 @@ pub type ParseError {
 }
 ```
 
-`UnsatisfiableSchema` is returned when an `allOf` composition validates
-nothing — conflicting `type`s or crossed bounds — rather than silently
-producing a schema that rejects everything.
+`UnsatisfiableSchema` is returned when an `allOf` composition — or an
+`anyOf` single-survivor collapse whose type is disjoint from a
+parent-declared `type` — validates nothing (conflicting `type`s or crossed
+bounds), rather than silently producing a schema that rejects everything.
 
 ## Imports cheat-sheet
 

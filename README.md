@@ -404,6 +404,7 @@ The widget is chosen automatically based on schema:
 
 - `oneOf` schema-variant (polymorphic) dispatch — only `const`+`title` options render as a choice widget; unlike `anyOf`, general `oneOf` schema branches are parsed but not selectable
 - A bare `anyOf` directly as an array's `items` schema (no object wrapper) — no branch chooser renders; wrap the union in an object property instead
+- Unions inside array rows: hidden-field suppression and read-only table columns do not per-row-resolve the active branch (issue #86)
 - `not`
 - `allOf` enum/`oneOf` intersection — colliding `enum`/`oneOf` values take the later member's list wholesale
 - `allOf` inside a `$defs` entry does not survive schema serialization round-trip (`$defs` stay raw; the serializer re-emits flattened schemas)
