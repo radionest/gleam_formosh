@@ -146,13 +146,28 @@ the branch's `title` — a `$ref` member without its own title inherits the
 referenced `$defs` title — falling back to the capitalized JSON type name,
 then `"Option N"` (1-based).
 
-Picking a branch dispatches `SelectUnionBranchPath`, which clears the
-field's previous value, re-applies the new branch's own defaults, and
-re-renders that branch's widget beneath the chooser through the same
-`field_type` dispatch as any other field — so a branch can itself be an
-object, array, or nested union. Inside an array row, switching a row's union
-resets only that row's value (in place, not by removing the row) so sibling
-rows keep their index.
+Picking a branch dispatches `SelectUnionBranchPath`. Switching to a
+**different** branch clears the field's previous value, applies the new
+branch's own defaults (scoped to that field's subtree only — other fields
+elsewhere in the form are never re-hydrated), and re-renders that branch's
+widget beneath the chooser through the same `field_type` dispatch as any
+other field — so a branch can itself be an object, array, or nested union.
+Inside an array row, switching a row's union resets only that row's value
+(in place, not by removing the row) so sibling rows keep their index.
+Re-selecting the branch that is **already active** — whether explicitly
+chosen before or only active by inference — is a no-op: values, errors, and
+touched state are left exactly as they were (a checked radio's `on_click`
+fires even without a change, so this guards against silently wiping the
+field on every redundant click).
+
+With no explicit selection, the active branch is inferred from the current
+value: first branch whose type matches (scalars), first branch whose
+declared properties overlap the value's keys (objects), else branch 0. On
+initial load, `apply_answers` (swipe-review), and component
+re-initialization this inference is recomputed fresh every time and never
+stored. A user edit (`UpdateFieldPath`/`ClearFieldPath`) inside an inferred
+branch persists that inference the first time it fires, so clearing the
+field that drove the inference doesn't snap the chooser back to branch 0.
 
 A single non-null member alongside `{"type": "null"}` never reaches this
 widget: composer normalization already collapsed it into a plain nullable
