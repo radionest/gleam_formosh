@@ -12,6 +12,7 @@ import formosh/form/path
 import formosh/form/update
 import formosh/form/view
 import formosh/form/visibility
+import formosh/form/widget_msg
 import formosh/schema/parser
 import formosh/schema/properties
 import formosh/schema/types
@@ -958,4 +959,176 @@ pub fn hidden_field_inside_active_union_branch_is_suppressed_test() {
   // must not appear, hidden-marked or not.
   set.contains(result, "value.other") |> should.be_false
   result |> should.equal(set.from_list(["value.secret"]))
+}
+
+// --- Post-PR review findings (PR #88): re-click guard, scoped defaults,
+// persisted inference ---
+//
+// Three interrelated fixes to SelectUnionBranchPath / UpdateFieldPath /
+// ClearFieldPath, reviewed and approved after the union feature's initial
+// merge. See .superpowers/sdd/postpr-fix-report.md for the full account.
+
+/// Finding 1(a): re-clicking an already-active radio must be a complete
+/// no-op — `on_click` fires even when the option is already checked, and
+/// re-dispatching the same index through the unconditional clear-subtree
+/// path would destroy the branch's typed data for no reason. Store branch 1
+/// explicitly, type a value into it, then dispatch the SAME index again:
+/// the resulting model must be identical to the pre-click model — not just
+/// "values survive" but nothing at all recomputed.
+pub fn reclick_stored_branch_is_noop_test() {
+  let assert Ok(schema) = parser.parse_schema(union_schema)
+  let m = model.init(schema)
+  let value_path = [path.PropertySegment("value")]
+  let #(switched, _) =
+    update.update(m, model.SelectUnionBranchPath(value_path, 1))
+  let #(filled, _) =
+    update.update(
+      switched,
+      model.UpdateFieldPath(value_path, types.StringValue("hello")),
+    )
+
+  let #(reclicked, _effect) =
+    update.update(filled, model.SelectUnionBranchPath(value_path, 1))
+
+  reclicked |> should.equal(filled)
+}
+
+/// Finding 1(b): clicking the chooser option for the branch that is
+/// CURRENTLY ACTIVE BY INFERENCE (no stored selection yet) must persist
+/// that selection instead of running the destructive clear-subtree path —
+/// the user is confirming the branch they are already on, not switching
+/// away from it. No stored selection; the string value infers branch 1 per
+/// D8; clicking branch 1 must not touch the value, errors, or touched
+/// state.
+pub fn click_currently_inferred_branch_persists_selection_test() {
+  let assert Ok(schema) = parser.parse_schema(union_schema)
+  let value_path = [path.PropertySegment("value")]
+  let values = types.ObjectValue([#("value", types.StringValue("hello"))])
+  let m =
+    model.FormModel(
+      ..model.init(schema),
+      values: values,
+      resolved_schema: model.recompute_resolved_schema(schema, values, []),
+    )
+  // Sanity: with no stored selection, the string value infers branch 1 —
+  // otherwise the assertions below would pass vacuously.
+  let assert Ok(prop) = model.find_property_at_path(m, value_path)
+  prop.field_type |> should.equal(Some(types.StringType))
+  m.selected_branches |> should.equal([])
+
+  let #(clicked, _effect) =
+    update.update(m, model.SelectUnionBranchPath(value_path, 1))
+
+  clicked.selected_branches |> should.equal([#(value_path, 1)])
+  path.get_at_path(clicked.values, value_path)
+  |> should.equal(Some(types.StringValue("hello")))
+  clicked.errors |> should.equal(m.errors)
+  clicked.touched_fields |> should.equal(m.touched_fields)
+}
+
+/// Finding 1(c) regression guard: the re-click/confirm guards above must
+/// not swallow a genuine switch away from an EXPLICITLY STORED branch —
+/// exercises the "stored selection exists but differs from the requested
+/// index" arm, which none of the pre-existing SelectUnionBranchPath tests
+/// reach (they all start from an empty `selected_branches`).
+pub fn select_union_branch_different_from_stored_still_clears_test() {
+  let assert Ok(schema) = parser.parse_schema(union_schema)
+  let m = model.init(schema)
+  let value_path = [path.PropertySegment("value")]
+  let #(switched1, _) =
+    update.update(m, model.SelectUnionBranchPath(value_path, 1))
+  let #(filled, _) =
+    update.update(
+      switched1,
+      model.UpdateFieldPath(value_path, types.StringValue("hello")),
+    )
+
+  let #(switched0, _effect) =
+    update.update(filled, model.SelectUnionBranchPath(value_path, 0))
+
+  switched0.selected_branches |> should.equal([#(value_path, 0)])
+  path.get_at_path(switched0.values, value_path) |> should.equal(None)
+}
+
+const unrelated_default_schema = "{\"type\":\"object\",\"properties\":{\"note\":{\"type\":\"string\",\"default\":\"hello\"},\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"}]}}}"
+
+/// Finding 2: `SelectUnionBranchPath` must scope its default-application
+/// pass to the switched subtree only. `note` starts with a schema default,
+/// the user clears it, then switches an UNRELATED union branch — `note`
+/// must stay absent, not get re-hydrated by a whole-tree defaults walk that
+/// has nothing to do with the switch.
+pub fn select_union_branch_defaults_scoped_to_switched_subtree_test() {
+  let assert Ok(schema) = parser.parse_schema(unrelated_default_schema)
+  let m = model.init(schema)
+  let note_path = [path.PropertySegment("note")]
+  let value_path = [path.PropertySegment("value")]
+  path.get_at_path(m.values, note_path)
+  |> should.equal(Some(types.StringValue("hello")))
+  let #(cleared_note, _) = update.update(m, model.ClearFieldPath(note_path))
+  path.get_at_path(cleared_note.values, note_path) |> should.equal(None)
+
+  let #(switched, _effect) =
+    update.update(cleared_note, model.SelectUnionBranchPath(value_path, 1))
+
+  path.get_at_path(switched.values, note_path) |> should.equal(None)
+}
+
+const nested_object_union_schema = "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}}}]}}}"
+
+/// Finding 3 (approved design change to D8): a USER-DRIVEN edit persists
+/// the branch that was active by inference — so clearing the only field
+/// that drove that inference does not snap the chooser back to branch 0. No
+/// stored selection; the object value's "city" key infers branch 1 (object)
+/// by key overlap. Clearing "city" (a `ClearFieldPath` on a descendant of
+/// the union path) must lock in branch 1 BEFORE the value disappears, so
+/// the post-clear resolution still finds a stored winner.
+pub fn clearing_field_in_inferred_branch_keeps_branch_selected_test() {
+  let assert Ok(schema) = parser.parse_schema(nested_object_union_schema)
+  let value_path = [path.PropertySegment("value")]
+  let city_path = [
+    path.PropertySegment("value"),
+    path.PropertySegment("city"),
+  ]
+  let values =
+    types.ObjectValue([
+      #("value", types.ObjectValue([#("city", types.StringValue("Oslo"))])),
+    ])
+  let m =
+    model.FormModel(
+      ..model.init(schema),
+      values: values,
+      resolved_schema: model.recompute_resolved_schema(schema, values, []),
+    )
+  // Sanity: inference (no stored selection) currently lands on the object
+  // branch — otherwise the assertions below would pass vacuously.
+  let assert Ok(prop) = model.find_property_at_path(m, value_path)
+  prop.field_type |> should.equal(Some(types.ObjectType))
+  m.selected_branches |> should.equal([])
+
+  let #(cleared, _effect) = update.update(m, model.ClearFieldPath(city_path))
+
+  list.key_find(cleared.selected_branches, value_path) |> should.equal(Ok(1))
+  let assert Ok(after_prop) = model.find_property_at_path(cleared, value_path)
+  after_prop.field_type |> should.equal(Some(types.ObjectType))
+}
+
+/// Finding 3 boundary: `apply_answers` (bulk-finish / swipe commit) is a
+/// PROGRAMMATIC path, not a user-driven edit — it must keep inferring fresh
+/// on every resolution rather than persisting, preserving D8's re-init
+/// idempotency for that path. `FillRemaining` supplies a string answer that
+/// infers branch 1 (string); `selected_branches` must stay empty.
+pub fn apply_answers_infers_union_without_persisting_test() {
+  let assert Ok(schema) = parser.parse_schema(union_schema)
+  let m = model.init(schema)
+  let value_path = [path.PropertySegment("value")]
+
+  let #(after, _effect) =
+    update.update(
+      m,
+      model.swipe_msg(widget_msg.FillRemaining([value_path], "hello")),
+    )
+
+  after.selected_branches |> should.equal([])
+  let assert Ok(prop) = model.find_property_at_path(after, value_path)
+  prop.field_type |> should.equal(Some(types.StringType))
 }

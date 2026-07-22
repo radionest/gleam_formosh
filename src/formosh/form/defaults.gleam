@@ -144,6 +144,96 @@ fn map_array_item_defaults(
   }
 }
 
+/// Apply schema defaults to a single subtree rooted at `field_path`,
+/// leaving every sibling subtree in `values` untouched. Reuses
+/// `apply_defaults_to_value` — the same per-field default merge
+/// `apply_schema_defaults` applies to every top-level field — scoped to one
+/// nested field instead of walked across the whole properties list.
+///
+/// Used by `SelectUnionBranchPath` (post-PR review finding 2, PR #88): a
+/// branch switch's default hydration must not re-fill unrelated fields
+/// elsewhere in the form that the user had already cleared. `field_path`
+/// must resolve to a real property (schema and value shapes match
+/// segment-for-segment) or `values` is returned unchanged.
+pub fn apply_schema_defaults_at_path(
+  properties: List(#(String, SchemaProperty)),
+  value: Value,
+  field_path: FieldPath,
+) -> Value {
+  let assert ObjectValue(fields) = value
+  ObjectValue(apply_at_fields(properties, fields, field_path))
+}
+
+fn apply_at_fields(
+  properties: List(#(String, SchemaProperty)),
+  fields: List(#(String, Value)),
+  field_path: FieldPath,
+) -> List(#(String, Value)) {
+  case field_path {
+    [PropertySegment(name), ..rest] ->
+      case list.key_find(properties, name) {
+        Error(_) -> fields
+        Ok(property) -> {
+          let current = option.from_result(list.key_find(fields, name))
+          case apply_at_property(property, current, rest) {
+            option.Some(v) -> list.key_set(fields, name, v)
+            option.None -> fields
+          }
+        }
+      }
+    _ -> fields
+  }
+}
+
+// Descends `rest` from `property`/`current` without applying any default
+// along the way — siblings on the path to the target are only inspected,
+// never (re)written. At the target node (`rest == []`) the normal
+// recursive default merge (`apply_defaults_to_value`, including its
+// NullValue-as-missing normalization) takes over, exactly as it would from
+// a whole-tree `apply_schema_defaults` walk rooted at the same node.
+fn apply_at_property(
+  property: SchemaProperty,
+  current: option.Option(Value),
+  rest: FieldPath,
+) -> option.Option(Value) {
+  case rest {
+    [] -> {
+      let normalized = case current {
+        option.Some(NullValue) -> option.None
+        other -> other
+      }
+      apply_defaults_to_value(property, normalized)
+    }
+    [PropertySegment(_), ..] ->
+      case current, property.properties {
+        option.Some(ObjectValue(sub_fields)), option.Some(sub_props) ->
+          option.Some(ObjectValue(apply_at_fields(sub_props, sub_fields, rest)))
+        _, _ -> option.None
+      }
+    [ArraySegment(index), ..rest_after_array] ->
+      case current, property.items {
+        option.Some(ArrayValue(items)), option.Some(item_schema) ->
+          option.Some(
+            ArrayValue(
+              list.index_map(items, fn(item, idx) {
+                case idx == index {
+                  True ->
+                    apply_at_property(
+                      item_schema,
+                      option.Some(item),
+                      rest_after_array,
+                    )
+                    |> option.unwrap(item)
+                  False -> item
+                }
+              }),
+            ),
+          )
+        _, _ -> option.None
+      }
+  }
+}
+
 /// Build a fresh array row from the array's `items` schema: object items
 /// get an `ObjectValue` with field `default`s applied (empty object when
 /// no default exists anywhere), scalar items get their `default` or

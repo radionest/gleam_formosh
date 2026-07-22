@@ -621,6 +621,70 @@ fn walk_into_property_resolved(
   }
 }
 
+/// Augment `selected_branches` with the inferred branch for every ancestor
+/// union along `edited_path` (including the path itself) that has no
+/// stored selection yet — computed against the model's CURRENT (pre-edit)
+/// state. Post-PR review finding 3 (PR #88, approved change to design D8):
+/// a user-driven edit (`UpdateFieldPath`/`ClearFieldPath`) persists the
+/// branch inference was already showing, so a later edit that empties the
+/// value driving that inference doesn't snap the chooser back to branch 0.
+/// Programmatic paths (init, `apply_answers`, component re-init) do not
+/// call this — they keep inferring fresh on every resolution, preserving
+/// D8's re-init idempotency for those call sites.
+///
+/// Each prefix is resolved via `find_resolved_property_at_path` (not the
+/// plain, non-per-row `find_property_at_path`) so a union nested inside an
+/// array row is handled the same as a plain object path. `active_branch_index`
+/// is always fed the fixed `model.selected_branches` snapshot — not the
+/// accumulator — matching "inferred on the PRE-EDIT state"; this is
+/// equivalent to threading the accumulator through since every prefix is a
+/// distinct `FieldPath` key, but states the pre-edit intent directly.
+pub fn persist_inferred_branches(
+  model: FormModel,
+  edited_path: FieldPath,
+) -> List(#(FieldPath, Int)) {
+  list.fold(
+    path_prefixes(edited_path),
+    model.selected_branches,
+    fn(acc, prefix) {
+      case list.key_find(model.selected_branches, prefix) {
+        Ok(_) -> acc
+        Error(_) ->
+          case find_resolved_property_at_path(model, prefix) {
+            Ok(prop) ->
+              case prop.any_of {
+                option.Some([_, _, ..]) -> {
+                  let value = get_value_at_path(model, prefix)
+                  let index =
+                    union_resolver.active_branch_index(
+                      prop,
+                      value,
+                      prefix,
+                      model.selected_branches,
+                    )
+                  list.key_set(acc, prefix, index)
+                }
+                _ -> acc
+              }
+            Error(_) -> acc
+          }
+      }
+    },
+  )
+}
+
+/// All non-empty prefixes of `field_path`, ancestor-to-leaf, including the
+/// full path itself: `[a, b, c]` -> `[[a], [a, b], [a, b, c]]`.
+fn path_prefixes(field_path: FieldPath) -> List(FieldPath) {
+  case field_path {
+    [] -> []
+    [segment, ..rest] -> [
+      [segment],
+      ..list.map(path_prefixes(rest), fn(p) { [segment, ..p] })
+    ]
+  }
+}
+
 /// Check if a field at a specific path has validation errors.
 /// 
 /// ## Parameters
