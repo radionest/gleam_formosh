@@ -134,7 +134,7 @@ fn do_flatten(
     // No effective members (absent, `[]`, or all `true` no-ops): pure no-op.
     // The node's own keywords are not a composition — they keep lenient
     // single-schema semantics and skip the satisfiability checks.
-    [] -> Ok(flattened)
+    [] -> normalize_any_of(flattened, path)
     members -> {
       use flat_members <- result.try(list.try_map(members, do_flatten(_, path)))
       use folded <- result.try(
@@ -142,7 +142,56 @@ fn do_flatten(
           merge_pair(acc, m, path)
         }),
       )
-      merge_pair(folded, flattened, path)
+      use merged <- result.try(merge_pair(folded, flattened, path))
+      normalize_any_of(merged, path)
+    }
+  }
+}
+
+/// Normalize a node's `any_of` after the rest of the node is flattened:
+/// each member is flattened first (nested allOf/anyOf collapsed, $refs
+/// already resolved by the resolver), null-typed members are dropped and
+/// fold into `nullable`, and zero or one surviving non-null members
+/// collapse into the node itself (member folds first, node-local keys win
+/// last — same direction as allOf, so `intersect_types` gives disjoint-type
+/// strictness for free). Two or more survivors stay in `any_of`, individually
+/// flattened, as deliberate union state for the branch selector. Fallible:
+/// a single survivor whose type is disjoint from a node-declared type fails
+/// the parse, same as any other merge_pair conflict.
+fn normalize_any_of(
+  node: SchemaProperty,
+  path: List(String),
+) -> Result(SchemaProperty, ParseError) {
+  case node.any_of {
+    None -> Ok(node)
+    Some(members) -> {
+      use flat <- result.try(
+        members
+        |> list.index_map(fn(m, i) {
+          do_flatten(m, [int.to_string(i), "anyOf", ..path])
+        })
+        |> result.all,
+      )
+      let #(null_members, survivors) =
+        list.partition(flat, fn(m) { m.field_type == Some(NullType) })
+      let nullable = node.nullable || null_members != []
+      case survivors {
+        [] ->
+          Ok(
+            SchemaProperty(
+              ..node,
+              field_type: Some(NullType),
+              any_of: None,
+              nullable: nullable,
+            ),
+          )
+        [single] -> {
+          let bare = SchemaProperty(..node, any_of: None, nullable: nullable)
+          merge_pair(single, bare, path)
+        }
+        many ->
+          Ok(SchemaProperty(..node, any_of: Some(many), nullable: nullable))
+      }
     }
   }
 }
@@ -217,6 +266,7 @@ fn merge_pair(
     default: option.or(overlay.default, base.default),
     enum_values: option.or(overlay.enum_values, base.enum_values),
     one_of: option.or(overlay.one_of, base.one_of),
+    any_of: option.or(overlay.any_of, base.any_of),
     ref: option.or(overlay.ref, base.ref),
     string_constraints: string_constraints,
     number_constraints: number_constraints,
@@ -225,6 +275,7 @@ fn merge_pair(
     properties: merged_properties,
     required: list.append(base.required, overlay.required) |> list.unique(),
     read_only: base.read_only || overlay.read_only,
+    nullable: base.nullable || overlay.nullable,
     addable: base.addable && overlay.addable,
     removable: base.removable && overlay.removable,
     render_hints: resolver.merge_render_hints(

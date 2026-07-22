@@ -86,7 +86,8 @@ pub fn resolve_conditional_property(
 ///   inspect.
 /// - Conditionals on objects nested **inside array items** do not fire
 ///   recursively. `array_field.render_item_fields` calls
-///   `resolve_conditional_property` once per row (shallow), so item-level
+///   `union_resolver.resolve_effective_property` once per row, which itself
+///   calls `resolve_conditional_property` once (shallow), so item-level
 ///   rules work but rules on objects/arrays inside an item do not.
 fn resolve_nested_conditionals(
   property: SchemaProperty,

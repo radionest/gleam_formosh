@@ -10,7 +10,6 @@ import formosh/form/model.{
 }
 import formosh/form/update.{validate_all_fields}
 import formosh/form/view
-import formosh/schema/conditional_resolver
 import formosh/schema/parser
 import formosh/schema/serializer
 import formosh/schema/types.{type JsonSchema, type Value}
@@ -317,13 +316,22 @@ fn reinitialize_form_with_schema(model: Model, schema: JsonSchema) -> Model {
       model.initial_values,
       model.ui_schema,
     )
-  // Resolve conditional schema (if/then/else) based on initial values,
-  // then top up arrays revealed by those values (a single pass: appending
-  // rows can never flip a condition — the matcher compares scalars).
+  // Resolve union branches then conditional schema (if/then/else) based on
+  // initial values, then top up arrays revealed by those values (a single
+  // pass: appending rows can never flip a condition — the matcher compares
+  // scalars).
   let resolved_schema =
-    conditional_resolver.resolve_recursive(schema, form_model.values)
+    model.recompute_resolved_schema(
+      schema,
+      form_model.values,
+      form_model.selected_branches,
+    )
   let reconciled_values =
-    defaults.ensure_min_items(resolved_schema.properties, form_model.values)
+    defaults.ensure_min_items(
+      resolved_schema.properties,
+      form_model.values,
+      form_model.selected_branches,
+    )
   let form_model_resolved =
     FormModel(
       ..form_model,

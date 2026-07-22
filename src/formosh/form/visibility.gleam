@@ -22,7 +22,10 @@
 /// — per-row resolve happens at render time, not in the pre-walk). If a
 /// conditional flips visibility for some rows but not others, the set is
 /// computed against the base `items` template, not the per-row resolved
-/// schema.
+/// schema. The same per-row gap applies to union branches: a union inside
+/// array `items` stays a raw node in the pre-walk (`field_type: None` →
+/// skipped), so hidden fields inside a row's active branch are not
+/// collected.
 import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, type Value, ArrayType, ArrayValue,

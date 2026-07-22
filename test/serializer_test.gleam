@@ -944,3 +944,47 @@ pub fn array_constraints_round_trip_test() {
   json_string |> string.contains("\"minItems\":2") |> should.be_true()
   json_string |> string.contains("\"maxItems\":4") |> should.be_true()
 }
+
+pub fn anyof_nullable_union_serializes_test() {
+  let schema_json =
+    "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"},{\"type\":\"null\"}]}}}"
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let json_string = json.to_string(serializer.schema_to_json(schema))
+
+  // Surviving 2-branch union re-emits as anyOf with both members plus an
+  // appended null member (3 entries total); no top-level "type" alongside it.
+  json_string
+  |> string.contains(
+    "\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"},{\"type\":\"null\"}]}",
+  )
+  |> should.be_true()
+
+  // Round-trip: reparsing the serialized output reproduces the same union.
+  let assert Ok(reparsed) = parser.parse_schema(json_string)
+  let assert Ok(value) = list.key_find(reparsed.properties, "value")
+  value.nullable |> should.be_true()
+  let assert Some(members) = value.any_of
+  let assert [first, second] = members
+  first.field_type |> should.equal(Some(IntegerType))
+  second.field_type |> should.equal(Some(StringType))
+}
+
+pub fn anyof_optional_scalar_serializes_test() {
+  let schema_json =
+    "{\"type\":\"object\",\"properties\":{\"age\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"null\"}]}}}"
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let json_string = json.to_string(serializer.schema_to_json(schema))
+
+  // Collapsed optional scalar re-emits as a nullable type array, not anyOf.
+  json_string
+  |> string.contains("\"age\":{\"type\":[\"integer\",\"null\"]}")
+  |> should.be_true()
+
+  // Round-trip: reparsing the serialized output reproduces the same
+  // collapsed-scalar state.
+  let assert Ok(reparsed) = parser.parse_schema(json_string)
+  let assert Ok(age) = list.key_find(reparsed.properties, "age")
+  age.field_type |> should.equal(Some(IntegerType))
+  age.nullable |> should.be_true()
+  age.any_of |> should.equal(None)
+}

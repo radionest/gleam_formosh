@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "title": "Union branches (anyOf)",
+  "description": "anyOf support: an Optional[int]-shaped nullable field that collapses to a plain integer input, a 3-branch int | string | Address union, and a union nested inside an array row (a bare union directly as an array's `items` does not render a chooser — wrap it in an object property, as `rows.amount` does here).",
+  "$defs": {
+    "Address": {
+      "type": "object",
+      "title": "Address",
+      "properties": {
+        "street": { "type": "string", "title": "Street" },
+        "city": { "type": "string", "title": "City" }
+      },
+      "required": ["street", "city"]
+    }
+  },
+  "properties": {
+    "optional_score": {
+      "title": "Optional score",
+      "description": "Pydantic Optional[int]: required (must be present) but nullable — leave it empty to submit null, and note there is no required asterisk despite being in \"required\".",
+      "anyOf": [
+        { "type": "integer" },
+        { "type": "null" }
+      ]
+    },
+    "contact": {
+      "title": "Contact",
+      "description": "Reach them by phone extension, a free-text note, or a full mailing address — pick one.",
+      "anyOf": [
+        { "type": "integer", "title": "Phone extension" },
+        { "type": "string", "title": "Note" },
+        { "$ref": "#/$defs/Address" }
+      ]
+    },
+    "rows": {
+      "type": "array",
+      "title": "Rows",
+      "description": "Each row's amount is its own 2-branch union — switching a row's branch clears only that row.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string", "title": "Label" },
+          "amount": {
+            "title": "Amount",
+            "anyOf": [
+              { "type": "integer", "title": "Whole number" },
+              { "type": "string", "title": "Free text" }
+            ]
+          }
+        },
+        "required": ["label"]
+      }
+    }
+  },
+  "required": ["optional_score"]
+}

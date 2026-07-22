@@ -5,11 +5,13 @@
 //// applied at init and reset time; once the user starts editing, conditional
 //// branches and array items hydrate without re-running this pass.
 
-import formosh/schema/conditional_resolver
+import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
+import formosh/form/union_resolver
 import formosh/schema/types.{
   type SchemaProperty, type Value, ArrayType, ArrayValue, NullValue, ObjectType,
   ObjectValue,
 }
+import formosh/validation/field_requirements
 import gleam/list
 import gleam/option
 
@@ -142,6 +144,96 @@ fn map_array_item_defaults(
   }
 }
 
+/// Apply schema defaults to a single subtree rooted at `field_path`,
+/// leaving every sibling subtree in `values` untouched. Reuses
+/// `apply_defaults_to_value` — the same per-field default merge
+/// `apply_schema_defaults` applies to every top-level field — scoped to one
+/// nested field instead of walked across the whole properties list.
+///
+/// Used by `SelectUnionBranchPath` (post-PR review finding 2, PR #88): a
+/// branch switch's default hydration must not re-fill unrelated fields
+/// elsewhere in the form that the user had already cleared. `field_path`
+/// must resolve to a real property (schema and value shapes match
+/// segment-for-segment) or `values` is returned unchanged.
+pub fn apply_schema_defaults_at_path(
+  properties: List(#(String, SchemaProperty)),
+  value: Value,
+  field_path: FieldPath,
+) -> Value {
+  let assert ObjectValue(fields) = value
+  ObjectValue(apply_at_fields(properties, fields, field_path))
+}
+
+fn apply_at_fields(
+  properties: List(#(String, SchemaProperty)),
+  fields: List(#(String, Value)),
+  field_path: FieldPath,
+) -> List(#(String, Value)) {
+  case field_path {
+    [PropertySegment(name), ..rest] ->
+      case list.key_find(properties, name) {
+        Error(_) -> fields
+        Ok(property) -> {
+          let current = option.from_result(list.key_find(fields, name))
+          case apply_at_property(property, current, rest) {
+            option.Some(v) -> list.key_set(fields, name, v)
+            option.None -> fields
+          }
+        }
+      }
+    _ -> fields
+  }
+}
+
+// Descends `rest` from `property`/`current` without applying any default
+// along the way — siblings on the path to the target are only inspected,
+// never (re)written. At the target node (`rest == []`) the normal
+// recursive default merge (`apply_defaults_to_value`, including its
+// NullValue-as-missing normalization) takes over, exactly as it would from
+// a whole-tree `apply_schema_defaults` walk rooted at the same node.
+fn apply_at_property(
+  property: SchemaProperty,
+  current: option.Option(Value),
+  rest: FieldPath,
+) -> option.Option(Value) {
+  case rest {
+    [] -> {
+      let normalized = case current {
+        option.Some(NullValue) -> option.None
+        other -> other
+      }
+      apply_defaults_to_value(property, normalized)
+    }
+    [PropertySegment(_), ..] ->
+      case current, property.properties {
+        option.Some(ObjectValue(sub_fields)), option.Some(sub_props) ->
+          option.Some(ObjectValue(apply_at_fields(sub_props, sub_fields, rest)))
+        _, _ -> option.None
+      }
+    [ArraySegment(index), ..rest_after_array] ->
+      case current, property.items {
+        option.Some(ArrayValue(items)), option.Some(item_schema) ->
+          option.Some(
+            ArrayValue(
+              list.index_map(items, fn(item, idx) {
+                case idx == index {
+                  True ->
+                    apply_at_property(
+                      item_schema,
+                      option.Some(item),
+                      rest_after_array,
+                    )
+                    |> option.unwrap(item)
+                  False -> item
+                }
+              }),
+            ),
+          )
+        _, _ -> option.None
+      }
+  }
+}
+
 /// Build a fresh array row from the array's `items` schema: object items
 /// get an `ObjectValue` with field `default`s applied (empty object when
 /// no default exists anywhere), scalar items get their `default` or
@@ -168,12 +260,20 @@ pub fn new_array_item(item_schema: SchemaProperty) -> Value {
 /// rows — it only appends `new_array_item` rows, and creates the array
 /// value itself when a `minItems > 0` array has no value yet. Same root
 /// invariant as `apply_schema_defaults`: the form root is one ObjectValue.
+///
+/// `selected` carries the active union branch per field path (design D4,
+/// openspec/changes/add-anyof-union-support) — threaded down so a row whose
+/// `anyOf` member materializes to an array with its own `minItems` gets
+/// topped up too. An internal `parent_path` accumulator (extended with
+/// `PropertySegment`/`ArraySegment` as the walk descends) builds the
+/// absolute path each row/field needs to look itself up in `selected`.
 pub fn ensure_min_items(
   properties: List(#(String, SchemaProperty)),
   values: Value,
+  selected: List(#(FieldPath, Int)),
 ) -> Value {
   let assert ObjectValue(fields) = values
-  ObjectValue(ensure_fields(properties, fields))
+  ObjectValue(ensure_fields(properties, [], fields, selected))
 }
 
 // Fold the declared properties over the current fields; undeclared keys
@@ -181,12 +281,15 @@ pub fn ensure_min_items(
 // walk produced a value.
 fn ensure_fields(
   properties: List(#(String, SchemaProperty)),
+  parent_path: FieldPath,
   fields: List(#(String, Value)),
+  selected: List(#(FieldPath, Int)),
 ) -> List(#(String, Value)) {
   list.fold(properties, fields, fn(acc, pair) {
     let #(name, property) = pair
     let current = option.from_result(list.key_find(acc, name))
-    case ensure_property(property, current) {
+    let field_path = list.append(parent_path, [PropertySegment(name)])
+    case ensure_property(property, field_path, current, selected) {
       option.Some(new_value) -> list.key_set(acc, name, new_value)
       option.None -> acc
     }
@@ -196,14 +299,19 @@ fn ensure_fields(
 // None = leave the key alone (absent keys stay absent); Some = write.
 fn ensure_property(
   property: SchemaProperty,
+  field_path: FieldPath,
   current: option.Option(Value),
+  selected: List(#(FieldPath, Int)),
 ) -> option.Option(Value) {
   case property.field_type {
-    option.Some(ArrayType) -> ensure_array(property, current)
+    option.Some(ArrayType) ->
+      ensure_array(property, field_path, current, selected)
     option.Some(ObjectType) ->
       case current, property.properties {
         option.Some(ObjectValue(fields)), option.Some(sub_props) ->
-          option.Some(ObjectValue(ensure_fields(sub_props, fields)))
+          option.Some(
+            ObjectValue(ensure_fields(sub_props, field_path, fields, selected)),
+          )
         _, _ -> option.None
       }
     _ -> option.None
@@ -212,7 +320,9 @@ fn ensure_property(
 
 fn ensure_array(
   property: SchemaProperty,
+  field_path: FieldPath,
   current: option.Option(Value),
+  selected: List(#(FieldPath, Int)),
 ) -> option.Option(Value) {
   case property.items {
     option.None -> option.None
@@ -221,21 +331,35 @@ fn ensure_array(
         option.Some(ArrayValue(items)) -> items
         _ -> []
       }
-      let walked = list.map(existing, ensure_row(item_schema, _))
+      let walked =
+        list.index_map(existing, fn(item, idx) {
+          ensure_row(
+            item_schema,
+            list.append(field_path, [ArraySegment(idx)]),
+            item,
+            selected,
+          )
+        })
       let min = case property.array_constraints {
         option.Some(c) -> option.unwrap(c.min_items, 0)
         option.None -> 0
       }
       let missing = min - list.length(walked)
       let topped = case missing > 0 {
-        True ->
-          list.append(
-            walked,
-            list.repeat(
-              ensure_row(item_schema, new_array_item(item_schema)),
-              missing,
-            ),
-          )
+        True -> {
+          let base_index = list.length(walked)
+          let new_rows =
+            list.repeat(Nil, missing)
+            |> list.index_map(fn(_, i) {
+              ensure_row(
+                item_schema,
+                list.append(field_path, [ArraySegment(base_index + i)]),
+                new_array_item(item_schema),
+                selected,
+              )
+            })
+          list.append(walked, new_rows)
+        }
         False -> walked
       }
       case current {
@@ -254,16 +378,157 @@ fn ensure_array(
 }
 
 // Walk one array row: resolve the item schema against the row's own
-// values, then recurse into the row's fields so nested arrays (including
-// conditionally revealed ones) are topped up too. Fresh rows built by
-// `new_array_item` go through the same walk, so defaults that satisfy a
-// condition immediately hydrate what the condition reveals.
-fn ensure_row(item_schema: SchemaProperty, row: Value) -> Value {
+// values (union branch first, then conditionals — design D4), then recurse
+// into the row's fields so nested arrays (including conditionally/union
+// revealed ones) are topped up too. Fresh rows built by `new_array_item` go
+// through the same walk, so defaults that satisfy a condition immediately
+// hydrate what the condition reveals. `item_path` is the row's own absolute
+// path (ending in the `ArraySegment` that addresses it) — the key
+// `union_resolver` needs to look up `selected` and to build child paths.
+fn ensure_row(
+  item_schema: SchemaProperty,
+  item_path: FieldPath,
+  row: Value,
+  selected: List(#(FieldPath, Int)),
+) -> Value {
   let resolved =
-    conditional_resolver.resolve_conditional_property(item_schema, row)
+    union_resolver.resolve_effective_property(
+      item_schema,
+      row,
+      item_path,
+      selected,
+    )
   case row, resolved.properties {
     ObjectValue(fields), option.Some(sub_props) ->
-      ObjectValue(ensure_fields(sub_props, fields))
+      ObjectValue(ensure_fields(sub_props, item_path, fields, selected))
+    _, _ -> row
+  }
+}
+
+/// Write `NullValue` at every nullable path whose value is absent or empty
+/// (Task 9's `field_requirements.is_empty_value` predicate — reused, not
+/// re-derived), so the submitted JSON carries `"field": null` instead of
+/// omitting the key. Non-nullable fields are left untouched: an absent key
+/// stays absent, matching the pre-existing behaviour.
+///
+/// Walks nested objects the same way `ensure_fields`/`ensure_property` do,
+/// and array rows via `union_resolver.resolve_effective_property` — mirrors
+/// `ensure_row` so a union row's *active branch* nullable field is the one
+/// checked, not the unresolved `anyOf` node.
+///
+/// Called once at the submit site (`update.submit_form_effect`), not at
+/// init/reset/every keystroke like `ensure_min_items` — this pass actively
+/// overwrites emptiness with an explicit `null`, which would fight the user
+/// if it ran while they were still filling the form in.
+pub fn inject_nullable_nulls(
+  properties: List(#(String, SchemaProperty)),
+  values: Value,
+  selected: List(#(FieldPath, Int)),
+) -> Value {
+  let assert ObjectValue(fields) = values
+  ObjectValue(inject_fields(properties, [], fields, selected))
+}
+
+// Fold the declared properties over the current fields — same shape as
+// `ensure_fields`: undeclared keys pass through untouched, keys are only
+// (re)written when `inject_property` produces a value.
+fn inject_fields(
+  properties: List(#(String, SchemaProperty)),
+  parent_path: FieldPath,
+  fields: List(#(String, Value)),
+  selected: List(#(FieldPath, Int)),
+) -> List(#(String, Value)) {
+  list.fold(properties, fields, fn(acc, pair) {
+    let #(name, property) = pair
+    let current = option.from_result(list.key_find(acc, name))
+    let field_path = list.append(parent_path, [PropertySegment(name)])
+    case inject_property(property, field_path, current, selected) {
+      option.Some(new_value) -> list.key_set(acc, name, new_value)
+      option.None -> acc
+    }
+  })
+}
+
+// A nullable field whose value is absent/empty is written as NullValue
+// outright — this check fires before the type dispatch below, so a nullable
+// object/array with no value at all submits `null` rather than being
+// recursed into. Otherwise: object and array fields recurse to find
+// nullable fields at depth; every other case is None (leave the key alone),
+// covering both "non-nullable and empty" (stays absent) and "nullable and
+// already holds a real value" (stays as-is).
+fn inject_property(
+  property: SchemaProperty,
+  field_path: FieldPath,
+  current: option.Option(Value),
+  selected: List(#(FieldPath, Int)),
+) -> option.Option(Value) {
+  case property.nullable && field_requirements.is_empty_value(current) {
+    True -> option.Some(NullValue)
+    False ->
+      case property.field_type {
+        option.Some(ObjectType) ->
+          case current, property.properties {
+            option.Some(ObjectValue(fields)), option.Some(sub_props) ->
+              option.Some(
+                ObjectValue(inject_fields(
+                  sub_props,
+                  field_path,
+                  fields,
+                  selected,
+                )),
+              )
+            _, _ -> option.None
+          }
+        option.Some(ArrayType) ->
+          inject_array(property, field_path, current, selected)
+        _ -> option.None
+      }
+  }
+}
+
+fn inject_array(
+  property: SchemaProperty,
+  field_path: FieldPath,
+  current: option.Option(Value),
+  selected: List(#(FieldPath, Int)),
+) -> option.Option(Value) {
+  case property.items, current {
+    option.Some(item_schema), option.Some(ArrayValue(items)) ->
+      option.Some(
+        ArrayValue(
+          list.index_map(items, fn(item, idx) {
+            inject_row(
+              item_schema,
+              list.append(field_path, [ArraySegment(idx)]),
+              item,
+              selected,
+            )
+          }),
+        ),
+      )
+    _, _ -> option.None
+  }
+}
+
+// Resolve the row's effective property (union branch, design D4) before
+// walking its fields — mirrors `ensure_row` exactly, so a union row's active
+// branch is what gets checked for nullable fields, not the raw `anyOf` node.
+fn inject_row(
+  item_schema: SchemaProperty,
+  item_path: FieldPath,
+  row: Value,
+  selected: List(#(FieldPath, Int)),
+) -> Value {
+  let resolved =
+    union_resolver.resolve_effective_property(
+      item_schema,
+      row,
+      item_path,
+      selected,
+    )
+  case row, resolved.properties {
+    ObjectValue(fields), option.Some(sub_props) ->
+      ObjectValue(inject_fields(sub_props, item_path, fields, selected))
     _, _ -> row
   }
 }

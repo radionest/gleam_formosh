@@ -286,6 +286,10 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // Extract readOnly annotation
   let read_only = extract_read_only(dynamic_data)
 
+  // Extract nullable: true when a `type` array contains "null" (the array
+  // form of field_type_decoder picks a base type and discards this bit)
+  let nullable = extract_nullable(dynamic_data)
+
   // Extract x-addable / x-removable (default True: structure-mutation allowed)
   let addable = extract_addable(dynamic_data)
   let removable = extract_removable(dynamic_data)
@@ -298,6 +302,10 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
 
   // Extract oneOf composition keyword
   let one_of = extract_one_of(dynamic_data)
+
+  // Extract anyOf composition keyword — raw members (including null-typed
+  // ones) flow through; the composer drops nulls and sets `nullable`
+  let any_of = extract_any_of(dynamic_data)
 
   // Extract allOf composition members — a malformed member fails the parse
   let all_of = extract_all_of(dynamic_data)
@@ -320,6 +328,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
         default: default,
         enum_values: enum_values_with_const,
         one_of: one_of,
+        any_of: any_of,
         all_of: all_of,
         ref: ref,
         string_constraints: string_constraints,
@@ -329,6 +338,7 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
         properties: properties,
         required: required,
         read_only: read_only,
+        nullable: nullable,
         addable: addable,
         removable: removable,
         render_hints: render_hints,
@@ -368,6 +378,25 @@ fn extract_const_value(data: Dynamic) -> Option(List(Value)) {
 fn extract_one_of(data: Dynamic) -> Option(List(SchemaProperty)) {
   decode.run(data, decode.at(["oneOf"], decode.list(property_decoder())))
   |> option.from_result()
+}
+
+/// Extract anyOf members. Lenient at member level (unlike strict allOf):
+/// boolean and malformed members are skipped, the rest still parse. Null
+/// members are KEPT here — the composer drops them and sets `nullable`.
+fn extract_any_of(data: Dynamic) -> Option(List(SchemaProperty)) {
+  decode.run(data, decode.at(["anyOf"], decode.list(decode.dynamic)))
+  |> option.from_result()
+  |> option.map(fn(members) {
+    list.filter_map(members, fn(m) {
+      decode.run(m, property_decoder()) |> result.replace_error(Nil)
+    })
+  })
+  |> option.then(fn(members) {
+    case members {
+      [] -> None
+      _ -> Some(members)
+    }
+  })
 }
 
 /// Extract allOf composition members from dynamic JSON data.
@@ -579,6 +608,18 @@ fn extract_single_conditional(data: Dynamic) -> List(ConditionalRule) {
 /// - `False` otherwise
 fn extract_read_only(data: Dynamic) -> Bool {
   decode.run(data, decode.at(["readOnly"], decode.bool))
+  |> result.unwrap(False)
+}
+
+/// Extract nullable from a `type` array containing `"null"`.
+///
+/// `array_field_type_decoder` resolves the array form down to a single
+/// `FieldType` and discards whether `"null"` was among the members; this
+/// re-reads the raw `type` array to recover that bit. A scalar `type`
+/// string never signals nullable.
+fn extract_nullable(data: Dynamic) -> Bool {
+  decode.run(data, decode.at(["type"], decode.list(decode.string)))
+  |> result.map(fn(type_strs) { list.contains(type_strs, "null") })
   |> result.unwrap(False)
 }
 

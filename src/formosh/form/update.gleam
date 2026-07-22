@@ -7,16 +7,17 @@ import formosh/form/json_utils
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, ClearFieldPath, CustomSubmit,
   FileUploadError, FileUploading, FormSubmit, FormSubmitted, HttpSubmit,
-  MoveArrayItemPath, NoSubmit, RemoveArrayItemPath, ResetForm, SubmissionError,
-  SubmissionSuccess, UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
+  MoveArrayItemPath, NoSubmit, RemoveArrayItemPath, ResetForm,
+  SelectUnionBranchPath, SubmissionError, SubmissionSuccess, UpdateFieldPath,
+  ValidateForm, WidgetEvent, image_msg,
 }
 import formosh/form/path
+import formosh/form/union_resolver
 import formosh/form/widget_msg.{
   AnswerZone, DragCancel, DragEnd, DragMove, DragStart, ExitDone, ExitLeft,
   ExitRight, FillRemaining, ImageCompleted, ImageFailed, ImageRemoved,
   ImageRequested, ImageStarted, ImageUpload, SwipeReview, ToggleHideAnswered,
 }
-import formosh/schema/conditional_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type Value}
 import formosh/schema/ui_resolver
@@ -61,17 +62,27 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   case msg {
     // Path-based handlers — work directly against the single Value tree.
     UpdateFieldPath(field_path, value) -> {
+      // Finding 3 (post-PR review, PR #88): lock in any ancestor union's
+      // pre-edit inferred branch before the value changes underneath it —
+      // see `model.persist_inferred_branches` doc for why this must run
+      // against the CURRENT model, not the recomputed one.
+      let selected = model.persist_inferred_branches(model, field_path)
       let new_values = path.set_at_path(model.values, field_path, value)
       let resolved_schema =
-        conditional_resolver.resolve_recursive(model.schema, new_values)
+        model.recompute_resolved_schema(model.schema, new_values, selected)
       let reconciled_values =
-        defaults.ensure_min_items(resolved_schema.properties, new_values)
+        defaults.ensure_min_items(
+          resolved_schema.properties,
+          new_values,
+          selected,
+        )
       let touched_model = model.mark_field_touched(model, field_path)
       let new_model =
         model.FormModel(
           ..touched_model,
           values: reconciled_values,
           resolved_schema: resolved_schema,
+          selected_branches: selected,
           is_dirty: True,
         )
       let validated_model = validate_all_fields(new_model)
@@ -79,17 +90,24 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     }
 
     ClearFieldPath(field_path) -> {
+      // Finding 3 — see the matching comment in `UpdateFieldPath`.
+      let selected = model.persist_inferred_branches(model, field_path)
       let new_values = path.remove_at_path(model.values, field_path)
       let resolved_schema =
-        conditional_resolver.resolve_recursive(model.schema, new_values)
+        model.recompute_resolved_schema(model.schema, new_values, selected)
       let reconciled_values =
-        defaults.ensure_min_items(resolved_schema.properties, new_values)
+        defaults.ensure_min_items(
+          resolved_schema.properties,
+          new_values,
+          selected,
+        )
       let touched_model = model.mark_field_touched(model, field_path)
       let new_model =
         model.FormModel(
           ..touched_model,
           values: reconciled_values,
           resolved_schema: resolved_schema,
+          selected_branches: selected,
           is_dirty: True,
           // Re-opening a zone (swipe-review undo / summary correction) cancels
           // any in-flight fly-off for that path so it can't linger in `exiting`.
@@ -100,6 +118,26 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       let validated_model = validate_all_fields(new_model)
       #(validated_model, effect.none())
     }
+
+    SelectUnionBranchPath(field_path, index) ->
+      case list.key_find(model.selected_branches, field_path) {
+        // Finding 1(a) (post-PR review, PR #88): re-clicking the already
+        // stored branch is a complete no-op — `on_click` fires even on an
+        // already-checked radio, and re-dispatching the same index must not
+        // re-run the destructive clear-subtree path.
+        Ok(current) if current == index -> #(model, effect.none())
+        Error(_) ->
+          case is_currently_active_branch(model, field_path, index) {
+            // Finding 1(b): no stored selection, but the requested index is
+            // the one resolution is already inferring — the user is
+            // confirming the branch they're on, not switching away from it.
+            True -> confirm_union_branch(model, field_path, index)
+            False -> switch_union_branch(model, field_path, index)
+          }
+        // Finding 1(c) regression guard: a stored selection that genuinely
+        // differs from the requested index still runs the full switch.
+        Ok(_) -> switch_union_branch(model, field_path, index)
+      }
 
     AddArrayItemPath(field_path) -> {
       // Build the new row from the item schema so manual rows carry the
@@ -118,7 +156,11 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       let new_values =
         path.add_array_item_at_path(model.values, field_path, new_item)
       let reconciled_values =
-        defaults.ensure_min_items(model.resolved_schema.properties, new_values)
+        defaults.ensure_min_items(
+          model.resolved_schema.properties,
+          new_values,
+          model.selected_branches,
+        )
       let new_model =
         model.FormModel(..model, values: reconciled_values, is_dirty: True)
       let validated_model = validate_all_fields(new_model)
@@ -135,11 +177,19 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
             None -> Error(Nil)
           }
         })
+      let new_selected =
+        list.filter_map(model.selected_branches, fn(entry) {
+          case path.reindex_after_array_removal(entry.0, field_path, index) {
+            Some(new_p) -> Ok(#(new_p, entry.1))
+            None -> Error(Nil)
+          }
+        })
       let new_model =
         model.FormModel(
           ..model,
           values: new_values,
           touched_fields: new_touched,
+          selected_branches: new_selected,
           is_dirty: True,
         )
       let validated_model = validate_all_fields(new_model)
@@ -157,11 +207,19 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         list.map(model.touched_fields, fn(p) {
           path.reindex_after_array_move(p, field_path, from, to)
         })
+      let new_selected =
+        list.map(model.selected_branches, fn(entry) {
+          #(
+            path.reindex_after_array_move(entry.0, field_path, from, to),
+            entry.1,
+          )
+        })
       let new_model =
         model.FormModel(
           ..model,
           values: new_values,
           touched_fields: new_touched,
+          selected_branches: new_selected,
           is_dirty: True,
         )
       let validated_model = validate_all_fields(new_model)
@@ -228,6 +286,101 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     WidgetEvent(SwipeReview(swipe_event)) ->
       handle_swipe_review_event(model, swipe_event)
   }
+}
+
+/// True when `field_path` has no stored selection and `index` is exactly
+/// the branch resolution is currently inferring for it (design D8) — i.e.
+/// the chooser option the user clicked was already rendered active. Used
+/// by `SelectUnionBranchPath`'s finding-1(b) guard. Resolves through
+/// `find_resolved_property_at_path` (not the plain, non-per-row lookup) so
+/// a union nested inside an array row is handled the same as a top-level
+/// one. Defensively `False` when the path doesn't resolve to a property at
+/// all — falls back to the pre-existing full-switch behavior.
+fn is_currently_active_branch(
+  model: FormModel,
+  field_path: path.FieldPath,
+  index: Int,
+) -> Bool {
+  case model.find_resolved_property_at_path(model, field_path) {
+    Ok(prop) -> {
+      let value = model.get_value_at_path(model, field_path)
+      union_resolver.active_branch_index(
+        prop,
+        value,
+        field_path,
+        model.selected_branches,
+      )
+      == index
+    }
+    Error(_) -> False
+  }
+}
+
+/// Finding 1(b): persist the branch selection without touching values,
+/// errors, or touched state — the user is confirming the branch they are
+/// already on (by inference), not switching away from it. `resolved_schema`
+/// is recomputed so the newly-stored selection is reflected consistently,
+/// but since it was already resolving to this same branch by inference, the
+/// result is materially identical.
+fn confirm_union_branch(
+  model: FormModel,
+  field_path: path.FieldPath,
+  index: Int,
+) -> #(FormModel, Effect(FormMsg)) {
+  let selected = list.key_set(model.selected_branches, field_path, index)
+  let resolved_schema =
+    model.recompute_resolved_schema(model.schema, model.values, selected)
+  #(
+    model.FormModel(
+      ..model,
+      selected_branches: selected,
+      resolved_schema: resolved_schema,
+    ),
+    effect.none(),
+  )
+}
+
+/// The pre-existing branch-switch behavior: clear the subtree so no stale
+/// values/errors/touched state from the previous branch survive, recompute
+/// the schema, apply the newly-active branch's defaults SCOPED to
+/// `field_path` only (finding 2, post-PR review PR #88 — a whole-tree
+/// defaults walk here would re-hydrate unrelated fields the user had
+/// already cleared elsewhere in the form), top up minItems, mark touched,
+/// and revalidate.
+fn switch_union_branch(
+  model: FormModel,
+  field_path: path.FieldPath,
+  index: Int,
+) -> #(FormModel, Effect(FormMsg)) {
+  let selected = list.key_set(model.selected_branches, field_path, index)
+  // Clear the subtree first so the schema/defaults recompute below never
+  // sees the previous branch's stale values, and reuse its result as the
+  // values baseline instead of a second `path.remove_at_path` call.
+  let cleared = model.clear_subtree(model, field_path)
+  let resolved_schema =
+    model.recompute_resolved_schema(model.schema, cleared.values, selected)
+  let with_defaults =
+    defaults.apply_schema_defaults_at_path(
+      resolved_schema.properties,
+      cleared.values,
+      field_path,
+    )
+  let reconciled_values =
+    defaults.ensure_min_items(
+      resolved_schema.properties,
+      with_defaults,
+      selected,
+    )
+  let touched_model = model.mark_field_touched(cleared, field_path)
+  let new_model =
+    model.FormModel(
+      ..touched_model,
+      values: reconciled_values,
+      resolved_schema: resolved_schema,
+      selected_branches: selected,
+      is_dirty: True,
+    )
+  #(validate_all_fields(new_model), effect.none())
 }
 
 /// Handle swipe-review widget events: bulk-finish, the live drag lifecycle
@@ -302,9 +455,9 @@ fn handle_swipe_review_event(
   }
 }
 
-/// Set each `#(path, code)` zone answer, re-resolve conditionals, mark the
-/// paths touched, and re-validate — the shared commit path for bulk-finish and
-/// a past-threshold swipe release.
+/// Set each `#(path, code)` zone answer, re-resolve unions and conditionals,
+/// mark the paths touched, and re-validate — the shared commit path for
+/// bulk-finish and a past-threshold swipe release.
 fn apply_answers(
   model: FormModel,
   answers: List(#(path.FieldPath, String)),
@@ -314,9 +467,17 @@ fn apply_answers(
       path.set_at_path(acc, pair.0, types.StringValue(pair.1))
     })
   let resolved_schema =
-    conditional_resolver.resolve_recursive(model.schema, new_values)
+    model.recompute_resolved_schema(
+      model.schema,
+      new_values,
+      model.selected_branches,
+    )
   let reconciled_values =
-    defaults.ensure_min_items(resolved_schema.properties, new_values)
+    defaults.ensure_min_items(
+      resolved_schema.properties,
+      new_values,
+      model.selected_branches,
+    )
   let touched_model =
     list.fold(answers, model, fn(m, pair) {
       model.mark_field_touched(m, pair.0)
@@ -554,7 +715,12 @@ pub fn validate_all_fields(model: FormModel) -> FormModel {
       let field_path = path.from_field_name(field_name)
       let field_value = path.get_at_path(acc.values, field_path)
       let nested_errors =
-        validator.validate_nested(field_path, property, field_value)
+        validator.validate_nested(
+          field_path,
+          property,
+          field_value,
+          acc.selected_branches,
+        )
       list.fold(nested_errors, acc, fn(m, err) {
         model.add_error_at_path(m, err.field, err)
       })
@@ -693,8 +859,15 @@ fn format_hidden_errors_warning(
 fn submit_form_effect(model: FormModel) -> Effect(FormMsg) {
   case model.submit_config {
     Some(HttpSubmit(url, method, _headers)) -> {
-      // Convert form values to JSON
-      let json_data = values_to_json(model.get_resolved_values(model))
+      // Convert form values to JSON, writing `null` for empty nullable
+      // fields (schema-aware — walks nested objects and array rows) before
+      // serializing.
+      let json_data =
+        values_to_json(defaults.inject_nullable_nulls(
+          model.resolved_schema.properties,
+          model.get_resolved_values(model),
+          model.selected_branches,
+        ))
       // Make HTTP request based on method
       case method {
         "POST" ->

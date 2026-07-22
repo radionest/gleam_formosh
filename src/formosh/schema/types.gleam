@@ -144,6 +144,10 @@ pub type SchemaProperty {
     enum_values: Option(List(Value)),
     // oneOf composition keyword - list of sub-schemas
     one_of: Option(List(SchemaProperty)),
+    // anyOf composition keyword — only 2+-member unions survive parsing
+    // (composer collapses 0/1 non-null members); consumed by the branch
+    // selector. None everywhere else.
+    any_of: Option(List(SchemaProperty)),
     // allOf composition members. Populated by the parser, $ref-resolved by
     // the resolver, merged into this node and cleared by composer.flatten —
     // always None after parse_schema returns. Exception: $defs entries stay
@@ -166,6 +170,10 @@ pub type SchemaProperty {
     required: List(String),
     // JSON Schema readOnly annotation
     read_only: Bool,
+    // Nullable base type: set when the source declared "null" in a type
+    // array or as an anyOf member. Empty nullable fields validate as
+    // satisfied and submit null.
+    nullable: Bool,
     // x-addable: whether the "add item" control is shown for an array (default True)
     addable: Bool,
     // x-removable: whether the "remove item" control is shown for an array (default True)
@@ -294,6 +302,7 @@ pub fn empty_property() -> SchemaProperty {
     default: None,
     enum_values: None,
     one_of: None,
+    any_of: None,
     all_of: None,
     ref: None,
     string_constraints: None,
@@ -303,6 +312,7 @@ pub fn empty_property() -> SchemaProperty {
     properties: None,
     required: [],
     read_only: False,
+    nullable: False,
     addable: True,
     removable: True,
     render_hints: empty_hints(),

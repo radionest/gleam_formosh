@@ -182,6 +182,13 @@ fn resolve_nested_refs(
     ),
   )
 
+  use resolved_any_of <- result.try(
+    try_optional(
+      property.any_of,
+      list.try_map(_, resolve_property_ref(_, context, visited)),
+    ),
+  )
+
   use resolved_conditionals <- result.try(
     list.try_map(property.conditionals, resolve_conditional_rule(
       _,
@@ -203,6 +210,7 @@ fn resolve_nested_refs(
       properties: resolved_properties,
       items: resolved_items,
       one_of: resolved_one_of,
+      any_of: resolved_any_of,
       conditionals: resolved_conditionals,
       all_of: resolved_all_of,
     ),
@@ -306,6 +314,7 @@ fn merge_properties(
     default: option.or(referencing.default, referenced.default),
     enum_values: option.or(referencing.enum_values, referenced.enum_values),
     one_of: option.or(referencing.one_of, referenced.one_of),
+    any_of: option.or(referencing.any_of, referenced.any_of),
     all_of: append_all_of(referenced.all_of, referencing.all_of),
     ref: None,
     // Clear the ref since it's been resolved
@@ -329,6 +338,7 @@ fn merge_properties(
     },
     // readOnly is true if either property has it set
     read_only: referencing.read_only || referenced.read_only,
+    nullable: referencing.nullable || referenced.nullable,
     // x-addable / x-removable: AND-merge — most restrictive wins
     addable: referencing.addable && referenced.addable,
     removable: referencing.removable && referenced.removable,

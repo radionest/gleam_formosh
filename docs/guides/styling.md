@@ -78,6 +78,12 @@ Every styled element exposes a part. Grouped by area:
 `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`,
 `boolean`, `checkbox-wrapper`, `checkbox-group`.
 
+**Union (`anyOf`, 2+ branches):**
+`union` (outer wrapper), `union-radio` (radio-group chooser, ≤5 branches by
+default), `union-select` (select chooser, >5 branches by default or
+`ui:widget: "select"`). Individual radio options reuse the `radio-item` part
+above — there is no separate `union-radio-item`.
+
 (The source also assigns `toggle`, `toggle-wrapper`, `toggle-slider`,
 `toggle-text` and a `data-state` attribute in a toggle renderer that is not
 yet reachable through `ui:widget` — see `ROADMAP.md`.)

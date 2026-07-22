@@ -63,7 +63,7 @@ can render without re-parsing.
 | `types.gleam` | The `JsonSchema`, `SchemaProperty`, `Value`, `FieldType`, `Widget`, and `ParseError` types. The shared vocabulary for the whole library. |
 | `parser.gleam` | Decodes a JSON string into a `JsonSchema` tree; orchestrates the pipeline below. |
 | `resolver.gleam` | Resolves `$ref` against `$defs` / `definitions` using JSON Pointer syntax; detects and rejects circular refs. |
-| `composer.gleam` | Deep-merges `allOf` members into their parent node at parse time (properties, required, bounds, conditionals). |
+| `composer.gleam` | Deep-merges `allOf` members into their parent node at parse time (properties, required, bounds, conditionals); also normalizes `anyOf` (null members → `nullable`, single survivor merges into the node, 2+ survivors stay a union). |
 | `conditional_resolver.gleam` | Re-evaluates `if`/`then`/`else` against the **current** values — this is the runtime half of conditionals (the parse-time half just records the rules). |
 | `properties.gleam` | Helpers for walking and querying the property tree. |
 | `ui_parser.gleam` / `ui_schema.gleam` / `ui_resolver.gleam` | The UiSchema subsystem: presentation hints (`ui:widget`, `ui:order`, placeholders, help text) parsed separately from the data schema. |
@@ -83,6 +83,7 @@ architectural fact about the schema layer — see
 | `update.gleam` | Pure `update(model, msg) -> #(model, effect)`. Field edits, array add/remove/move, touch tracking, submit flow. |
 | `view.gleam` | Pure `view(model) -> Element(msg)`. Delegates per-field rendering to `fields/field_dispatcher`. |
 | `visibility.gleam` | Computes the set of hidden paths (hidden widgets, suppressed readonly). Drives the submit gate. |
+| `union_resolver.gleam` | Resolves which `anyOf` member is "active" for a field path (`FormModel.selected_branches`, inferred from the value when unset) and materializes it into the node, so every walker (render, validate, visibility, defaults) sees a single effective schema. |
 | `path.gleam` | `FieldPath` — `PropertySegment` / `ArraySegment` lists for addressing any value in the tree. |
 | `defaults.gleam` | Default-value hydration, `ensure_min_items` for arrays. |
 | `json_utils.gleam` | `Value` ↔ `json.Json` conversions. |
@@ -100,6 +101,7 @@ One module per widget family, all funnneled through one dispatcher:
 | `boolean_field.gleam` | Yes/No radios / toggle. |
 | `array_field.gleam` | Dynamic list with add/remove/move controls. |
 | `object_field.gleam` | Nested fieldset. |
+| `union_field.gleam` | Branch chooser for a 2+-member `anyOf` (radio/select) plus the active branch's own widget beneath it. |
 | `image_field.gleam` | Image upload widget. |
 | `readonly_field.gleam` | Static label→value summary (review mode). |
 | `swipe_review_field.gleam` / `swipe_review.gleam` | The `ui:widget: "swipe-review"` tap-based zone burndown. |

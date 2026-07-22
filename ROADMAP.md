@@ -114,8 +114,13 @@ called a "JSON Schema form generator" without disclaimers.
 - [x] `multipleOf` — tolerant comparison (1e-8), also drives the `step`
   attribute
 - [x] `enum` value validation
-- [ ] `anyOf` with schemas (not just const) — subschema selector, render the
-  chosen branch; store the choice in a separate `Dict(FieldPath, Int)`
+- [x] `anyOf` with schemas (not just const) — null members collapse into a
+  `nullable` flag, a single surviving member merges into the node
+  (`Optional[X]`), 2+ surviving members render a branch chooser; the
+  selection is stored in `FormModel.selected_branches`, a
+  `List(#(FieldPath, Int))` association list (not a `Dict` — `FieldPath` is
+  a `List`, so `list.key_find`/`key_set` do the lookup). `oneOf` schema
+  variants remain unimplemented — see [Schema Keywords](docs/reference/schema-keywords.md#composition).
 - [ ] `dependencies` / `dependentRequired` / `dependentSchemas` — recompute
   required/subschema on key change; same logic as `if/then/else`, reuse
   `conditional_resolver.gleam`

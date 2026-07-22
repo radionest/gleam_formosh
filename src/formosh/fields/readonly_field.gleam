@@ -16,7 +16,7 @@
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path.{ArraySegment, PropertySegment}
-import formosh/schema/conditional_resolver
+import formosh/form/union_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type RenderHints, type SchemaProperty, type Value}
 import formosh/schema/ui_resolver
@@ -313,7 +313,12 @@ fn render_groups(
     case item {
       types.ObjectValue(_) -> {
         let resolved =
-          conditional_resolver.resolve_conditional_property(item_schema, item)
+          union_resolver.resolve_effective_property(
+            item_schema,
+            item,
+            item_path,
+            model.selected_branches,
+          )
         let rows = case resolved.properties {
           Some(props) ->
             render_props(ctx, model, props, item_path, resolved.required, None)
