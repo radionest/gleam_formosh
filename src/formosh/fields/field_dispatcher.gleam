@@ -17,6 +17,7 @@ import formosh/fields/number_field
 import formosh/fields/object_field
 import formosh/fields/string_field
 import formosh/fields/swipe_review_field
+import formosh/fields/union_field
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
 import formosh/schema/types
@@ -75,6 +76,20 @@ fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
 }
 
 fn render_widget(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
+  case ctx.property.any_of {
+    // 2+ members: a genuine union — render the branch chooser. Exactly
+    // 0/1-member `any_of` cannot survive parsing (composer.normalize_any_of
+    // collapses those into the node itself), but the guard is written to
+    // fall through to the existing body rather than assume the invariant.
+    Some([_, _, ..]) -> union_field.render(ctx, model, render_field_at_path)
+    _ -> render_widget_by_type(ctx, model)
+  }
+}
+
+fn render_widget_by_type(
+  ctx: FieldRenderCtx,
+  model: FormModel,
+) -> Element(FormMsg) {
   case ctx.hints.widget {
     Some(types.ImageUploadWidget) -> {
       let path_key = path.to_string(ctx.path)

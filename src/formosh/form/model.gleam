@@ -683,15 +683,17 @@ pub fn clear_errors_at_path(
 /// in `update.gleam`): the previous branch's data must not leak into the
 /// new branch's inferred defaults, its validation, or a submitted payload.
 ///
-/// - `values`: `path.remove_at_path` deletes the whole subtree in one step
-///   — `values` is a tree, so dropping the parent key drops every
-///   descendant with it.
+/// - `values`: delegates to `clear_subtree_values`, which picks between two
+///   value-tree operations depending on `field_path`'s final segment — see
+///   its doc for why a single `path.remove_at_path` call isn't enough.
 /// - `errors` / `touched_fields`: flat collections keyed independently per
 ///   path, so each descendant entry has to be filtered out on its own —
 ///   `errors` by canonical-string key (`is_error_key_under_path`),
 ///   `touched_fields` by structural `FieldPath` list-prefix
 ///   (`has_path_prefix`). These are two different mechanisms; see each
-///   helper's doc.
+///   helper's doc. Both already handle an `ArraySegment`-terminated
+///   `field_path` correctly (index-aware matching), so — unlike `values` —
+///   they need no corresponding split.
 pub fn clear_subtree(model: FormModel, field_path: FieldPath) -> FormModel {
   let new_errors =
     dict.filter(model.errors, fn(key, _errors) {
@@ -699,13 +701,63 @@ pub fn clear_subtree(model: FormModel, field_path: FieldPath) -> FormModel {
     })
   FormModel(
     ..model,
-    values: path.remove_at_path(model.values, field_path),
+    values: clear_subtree_values(model, field_path),
     errors: new_errors,
     touched_fields: list.filter(model.touched_fields, fn(touched) {
       !has_path_prefix(field_path, touched)
     }),
     is_valid: dict.size(new_errors) == 0,
   )
+}
+
+/// Value-tree half of `clear_subtree`. A `PropertySegment`-terminated path
+/// (a union nested under an object key) deletes the whole subtree via
+/// `path.remove_at_path` in one step, exactly as before.
+///
+/// An `ArraySegment`-terminated path is different: it names a union that
+/// IS an array's item schema directly (`items: {"anyOf": [...]}`, no
+/// object wrapper in between), so there is no key to drop —
+/// `path.remove_at_path` no-ops on this shape by design (path.gleam
+/// ~:160). Deleting the row outright isn't an option either: array rows
+/// carry no identity beyond their index, so removing one would shift every
+/// later sibling's index, corrupting *its* selection/errors/touched state
+/// — the exact corruption `RemoveArrayItemPath`'s reindexing (D9) exists to
+/// prevent. The row is reset in place instead, via `array_row_reset_value`.
+fn clear_subtree_values(model: FormModel, field_path: FieldPath) -> Value {
+  case list.reverse(field_path) {
+    [path.ArraySegment(_), ..rev_array_path] -> {
+      let array_path = list.reverse(rev_array_path)
+      path.set_at_path(
+        model.values,
+        field_path,
+        array_row_reset_value(model, array_path),
+      )
+    }
+    _ -> path.remove_at_path(model.values, field_path)
+  }
+}
+
+/// The array-row equivalent of "absent": look up the row's array `items`
+/// schema at `array_path` (via `find_resolved_property_at_path`, the same
+/// resolved lookup `AddArrayItemPath`'s handler uses to find an array's
+/// item schema) and build a fresh row from it with `defaults.new_array_item`
+/// — the same helper `AddArrayItemPath` and `ensure_min_items` already use,
+/// so a switched-away row looks exactly like a row nobody has touched yet,
+/// whether the active branch was a scalar (-> `NullValue`) or an object
+/// with its own field defaults. Falls back to `NullValue` — the same
+/// fallback `new_array_item` itself uses for a schema-less/non-object item
+/// — when the array's schema can't be resolved (should not happen for a
+/// real `SelectUnionBranchPath` dispatch, but `clear_subtree` must stay
+/// total).
+fn array_row_reset_value(model: FormModel, array_path: FieldPath) -> Value {
+  case find_resolved_property_at_path(model, array_path) {
+    Ok(prop) ->
+      case prop.items {
+        option.Some(item_schema) -> defaults.new_array_item(item_schema)
+        option.None -> types.NullValue
+      }
+    Error(_) -> types.NullValue
+  }
 }
 
 /// True when `candidate` is `prefix` itself or a structural descendant of

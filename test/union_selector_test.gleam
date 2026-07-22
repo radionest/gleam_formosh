@@ -3,18 +3,30 @@
 //
 // Spec: openspec/changes/add-anyof-union-support/plan.md Task 7.
 
+import formosh/fields/field_common
+import formosh/fields/field_dispatcher
 import formosh/form/defaults
+import formosh/form/json_utils
 import formosh/form/model
 import formosh/form/path
 import formosh/form/update
 import formosh/schema/parser
 import formosh/schema/properties
 import formosh/schema/types
+import formosh/schema/ui_parser
 import formosh/schema/validator
+import formosh/validation/error
 import gleam/dict
+import gleam/dynamic
+import gleam/dynamic/decode
+import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
+import lustre/element.{type Element}
+import lustre/vdom/vattr
+import lustre/vdom/vnode
 
 const union_schema = "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"}]}}}"
 
@@ -406,4 +418,410 @@ pub fn move_array_item_reindexes_selected_branches_test() {
   let assert Ok(prop) =
     model.find_resolved_property_at_path(after, row_value_path(2))
   prop.field_type |> should.equal(Some(types.StringType))
+}
+
+// --- Task 13 ADDENDUM: array-row value clearing on branch switch ---
+//
+// T13-MUST (binding, from Task 11's review gate — see
+// .superpowers/sdd/progress.md OPEN ITEMS): `clear_subtree`'s values side
+// (`path.remove_at_path`) no-ops when the target path ends in an
+// `ArraySegment` — a union that IS an array's item schema directly (no
+// object wrapper in between), so the row's own path has no trailing
+// `PropertySegment` to drop a key under. Since a row can't be removed
+// without reindexing every later sibling (that would corrupt sibling
+// selections/errors — the exact thing D9/Task 12 protects), the fix is
+// reset-in-place: the row's value is overwritten with the same "empty"
+// representation `defaults.new_array_item` gives a freshly added row, not
+// deleted.
+//
+// This test also exercises the spec's "Array rows select independently"
+// scenario (row 0 and row 1 resolve to different branches without
+// cross-talk) with the same array-of-unions fixture, per the task brief.
+
+const array_of_unions_schema = "{\"type\":\"object\",\"properties\":{\"items\":{\"type\":\"array\",\"items\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"}]}}}}"
+
+fn union_row_path(index: Int) -> path.FieldPath {
+  [path.PropertySegment("items"), path.ArraySegment(index)]
+}
+
+pub fn select_union_branch_resets_array_row_in_place_test() {
+  let assert Ok(schema) = parser.parse_schema(array_of_unions_schema)
+  let values =
+    types.ObjectValue([
+      #(
+        "items",
+        types.ArrayValue([
+          types.IntegerValue(42),
+          types.StringValue("row one"),
+        ]),
+      ),
+    ])
+  let m =
+    model.FormModel(..model.init(schema), values: values, selected_branches: [
+      #(union_row_path(1), 1),
+    ])
+
+  let #(switched, _effect) =
+    update.update(m, model.SelectUnionBranchPath(union_row_path(0), 1))
+
+  // Row 0: the old integer is gone — reset in place to the same "empty"
+  // representation a freshly added row gets, not removed (removal would
+  // shift row 1 down to index 0 and corrupt its selection/value).
+  path.get_at_path(switched.values, union_row_path(0))
+  |> should.equal(Some(types.NullValue))
+  let assert Some(types.ArrayValue(items)) =
+    path.get_at_path(switched.values, [path.PropertySegment("items")])
+  list.length(items) |> should.equal(2)
+
+  // Row 1 (sibling): value AND selection untouched — independence, not just
+  // absence of a crash (spec: "Array rows select independently").
+  path.get_at_path(switched.values, union_row_path(1))
+  |> should.equal(Some(types.StringValue("row one")))
+  list.key_find(switched.selected_branches, union_row_path(1))
+  |> should.equal(Ok(1))
+  list.key_find(switched.selected_branches, union_row_path(0))
+  |> should.equal(Ok(1))
+
+  // Gone from the submission payload too, not just the raw model tree —
+  // same composition the real submit path uses (update.gleam:781,
+  // `get_resolved_values |> inject_nullable_nulls |> value_to_json`, per
+  // nullable_test.gleam's `submit_payload` helper).
+  let payload =
+    model.get_resolved_values(switched)
+    |> defaults.inject_nullable_nulls(
+      switched.resolved_schema.properties,
+      _,
+      switched.selected_branches,
+    )
+    |> json_utils.value_to_json
+    |> json.to_string
+  string.contains(payload, "42") |> should.be_false
+  string.contains(payload, "\"row one\"") |> should.be_true
+}
+
+// --- Task 13: union_field renderer + dispatcher ---
+//
+// Spec: openspec/changes/add-anyof-union-support/specs/union-branch-selector/
+// spec.md, requirement "Multi-branch unions render a chooser plus the active
+// branch" (3 scenarios) and requirement "Branch selection is model state
+// addressed by field path"'s first scenario (the second, "Array rows select
+// independently," is covered above together with the ADDENDUM, since both
+// need the same array-of-unions fixture).
+
+const two_branch_union_schema = "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"}]}}}"
+
+const six_branch_union_schema = "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"},{\"type\":\"boolean\"},{\"type\":\"number\"},{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"}}},{\"type\":\"array\",\"items\":{\"type\":\"string\"}}]}}}"
+
+const labeled_union_schema = "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"object\",\"title\":\"Address\",\"properties\":{\"city\":{\"type\":\"string\"}}},{\"type\":\"integer\"},{}]}}}"
+
+const value_path = [path.PropertySegment("value")]
+
+/// A model whose `resolved_schema` is materialized (bare `model.init` does
+/// not resolve — task-7-report.md's noted quirk), so the "value" property
+/// carries the active branch's own type/properties WITH `any_of` still
+/// present, matching what the real dispatcher hands `union_field.render`
+/// (Task 6).
+fn init_resolved_union_model(
+  schema_json: String,
+  ui_json: String,
+) -> model.FormModel {
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let m = model.init_with_full_config(schema, None, False, dict.new(), ui)
+  let resolved =
+    model.recompute_resolved_schema(schema, m.values, m.selected_branches)
+  model.FormModel(..m, resolved_schema: resolved)
+}
+
+fn value_field_ctx(m: model.FormModel) -> field_common.FieldRenderCtx {
+  let assert Ok(prop) = model.find_property_at_path(m, value_path)
+  field_common.make_field_ctx(
+    model: m,
+    path: value_path,
+    property: prop,
+    is_required: False,
+    is_disabled: False,
+    is_readonly: False,
+  )
+}
+
+fn render_value_field(m: model.FormModel) -> String {
+  field_dispatcher.render_field_at_path(value_field_ctx(m), m)
+  |> element.to_string
+}
+
+/// Scenario: Default branch renders first member. No stored selection, no
+/// value -> branch 0 (integer) is active: a radio chooser (2 branches, both
+/// falling back to their capitalised type name since neither has a title)
+/// plus an integer input beneath.
+pub fn union_default_branch_renders_radio_and_integer_input_test() {
+  let html =
+    render_value_field(init_resolved_union_model(two_branch_union_schema, "{}"))
+
+  // The `union` wrapper part (distinct from `union-radio`/`union-select`
+  // on the nested chooser control — the trailing quote makes the substring
+  // check exact, not a prefix match against those).
+  string.contains(html, "part=\"union\"") |> should.be_true
+  string.contains(html, "part=\"union-radio\"") |> should.be_true
+  string.contains(html, "Integer") |> should.be_true
+  string.contains(html, "String") |> should.be_true
+  string.split(html, "type=\"radio\"") |> list.length |> should.equal(3)
+  // Branch 0 (integer) is active by default -> its input renders beneath.
+  string.contains(html, "type=\"number\"") |> should.be_true
+}
+
+/// Scenario: Widget heuristic. >5 branches -> select, not radio.
+pub fn union_six_branches_renders_select_test() {
+  let html =
+    render_value_field(init_resolved_union_model(six_branch_union_schema, "{}"))
+
+  string.contains(html, "part=\"union-select\"") |> should.be_true
+  string.contains(html, "part=\"union-radio\"") |> should.be_false
+}
+
+/// Scenario: Widget heuristic override. `ui:widget: "select"` forces a
+/// select even though the 2-branch count would default to radio.
+pub fn union_widget_select_override_forces_select_test() {
+  let html =
+    render_value_field(init_resolved_union_model(
+      two_branch_union_schema,
+      "{\"value\": {\"ui:widget\": \"select\"}}",
+    ))
+
+  string.contains(html, "part=\"union-select\"") |> should.be_true
+  string.contains(html, "part=\"union-radio\"") |> should.be_false
+}
+
+/// Scenario: Branch labels fall back in order — member `title` ("Address")
+/// wins; a bare `{"type":"integer"}` falls back to the capitalised type
+/// name ("Integer"); a member with neither gets "Option N" (1-based, so the
+/// third/last member here is "Option 3").
+pub fn union_branch_labels_fall_back_in_order_test() {
+  let html =
+    render_value_field(init_resolved_union_model(labeled_union_schema, "{}"))
+
+  string.contains(html, "Address") |> should.be_true
+  string.contains(html, "Integer") |> should.be_true
+  string.contains(html, "Option 3") |> should.be_true
+}
+
+// --- Dispatch-message assertion ------------------------------------------
+//
+// `element.to_string` renders to a plain HTML string, which cannot carry a
+// Gleam closure — so "the chooser dispatches the right message" can't be
+// read off the string. Lustre's `Attribute`/`Element` are plain
+// (non-opaque) records (`lustre/vdom/vattr.Event.handler` is a
+// `Decoder(Handler(msg))`, runnable directly against a hand-built
+// `Dynamic`), so the technique is: walk the rendered tree, find the
+// control's named event listener, decode a synthetic DOM event with it, and
+// assert on the resulting message. No existing test in this suite does
+// this yet (`dispatcher_render_test.gleam` only asserts suppression via
+// plain string checks) — verified by search before writing this.
+
+/// Depth-first `#(tag, attributes)` for every tag node in a rendered tree.
+/// `Fragment` children are inlined (not a tag itself); `Text` /
+/// `UnsafeInnerHtml` carry no children worth descending into.
+fn tag_attrs(
+  el: Element(model.FormMsg),
+) -> List(#(String, List(vattr.Attribute(model.FormMsg)))) {
+  case el {
+    vnode.Element(tag: t, attributes: attrs, children: kids, ..) -> [
+      #(t, attrs),
+      ..list.flatten(list.map(kids, tag_attrs))
+    ]
+    vnode.Fragment(children: kids, ..) ->
+      list.flatten(list.map(kids, tag_attrs))
+    vnode.Text(..) | vnode.UnsafeInnerHtml(..) -> []
+  }
+}
+
+fn has_value_attr(
+  attrs: List(vattr.Attribute(model.FormMsg)),
+  value: String,
+) -> Bool {
+  list.any(attrs, fn(a) {
+    case a {
+      vattr.Attribute(name: "value", value: v, ..) -> v == value
+      _ -> False
+    }
+  })
+}
+
+fn event_handler(
+  attrs: List(vattr.Attribute(model.FormMsg)),
+  event_name: String,
+) -> Result(decode.Decoder(vattr.Handler(model.FormMsg)), Nil) {
+  attrs
+  |> list.filter_map(fn(a) {
+    case a {
+      vattr.Event(name: n, handler: h, ..) ->
+        case n == event_name {
+          True -> Ok(h)
+          False -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+  |> list.first
+}
+
+/// Find the `event_name` listener on the first `tag` node in the rendered
+/// tree — matched additionally by a `value="..."` attribute when `value` is
+/// `Some` (disambiguates between several same-tag nodes, e.g. two radio
+/// inputs; a `<select>` has only one node so `None` skips the filter).
+fn find_event_handler(
+  el: Element(model.FormMsg),
+  tag: String,
+  value: option.Option(String),
+  event_name: String,
+) -> Result(decode.Decoder(vattr.Handler(model.FormMsg)), Nil) {
+  tag_attrs(el)
+  |> list.filter_map(fn(pair) {
+    let #(t, attrs) = pair
+    let value_matches = case value {
+      Some(v) -> has_value_attr(attrs, v)
+      None -> True
+    }
+    case t == tag && value_matches {
+      True -> event_handler(attrs, event_name)
+      False -> Error(Nil)
+    }
+  })
+  |> list.first
+}
+
+/// A `Dynamic` shaped like `{target: {value: <value>}}`, matching what
+/// `lustre/event.on_change`'s decoder (`subfield(["target", "value"], ...)`)
+/// expects from a real DOM change event.
+fn change_event_dynamic(value: String) -> dynamic.Dynamic {
+  dynamic.properties([
+    #(
+      dynamic.string("target"),
+      dynamic.properties([#(dynamic.string("value"), dynamic.string(value))]),
+    ),
+  ])
+}
+
+/// Scenario: Selecting a branch switches the subform — chooser side. A
+/// click on the branch-1 radio dispatches `SelectUnionBranchPath` for the
+/// union's own path with index 1 (`on_click` ignores the event payload
+/// entirely, so any `Dynamic` decodes the same fixed message — mirrors
+/// `string_field.render_radio_group`'s per-option `event.on_click`).
+pub fn union_radio_click_dispatches_select_branch_test() {
+  let m = init_resolved_union_model(two_branch_union_schema, "{}")
+  let rendered = field_dispatcher.render_field_at_path(value_field_ctx(m), m)
+
+  let assert Ok(handler) =
+    find_event_handler(rendered, "input", Some("1"), "click")
+  let assert Ok(vattr.Handler(message:, ..)) =
+    decode.run(dynamic.properties([]), handler)
+
+  message |> should.equal(model.SelectUnionBranchPath(value_path, 1))
+}
+
+/// Scenario: Selecting a branch switches the subform — select variant. A
+/// `change` event carrying `target.value = "1"` dispatches
+/// `SelectUnionBranchPath` with the parsed index (mirrors
+/// `string_field.render_select`'s `event.on_change`, but parses the value
+/// back to an `Int` since the option's value is the branch index).
+pub fn union_select_change_dispatches_select_branch_test() {
+  let m =
+    init_resolved_union_model(
+      two_branch_union_schema,
+      "{\"value\": {\"ui:widget\": \"select\"}}",
+    )
+  let rendered = field_dispatcher.render_field_at_path(value_field_ctx(m), m)
+
+  let assert Ok(handler) =
+    find_event_handler(rendered, "select", None, "change")
+  let assert Ok(vattr.Handler(message:, ..)) =
+    decode.run(change_event_dynamic("1"), handler)
+
+  message |> should.equal(model.SelectUnionBranchPath(value_path, 1))
+}
+
+/// Regression guard: the standard error/touched wrapper
+/// (`wrap_with_errors`, applied by `render_visible` around whatever
+/// `render_widget` returns) must still apply to a union field exactly like
+/// every other widget type. The new `any_of` arm lives inside
+/// `render_widget`, not around `render_visible`'s call to it, so this
+/// keeps working — but nothing pins it, and it is exactly the kind of thing
+/// a future refactor could accidentally move outside the wrapped path (see
+/// CLAUDE.md's "View refactors" pitfall note about container renderers
+/// silently dropping shared wrapping).
+pub fn union_field_still_wrapped_with_errors_when_touched_test() {
+  let m = init_resolved_union_model(two_branch_union_schema, "{}")
+  let seeded =
+    model.add_error_at_path(
+      m,
+      value_path,
+      error.ValidationError(value_path, "bad union value", "custom"),
+    )
+    |> model.mark_field_touched(value_path)
+
+  let html = render_value_field(seeded)
+
+  string.contains(html, "data-error=\"true\"") |> should.be_true
+  string.contains(html, "bad union value") |> should.be_true
+}
+
+/// Defensive fallback: a genuine 0- or 1-member `any_of` "cannot exist
+/// post-parse" (`composer.normalize_any_of` collapses both shapes into
+/// `any_of: None` before a real schema ever reaches the dispatcher — see
+/// `any_of_test.gleam`'s `anyof_empty_list_is_none_test` /
+/// `anyof_lenient_skips_malformed_member_test`), but the dispatcher's own
+/// `Some([_, _, ..])` guard is written to fall through rather than lean on
+/// that invariant. Pin it directly against hand-built properties the
+/// parser itself would never produce, bypassing `parser.parse_schema`
+/// entirely (mirrors `dispatcher_render_test.gleam`'s hand-built-property
+/// style).
+pub fn dispatcher_falls_through_for_non_union_any_of_shapes_test() {
+  let empty_schema =
+    types.JsonSchema(
+      title: None,
+      description: None,
+      field_type: types.ObjectType,
+      properties: [],
+      required: [],
+      defs: None,
+      conditionals: [],
+      all_of: None,
+      string_constraints: None,
+      number_constraints: None,
+    )
+  let m = model.init(empty_schema)
+  let single_member =
+    types.SchemaProperty(
+      ..types.empty_property(),
+      field_type: Some(types.IntegerType),
+    )
+
+  let render_with = fn(any_of) {
+    let prop =
+      types.SchemaProperty(
+        ..types.empty_property(),
+        field_type: Some(types.StringType),
+        any_of: any_of,
+      )
+    let ctx =
+      field_common.make_field_ctx(
+        model: m,
+        path: [path.PropertySegment("name")],
+        property: prop,
+        is_required: False,
+        is_disabled: False,
+        is_readonly: False,
+      )
+    field_dispatcher.render_field_at_path(ctx, m) |> element.to_string
+  }
+
+  // `Some([])`: falls through to the string widget, not the union chooser.
+  let empty_html = render_with(Some([]))
+  string.contains(empty_html, "part=\"union\"") |> should.be_false
+  string.contains(empty_html, "part=\"input\"") |> should.be_true
+
+  // `Some([single_member])`: same fallback.
+  let one_html = render_with(Some([single_member]))
+  string.contains(one_html, "part=\"union\"") |> should.be_false
+  string.contains(one_html, "part=\"input\"") |> should.be_true
 }
