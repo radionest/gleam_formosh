@@ -110,12 +110,15 @@ form.addEventListener('formosh-submit', (e) => {
 A schema field is **nullable** when its `anyOf` includes a `{"type": "null"}`
 member — the shape a Pydantic `Optional[X]` field serializes to. Leaving a
 nullable field empty is always valid, regardless of `required`: it submits
-as JSON `null` in `e.detail.values` (and the HTTP body, for `submit-url`
-forms) rather than an empty string or a validation error, and the field
-never shows the required asterisk — even when it's named in the schema's
-`required` list. A *filled* nullable field still runs its normal type and
-constraint checks. See [Schema Keywords](../reference/schema-keywords.md#composition)
-for how `anyOf` normalizes into `nullable`.
+as JSON `null` in the HTTP body (for `submit-url` forms) rather than an
+empty string or a validation error, and the field never shows the required
+asterisk — even when it's named in the schema's `required` list. Null
+injection happens only at submission time — `formosh-change`'s
+`e.detail.values` carries the live, un-injected values, where an empty
+nullable field is simply absent rather than `null`. A *filled* nullable
+field still runs its normal type and constraint checks. See
+[Schema Keywords](../reference/schema-keywords.md#composition) for how
+`anyOf` normalizes into `nullable`.
 
 ## Programmatic use inside Lustre — `component.element`
 
