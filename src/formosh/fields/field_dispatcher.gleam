@@ -81,7 +81,21 @@ fn render_widget(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
     // 0/1-member `any_of` cannot survive parsing (composer.normalize_any_of
     // collapses those into the node itself), but the guard is written to
     // fall through to the existing body rather than assume the invariant.
-    Some([_, _, ..]) -> union_field.render(ctx, model, render_field_at_path)
+    //
+    // `render_child` is `render_widget_by_type`, NOT `render_field_at_path`:
+    // the subform dispatches at the union's own `ctx.path` (see
+    // `union_field.gleam`'s `child_ctx`), so a wrapping callback there would
+    // re-enter `render_visible` -> `wrap_with_errors` at that same path —
+    // duplicating the error/touched wrap this arm's own caller (the outer
+    // `render_visible`) already applies. `render_widget_by_type` is the
+    // plain widget-type switch with no wrapping and no suppression check of
+    // its own (both already happened once, in the outer call that reached
+    // this `render_widget` in the first place) — exactly the seam that
+    // keeps ONE `part="field"` wrapper per union while still dispatching
+    // hints/array/object content in full (those recurse into
+    // `render_field_at_path` again, but at their OWN child paths, not the
+    // union's).
+    Some([_, _, ..]) -> union_field.render(ctx, model, render_widget_by_type)
     _ -> render_widget_by_type(ctx, model)
   }
 }

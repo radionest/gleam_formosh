@@ -742,13 +742,18 @@ pub fn union_select_change_dispatches_select_branch_test() {
 
 /// Regression guard: the standard error/touched wrapper
 /// (`wrap_with_errors`, applied by `render_visible` around whatever
-/// `render_widget` returns) must still apply to a union field exactly like
-/// every other widget type. The new `any_of` arm lives inside
-/// `render_widget`, not around `render_visible`'s call to it, so this
-/// keeps working — but nothing pins it, and it is exactly the kind of thing
-/// a future refactor could accidentally move outside the wrapped path (see
-/// CLAUDE.md's "View refactors" pitfall note about container renderers
-/// silently dropping shared wrapping).
+/// `render_widget` returns) must apply to a union field EXACTLY ONCE, like
+/// every other widget type — not once from the dispatcher's outer call at
+/// the union's path and a second time from the subform re-entering the
+/// same wrapping layer at the same path. `render_child`'s callback
+/// identity is what makes this hold: `union_field.render` must be handed a
+/// widget-dispatch function that does NOT itself apply `render_visible`'s
+/// wrapping, since the subform renders at the SAME `ctx.path` as the union
+/// (see `union_field.gleam`'s `child_ctx`) — a wrapping callback there
+/// would re-wrap with the identical touched/error state the outer call
+/// already wraps with. Presence-only assertions (`string.contains`) cannot
+/// catch a duplicate; both checks below assert an EXACT count via
+/// `string.split` (N occurrences -> N+1 pieces).
 pub fn union_field_still_wrapped_with_errors_when_touched_test() {
   let m = init_resolved_union_model(two_branch_union_schema, "{}")
   let seeded =
@@ -762,7 +767,13 @@ pub fn union_field_still_wrapped_with_errors_when_touched_test() {
   let html = render_value_field(seeded)
 
   string.contains(html, "data-error=\"true\"") |> should.be_true
-  string.contains(html, "bad union value") |> should.be_true
+  // Exactly one occurrence of the error message — not two nested error
+  // blocks each repeating it.
+  string.split(html, "bad union value") |> list.length |> should.equal(2)
+  // Exactly one `part="field"` wrapper for this union (the trailing quote
+  // keeps this from also matching `part="field-wrapper"`, a different,
+  // legitimately-repeatable part emitted by the branch's own widget).
+  string.split(html, "part=\"field\"") |> list.length |> should.equal(2)
 }
 
 /// Defensive fallback: a genuine 0- or 1-member `any_of` "cannot exist
