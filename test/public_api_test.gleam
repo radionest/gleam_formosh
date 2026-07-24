@@ -1,12 +1,18 @@
 import formosh
 import formosh/form/model.{HttpSubmit, NoSubmit}
 import formosh/form/path.{PropertySegment, get_at_path}
+import formosh/form/update
+import formosh/form/view
 import formosh/schema/parser
 import formosh/schema/types.{StringValue}
 import formosh/schema/ui_schema
+import formosh/validation/error.{ValidationError}
 import gleam/dict
 import gleam/option.{None, Some}
 import gleeunit/should
+import lustre/dev/query
+import lustre/dev/simulate
+import lustre/effect
 
 fn name_schema() {
   let assert Ok(schema) =
@@ -79,4 +85,46 @@ pub fn with_ui_schema_json_invalid_test() {
 pub fn parse_ui_schema_roundtrip_test() {
   formosh.parse_ui_schema("{\"ui:placeholder\":\"hi\"}") |> should.be_ok()
   formosh.parse_ui_schema("{") |> should.be_error()
+}
+
+fn simulate_form(config: formosh.FormConfig) {
+  simulate.application(
+    init: fn(_) { #(formosh.init_model(config), effect.none()) },
+    update: update.update,
+    view: view.view,
+  )
+  |> simulate.start(Nil)
+}
+
+pub fn simulated_input_reaches_get_values_test() {
+  let sim =
+    simulate_form(formosh.config(name_schema()))
+    |> simulate.input(
+      on: query.element(matching: query.tag("input")),
+      value: "Ada",
+    )
+  formosh.get_values(simulate.model(sim))
+  |> get_at_path([PropertySegment("name")])
+  |> should.equal(Some(StringValue("Ada")))
+}
+
+pub fn validator_gates_submission_test() {
+  let config =
+    formosh.config(name_schema())
+    |> formosh.with_validator(fn(_model) {
+      [
+        ValidationError(
+          field: [PropertySegment("name")],
+          message: "always wrong",
+          rule: "custom",
+        ),
+      ]
+    })
+  let sim =
+    simulate_form(config)
+    |> simulate.input(
+      on: query.element(matching: query.tag("input")),
+      value: "Ada",
+    )
+  model.can_submit(simulate.model(sim)) |> should.be_false()
 }
