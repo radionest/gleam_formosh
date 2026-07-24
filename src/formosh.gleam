@@ -296,27 +296,26 @@ pub fn from_config(config: FormConfig) -> lustre.App(Nil, FormModel, FormMsg) {
   create_form_with_config(config)
 }
 
-/// Internal function to create a Lustre application from a configuration.
-///
-/// This function sets up the MVU architecture by providing the init, update,
-/// and view functions needed for a Lustre application.
+/// Build the initial `FormModel` for a configuration without starting a
+/// Lustre app — the headless embedding path. `from_config` initializes
+/// its app with exactly this model.
+pub fn init_model(config: FormConfig) -> FormModel {
+  let initial =
+    model.init_with_full_config(
+      config.schema,
+      option.Some(config.submit_config),
+      config.show_readonly_fields,
+      config.initial_values,
+      config.ui_schema,
+    )
+  model.FormModel(..initial, validator: config.validator)
+}
+
 fn create_form_with_config(
   config: FormConfig,
 ) -> lustre.App(Nil, FormModel, FormMsg) {
   lustre.application(
-    fn(_) {
-      let initial =
-        model.init_with_full_config(
-          config.schema,
-          option.Some(config.submit_config),
-          config.show_readonly_fields,
-          config.initial_values,
-          config.ui_schema,
-        )
-      let with_validator =
-        model.FormModel(..initial, validator: config.validator)
-      #(with_validator, effect.none())
-    },
+    fn(_) { #(init_model(config), effect.none()) },
     update.update,
     view.view,
   )
@@ -370,15 +369,7 @@ pub fn from_json_string_with_config(
   case parser.parse_schema(json_string) {
     Ok(schema) -> {
       let form_config =
-        FormConfig(
-          schema: schema,
-          submit_config: submit_config,
-          show_errors_on_change: False,
-          show_readonly_fields: False,
-          initial_values: dict.new(),
-          ui_schema: empty_ui_schema(),
-          validator: option.None,
-        )
+        FormConfig(..config(schema), submit_config: submit_config)
       Ok(from_config(form_config))
     }
     Error(err) -> Error(err)

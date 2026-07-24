@@ -1,4 +1,4 @@
-.PHONY: demo demo-server demo-deps test format build
+.PHONY: demo demo-server demo-deps test format build e2e
 
 demo:
 	cd demo && gleam deps download && gleam run -m lustre/dev start
@@ -17,3 +17,6 @@ format:
 
 build:
 	npm run build
+
+e2e:
+	npm run e2e

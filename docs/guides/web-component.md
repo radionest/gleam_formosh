@@ -167,7 +167,9 @@ const form = document.querySelector('formosh-form');
 
 form.validator = (values) => {
   // values is the JS representation of the Value tree
-  // return [] for valid, or [{ field: ["total_budget"], message: "...", rule: "custom" }]
+  // return [] for valid, or [{ path: "total_budget", message: "...", rule: "custom" }]
+  // `path` is a dot-notation string with `[N]` for array indices, e.g.
+  // "items.[0].title" — `rule` is optional and defaults to "custom".
   return [];
 };
 ```

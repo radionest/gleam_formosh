@@ -22,32 +22,40 @@ gleam test
 - **Pattern**: Pipe operator (`|>`) with `should.*` for readable assertions
 - **Setup**: Tests construct schema structures directly or parse JSON strings via `parser.parse_schema()`
 
-## Test Coverage Map
+## Coverage layout
 
-| Test File | Source Module | LOC | Coverage |
-|-----------|-------------|-----|----------|
-| `parser_test.gleam` | `schema/parser` | 124 | Basic types (string, object, array), optional fields, error handling |
-| `path_test.gleam` | `form/path` | 192 | Path creation, string conversion, nested get/set, array operations |
-| `serializer_test.gleam` | `schema/serializer` | 939 | All field types, constraints, refs, conditionals, formats (comprehensive) |
-| `ref_test.gleam` | `schema/resolver` | 369 | Simple refs, overrides, nested refs, invalid/circular refs, #/definitions/ compat |
-| `conditional_test.gleam` | `schema/conditional_resolver` | 471 | if/then, if/then/else, field visibility, allOf conditionals, const keyword |
-| `complex_schema_test.gleam` | Integration | 121 | Complex nested schemas (medical form), enum parsing |
-| `basic_leak_signs_test.gleam` | Integration | 114 | File-based schema loading, conditional resolution with real schemas |
-| `formosh_test.gleam` | — | 13 | Placeholder (hello_world only) |
-| `all_of_test.gleam` | `schema/composer`, `schema/parser`, `schema/resolver` | 724 | allOf composition: member merging, $ref mixins, collision deep-merge, stricter bounds, unified conditionals, nested/degenerate cases, root typing (member-typed/typeless/authored), root $ref, type conflicts, crossed bounds |
+Three tiers, fastest/most-isolated first:
 
-## Coverage Gaps
+1. **`test/public_api_test.gleam`** — the documented `formosh.*` contract:
+   `config`, every `with_*` builder, `from_json_string*`, `init_model`,
+   `get_values`. Builder-level assertions run directly against `FormConfig`;
+   behavioral coverage (typing, validity, submit gating) runs full headless
+   sessions through `lustre/dev/simulate` (`simulate.application` /
+   `simulate.start` / `simulate.input`) queried with `lustre/dev/query` —
+   no browser involved.
+2. **`test/component_core_test.gleam`** — the `<formosh-form>` web
+   component's MVU core, driven directly through the
+   `formosh/internal/component_core` seam (`core.init` / `core.update`)
+   instead of through DOM attribute/property plumbing: schema
+   (re)initialization, array-to-`minItems` top-up, initial-values
+   replacement vs. user edits, read-only toggling, and the event payload
+   builders/decoders (`change_event_payload` / `change_values_decoder`,
+   `submit_result_payload` / `submit_result_decoder`).
+3. **`e2e/`** — real-browser coverage, run via `npm run e2e` (or
+   `make e2e`): `puppeteer-core` drives system Chrome
+   (`/usr/bin/google-chrome` by default, override with `CHROME_PATH`)
+   against `e2e/harness.html` served by `e2e/server.mjs`. Covers what the
+   two Gleam tiers can't reach — real custom-element mounting, DOM event
+   listeners, attribute swaps, and submit round-trips.
 
-The following areas have **no test coverage**:
+**Known gaps** (ROADMAP debts, not exercised by any tier):
 
-- **Public API** (`formosh.gleam`): `from_schema()`, `from_json_string()`, `config()` builder, `get_values()`
-- **Form update logic** (`form/update.gleam`): field value updates, validation triggering, conditional re-resolution
-- **View rendering** (`form/view.gleam`): field type routing, error display, readonly handling
-- **Field renderers** (`fields/`): widget selection rules (radio vs select, textarea threshold), HTML attributes
-- **Validator** (`schema/validator.gleam`): dedicated numeric-bounds tests (minimum/maximum/exclusive*), string length, email/url format checks (pattern, enum, and multipleOf are already exercised in `validator_test.gleam`)
-- **Array operations**: add/remove/reorder in update context
-- **Form submission**: HTTP submission lifecycle, CustomSubmit, error handling
-- **Web Component** (`component.gleam`): attribute handling, event emission
+- `on_validate` is a no-op — `component.gleam` never emits
+  `formosh-validate`, so the listener registered by `component.on_validate`
+  never fires (see `ROADMAP.md`).
+- `with_show_errors_on_change` is unwired — the flag is stored on
+  `FormConfig` but nothing under `src/` reads it; errors always follow the
+  touch gate regardless of its value (see `ROADMAP.md`).
 
 ## Test Patterns
 

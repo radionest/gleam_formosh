@@ -1,6 +1,6 @@
 {
   "name": "formosh",
-  "version": "0.7.2",
+  "version": "0.8.5",
   "description": "Type-safe JSON Schema form generator for Gleam/Lustre",
   "main": "dist/cdn.min.mjs",
   "module": "dist/cdn.min.mjs",
@@ -23,7 +23,11 @@
   "scripts": {
     "build": "gleam run -m lustre/dev build app --entry=cdn --minify=true --outdir=dist",
     "build:dev": "gleam run -m lustre/dev build app --entry=cdn --minify=false --outdir=dist",
-    "build:all": "npm run build && npm run build:dev"
+    "build:all": "npm run build && npm run build:dev",
+    "e2e": "npm run build:dev && node --test e2e/*.test.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.0.0"
   },
   "repository": {
     "type": "git",
