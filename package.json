@@ -1,6 +1,6 @@
 {
   "name": "formosh",
-  "version": "0.7.2",
+  "version": "0.8.5",
   "description": "Type-safe JSON Schema form generator for Gleam/Lustre",
   "main": "dist/cdn.min.mjs",
   "module": "dist/cdn.min.mjs",
