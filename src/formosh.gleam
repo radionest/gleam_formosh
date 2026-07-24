@@ -369,15 +369,7 @@ pub fn from_json_string_with_config(
   case parser.parse_schema(json_string) {
     Ok(schema) -> {
       let form_config =
-        FormConfig(
-          schema: schema,
-          submit_config: submit_config,
-          show_errors_on_change: False,
-          show_readonly_fields: False,
-          initial_values: dict.new(),
-          ui_schema: empty_ui_schema(),
-          validator: option.None,
-        )
+        FormConfig(..config(schema), submit_config: submit_config)
       Ok(from_config(form_config))
     }
     Error(err) -> Error(err)
