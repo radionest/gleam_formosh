@@ -166,3 +166,34 @@ pub fn change_values_decoder_test() {
   decode.run(payload, core.change_values_decoder())
   |> should.equal(Ok(dict.from_list([#("name", StringValue("Ada"))])))
 }
+
+fn submit_detail(fields: List(#(String, String))) {
+  dynamic.properties([
+    #(
+      dynamic.string("detail"),
+      dynamic.properties(
+        list.map(fields, fn(pair) {
+          #(dynamic.string(pair.0), dynamic.string(pair.1))
+        }),
+      ),
+    ),
+  ])
+}
+
+pub fn submit_result_decoder_test() {
+  decode.run(
+    submit_detail([#("status", "success"), #("data", "saved")]),
+    core.submit_result_decoder(),
+  )
+  |> should.equal(Ok(Ok("saved")))
+  decode.run(
+    submit_detail([#("status", "error"), #("error", "boom")]),
+    core.submit_result_decoder(),
+  )
+  |> should.equal(Ok(Error("boom")))
+  decode.run(
+    submit_detail([#("status", "weird")]),
+    core.submit_result_decoder(),
+  )
+  |> should.be_error()
+}

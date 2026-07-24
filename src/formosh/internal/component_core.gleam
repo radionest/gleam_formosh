@@ -461,6 +461,21 @@ pub fn change_values_decoder() -> decode.Decoder(dict.Dict(String, Value)) {
   )
 }
 
+/// Decode a `formosh-submit` event's `detail` back into a
+/// `Result(String, String)`, mirroring the shape emitted by
+/// `submit_result_payload`.
+pub fn submit_result_decoder() -> decode.Decoder(Result(String, String)) {
+  decode.then(decode.at(["detail", "status"], decode.string), fn(status) {
+    case status {
+      "success" ->
+        decode.at(["detail", "data"], decode.string) |> decode.map(Ok)
+      "error" ->
+        decode.at(["detail", "error"], decode.string) |> decode.map(Error)
+      _ -> decode.failure(Ok(""), "SubmitResult")
+    }
+  })
+}
+
 /// Emit the submission result to parent component.
 fn emit_submit_result(result: Result(String, String)) -> Effect(Msg) {
   event.emit("formosh-submit", submit_result_payload(result))

@@ -157,17 +157,11 @@ pub fn ui_schema_string(json: String) -> Attribute(msg) {
   attribute.attribute("ui-schema", json)
 }
 
-/// Listen for form submission events.
-///
-/// The handler receives the form data as a JSON object in the event detail.
-pub fn on_submit(handler: fn(dict.Dict(String, Value)) -> msg) -> Attribute(msg) {
-  event.on("formosh-submit", {
-    decode.at(["detail", "values"], decode.dynamic)
-    |> decode.map(fn(_data) {
-      // TODO: Properly decode the form values from dynamic
-      handler(dict.new())
-    })
-  })
+/// Listen for form submission results (`formosh-submit`). The handler
+/// receives `Ok(response_body)` on success or `Error(message)` on failure —
+/// the event's documented `{status, data|error}` detail, decoded.
+pub fn on_submit(handler: fn(Result(String, String)) -> msg) -> Attribute(msg) {
+  event.on("formosh-submit", decode.map(core.submit_result_decoder(), handler))
 }
 
 /// Listen for form validation events.
