@@ -4,6 +4,8 @@ import formosh/internal/component_core as core
 import formosh/schema/parser
 import formosh/schema/types.{ArrayValue, StringValue}
 import gleam/dict
+import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
@@ -144,4 +146,23 @@ pub fn parse_bool_attr_is_strict_test() {
   core.parse_bool_attr("true") |> should.be_true()
   core.parse_bool_attr("TRUE") |> should.be_false()
   core.parse_bool_attr("") |> should.be_false()
+}
+
+pub fn change_values_decoder_test() {
+  let payload =
+    dynamic.properties([
+      #(
+        dynamic.string("detail"),
+        dynamic.properties([
+          #(
+            dynamic.string("values"),
+            dynamic.properties([
+              #(dynamic.string("name"), dynamic.string("Ada")),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  decode.run(payload, core.change_values_decoder())
+  |> should.equal(Ok(dict.from_list([#("name", StringValue("Ada"))])))
 }

@@ -18,6 +18,7 @@ import formosh/schema/ui_schema.{type UiSchema, empty_ui_schema}
 import formosh/validation/cross_validator.{type Validator}
 import gleam/dict
 import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode
 import gleam/io
 import gleam/json
 import gleam/option.{type Option, None, Some}
@@ -448,6 +449,16 @@ pub fn change_event_payload(form_model: FormModel) -> json.Json {
     #("isValid", json.bool(form_model.is_valid)),
     #("isDirty", json.bool(form_model.is_dirty)),
   ])
+}
+
+/// Decode a `formosh-change` event's `detail.values` back into a
+/// `dict.Dict(String, Value)`, mirroring the shape emitted by
+/// `change_event_payload`.
+pub fn change_values_decoder() -> decode.Decoder(dict.Dict(String, Value)) {
+  decode.at(
+    ["detail", "values"],
+    decode.dict(decode.string, parser.value_decoder()),
+  )
 }
 
 /// Emit the submission result to parent component.

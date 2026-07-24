@@ -178,13 +178,8 @@ pub fn on_validate(handler: fn(Bool) -> msg) -> Attribute(msg) {
   })
 }
 
-/// Listen for form change events.
+/// Listen for form change events. The handler receives the form values
+/// decoded from the event's `detail.values`.
 pub fn on_change(handler: fn(dict.Dict(String, Value)) -> msg) -> Attribute(msg) {
-  event.on("formosh-change", {
-    decode.at(["detail", "values"], decode.dynamic)
-    |> decode.map(fn(_data) {
-      // TODO: Properly decode the form values from dynamic
-      handler(dict.new())
-    })
-  })
+  event.on("formosh-change", decode.map(core.change_values_decoder(), handler))
 }
