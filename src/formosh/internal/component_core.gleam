@@ -374,15 +374,9 @@ pub fn view(model: Model) -> Element(Msg) {
 
 // EFFECTS ---------------------------------------------------------------------
 
-/// Convert the form values tree to JSON object.
-fn values_to_json(values: Value) -> json.Json {
-  json_utils.value_to_json(values)
-}
-
-/// Emit the submission result to parent component.
-fn emit_submit_result(result: Result(String, String)) -> Effect(Msg) {
-  // Convert Result to JSON for event emission
-  let json_result = case result {
+/// Build the JSON payload for a submission result event.
+pub fn submit_result_payload(result: Result(String, String)) -> json.Json {
+  case result {
     Ok(body) ->
       json.object([
         #("status", json.string("success")),
@@ -394,18 +388,23 @@ fn emit_submit_result(result: Result(String, String)) -> Effect(Msg) {
         #("error", json.string(message)),
       ])
   }
+}
 
-  event.emit("formosh-submit", json_result)
+/// Build the JSON payload for a form-change event.
+pub fn change_event_payload(form_model: FormModel) -> json.Json {
+  json.object([
+    #("values", json_utils.value_to_json(model.get_resolved_values(form_model))),
+    #("isValid", json.bool(form_model.is_valid)),
+    #("isDirty", json.bool(form_model.is_dirty)),
+  ])
+}
+
+/// Emit the submission result to parent component.
+fn emit_submit_result(result: Result(String, String)) -> Effect(Msg) {
+  event.emit("formosh-submit", submit_result_payload(result))
 }
 
 /// Emit a custom event when the form changes.
 fn emit_change_event(form_model: FormModel) -> Effect(Msg) {
-  event.emit(
-    "formosh-change",
-    json.object([
-      #("values", values_to_json(model.get_resolved_values(form_model))),
-      #("isValid", json.bool(form_model.is_valid)),
-      #("isDirty", json.bool(form_model.is_dirty)),
-    ]),
-  )
+  event.emit("formosh-change", change_event_payload(form_model))
 }

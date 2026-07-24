@@ -4,8 +4,10 @@ import formosh/internal/component_core as core
 import formosh/schema/parser
 import formosh/schema/types.{ArrayValue, StringValue}
 import gleam/dict
+import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
 
 fn parse(json: String) {
@@ -103,4 +105,21 @@ pub fn show_readonly_fields_change_reinitializes_test() {
   // reinit path: the user edit is rebuilt away (characterizes current semantics)
   get_at_path(form_values(after), [PropertySegment("name")])
   |> should.not_equal(Some(StringValue("Ada")))
+}
+
+pub fn submit_result_payload_shapes_test() {
+  core.submit_result_payload(Ok("body"))
+  |> json.to_string
+  |> should.equal("{\"status\":\"success\",\"data\":\"body\"}")
+  core.submit_result_payload(Error("boom"))
+  |> json.to_string
+  |> should.equal("{\"status\":\"error\",\"error\":\"boom\"}")
+}
+
+pub fn change_event_payload_carries_values_and_flags_test() {
+  let assert Some(form_model) = edited().form_model
+  let payload = json.to_string(core.change_event_payload(form_model))
+  string.contains(payload, "\"name\":\"Ada\"") |> should.be_true()
+  string.contains(payload, "\"isValid\":") |> should.be_true()
+  string.contains(payload, "\"isDirty\":") |> should.be_true()
 }
