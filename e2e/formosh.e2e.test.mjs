@@ -85,8 +85,7 @@ async function typeInto(value) {
 // observed concretely twice: a same-named "name" field still holding the
 // prior test's "Ada" produced a doubled "AdaAda" value, and a differently
 // -named leftover field ("email", from a schema swap) silently absorbed the
-// keystrokes into a field the current model no longer has. See
-// task-11-report.md for the exact reproductions.
+// keystrokes into a field the current model no longer has.
 async function waitForField(name) {
   await page.waitForFunction(
     (n) => {
@@ -158,7 +157,7 @@ test("runtime schema swap reinitializes the form", async () => {
   // The "formosh-ready" event fires as part of the update that commits the
   // new model; the shadow-DOM patch lands a tick later, so poll instead of
   // reading the labels synchronously right after the event (observed as a
-  // real race — see task-11-report.md).
+  // real race).
   await page.waitForFunction(() =>
     [...document
       .querySelector("formosh-form")
@@ -185,7 +184,7 @@ test("read-only toggle preserves entered values", async () => {
   // of the fresh `name` one (observed: shadowRoot still showed
   // `{"labels":["Email"],"inputs":[{"name":"email"}]}` right after the ready
   // event, and typing into it produced formosh-change events with an empty
-  // `values: {}` — see task-11-report.md).
+  // `values: {}`).
   await waitForField("name");
   await typeInto("Ada");
   // Confirm the typed value actually landed in the model before flipping
@@ -219,7 +218,7 @@ test("read-only toggle preserves entered values", async () => {
   // test runs — component `read_only` is independent Model state that
   // persists across schema swaps (it is not reset by `SchemaChanged`), so a
   // fire-and-forget toggle here leaks read-only mode into later tests
-  // (observed as a real race — see task-11-report.md).
+  // (observed as a real race).
   await page.waitForFunction(() =>
     document
       .querySelector("formosh-form")
