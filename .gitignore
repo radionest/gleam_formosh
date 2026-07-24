@@ -4,9 +4,12 @@
 # Hand-written FFI files — not auto-generated
 !src/formosh/ffi/*_ffi.mjs
 !demo/src/*_ffi.mjs
+# Hand-written e2e test tooling — not auto-generated
+!e2e/*.mjs
 
 /build
 erl_crash.dump
+/node_modules
 
 # Generated files
 priv/static/example/

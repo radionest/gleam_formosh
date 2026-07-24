@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>formosh e2e harness</title>
+  </head>
+  <body>
+    <formosh-form id="form"></formosh-form>
+    <script type="module">
+      import "/dist/cdn.mjs";
+      window.__events = [];
+      window.__reset = () => { window.__events.length = 0; };
+      const form = document.getElementById("form");
+      for (const name of [
+        "formosh-ready",
+        "formosh-change",
+        "formosh-submitting",
+        "formosh-submit",
+      ]) {
+        form.addEventListener(name, (e) =>
+          window.__events.push({ name, detail: e.detail }),
+        );
+      }
+      window.__setSchema = (s) => form.setAttribute("schema", s);
+      window.__ready = true;
+    </script>
+  </body>
+</html>
