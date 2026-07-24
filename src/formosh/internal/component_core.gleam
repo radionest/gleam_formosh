@@ -11,13 +11,17 @@ import formosh/form/model.{
 }
 import formosh/form/update.{validate_all_fields}
 import formosh/form/view
+import formosh/schema/parser
 import formosh/schema/types.{type JsonSchema, type Value}
+import formosh/schema/ui_parser
 import formosh/schema/ui_schema.{type UiSchema, empty_ui_schema}
 import formosh/validation/cross_validator.{type Validator}
 import gleam/dict
 import gleam/dynamic.{type Dynamic}
+import gleam/io
 import gleam/json
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import lustre/attribute
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
@@ -344,6 +348,53 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       #(model, emit_submit_result(result))
     }
   }
+}
+
+// ATTRIBUTE PARSERS -------------------------------------------------------------
+
+/// Parse the `schema` attribute (JSON Schema string) into a `SchemaChanged`
+/// message. Logs a diagnostic and returns `Error(Nil)` on invalid input, per
+/// `lustre/component.on_attribute_change`'s contract.
+pub fn parse_schema_attr(value: String) -> Result(Msg, Nil) {
+  case parser.parse_schema(value) {
+    Ok(schema) -> Ok(SchemaChanged(schema))
+    Error(error) -> {
+      io.println_error("formosh: schema parse error: " <> string.inspect(error))
+      Error(Nil)
+    }
+  }
+}
+
+/// Parse the `initial-values` attribute (JSON object string) into an
+/// `InitialValuesChanged` message.
+pub fn parse_initial_values_attr(value: String) -> Result(Msg, Nil) {
+  case json_utils.json_string_to_values(value) {
+    Ok(values) -> Ok(InitialValuesChanged(values))
+    Error(_) -> {
+      io.println_error("formosh: initial-values parse error")
+      Error(Nil)
+    }
+  }
+}
+
+/// Parse the `ui-schema` attribute (JSON string) into a `UiSchemaChanged`
+/// message.
+pub fn parse_ui_schema_attr(value: String) -> Result(Msg, Nil) {
+  case ui_parser.parse(value) {
+    Ok(ui) -> Ok(UiSchemaChanged(ui))
+    Error(error) -> {
+      io.println_error(
+        "formosh: ui-schema parse error: " <> string.inspect(error),
+      )
+      Error(Nil)
+    }
+  }
+}
+
+/// Parse a boolean-flag attribute (`show-readonly-fields`, `read-only`).
+/// Strict: only the exact string `"true"` is truthy.
+pub fn parse_bool_attr(value: String) -> Bool {
+  value == "true"
 }
 
 // VIEW ------------------------------------------------------------------------

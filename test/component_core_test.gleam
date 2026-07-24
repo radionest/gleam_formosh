@@ -123,3 +123,25 @@ pub fn change_event_payload_carries_values_and_flags_test() {
   string.contains(payload, "\"isValid\":") |> should.be_true()
   string.contains(payload, "\"isDirty\":") |> should.be_true()
 }
+
+pub fn parse_schema_attr_test() {
+  core.parse_schema_attr("{\"type\":\"object\",\"properties\":{}}")
+  |> should.be_ok()
+  core.parse_schema_attr("nope") |> should.be_error()
+}
+
+pub fn parse_initial_values_attr_test() {
+  core.parse_initial_values_attr("{\"name\":\"Ada\"}") |> should.be_ok()
+  core.parse_initial_values_attr("[1,2]") |> should.be_error()
+}
+
+pub fn parse_ui_schema_attr_test() {
+  core.parse_ui_schema_attr("{\"ui:placeholder\":\"x\"}") |> should.be_ok()
+  core.parse_ui_schema_attr("{") |> should.be_error()
+}
+
+pub fn parse_bool_attr_is_strict_test() {
+  core.parse_bool_attr("true") |> should.be_true()
+  core.parse_bool_attr("TRUE") |> should.be_false()
+  core.parse_bool_attr("") |> should.be_false()
+}

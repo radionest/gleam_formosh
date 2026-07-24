@@ -2,17 +2,12 @@
 // This module provides a Lustre component that can be embedded in applications
 // with configurable submission endpoint and other properties.
 
-import formosh/form/json_utils
 import formosh/internal/component_core as core
-import formosh/schema/parser
 import formosh/schema/serializer
 import formosh/schema/types.{type JsonSchema, type Value}
-import formosh/schema/ui_parser
 import gleam/dict
 import gleam/dynamic/decode
-import gleam/io
 import gleam/json
-import gleam/string
 import lustre
 import lustre/attribute.{type Attribute}
 import lustre/component
@@ -34,17 +29,7 @@ pub fn register() -> Result(Nil, lustre.Error) {
   let component =
     lustre.component(core.init, core.update, core.view, [
       // Listen for schema changes (JSON string)
-      component.on_attribute_change("schema", fn(value) {
-        case parser.parse_schema(value) {
-          Ok(schema) -> Ok(core.SchemaChanged(schema))
-          Error(error) -> {
-            io.println_error(
-              "formosh: schema parse error: " <> string.inspect(error),
-            )
-            Error(Nil)
-          }
-        }
-      }),
+      component.on_attribute_change("schema", core.parse_schema_attr),
       // Listen for submit URL changes
       component.on_attribute_change("submit-url", fn(value) {
         Ok(core.SubmitUrlChanged(value))
@@ -54,39 +39,24 @@ pub fn register() -> Result(Nil, lustre.Error) {
         Ok(core.SubmitMethodChanged(value))
       }),
       // Listen for initial values changes (JSON string)
-      component.on_attribute_change("initial-values", fn(value) {
-        case json_utils.json_string_to_values(value) {
-          Ok(values) -> Ok(core.InitialValuesChanged(values))
-          Error(_) -> {
-            io.println_error("formosh: initial-values parse error")
-            Error(Nil)
-          }
-        }
-      }),
+      component.on_attribute_change(
+        "initial-values",
+        core.parse_initial_values_attr,
+      ),
       // Listen for show-readonly-fields changes
       component.on_attribute_change("show-readonly-fields", fn(value) {
-        Ok(core.ShowReadonlyFieldsChanged(value == "true"))
+        Ok(core.ShowReadonlyFieldsChanged(core.parse_bool_attr(value)))
       }),
       // Listen for read-only (review) mode toggle
       component.on_attribute_change("read-only", fn(value) {
-        Ok(core.ReadOnlyChanged(value == "true"))
+        Ok(core.ReadOnlyChanged(core.parse_bool_attr(value)))
       }),
       // Listen for upload-base-url changes
       component.on_attribute_change("upload-base-url", fn(value) {
         Ok(core.UploadBaseUrlChanged(value))
       }),
       // Listen for ui-schema changes (JSON string)
-      component.on_attribute_change("ui-schema", fn(value) {
-        case ui_parser.parse(value) {
-          Ok(ui) -> Ok(core.UiSchemaChanged(ui))
-          Error(error) -> {
-            io.println_error(
-              "formosh: ui-schema parse error: " <> string.inspect(error),
-            )
-            Error(Nil)
-          }
-        }
-      }),
+      component.on_attribute_change("ui-schema", core.parse_ui_schema_attr),
       // Listen for `validator` JS property — embedder sets
       // `element.validator = (values) => [...]` on the DOM node.
       component.on_property_change(
