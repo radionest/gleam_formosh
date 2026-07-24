@@ -82,6 +82,10 @@ spelled out in the `with_validator` doc comment in `src/formosh.gleam`.
 ## Reading form state
 
 ```gleam
+// Build the initial FormModel without starting a Lustre app — the
+// headless embedding path. from_config initializes with exactly this.
+formosh.init_model(config: FormConfig) -> FormModel
+
 // The full value tree. Always ObjectValue at the root.
 formosh.get_values(model: FormModel) -> Value
 ```
@@ -117,8 +121,8 @@ an HTML attribute on `<formosh-form>`):
 | `component.read_only(Bool)` | `read-only` | review mode |
 | `component.upload_base_url(String)` | `upload-base-url` | image upload base |
 | `component.ui_schema_string(String)` | `ui-schema` | `with_ui_schema_json` |
-| `component.on_submit(fn(Dict) -> msg)` | — | `formosh-submit` listener |
-| `component.on_change(fn(Dict) -> msg)` | — | `formosh-change` listener |
+| `component.on_submit(fn(Result(String, String)) -> msg)` | — | `formosh-submit` listener; `Ok(body)` on success / `Error(message)` on failure, decoded from the `{status, data\|error}` detail |
+| `component.on_change(fn(Dict(String, Value)) -> msg)` | — | `formosh-change` listener; decodes `detail.values` into a real `Dict(String, Value)` |
 | `component.on_validate(fn(Bool) -> msg)` | — | listens for `formosh-validate`, which is **never emitted** — a no-op today (see `ROADMAP.md`) |
 
 See [Web Component](../guides/web-component.md) for the attribute table and
