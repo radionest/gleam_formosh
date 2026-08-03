@@ -198,8 +198,10 @@ component — there is no library-side builder for it), rendering switches whole
 `readonly_field`: enums show their label, booleans show Yes/No, nested
 objects render as groups, arrays of flat objects render as **tables**, and
 `password`-format or `ui:widget: "password"` fields show a fixed
-`••••••••` mask instead of the stored value. Submit/Reset are hidden. See
-[Styling](../guides/styling.md) for the `readonly-*` part names.
+`••••••••` mask instead of the stored value (an empty or unset password
+still falls through to the usual `—`, like any other blank field).
+Submit/Reset are hidden. See [Styling](../guides/styling.md) for the
+`readonly-*` part names.
 
 ## Override mechanisms
 
@@ -243,8 +245,9 @@ survives serialization round-trips more reliably. Upload-related extensions
 `CustomWidget(String)` is the escape hatch. Anything you put in `ui:widget`
 that isn't a recognised first-class variant becomes a `CustomWidget("…")`
 and reaches the renderer as a plain string. The string renderers already
-dispatch on three of these (`"textarea"`, `"select"`, `"radio"`); a custom
-renderer can read `ctx.hints.widget` and do its own dispatch from there.
+dispatch on four of these (`"textarea"`, `"select"`, `"radio"`,
+`"password"`); a custom renderer can read `ctx.hints.widget` and do its
+own dispatch from there.
 
 ## Where to look in source
 

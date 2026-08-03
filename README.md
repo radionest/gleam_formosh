@@ -362,7 +362,7 @@ The widget is chosen automatically based on schema:
 | `string` + `format: "url"` or `"uri"` | url input |
 | `string` + `format: "date"` | date input — native picker |
 | `string` + `format: "time"` | time input — native picker |
-| `string` + `format: "password"` or `ui:widget: "password"` | password input — masked |
+| `string` + `format: "password"` or `ui:widget: "password"` | password input — masked (see UiSchema docs for the `maxLength` edge, where only the widget route survives past 100 chars) |
 | `string` + `format: "date-time"` | text input — deliberately not wired (see `ROADMAP.md`) |
 | `number` / `integer` | number input (with `step` from `multipleOf`) |
 | `boolean` | Yes/No radio buttons |

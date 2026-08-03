@@ -183,20 +183,22 @@ pub type StringFormat {
 ```
 
 Maps to the HTML input `type` attribute in `string_field.get_input_type`
-(`EmailFormat` → `email`, `UrlFormat`/`UriFormat` → `url`, `DateFormat` →
-`date`, `TimeFormat` → `time`, `PasswordFormat` → `password`,
-`DateTimeFormat` → `datetime-local`; `UuidFormat` and `CustomFormat` fall
-back to `text`).
+(`EmailFormat` → `email`, `UrlFormat` → `url`, `DateFormat` → `date`,
+`TimeFormat` → `time`, `PasswordFormat` → `password`, `DateTimeFormat` →
+`datetime-local`; `UriFormat`, `UuidFormat`, and `CustomFormat` fall back
+to `text` — see the reachability caveat below for why `UriFormat` never
+actually reaches this function).
 
 > **Reachability caveat.** The parser's `format_decoder` produces
 > `EmailFormat`, `UrlFormat`, `UuidFormat`, `DateFormat`, `TimeFormat`,
-> `PasswordFormat`, and `CustomFormat` — but never `DateTimeFormat`.
-> `format: "date-time"` is deliberately decoded to
-> `CustomFormat("date-time")` instead (RFC 3339's mandatory UTC offset is
-> incompatible with `<input type="datetime-local">`), so `DateTimeFormat`
-> and its `get_input_type` mapping stay unreachable from a parsed schema.
-> See [Widget Selection](widgets.md#html-input-type-from-format) and
-> `ROADMAP.md`.
+> `PasswordFormat`, and `CustomFormat` — but never `DateTimeFormat`, nor
+> `UriFormat` (`"uri"` decodes to `UrlFormat` too, same as `"url"` — a
+> separate, permanent redundancy, not a to-do). `format: "date-time"` is
+> deliberately decoded to `CustomFormat("date-time")` instead (RFC 3339's
+> mandatory UTC offset is incompatible with `<input
+> type="datetime-local">`), so `DateTimeFormat` and its `get_input_type`
+> mapping stay unreachable from a parsed schema. See [Widget
+> Selection](widgets.md#html-input-type-from-format) and `ROADMAP.md`.
 
 ### `Widget` — widget overrides
 
