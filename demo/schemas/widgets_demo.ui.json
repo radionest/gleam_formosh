@@ -6,6 +6,7 @@
     "launch_date",
     "short_bio",
     "long_description",
+    "api_key",
     "tech_stack",
     "primary_locale",
     "team_size",
@@ -30,6 +31,10 @@
   "short_bio": {
     "ui:widget": "textarea",
     "ui:placeholder": "Несколько предложений о проекте"
+  },
+  "api_key": {
+    "ui:widget": "password",
+    "ui:placeholder": "sk-..."
   },
   "tech_stack": {
     "ui:widget": "select",

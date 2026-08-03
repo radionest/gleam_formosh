@@ -70,6 +70,7 @@
         "password": {
           "type": "string",
           "title": "Пароль",
+          "format": "password",
           "description": "Минимум 8 символов, включая цифры и буквы",
           "minLength": 8,
           "maxLength": 50
@@ -77,6 +78,7 @@
         "passwordConfirm": {
           "type": "string",
           "title": "Подтвердите пароль",
+          "format": "password",
           "minLength": 8,
           "maxLength": 50
         }
