@@ -392,6 +392,42 @@ pub fn date_format_value_is_not_validated_test() {
   errors |> should.equal([])
 }
 
+fn password_path() -> path.FieldPath {
+  path.from_field_name("password")
+}
+
+fn password_with_min_length(min: Int) -> SchemaProperty {
+  SchemaProperty(
+    ..empty_property(),
+    field_type: Some(types.StringType),
+    string_constraints: Some(types.StringConstraints(
+      min_length: Some(min),
+      max_length: None,
+      pattern: None,
+      format: Some(types.PasswordFormat),
+    )),
+  )
+}
+
+// Masking is presentational only (Task 3 renders format: "password" as
+// type="password"): it must not weaken or bypass ordinary string
+// validation. A too-short value still produces a minLength error, same as
+// any other string field.
+pub fn password_format_min_length_still_validates_test() {
+  let property = password_with_min_length(8)
+  let errors =
+    validator.validate_field(
+      password_path(),
+      Some(StringValue("abc")),
+      property,
+      False,
+      property.render_hints.widget,
+    )
+
+  list.any(errors, fn(e) { e.rule == "minLength" })
+  |> should.be_true()
+}
+
 fn n_path() -> path.FieldPath {
   path.from_field_name("n")
 }

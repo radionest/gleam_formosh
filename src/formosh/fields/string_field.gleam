@@ -48,6 +48,7 @@ fn render_string_or_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
     Some("textarea") -> render_textarea(ctx)
     Some("select") -> render_select_or_enum(ctx, force_select: True)
     Some("radio") -> render_select_or_enum(ctx, force_select: False)
+    Some("password") -> render_input(ctx)
     _ ->
       case ctx.property.enum_values {
         Some(_enum_vals) -> render_enum(ctx)
@@ -104,11 +105,14 @@ fn render_select_or_enum(
   }
 }
 
-/// Render a standard HTML input with format-derived type and constraints.
+/// Render a standard HTML input with format- or widget-derived type, and
+/// constraints. `ui:widget` (`widget_input_type`) wins over `format`
+/// (`get_input_type`) when both would apply.
 fn render_input(ctx: FieldRenderCtx) -> Element(FormMsg) {
   let current_value = field_common.extract_string_value(ctx.value)
 
-  let input_type = get_input_type(ctx.property)
+  let input_type =
+    option.unwrap(widget_input_type(ctx), get_input_type(ctx.property))
   let extra_attrs = [
     attribute.type_(input_type),
     attribute.class("formosh-input"),
@@ -321,9 +325,19 @@ fn get_input_type(property: types.SchemaProperty) -> String {
         Some(types.DateFormat) -> "date"
         Some(types.DateTimeFormat) -> "datetime-local"
         Some(types.TimeFormat) -> "time"
+        Some(types.PasswordFormat) -> "password"
         _ -> "text"
       }
     None -> "text"
+  }
+}
+
+/// Input type forced by a `ui:widget` hint, independent of `format`.
+/// `None` means "fall back to the format-derived type".
+fn widget_input_type(ctx: FieldRenderCtx) -> Option(String) {
+  case widget_name(ctx) {
+    Some("password") -> Some("password")
+    _ -> None
   }
 }
 
