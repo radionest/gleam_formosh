@@ -76,26 +76,28 @@ async function typeInto(value) {
   await page.keyboard.type(value);
 }
 
-// Wait for the named field to be present *and* reset to its fresh (empty)
-// value before typing into it. "formosh-ready" fires as part of the update
-// that commits a reinitialized model; the shadow-DOM patch (including
-// clearing a previous test's leftover value on a same-named field, or
-// swapping in a differently-named one) lands a tick later. Typing right
-// after the ready event can land on a stale, not-yet-cleared input —
-// observed concretely twice: a same-named "name" field still holding the
-// prior test's "Ada" produced a doubled "AdaAda" value, and a differently
-// -named leftover field ("email", from a schema swap) silently absorbed the
-// keystrokes into a field the current model no longer has.
-async function waitForField(name) {
+// Wait for the named field to be present *and* holding `expected` (default:
+// its fresh/empty value) before acting on it. "formosh-ready" fires as part
+// of the update that commits a reinitialized model; the shadow-DOM patch
+// (including clearing a previous test's leftover value on a same-named
+// field, swapping in a differently-named one, or applying a schema
+// `default`) lands a tick later. Acting right after the ready event can
+// land on a stale input — observed concretely twice: a same-named "name"
+// field still holding the prior test's "Ada" produced a doubled "AdaAda"
+// value when typed into, and a differently-named leftover field ("email",
+// from a schema swap) silently absorbed keystrokes into a field the
+// current model no longer has.
+async function waitForField(name, expected = "") {
   await page.waitForFunction(
-    (n) => {
+    (n, v) => {
       const input = document
         .querySelector("formosh-form")
         .shadowRoot.querySelector(`input[name="${n}"]`);
-      return input && input.value === "";
+      return input && input.value === v;
     },
     {},
     name,
+    expected,
   );
 }
 
@@ -328,4 +330,71 @@ test("submit failure reports the error shape", async () => {
   const submit = await lastEvent("formosh-submit");
   assert.equal(submit.detail.status, "error");
   assert.equal(typeof submit.detail.error, "string");
+});
+
+test("date and password formats render native input types and mask in read-only", async () => {
+  const schema = JSON.stringify({
+    type: "object",
+    properties: {
+      start_date: { type: "string", format: "date", title: "Start date" },
+      secret: {
+        type: "string",
+        format: "password",
+        title: "Secret",
+        default: "hunter2",
+      },
+    },
+  });
+  await page.evaluate((s) => {
+    window.__reset();
+    window.__setSchema(s);
+  }, schema);
+  await lastEvent("formosh-ready");
+  // The password field carries a schema `default` — wait for it to land
+  // (same DOM-patch-lags-ready race documented on waitForField) before
+  // reading input types off a possibly stale render.
+  await waitForField("secret", "hunter2");
+
+  const inputTypes = await shadowEval(() => {
+    const root = document.querySelector("formosh-form").shadowRoot;
+    return {
+      date: root.querySelector('input[name="start_date"]').type,
+      password: root.querySelector('input[name="secret"]').type,
+    };
+  });
+  assert.equal(inputTypes.date, "date");
+  assert.equal(inputTypes.password, "password");
+
+  await page.evaluate(() =>
+    document.querySelector("formosh-form").setAttribute("read-only", "true"),
+  );
+  await page.waitForFunction(() =>
+    document
+      .querySelector("formosh-form")
+      .shadowRoot.querySelector('[part="readonly-value"]'),
+  );
+  const maskedText = await shadowEval(() => {
+    const rows = [
+      ...document
+        .querySelector("formosh-form")
+        .shadowRoot.querySelectorAll('[part="readonly-field"]'),
+    ];
+    const secretRow = rows.find((r) =>
+      r
+        .querySelector('[part="readonly-label"]')
+        .textContent.includes("Secret"),
+    );
+    return secretRow.querySelector('[part="readonly-value"]').textContent;
+  });
+  assert.equal(maskedText, "••••••••");
+
+  // Reset read-only so any test added after this one doesn't inherit the
+  // state — matches the cleanup in "read-only toggle preserves entered
+  // values".
+  await page.evaluate(() =>
+    document.querySelector("formosh-form").setAttribute("read-only", "false"),
+  );
+  await page.waitForFunction(() =>
+    document.querySelector("formosh-form").shadowRoot.querySelector("input"),
+  );
 });
