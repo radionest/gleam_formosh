@@ -5,11 +5,11 @@ import formosh/schema/types.{
   type ArrayConstraints, type ConditionalRule, type FieldType, type JsonSchema,
   type NumberConstraints, type ParseError, type SchemaProperty,
   type StringConstraints, type Value, ArrayConstraints, ArrayType, BooleanType,
-  BooleanValue, ConditionalRule, CustomFormat, DecodingError, EmailFormat,
-  IntegerType, IntegerValue, InvalidJson, JsonSchema, NullType, NullValue,
-  NumberConstraints, NumberType, NumberValue, ObjectType, SchemaProperty,
-  StringConstraints, StringType, StringValue, UnexpectedValue, UrlFormat,
-  UuidFormat, empty_property,
+  BooleanValue, ConditionalRule, CustomFormat, DateFormat, DecodingError,
+  EmailFormat, IntegerType, IntegerValue, InvalidJson, JsonSchema, NullType,
+  NullValue, NumberConstraints, NumberType, NumberValue, ObjectType,
+  PasswordFormat, SchemaProperty, StringConstraints, StringType, StringValue,
+  TimeFormat, UnexpectedValue, UrlFormat, UuidFormat, empty_property,
 }
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
@@ -721,6 +721,13 @@ fn format_decoder() -> Decoder(types.StringFormat) {
       "email" -> decode.success(EmailFormat)
       "url" | "uri" -> decode.success(UrlFormat)
       "uuid" -> decode.success(UuidFormat)
+      "date" -> decode.success(DateFormat)
+      "time" -> decode.success(TimeFormat)
+      "password" -> decode.success(PasswordFormat)
+      // "date-time" is deliberately NOT wired: RFC 3339 requires a UTC
+      // offset, <input type="datetime-local"> forbids one, and a browser
+      // given a non-conforming value renders blank rather than erroring.
+      // See openspec design.md D2 before "completing the set" here.
       _ -> decode.success(CustomFormat(format_str))
     }
   })

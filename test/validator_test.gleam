@@ -365,6 +365,33 @@ pub fn pattern_skipped_for_empty_optional_string_test() {
   errors |> should.equal([])
 }
 
+fn birth_date_path() -> path.FieldPath {
+  path.from_field_name("birth_date")
+}
+
+// Newly recognized formats are not validated: promoting "date" from
+// CustomFormat to DateFormat must not switch on format validation.
+// validator.validate_field's format case only special-cases email/url —
+// every other variant, DateFormat included, falls through the catch-all
+// untouched. A non-conforming value must not produce a format error.
+pub fn date_format_value_is_not_validated_test() {
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\": \"object\", \"properties\": {\"birth_date\": {\"type\": \"string\", \"format\": \"date\"}}}",
+    )
+  let assert Ok(prop) = list.key_find(schema.properties, "birth_date")
+  let errors =
+    validator.validate_field(
+      birth_date_path(),
+      Some(StringValue("not-a-date")),
+      prop,
+      False,
+      prop.render_hints.widget,
+    )
+
+  errors |> should.equal([])
+}
+
 fn n_path() -> path.FieldPath {
   path.from_field_name("n")
 }

@@ -1025,3 +1025,19 @@ pub fn password_format_serializes_test() {
   |> string.contains("\"format\":\"password\"")
   |> should.be_true()
 }
+
+pub fn date_format_round_trips_test() {
+  let assert Ok(schema) =
+    parser.parse_schema("{\"type\": \"string\", \"format\": \"date\"}")
+  json.to_string(serializer.schema_to_json(schema))
+  |> string.contains("\"format\":\"date\"")
+  |> should.be_true()
+}
+
+pub fn time_format_round_trips_test() {
+  let assert Ok(schema) =
+    parser.parse_schema("{\"type\": \"string\", \"format\": \"time\"}")
+  json.to_string(serializer.schema_to_json(schema))
+  |> string.contains("\"format\":\"time\"")
+  |> should.be_true()
+}
