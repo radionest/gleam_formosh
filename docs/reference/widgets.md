@@ -95,7 +95,10 @@ When a string renders as a plain `<input>`, its `type` attribute comes from
 | `uuid`, custom, none | `text` |
 
 The typed inputs are what get you the mobile-optimised keyboard and, for
-`date` / `time`, the browser's native picker.
+`date` / `time`, the browser's native picker. `password` only masks the
+on-screen input — see [UiSchema § Password
+masking](ui-schema.md#password-masking) for why that isn't a security
+boundary.
 
 `format: "date-time"` stays a text input on purpose. RFC 3339 `date-time`
 requires a UTC offset (e.g. `2024-03-15T09:30:00Z`); HTML `datetime-local`
@@ -199,7 +202,8 @@ component — there is no library-side builder for it), rendering switches whole
 objects render as groups, arrays of flat objects render as **tables**, and
 `password`-format or `ui:widget: "password"` fields show a fixed
 `••••••••` mask instead of the stored value (an empty or unset password
-still falls through to the usual `—`, like any other blank field).
+still falls through to the usual `—`, like any other blank field) —
+presentational only, same caveat as the edit-mode masking above.
 Submit/Reset are hidden. See [Styling](../guides/styling.md) for the
 `readonly-*` part names.
 
