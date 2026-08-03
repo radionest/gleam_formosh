@@ -393,6 +393,41 @@ fn password_array_items_schema() -> types.JsonSchema {
   schema
 }
 
+// --- Regression guard: empty-string dash vs. oneOf label (non-password) ---
+//
+// Masking an unset password requires treating `Some(StringValue(""))` as
+// "show the dash" ahead of the oneOf label lookup (see
+// `empty_password_renders_dash_not_mask_test` above). That must stay scoped
+// to password fields — a plain (non-password) oneOf branch whose `const` is
+// the empty string should still show its title, exactly as it did before
+// password masking existed.
+pub fn readonly_view_renders_empty_const_oneof_label_test() {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"status\": {
+          \"type\": \"string\",
+          \"title\": \"Status\",
+          \"oneOf\": [
+            { \"const\": \"\", \"title\": \"None selected\" },
+            { \"const\": \"done\", \"title\": \"Done\" }
+          ]
+        }
+      }
+    }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let html =
+    FormModel(
+      ..model.init(schema),
+      values: types.ObjectValue([#("status", types.StringValue(""))]),
+      read_only: True,
+    )
+    |> view.view
+    |> element.to_string
+  html |> string.contains("None selected") |> should.be_true
+}
+
 pub fn password_array_items_are_masked_test() {
   let html =
     FormModel(

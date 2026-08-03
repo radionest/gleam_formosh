@@ -123,11 +123,12 @@ fn display_value(
   value: Option(Value),
 ) -> String {
   case value {
-    None | Some(types.NullValue) | Some(types.StringValue("")) -> dash
+    None | Some(types.NullValue) -> dash
     Some(v) ->
-      case is_password(property, hints) {
-        True -> password_mask
-        False ->
+      case is_password(property, hints), v {
+        True, types.StringValue("") -> dash
+        True, _ -> password_mask
+        False, _ ->
           case enum_label(property, v) {
             Some(label) -> label
             None -> scalar_to_string(v)
