@@ -41,8 +41,9 @@ pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
 ///
 /// `ui:widget` override takes priority — `"textarea"` forces a textarea,
 /// `"select"` / `"radio"` force the corresponding enum widget regardless
-/// of option count. Without an override, the field type is inferred from
-/// schema (enum values → select/radio, maxLength > 100 → textarea).
+/// of option count, `"password"` forces a password input. Without an
+/// override, the field type is inferred from schema (enum values →
+/// select/radio, maxLength > 100 → textarea).
 fn render_string_or_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
   case widget_name(ctx) {
     Some("textarea") -> render_textarea(ctx)
