@@ -177,19 +177,26 @@ pub type StringFormat {
   UriFormat
   UrlFormat
   UuidFormat
+  PasswordFormat
   CustomFormat(String)
 }
 ```
 
 Maps to the HTML input `type` attribute in `string_field.get_input_type`
 (`EmailFormat` → `email`, `UrlFormat`/`UriFormat` → `url`, `DateFormat` →
-`date`, `TimeFormat` → `time`, `DateTimeFormat` → `datetime-local`;
-`UuidFormat` and `CustomFormat` fall back to `text`).
+`date`, `TimeFormat` → `time`, `PasswordFormat` → `password`,
+`DateTimeFormat` → `datetime-local`; `UuidFormat` and `CustomFormat` fall
+back to `text`).
 
-> **Reachability caveat.** The parser's `format_decoder` only ever produces
-> `EmailFormat`, `UrlFormat`, `UuidFormat`, and `CustomFormat` — the
-> date/time variants are currently unreachable from a parsed schema, so
-> `format: "date"` renders as a plain text input (see `ROADMAP.md`).
+> **Reachability caveat.** The parser's `format_decoder` produces
+> `EmailFormat`, `UrlFormat`, `UuidFormat`, `DateFormat`, `TimeFormat`,
+> `PasswordFormat`, and `CustomFormat` — but never `DateTimeFormat`.
+> `format: "date-time"` is deliberately decoded to
+> `CustomFormat("date-time")` instead (RFC 3339's mandatory UTC offset is
+> incompatible with `<input type="datetime-local">`), so `DateTimeFormat`
+> and its `get_input_type` mapping stay unreachable from a parsed schema.
+> See [Widget Selection](widgets.md#html-input-type-from-format) and
+> `ROADMAP.md`.
 
 ### `Widget` — widget overrides
 
@@ -198,7 +205,7 @@ pub type Widget {
   ImageUploadWidget
   HiddenWidget
   SwipeReviewWidget
-  CustomWidget(String)   // e.g. "textarea", "select", "radio"
+  CustomWidget(String)   // e.g. "textarea", "select", "radio", "password"
 }
 ```
 

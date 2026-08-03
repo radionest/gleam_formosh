@@ -727,7 +727,8 @@ fn format_decoder() -> Decoder(types.StringFormat) {
       // "date-time" is deliberately NOT wired: RFC 3339 requires a UTC
       // offset, <input type="datetime-local"> forbids one, and a browser
       // given a non-conforming value renders blank rather than erroring.
-      // See openspec design.md D2 before "completing the set" here.
+      // See docs/reference/widgets.md ("HTML input type from `format`")
+      // before "completing the set" here.
       _ -> decode.success(CustomFormat(format_str))
     }
   })

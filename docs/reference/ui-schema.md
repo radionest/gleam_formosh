@@ -92,7 +92,7 @@ default (or `x-*` extension where applicable)".
 
 | Key | Type | Effect |
 |-----|------|--------|
-| `ui:widget` | string | Override the auto-selected widget. Recognized: `"image-upload"`, `"hidden"`, `"swipe-review"`, plus the string-field hints `"textarea"`, `"select"`, `"radio"`. `"select"` / `"radio"` also apply to an `anyOf` union chooser on the same path — same ≤5-radio / >5-select contract as a string `enum`, see [Union chooser](widgets.md#union-chooser-anyof-2-branches). Anything else becomes a `CustomWidget(raw)` that custom renderers can dispatch on. See [Widget Selection](widgets.md). |
+| `ui:widget` | string | Override the auto-selected widget. Recognized: `"image-upload"`, `"hidden"`, `"swipe-review"`, plus the string-field hints `"textarea"`, `"select"`, `"radio"`, `"password"`. `"select"` / `"radio"` also apply to an `anyOf` union chooser on the same path — same ≤5-radio / >5-select contract as a string `enum`, see [Union chooser](widgets.md#union-chooser-anyof-2-branches). Anything else becomes a `CustomWidget(raw)` that custom renderers can dispatch on. See [Widget Selection](widgets.md). |
 | `ui:options` | object | Free-form bag of widget-specific settings, passed through to the renderer as a `Dict(String, Value)`. E.g. `swipe-review` reads `swipeRight` / `swipeLeft` / `button` / `hideAnsweredLabel` from here. |
 
 ### Labels and help
@@ -138,6 +138,22 @@ widget, these are ignored (no silent `image/*` fallback).
 |-----|------|--------|
 | `ui:accept` | string | The `accept` attribute on the file input. Defaults to `"image/*"` when the widget is set. |
 | `ui:maxFileSize` | number | Maximum file size in bytes. |
+
+### Password masking
+
+`ui:widget: "password"` forces `<input type="password">` regardless of the
+field's `format` — the widget hint **wins over a conflicting `format`**,
+and (unlike `format: "password"` alone) it is dispatched **before** the
+`maxLength > 100 → textarea` threshold, so a long password field stays a
+password input instead of falling back to a textarea. `format: "password"`
+without the widget hint does not get that same precedence: a
+`maxLength: 128` password declared only via `format` still becomes an
+unmasked textarea — a documented edge case, not a bug. See [HTML input
+type from `format`](widgets.md#html-input-type-from-format).
+
+Masking is presentational only, in both edit mode and read-only (review)
+mode: the raw value still lives in `model.values` and is still published
+via the `formosh-change` event. Do not treat it as a security boundary.
 
 ## How the tree is walked
 

@@ -702,9 +702,10 @@ pub fn password_format_decodes_to_password_format_test() {
   |> should.equal(Some(types.PasswordFormat))
 }
 
-// Deliberate non-promotion — see design.md D2. RFC 3339 date-time requires a
-// UTC offset that <input type="datetime-local"> rejects, so wiring it would
-// silently blank the input for every offset-bearing backend value.
+// Deliberate non-promotion — see docs/reference/widgets.md ("HTML input
+// type from `format`"). RFC 3339 date-time requires a UTC offset that
+// <input type="datetime-local"> rejects, so wiring it would silently blank
+// the input for every offset-bearing backend value.
 pub fn date_time_format_stays_custom_test() {
   parsed_root_format("{\"type\": \"string\", \"format\": \"date-time\"}")
   |> should.equal(Some(types.CustomFormat("date-time")))

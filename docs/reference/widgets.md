@@ -51,8 +51,8 @@ Four consequences of this order:
   the type-derived widget.
 - `CustomWidget` names do **not** short-circuit dispatch — they ride along
   into the type-based renderer, and only the **string** renderer reads them
-  (`"textarea"`, `"select"`, `"radio"`). `ui:widget: "textarea"` on a
-  number field is silently ignored.
+  (`"textarea"`, `"select"`, `"radio"`, `"password"`).
+  `ui:widget: "textarea"` on a number field is silently ignored.
 - If a property has no `type` but does have `enum` / `oneOf`, it still
   renders as a string enum (the fallback branch is how typeless enums work).
 
@@ -70,6 +70,7 @@ flowchart TD
     UW -- "textarea" --> TA["textarea"]
     UW -- "select" --> SEL["enum as select<br/>(forces dropdown even for ≤5)"]
     UW -- "radio" --> RAD["enum as radio<br/>(forces radios even for >5)"]
+    UW -- "password" --> PW["password input<br/>(type=password; wins over format<br/>and skips the maxLength textarea check)"]
     UW -- "none" --> EV{"enum_values present?"}
     EV -- "yes, ≤5 options" --> R5["radio group"]
     EV -- "yes, >5 options" --> S5["select dropdown"]
@@ -87,15 +88,28 @@ When a string renders as a plain `<input>`, its `type` attribute comes from
 |----------|---------------------|
 | `email` | `email` |
 | `url` or `uri` | `url` |
-| `date`, `time`, `datetime` | `text` — **native pickers not wired up** (see below) |
+| `date` | `date` — native picker |
+| `time` | `time` — native picker |
+| `password` | `password` — masked |
+| `date-time` | `text` — **deliberately not wired**, see below |
 | `uuid`, custom, none | `text` |
 
-The typed inputs are what get you the mobile-optimised keyboard.
-`get_input_type` does carry `DateFormat`/`TimeFormat`/`DateTimeFormat` →
-`date`/`time`/`datetime-local` mappings, but the parser's `format_decoder`
-only ever produces `EmailFormat`, `UrlFormat`, `UuidFormat`, and
-`CustomFormat` — so those date/time mappings are unreachable from a parsed
-schema and the fields render as plain text (see `ROADMAP.md`).
+The typed inputs are what get you the mobile-optimised keyboard and, for
+`date` / `time`, the browser's native picker.
+
+`format: "date-time"` stays a text input on purpose. RFC 3339 `date-time`
+requires a UTC offset (e.g. `2024-03-15T09:30:00Z`); HTML `datetime-local`
+forbids one. A browser given a non-conforming value renders the input
+**blank** rather than raising, so wiring it would silently empty the field
+for every backend that emits correct RFC 3339 — which is most of them.
+`DateTimeFormat` and its `get_input_type` mapping therefore remain
+unreachable from a parsed schema. See `ROADMAP.md`.
+
+> **Data contract.** `<input type="date">` accepts only `YYYY-MM-DD` and
+> `<input type="time">` only `HH:mm[:ss]`. A value outside that shape
+> renders as an empty input with no console error. If your backend sends a
+> full timestamp for a `format: "date"` field, normalise it before passing
+> it as `initial-values`.
 
 ## Number fields
 
@@ -182,9 +196,10 @@ object property instead.
 When the whole form is in review mode (`read-only="true"` on the web
 component — there is no library-side builder for it), rendering switches wholesale to
 `readonly_field`: enums show their label, booleans show Yes/No, nested
-objects render as groups, arrays of flat objects render as **tables**.
-Submit/Reset are hidden. See [Styling](../guides/styling.md) for the
-`readonly-*` part names.
+objects render as groups, arrays of flat objects render as **tables**, and
+`password`-format or `ui:widget: "password"` fields show a fixed
+`••••••••` mask instead of the stored value. Submit/Reset are hidden. See
+[Styling](../guides/styling.md) for the `readonly-*` part names.
 
 ## Override mechanisms
 
@@ -206,8 +221,9 @@ data schema:
 ```
 
 Recognised values: `"image-upload"`, `"swipe-review"`, `"hidden"`,
-`"textarea"`, `"select"`, `"radio"`. Unknown values fall through as
-`CustomWidget(raw)` so you can prototype without a parser change.
+`"textarea"`, `"select"`, `"radio"`, `"password"`. Unknown values fall
+through as `CustomWidget(raw)` so you can prototype without a parser
+change.
 
 ### `x-widget` (schema node) — deprecated fallback
 
