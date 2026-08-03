@@ -10,6 +10,7 @@ import formosh/form/view
 import formosh/schema/parser
 import formosh/schema/types
 import formosh/schema/ui_parser
+import gleam/list
 import gleam/string
 import gleeunit/should
 import lustre/element
@@ -192,4 +193,227 @@ pub fn edit_view_still_renders_inputs_test() {
   let html = render(False)
   html |> string.contains("part=\"readonly-value\"") |> should.be_false
   html |> string.contains("formosh-submit") |> should.be_true
+}
+
+// --- Password masking (review mode) ---
+//
+// Two independent routes flag a field as a password: schema `format:
+// "password"` and `ui:widget: "password"`. Both must be masked wherever a
+// leaf value renders in review mode — the plain scalar row, a table cell,
+// and a scalar array item.
+
+fn password_schema() -> types.JsonSchema {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"email\": { \"type\": \"string\", \"title\": \"Email\" },
+        \"secret\": {
+          \"type\": \"string\",
+          \"format\": \"password\",
+          \"title\": \"Password\"
+        },
+        \"long_secret\": {
+          \"type\": \"string\",
+          \"format\": \"password\",
+          \"title\": \"Long password\"
+        },
+        \"blank_secret\": {
+          \"type\": \"string\",
+          \"format\": \"password\",
+          \"title\": \"Unset password\"
+        }
+      }
+    }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema
+}
+
+fn password_values() -> types.Value {
+  types.ObjectValue([
+    #("email", types.StringValue("a@b.com")),
+    #("secret", types.StringValue("hunter2")),
+    #(
+      "long_secret",
+      types.StringValue("0123456789012345678901234567890123456789"),
+    ),
+    #("blank_secret", types.StringValue("")),
+  ])
+}
+
+fn render_password_review() -> String {
+  let m =
+    FormModel(
+      ..model.init(password_schema()),
+      values: password_values(),
+      read_only: True,
+    )
+  view.view(m) |> element.to_string
+}
+
+fn count_occurrences(haystack: String, needle: String) -> Int {
+  let parts = string.split(haystack, needle)
+  list.length(parts) - 1
+}
+
+pub fn password_is_masked_in_review_test() {
+  let html = render_password_review()
+  should.be_true(string.contains(html, "••••••••"))
+  should.be_false(string.contains(html, "hunter2"))
+}
+
+// A length-proportional mask would leak the password length, so a 7-char and
+// a 40-char value must render identically.
+pub fn password_mask_does_not_track_length_test() {
+  let html = render_password_review()
+  should.be_false(string.contains(html, "0123456789"))
+  should.equal(count_occurrences(html, "••••••••"), 2)
+}
+
+pub fn empty_password_renders_dash_not_mask_test() {
+  render_password_review()
+  |> string.contains("—")
+  |> should.be_true
+}
+
+pub fn non_password_values_are_untouched_test() {
+  render_password_review()
+  |> string.contains("a@b.com")
+  |> should.be_true
+}
+
+fn widget_password_schema() -> types.JsonSchema {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"email\": { \"type\": \"string\", \"title\": \"Email\" },
+        \"secret_widget\": {
+          \"type\": \"string\",
+          \"title\": \"Widget password\"
+        }
+      }
+    }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema
+}
+
+// `secret_widget` carries no `format` at all — only a genuine `UiSchema`
+// `ui:widget: "password"` entry marks it. This exercises the
+// `UiSchema -> ui_resolver.resolve_hints -> CustomWidget("password")` chain
+// end to end, distinct from every other widget test in this suite (which
+// seeds `render_hints.widget`, the deprecated x-widget lane, directly).
+pub fn widget_route_password_is_masked_in_review_test() {
+  let ui_json = "{ \"secret_widget\": { \"ui:widget\": \"password\" } }"
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let html =
+    FormModel(
+      ..model.init(widget_password_schema()),
+      ui_schema: ui,
+      values: types.ObjectValue([
+        #("email", types.StringValue("a@b.com")),
+        #("secret_widget", types.StringValue("hunter2")),
+      ]),
+      read_only: True,
+    )
+    |> view.view
+    |> element.to_string
+  html |> string.contains("••••••••") |> should.be_true
+  html |> string.contains("hunter2") |> should.be_false
+  html |> string.contains("a@b.com") |> should.be_true
+}
+
+fn password_table_schema() -> types.JsonSchema {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"accounts\": {
+          \"type\": \"array\",
+          \"title\": \"Accounts\",
+          \"items\": {
+            \"type\": \"object\",
+            \"properties\": {
+              \"username\": { \"type\": \"string\", \"title\": \"Username\" },
+              \"secret\": {
+                \"type\": \"string\",
+                \"format\": \"password\",
+                \"title\": \"Password\"
+              }
+            }
+          }
+        }
+      }
+    }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema
+}
+
+pub fn password_column_is_masked_in_readonly_table_test() {
+  let html =
+    FormModel(
+      ..model.init(password_table_schema()),
+      values: types.ObjectValue([
+        #(
+          "accounts",
+          types.ArrayValue([
+            types.ObjectValue([
+              #("username", types.StringValue("alice")),
+              #("secret", types.StringValue("hunter2")),
+            ]),
+          ]),
+        ),
+      ]),
+      read_only: True,
+    )
+    |> view.view
+    |> element.to_string
+  html |> string.contains("part=\"readonly-table\"") |> should.be_true
+  html |> string.contains("••••••••") |> should.be_true
+  html |> string.contains("hunter2") |> should.be_false
+  // Sibling non-password column must still show its real value — proves the
+  // password column alone is masked, not the whole row/table.
+  html |> string.contains("alice") |> should.be_true
+}
+
+fn password_array_items_schema() -> types.JsonSchema {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"nickname\": { \"type\": \"string\", \"title\": \"Nickname\" },
+        \"recovery_codes\": {
+          \"type\": \"array\",
+          \"title\": \"Recovery codes\",
+          \"items\": { \"type\": \"string\", \"format\": \"password\" }
+        }
+      }
+    }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema
+}
+
+pub fn password_array_items_are_masked_test() {
+  let html =
+    FormModel(
+      ..model.init(password_array_items_schema()),
+      values: types.ObjectValue([
+        #("nickname", types.StringValue("bob")),
+        #(
+          "recovery_codes",
+          types.ArrayValue([
+            types.StringValue("hunter2"),
+            types.StringValue("swordfish"),
+          ]),
+        ),
+      ]),
+      read_only: True,
+    )
+    |> view.view
+    |> element.to_string
+  html |> string.contains("••••••••") |> should.be_true
+  html |> string.contains("hunter2") |> should.be_false
+  html |> string.contains("swordfish") |> should.be_false
+  // Sibling non-password field must still show its real value.
+  html |> string.contains("bob") |> should.be_true
 }

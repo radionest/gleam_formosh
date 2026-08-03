@@ -32,6 +32,8 @@ import lustre/element/html
 
 const dash = "—"
 
+const password_mask = "••••••••"
+
 /// Render a single field (at any depth) as a static summary node.
 pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   // Only `HiddenWidget` is suppressed here. Unlike edit mode
@@ -44,7 +46,11 @@ pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
       case ctx.property.field_type {
         Some(types.ObjectType) -> render_object(ctx, model)
         Some(types.ArrayType) -> render_array(ctx, model)
-        _ -> render_row(label_for(ctx), display_value(ctx.property, ctx.value))
+        _ ->
+          render_row(
+            label_for(ctx),
+            display_value(ctx.property, ctx.hints, ctx.value),
+          )
       }
   }
 }
@@ -96,14 +102,36 @@ fn label_for(ctx: FieldRenderCtx) -> String {
   )
 }
 
-/// Format a leaf value for display, mapping enum codes to their oneOf label.
-fn display_value(property: SchemaProperty, value: Option(Value)) -> String {
+/// True when a field should be masked in review mode — either the schema
+/// declares `format: "password"` or a `ui:widget: "password"` hint applies.
+/// The mask is a fixed string: a length-proportional one would leak the
+/// value's length.
+fn is_password(property: SchemaProperty, hints: RenderHints) -> Bool {
+  let by_widget = hints.widget == Some(types.CustomWidget("password"))
+  let by_format = case property.string_constraints {
+    Some(constraints) -> constraints.format == Some(types.PasswordFormat)
+    None -> False
+  }
+  by_widget || by_format
+}
+
+/// Format a leaf value for display, mapping enum codes to their oneOf label
+/// and masking password fields.
+fn display_value(
+  property: SchemaProperty,
+  hints: RenderHints,
+  value: Option(Value),
+) -> String {
   case value {
-    None | Some(types.NullValue) -> dash
+    None | Some(types.NullValue) | Some(types.StringValue("")) -> dash
     Some(v) ->
-      case enum_label(property, v) {
-        Some(label) -> label
-        None -> scalar_to_string(v)
+      case is_password(property, hints) {
+        True -> password_mask
+        False ->
+          case enum_label(property, v) {
+            Some(label) -> label
+            None -> scalar_to_string(v)
+          }
       }
   }
 }
@@ -285,10 +313,10 @@ fn render_table(
       html.tr(
         [],
         list.map(columns, fn(col) {
-          let #(name, prop, _) = col
+          let #(name, prop, col_hints) = col
           let cell = path.get_at_path(item, [PropertySegment(name)])
           html.td([attribute.attribute("part", "readonly-td")], [
-            html.text(display_value(prop, cell)),
+            html.text(display_value(prop, col_hints, cell)),
           ])
         }),
       )
@@ -329,7 +357,11 @@ fn render_groups(
       _ ->
         render_row(
           "#" <> int.to_string(index + 1),
-          display_value(item_schema, Some(item)),
+          display_value(
+            item_schema,
+            ui_resolver.resolve_hints(model.ui_schema, item_path, item_schema),
+            Some(item),
+          ),
         )
     }
   })
