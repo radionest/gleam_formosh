@@ -58,6 +58,7 @@ pub type StringFormat {
   UriFormat
   UrlFormat
   UuidFormat
+  PasswordFormat
   CustomFormat(String)
 }
 
