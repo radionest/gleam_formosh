@@ -46,6 +46,13 @@ do"):
   `model.init_with_full_config` and nothing under `src/` reads it — errors
   always follow the touch gate. Wire it into the model (or drop the
   builder).
+- [ ] **Dead `UriFormat` variant.** `StringFormat` declares `UriFormat`
+  distinct from `UrlFormat`, but `parser.gleam`'s `format_decoder` maps
+  both `"url"` and `"uri"` to `UrlFormat` — `UriFormat` is never
+  constructed, so `validator.gleam`'s `Some(types.UriFormat)` match arm is
+  dead code. Fix: decode `"uri"` to its own variant, or drop `UriFormat`
+  and the dead arm. See `docs/reference/api.md` (`StringFormat`
+  reachability caveat).
 
 ---
 

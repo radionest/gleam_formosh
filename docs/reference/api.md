@@ -192,13 +192,14 @@ actually reaches this function).
 > **Reachability caveat.** The parser's `format_decoder` produces
 > `EmailFormat`, `UrlFormat`, `UuidFormat`, `DateFormat`, `TimeFormat`,
 > `PasswordFormat`, and `CustomFormat` — but never `DateTimeFormat`, nor
-> `UriFormat` (`"uri"` decodes to `UrlFormat` too, same as `"url"` — a
-> separate, permanent redundancy, not a to-do). `format: "date-time"` is
-> deliberately decoded to `CustomFormat("date-time")` instead (RFC 3339's
-> mandatory UTC offset is incompatible with `<input
-> type="datetime-local">`), so `DateTimeFormat` and its `get_input_type`
-> mapping stay unreachable from a parsed schema. See [Widget
-> Selection](widgets.md#html-input-type-from-format) and `ROADMAP.md`.
+> `UriFormat` (`"uri"` decodes to `UrlFormat` too, same as `"url"`,
+> leaving the `UriFormat` variant and its `validator.gleam` match arm
+> dead code). `format: "date-time"` is deliberately decoded to
+> `CustomFormat("date-time")` instead (RFC 3339's mandatory UTC offset is
+> incompatible with `<input type="datetime-local">`), so `DateTimeFormat`
+> and its `get_input_type` mapping stay unreachable from a parsed schema
+> too. Both gaps are tracked in `ROADMAP.md`. See [Widget
+> Selection](widgets.md#html-input-type-from-format).
 
 ### `Widget` — widget overrides
 
