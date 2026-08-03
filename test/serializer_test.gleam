@@ -1041,3 +1041,11 @@ pub fn time_format_round_trips_test() {
   |> string.contains("\"format\":\"time\"")
   |> should.be_true()
 }
+
+pub fn password_format_round_trips_test() {
+  let assert Ok(schema) =
+    parser.parse_schema("{\"type\": \"string\", \"format\": \"password\"}")
+  json.to_string(serializer.schema_to_json(schema))
+  |> string.contains("\"format\":\"password\"")
+  |> should.be_true()
+}
