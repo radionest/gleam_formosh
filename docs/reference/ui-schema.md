@@ -145,9 +145,14 @@ widget, these are ignored (no silent `image/*` fallback).
 field's `format` — the widget hint **wins over a conflicting `format`**.
 `format: "password"` alone also forces `<input type="password">`, and both
 routes win over the `maxLength > 100 → textarea` threshold
-**unconditionally**: a declared password never renders as an unmasked
-textarea, no matter how long `maxLength` is. See [HTML input type from
-`format`](widgets.md#html-input-type-from-format).
+**unconditionally**: a declared password never falls back to an unmasked
+textarea on length alone, no matter how large `maxLength` is. See [HTML input
+type from `format`](widgets.md#html-input-type-from-format).
+
+The one way to unmask a declared password is to ask for it explicitly: an
+explicit `ui:widget` of `"textarea"`, `"select"`, or `"radio"` is dispatched
+before any `format` check and renders the value **in the clear**. Setting one
+of those on a `format: "password"` field is almost certainly a mistake.
 
 Masking is presentational only, in both edit mode and read-only (review)
 mode: the raw value still lives in `model.values` and is still published
