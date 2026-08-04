@@ -452,3 +452,131 @@ pub fn password_array_items_are_masked_test() {
   // Sibling non-password field must still show its real value.
   html |> string.contains("bob") |> should.be_true
 }
+
+// --- Password masking (review mode): ui:widget route at table/array-item
+// positions ---
+//
+// The tests above (`password_column_is_masked_in_readonly_table_test`,
+// `password_array_items_are_masked_test`) all mark the field via schema
+// `format: "password"`. `is_password` ORs `by_format` with `by_widget`, and
+// `by_format` short-circuits first — so those tests exercise masking without
+// ever depending on the per-column / per-item `RenderHints` argument that
+// `scalar_object_columns`/`render_table` and `render_groups` thread through
+// for the table-cell and array-item positions. The fields below carry no
+// `format` at all, so only a correctly-plumbed `ui:widget: "password"` hint
+// can make them mask — closing that gap.
+
+fn widget_password_table_schema() -> types.JsonSchema {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"accounts\": {
+          \"type\": \"array\",
+          \"title\": \"Accounts\",
+          \"items\": {
+            \"type\": \"object\",
+            \"properties\": {
+              \"username\": { \"type\": \"string\", \"title\": \"Username\" },
+              \"secret_widget\": {
+                \"type\": \"string\",
+                \"title\": \"Widget password\"
+              }
+            }
+          }
+        }
+      }
+    }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema
+}
+
+// `secret_widget` carries no `format` — only a genuine UiSchema
+// `ui:widget: "password"` entry, nested under the array's `items` template,
+// marks it. This exercises the table-cell position's resolved `col_hints`
+// end to end (`scalar_object_columns` -> `render_table`), distinct from
+// `password_column_is_masked_in_readonly_table_test`, which uses the
+// `format` route and would still pass even if `col_hints` were discarded.
+pub fn widget_route_password_column_is_masked_in_readonly_table_test() {
+  let ui_json =
+    "{ \"accounts\": { \"items\": { \"secret_widget\": { \"ui:widget\": \"password\" } } } }"
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let html =
+    FormModel(
+      ..model.init(widget_password_table_schema()),
+      ui_schema: ui,
+      values: types.ObjectValue([
+        #(
+          "accounts",
+          types.ArrayValue([
+            types.ObjectValue([
+              #("username", types.StringValue("alice")),
+              #("secret_widget", types.StringValue("hunter2")),
+            ]),
+          ]),
+        ),
+      ]),
+      read_only: True,
+    )
+    |> view.view
+    |> element.to_string
+  html |> string.contains("part=\"readonly-table\"") |> should.be_true
+  html |> string.contains("••••••••") |> should.be_true
+  html |> string.contains("hunter2") |> should.be_false
+  // Sibling non-password column must still show its real value — proves the
+  // password column alone is masked, not the whole row/table.
+  html |> string.contains("alice") |> should.be_true
+}
+
+fn widget_password_array_items_schema() -> types.JsonSchema {
+  let json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {
+        \"nickname\": { \"type\": \"string\", \"title\": \"Nickname\" },
+        \"recovery_codes\": {
+          \"type\": \"array\",
+          \"title\": \"Recovery codes\",
+          \"items\": { \"type\": \"string\" }
+        }
+      }
+    }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  schema
+}
+
+// `recovery_codes` items carry no `format` — only a genuine UiSchema
+// `ui:widget: "password"` entry nested under the array's `items` template
+// marks them. This exercises the scalar-array-item position's resolved
+// hints end to end (`render_groups`'s `ui_resolver.resolve_hints` call),
+// distinct from `password_array_items_are_masked_test`, which uses the
+// `format` route and would still pass even if that call were replaced with
+// empty hints.
+pub fn widget_route_password_array_items_are_masked_test() {
+  let ui_json =
+    "{ \"recovery_codes\": { \"items\": { \"ui:widget\": \"password\" } } }"
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let html =
+    FormModel(
+      ..model.init(widget_password_array_items_schema()),
+      ui_schema: ui,
+      values: types.ObjectValue([
+        #("nickname", types.StringValue("bob")),
+        #(
+          "recovery_codes",
+          types.ArrayValue([
+            types.StringValue("hunter2"),
+            types.StringValue("swordfish"),
+          ]),
+        ),
+      ]),
+      read_only: True,
+    )
+    |> view.view
+    |> element.to_string
+  html |> string.contains("••••••••") |> should.be_true
+  html |> string.contains("hunter2") |> should.be_false
+  html |> string.contains("swordfish") |> should.be_false
+  // Sibling non-password field must still show its real value.
+  html |> string.contains("bob") |> should.be_true
+}
