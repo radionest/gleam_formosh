@@ -111,8 +111,9 @@ for every backend that emits correct RFC 3339 — which is most of them.
 unreachable from a parsed schema. See `ROADMAP.md`.
 
 > **Data contract.** `<input type="date">` accepts only `YYYY-MM-DD` and
-> `<input type="time">` only `HH:mm[:ss]`. A value outside that shape
-> renders as an empty input with no console error. If your backend sends a
+> `<input type="time">` only `HH:mm[:ss[.SSS]]` (seconds and fractional
+> seconds are both optional). A value outside that shape renders as an
+> empty input with no console error. If your backend sends a
 > full timestamp for a `format: "date"` field, normalise it before passing
 > it as `initial-values`.
 >
@@ -128,7 +129,7 @@ unreachable from a parsed schema. See `ROADMAP.md`.
 > class of problem as the hidden-required-field case documented in
 > `CLAUDE.md` (search `hidden_blocks_warn`) — an otherwise-invisible cause
 > blocking submit — though there is currently no equivalent warning for
-> this one. Remedy: normalise to `YYYY-MM-DD` (`time`: `HH:mm[:ss]`)
+> this one. Remedy: normalise to `YYYY-MM-DD` (`time`: `HH:mm[:ss[.SSS]]`)
 > before passing the value as `initial-values`.
 
 **String-constraint attributes still apply, even though HTML ignores them
@@ -140,6 +141,27 @@ therefore loses the browser-side pre-submit blocking it had as
 `type="text"`. Formosh's own validator still enforces `pattern` (see
 [Schema Keywords](schema-keywords.md#string-constraints)), so nothing
 goes unvalidated — only the earlier, native feedback does.
+
+#### Known limitation when editing a typed date
+
+Clearing a single segment of an already-typed date (e.g. the day, to fix a
+typo) can silently stop the field from accepting further digits, leaving
+it empty with no visible cause. Typing a date from scratch, and clearing
+the field entirely, both work fine — only an in-place edit of one segment
+triggers it.
+
+This is inherent to the controlled-input pattern, not a Formosh bug:
+verified against a bare, framework-free `<input type="date">` with no
+library involved. After a segment is cleared, the composed value is
+momentarily `""`; writing that `""` back into the element — which a
+controlled input does on every render — resets the browser's internal
+per-segment edit state, so the next keystrokes are silently dropped.
+Formosh's `input_attributes` (`field_common.gleam:196-216`) sets
+`attribute.value(value)` on every render like any other controlled field,
+so it inherits the same behavior.
+
+**Workaround:** clear the whole field and retype it, rather than editing a
+single segment in place.
 
 ## Number fields
 

@@ -159,12 +159,16 @@ probably one of these:
    `password` get native/typed inputs, but `date-time` is deliberately left
    as `CustomFormat` (see the format table). Separately: `<input
    type="date">` and `<input type="time">` only accept `YYYY-MM-DD` /
-   `HH:mm[:ss]` — a value outside that shape renders as an empty input with
-   no console error, so normalise non-conforming timestamps before passing
-   them as `initial-values`. On a **required** field this also silently
-   blocks submission: the empty `<input required>` fails the browser's own
-   constraint validation, while formosh's validator still sees the
-   original string in `model.values` and reports the field satisfied —
-   Submit stays enabled, but clicking it does nothing and formosh renders
-   no error. See [Widget Selection § Data
-   contract](widgets.md#html-input-type-from-format).
+   `HH:mm[:ss[.SSS]]` — a value outside that shape renders as an empty
+   input with no console error, so normalise non-conforming timestamps
+   before passing them as `initial-values`. On a **required** field this
+   also silently blocks submission: the empty `<input required>` fails the
+   browser's own constraint validation, while formosh's validator still
+   sees the original string in `model.values` and reports the field
+   satisfied — Submit stays enabled, but clicking it does nothing and
+   formosh renders no error. See [Widget Selection § Data
+   contract](widgets.md#html-input-type-from-format). A further native-input
+   gotcha, even with a conforming value: clearing a single segment of an
+   already-typed date can silently stop the field from accepting more
+   input — see [Widget Selection § Known limitation when editing a typed
+   date](widgets.md#known-limitation-when-editing-a-typed-date).
