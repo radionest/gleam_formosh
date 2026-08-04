@@ -678,3 +678,40 @@ pub fn array_constraints_min_above_max_normalizes_test() {
     Some(types.ArrayConstraints(min_items: Some(3), max_items: Some(3))),
   )
 }
+
+fn parsed_root_format(json: String) -> option.Option(types.StringFormat) {
+  let assert Ok(schema) = parser.parse_schema(json)
+  case schema.string_constraints {
+    Some(constraints) -> constraints.format
+    None -> panic as "Expected string constraints"
+  }
+}
+
+pub fn date_format_decodes_to_date_format_test() {
+  parsed_root_format("{\"type\": \"string\", \"format\": \"date\"}")
+  |> should.equal(Some(types.DateFormat))
+}
+
+pub fn time_format_decodes_to_time_format_test() {
+  parsed_root_format("{\"type\": \"string\", \"format\": \"time\"}")
+  |> should.equal(Some(types.TimeFormat))
+}
+
+pub fn password_format_decodes_to_password_format_test() {
+  parsed_root_format("{\"type\": \"string\", \"format\": \"password\"}")
+  |> should.equal(Some(types.PasswordFormat))
+}
+
+// Deliberate non-promotion — see docs/reference/widgets.md ("HTML input
+// type from `format`"). RFC 3339 date-time requires a UTC offset that
+// <input type="datetime-local"> rejects, so wiring it would silently blank
+// the input for every offset-bearing backend value.
+pub fn date_time_format_stays_custom_test() {
+  parsed_root_format("{\"type\": \"string\", \"format\": \"date-time\"}")
+  |> should.equal(Some(types.CustomFormat("date-time")))
+}
+
+pub fn unknown_format_stays_custom_test() {
+  parsed_root_format("{\"type\": \"string\", \"format\": \"ipv4\"}")
+  |> should.equal(Some(types.CustomFormat("ipv4")))
+}

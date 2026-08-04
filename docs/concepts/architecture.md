@@ -96,7 +96,7 @@ One module per widget family, all funnneled through one dispatcher:
 | Module | Renders |
 |--------|---------|
 | `field_dispatcher.gleam` | **Single entry point** for any field at any depth. Picks the widget and wraps it with error/touched/readonly state. |
-| `string_field.gleam` | Text, textarea, email, url, date, time, datetime, enum radios/select. |
+| `string_field.gleam` | Text, textarea, email, url, date, time, password, date-time (text), enum radios/select. |
 | `number_field.gleam` | Number input (with `step` from `multipleOf`). |
 | `boolean_field.gleam` | Yes/No radios / toggle. |
 | `array_field.gleam` | Dynamic list with add/remove/move controls. |

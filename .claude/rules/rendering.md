@@ -7,11 +7,14 @@ paths:
 
 When creating or modifying field renderers, follow these business logic rules:
 
-- `maxLength > 100` renders as textarea, otherwise as input
+- `maxLength > 100` renders as textarea, otherwise as input — except a
+  password field (`format: "password"` or `ui:widget: "password"`), which
+  always wins over the threshold and stays a password input
 - `enum` with ≤5 options renders as radio buttons
 - `enum` with >5 options renders as select dropdown
 - Boolean fields render as Yes/No radio buttons
-- Format-specific inputs: email, date, url use corresponding HTML input types
+- Format-specific inputs: email, date, time, url, password use
+  corresponding HTML input types (password also via `ui:widget: "password"`)
 - Arrays render as dynamic list with add/remove controls
 - Objects render as nested fieldset with proper indentation
 - Numbers with `multipleOf` set the step attribute

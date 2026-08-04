@@ -89,7 +89,10 @@ field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 |--------|--------|-----------|-----------|
 | `email` | ✅ | `<input type="email">` | checks `@` and `.` present (not RFC-compliant) |
 | `url` / `uri` | ✅ | `<input type="url">` | checks `http://` / `https://` prefix |
-| `date` / `time` / `datetime` | 🟡 | `<input type="text">` — the parser maps them to `CustomFormat`, so native pickers are **not** wired up (see `ROADMAP.md`) | not validated |
+| `date` | ✅ | `<input type="date">` — native picker | not validated |
+| `time` | ✅ | `<input type="time">` — native picker | not validated |
+| `password` | ✅ | `<input type="password">` — masked, regardless of `maxLength`: both the `format` and `ui:widget` routes win over the textarea threshold unconditionally, and `••••••••` in review mode. An **explicit** `ui:widget` of `"textarea"`/`"select"`/`"radio"` still overrides and renders in the clear (see [UiSchema § Password masking](ui-schema.md#password-masking)) | not validated |
+| `date-time` | 🟡 | `<input type="text">` — deliberately not wired; RFC 3339 requires an offset that `datetime-local` rejects (see [Widget Selection](widgets.md)) | not validated |
 | `uuid` | 🟡 | `<input type="text">` | not validated |
 | anything else | 🟡 | `<input type="text">` (`CustomFormat`) | not validated |
 
@@ -152,4 +155,20 @@ probably one of these:
 3. **Polymorphic `oneOf`** (schema variants, as opposed to `const`+`title` options) is parsed but not rendered as a choice widget. `anyOf` does render one — see the Composition table above.
 4. **No `additionalProperties` / `patternProperties`** — extra object keys are simply ignored at the data layer.
 5. **No tuple validation** (`prefixItems`).
-6. **No native date/time pickers** — `format: "date"` / `"time"` / `"datetime"` render as plain text inputs (see the format table).
+6. **`format: "date-time"` stays plain text** — `date`, `time`, and
+   `password` get native/typed inputs, but `date-time` is deliberately left
+   as `CustomFormat` (see the format table). Separately: `<input
+   type="date">` and `<input type="time">` only accept `YYYY-MM-DD` /
+   `HH:mm[:ss[.SSS]]` — a value outside that shape renders as an empty
+   input with no console error, so normalise non-conforming timestamps
+   before passing them as `initial-values`. On a **required** field this
+   also silently blocks submission: the empty `<input required>` fails the
+   browser's own constraint validation, while formosh's validator still
+   sees the original string in `model.values` and reports the field
+   satisfied — Submit stays enabled, but clicking it does nothing and
+   formosh renders no error. See [Widget Selection § Data
+   contract](widgets.md#html-input-type-from-format). A further native-input
+   gotcha, even with a conforming value: clearing a single segment of an
+   already-typed date can silently stop the field from accepting more
+   input — see [Widget Selection § Known limitation when editing a typed
+   date](widgets.md#known-limitation-when-editing-a-typed-date).

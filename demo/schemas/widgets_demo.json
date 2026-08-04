@@ -37,6 +37,11 @@
       "description": "maxLength > 100 даёт textarea автоматически, без ui:widget",
       "maxLength": 2000
     },
+    "api_key": {
+      "type": "string",
+      "title": "API-ключ",
+      "description": "Обычная строка без format — ui:widget=\"password\" сам по себе маскирует ввод"
+    },
     "tech_stack": {
       "type": "string",
       "title": "Основной язык",

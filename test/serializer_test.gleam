@@ -988,3 +988,64 @@ pub fn anyof_optional_scalar_serializes_test() {
   age.nullable |> should.be_true()
   age.any_of |> should.equal(None)
 }
+
+pub fn password_format_serializes_test() {
+  let schema =
+    JsonSchema(
+      title: None,
+      description: None,
+      field_type: ObjectType,
+      properties: [
+        #(
+          "secret",
+          SchemaProperty(
+            ..empty_property(),
+            field_type: Some(StringType),
+            string_constraints: Some(StringConstraints(
+              min_length: None,
+              max_length: None,
+              pattern: None,
+              format: Some(types.PasswordFormat),
+            )),
+          ),
+        ),
+      ],
+      required: [],
+      defs: None,
+      conditionals: [],
+      all_of: None,
+      string_constraints: None,
+      number_constraints: None,
+    )
+
+  let result = serializer.schema_to_json(schema)
+  let json_string = json.to_string(result)
+
+  json_string
+  |> string.contains("\"format\":\"password\"")
+  |> should.be_true()
+}
+
+pub fn date_format_round_trips_test() {
+  let assert Ok(schema) =
+    parser.parse_schema("{\"type\": \"string\", \"format\": \"date\"}")
+  json.to_string(serializer.schema_to_json(schema))
+  |> string.contains("\"format\":\"date\"")
+  |> should.be_true()
+}
+
+pub fn time_format_round_trips_test() {
+  let assert Ok(schema) =
+    parser.parse_schema("{\"type\": \"string\", \"format\": \"time\"}")
+  json.to_string(serializer.schema_to_json(schema))
+  |> string.contains("\"format\":\"time\"")
+  |> should.be_true()
+}
+
+pub fn password_format_round_trips_test() {
+  let assert Ok(schema) =
+    parser.parse_schema("{\"type\": \"string\", \"format\": \"password\"}")
+  json.to_string(serializer.schema_to_json(schema))
+  |> string.contains("\"format\":\"password\"")
+  |> should.be_true()
+}

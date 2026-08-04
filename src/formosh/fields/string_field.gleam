@@ -41,23 +41,30 @@ pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
 ///
 /// `ui:widget` override takes priority — `"textarea"` forces a textarea,
 /// `"select"` / `"radio"` force the corresponding enum widget regardless
-/// of option count. Without an override, the field type is inferred from
-/// schema (enum values → select/radio, maxLength > 100 → textarea).
+/// of option count, `"password"` forces a password input. Without an
+/// override, the field type is inferred from schema (enum values →
+/// select/radio, maxLength > 100 → textarea, unless `format` is
+/// `password` — masking always wins over the textarea threshold).
 fn render_string_or_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
   case widget_name(ctx) {
     Some("textarea") -> render_textarea(ctx)
     Some("select") -> render_select_or_enum(ctx, force_select: True)
     Some("radio") -> render_select_or_enum(ctx, force_select: False)
+    Some("password") -> render_input(ctx)
     _ ->
       case ctx.property.enum_values {
         Some(_enum_vals) -> render_enum(ctx)
         None -> {
-          // Check if it's a textarea based on max length
+          // A declared password format always wins over the maxLength
+          // textarea threshold — a secret must never render in the
+          // clear, at any length. Otherwise, fall back to a textarea
+          // based on max length.
           case ctx.property.string_constraints {
             Some(constraints) ->
-              case constraints.max_length {
-                Some(max) if max > 100 -> render_textarea(ctx)
-                _ -> render_input(ctx)
+              case constraints.format, constraints.max_length {
+                Some(types.PasswordFormat), _ -> render_input(ctx)
+                _, Some(max) if max > 100 -> render_textarea(ctx)
+                _, _ -> render_input(ctx)
               }
             None -> render_input(ctx)
           }
@@ -104,11 +111,14 @@ fn render_select_or_enum(
   }
 }
 
-/// Render a standard HTML input with format-derived type and constraints.
+/// Render a standard HTML input with format- or widget-derived type, and
+/// constraints. `ui:widget` (`widget_input_type`) wins over `format`
+/// (`get_input_type`) when both would apply.
 fn render_input(ctx: FieldRenderCtx) -> Element(FormMsg) {
   let current_value = field_common.extract_string_value(ctx.value)
 
-  let input_type = get_input_type(ctx.property)
+  let input_type =
+    option.unwrap(widget_input_type(ctx), get_input_type(ctx.property))
   let extra_attrs = [
     attribute.type_(input_type),
     attribute.class("formosh-input"),
@@ -321,9 +331,19 @@ fn get_input_type(property: types.SchemaProperty) -> String {
         Some(types.DateFormat) -> "date"
         Some(types.DateTimeFormat) -> "datetime-local"
         Some(types.TimeFormat) -> "time"
+        Some(types.PasswordFormat) -> "password"
         _ -> "text"
       }
     None -> "text"
+  }
+}
+
+/// Input type forced by a `ui:widget` hint, independent of `format`.
+/// `None` means "fall back to the format-derived type".
+fn widget_input_type(ctx: FieldRenderCtx) -> Option(String) {
+  case widget_name(ctx) {
+    Some("password") -> Some("password")
+    _ -> None
   }
 }
 

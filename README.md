@@ -360,7 +360,10 @@ The widget is chosen automatically based on schema:
 | `anyOf` (one non-null branch + `null`, i.e. `Optional[X]`) | plain `X` widget — nullable, no required asterisk, empty submits `null` |
 | `string` + `format: "email"` | email input |
 | `string` + `format: "url"` or `"uri"` | url input |
-| `string` + `format: "date"` / `"time"` / `"datetime"` | text input — native pickers not wired yet (see `ROADMAP.md`) |
+| `string` + `format: "date"` | date input — native picker |
+| `string` + `format: "time"` | time input — native picker |
+| `string` + `format: "password"` or `ui:widget: "password"` | password input — masked; wins over the `maxLength > 100` textarea rule above regardless of route |
+| `string` + `format: "date-time"` | text input — deliberately not wired (see `ROADMAP.md`) |
 | `number` / `integer` | number input (with `step` from `multipleOf`) |
 | `boolean` | Yes/No radio buttons |
 | `array` | dynamic list with add/remove controls |
@@ -378,7 +381,7 @@ The widget is chosen automatically based on schema:
 - **Enum:** `enum`, `const` (converted to single-value enum)
 - **Composition:** `oneOf` (with const+title options), `allOf` (deep-merges member schemas — properties, required, bounds, `$ref` mixins — at parse time, lifts member conditionals to the parent, and can type an otherwise-typeless schema root or resolve a root-level `$ref`; an unsatisfiable composition — conflicting `type`s or crossed bounds in a composed node's merged constraints — fails parsing with `UnsatisfiableSchema` rather than silently producing one that validates nothing; see [`demo/schemas/composition_test.json`](demo/schemas/composition_test.json) for a worked example), `anyOf` (null members collapse into a `nullable` flag; a single surviving member merges into the node; 2+ surviving members render as a runtime branch chooser — see [anyOf (union types)](#anyof-union-types) above)
 - **Conditional:** `if`/`then`/`else` — fully dynamic, re-evaluated on every field change
-- **String constraints:** `minLength`, `maxLength`, `format` (date, email, url/uri, time, datetime, uuid)
+- **String constraints:** `minLength`, `maxLength`, `format` (date, email, password, url/uri, time, date-time, uuid)
 - **Number constraints:** `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
 - **Array constraints:** `minItems`, `maxItems` — length validation, add/remove button gating, and auto-created rows up to `minItems`
 

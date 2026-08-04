@@ -76,26 +76,28 @@ async function typeInto(value) {
   await page.keyboard.type(value);
 }
 
-// Wait for the named field to be present *and* reset to its fresh (empty)
-// value before typing into it. "formosh-ready" fires as part of the update
-// that commits a reinitialized model; the shadow-DOM patch (including
-// clearing a previous test's leftover value on a same-named field, or
-// swapping in a differently-named one) lands a tick later. Typing right
-// after the ready event can land on a stale, not-yet-cleared input —
-// observed concretely twice: a same-named "name" field still holding the
-// prior test's "Ada" produced a doubled "AdaAda" value, and a differently
-// -named leftover field ("email", from a schema swap) silently absorbed the
-// keystrokes into a field the current model no longer has.
-async function waitForField(name) {
+// Wait for the named field to be present *and* holding `expected` (default:
+// its fresh/empty value) before acting on it. "formosh-ready" fires as part
+// of the update that commits a reinitialized model; the shadow-DOM patch
+// (including clearing a previous test's leftover value on a same-named
+// field, swapping in a differently-named one, or applying a schema
+// `default`) lands a tick later. Acting right after the ready event can
+// land on a stale input — observed concretely twice: a same-named "name"
+// field still holding the prior test's "Ada" produced a doubled "AdaAda"
+// value when typed into, and a differently-named leftover field ("email",
+// from a schema swap) silently absorbed keystrokes into a field the
+// current model no longer has.
+async function waitForField(name, expected = "") {
   await page.waitForFunction(
-    (n) => {
+    (n, v) => {
       const input = document
         .querySelector("formosh-form")
         .shadowRoot.querySelector(`input[name="${n}"]`);
-      return input && input.value === "";
+      return input && input.value === v;
     },
     {},
     name,
+    expected,
   );
 }
 
@@ -328,4 +330,210 @@ test("submit failure reports the error shape", async () => {
   const submit = await lastEvent("formosh-submit");
   assert.equal(submit.detail.status, "error");
   assert.equal(typeof submit.detail.error, "string");
+});
+
+test("date and password formats render native input types and mask in read-only", async () => {
+  const schema = JSON.stringify({
+    type: "object",
+    properties: {
+      start_date: { type: "string", format: "date", title: "Start date" },
+      secret: {
+        type: "string",
+        format: "password",
+        title: "Secret",
+        default: "hunter2",
+      },
+    },
+  });
+  await page.evaluate((s) => {
+    window.__reset();
+    window.__setSchema(s);
+  }, schema);
+  await lastEvent("formosh-ready");
+  // The password field carries a schema `default` — wait for it to land
+  // (same DOM-patch-lags-ready race documented on waitForField) before
+  // reading input types off a possibly stale render.
+  await waitForField("secret", "hunter2");
+
+  const inputTypes = await shadowEval(() => {
+    const root = document.querySelector("formosh-form").shadowRoot;
+    return {
+      date: root.querySelector('input[name="start_date"]').type,
+      password: root.querySelector('input[name="secret"]').type,
+    };
+  });
+  assert.equal(inputTypes.date, "date");
+  assert.equal(inputTypes.password, "password");
+
+  await page.evaluate(() =>
+    document.querySelector("formosh-form").setAttribute("read-only", "true"),
+  );
+  await page.waitForFunction(() =>
+    document
+      .querySelector("formosh-form")
+      .shadowRoot.querySelector('[part="readonly-value"]'),
+  );
+  const maskedText = await shadowEval(() => {
+    const rows = [
+      ...document
+        .querySelector("formosh-form")
+        .shadowRoot.querySelectorAll('[part="readonly-field"]'),
+    ];
+    const secretRow = rows.find((r) =>
+      r
+        .querySelector('[part="readonly-label"]')
+        .textContent.includes("Secret"),
+    );
+    return secretRow.querySelector('[part="readonly-value"]').textContent;
+  });
+  assert.equal(maskedText, "••••••••");
+
+  // Reset read-only so any test added after this one doesn't inherit the
+  // state — matches the cleanup in "read-only toggle preserves entered
+  // values".
+  await page.evaluate(() =>
+    document.querySelector("formosh-form").setAttribute("read-only", "false"),
+  );
+  await page.waitForFunction(() =>
+    document.querySelector("formosh-form").shadowRoot.querySelector("input"),
+  );
+});
+
+async function focusFieldInput(name) {
+  await page.evaluate((n) => {
+    document
+      .querySelector("formosh-form")
+      .shadowRoot.querySelector(`input[name="${n}"]`)
+      .focus();
+  }, name);
+}
+
+// Formosh inputs are fully controlled (field_common.input_attributes sets
+// both `value` and `on_input`), so every keystroke round-trips through the
+// model and back into the element. A native date/time control fires `input`
+// with value === "" whenever its segments are incomplete, which risks the
+// model clearing mid-edit and the controlled re-render fighting the user's
+// typing. This test drives real keystrokes (not `.value` assignment, which
+// would bypass `input` entirely) to pin down what actually happens.
+//
+// Last in file order: it is the only test that types into a fresh "date"
+// input and leaves nothing behind to guard against.
+test("native date/time inputs round-trip typed values without clobbering", async () => {
+  const schema = JSON.stringify({
+    type: "object",
+    properties: {
+      start_date: { type: "string", format: "date", title: "Start date" },
+      start_time: { type: "string", format: "time", title: "Start time" },
+    },
+  });
+  await page.evaluate((s) => {
+    window.__reset();
+    window.__setSchema(s);
+  }, schema);
+  await lastEvent("formosh-ready");
+  // "start_date" reuses a field name from the previous test, but
+  // "start_time" does not — waiting for it existing rules out acting on a
+  // stale render still holding the previous test's schema (the same race
+  // documented on waitForField above).
+  await page.waitForFunction(() =>
+    document
+      .querySelector("formosh-form")
+      .shadowRoot.querySelector('input[name="start_time"]'),
+  );
+  await waitForField("start_date");
+
+  // --- date: type a complete value via real keystrokes ---
+  // The en-US date control's segments are month/day/year and auto-advance
+  // as each segment fills, so typing all 8 digits with no separators lands
+  // month=06, day=15, year=2026 in one continuous keystroke run.
+  await focusFieldInput("start_date");
+  await page.keyboard.type("06152026");
+  await page.waitForFunction(() =>
+    window.__events.some(
+      (e) =>
+        e.name === "formosh-change" &&
+        e.detail?.values?.start_date === "2026-06-15",
+    ),
+  );
+  const dateAfterType = await shadowEval(
+    () =>
+      document
+        .querySelector("formosh-form")
+        .shadowRoot.querySelector('input[name="start_date"]').value,
+  );
+  assert.equal(
+    dateAfterType,
+    "2026-06-15",
+    "the controlled round-trip must not clobber the typed date",
+  );
+
+  // --- date: clear it and confirm the model reflects the cleared state ---
+  // A native date control has no single key that empties every segment at
+  // once — select-all + delete is how a user actually clears it.
+  await page.keyboard.down("Control");
+  await page.keyboard.press("KeyA");
+  await page.keyboard.up("Control");
+  await page.keyboard.press("Delete");
+  await page.waitForFunction(() =>
+    window.__events.some(
+      (e) =>
+        e.name === "formosh-change" && e.detail?.values?.start_date === "",
+    ),
+  );
+  const dateAfterClear = await shadowEval(
+    () =>
+      document
+        .querySelector("formosh-form")
+        .shadowRoot.querySelector('input[name="start_date"]').value,
+  );
+  assert.equal(
+    dateAfterClear,
+    "",
+    "the cleared date must show empty in the element too",
+  );
+
+  // --- time: same round-trip shape, kept in this test since it is cheap
+  // and has shown no extra flakiness (verified over repeated local runs) ---
+  await focusFieldInput("start_time");
+  await page.keyboard.type("0130PM");
+  await page.waitForFunction(() =>
+    window.__events.some(
+      (e) =>
+        e.name === "formosh-change" &&
+        e.detail?.values?.start_time === "13:30",
+    ),
+  );
+  const timeAfterType = await shadowEval(
+    () =>
+      document
+        .querySelector("formosh-form")
+        .shadowRoot.querySelector('input[name="start_time"]').value,
+  );
+  assert.equal(
+    timeAfterType,
+    "13:30",
+    "the controlled round-trip must not clobber the typed time",
+  );
+
+  await page.keyboard.down("Control");
+  await page.keyboard.press("KeyA");
+  await page.keyboard.up("Control");
+  await page.keyboard.press("Delete");
+  await page.waitForFunction(() =>
+    window.__events.some(
+      (e) =>
+        e.name === "formosh-change" && e.detail?.values?.start_time === "",
+    ),
+  );
+  const timeAfterClear = await shadowEval(
+    () =>
+      document
+        .querySelector("formosh-form")
+        .shadowRoot.querySelector('input[name="start_time"]').value,
+  );
+  assert.equal(
+    timeAfterClear,
+    "",
+    "the cleared time must show empty in the element too",
+  );
 });

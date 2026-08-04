@@ -33,16 +33,29 @@ do"):
 - [ ] **Configurable CSS class prefix** — claimed in the README but never
   implemented (claim removed). Decide: implement or drop for good (partially
   covered by the Theming pack).
-- [ ] **`format: "date" / "time" / "datetime"` render as plain text.**
-  `format_decoder` (`parser.gleam`) wires only `email` / `url`+`uri` /
-  `uuid` to typed variants; `DateFormat` / `TimeFormat` / `DateTimeFormat`
-  and their `get_input_type` mappings exist but are unreachable from parsed
-  schemas. Extend `format_decoder` to get native pickers.
+- [ ] **`format: "date-time"` renders as plain text.** `date` / `time` /
+  `password` are wired in `format_decoder` (`parser.gleam`), but
+  `date-time` is deliberately left as `CustomFormat`: RFC 3339 requires a
+  UTC offset and `<input type="datetime-local">` forbids one, so wiring it
+  blanks the input for offset-bearing values. Closing this needs an offset
+  policy (normalise on read? what is submitted back?), not just a decoder
+  arm. `DateTimeFormat` and its `get_input_type` mapping stay unreachable
+  until then.
 - [ ] **`with_show_errors_on_change` is a no-op.** The flag is stored on
   `FormConfig`, but `create_form_with_config` never forwards it to
   `model.init_with_full_config` and nothing under `src/` reads it — errors
   always follow the touch gate. Wire it into the model (or drop the
   builder).
+- [ ] **`UriFormat` variant unreachable from a parsed schema.**
+  `StringFormat` declares `UriFormat` distinct from `UrlFormat`, but
+  `parser.gleam`'s `format_decoder` maps both `"url"` and `"uri"` to
+  `UrlFormat` — a parsed schema never constructs `UriFormat`, so parsing
+  alone only ever drives `validator.gleam`'s
+  `Some(UrlFormat) | Some(UriFormat)` arm through the `UrlFormat`
+  alternative (the arm itself isn't dead code — `UrlFormat` exercises it
+  constantly). Fix: decode `"uri"` to its own variant, or drop `UriFormat`
+  and simplify the arm. See `docs/reference/api.md` (`StringFormat`
+  reachability caveat).
 
 ---
 

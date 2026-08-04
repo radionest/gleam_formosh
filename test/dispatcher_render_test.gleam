@@ -12,6 +12,7 @@ import formosh/form/model.{FormModel}
 import formosh/form/path
 import formosh/schema/types
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
 import lustre/element
 
@@ -114,4 +115,135 @@ pub fn readonly_visible_renders_wrapper_when_show_flag_enabled_test() {
     "" -> should.fail()
     _ -> Nil
   }
+}
+
+fn string_property_with_format(
+  format: types.StringFormat,
+) -> types.SchemaProperty {
+  types.SchemaProperty(
+    ..types.empty_property(),
+    field_type: Some(types.StringType),
+    string_constraints: Some(types.StringConstraints(
+      min_length: None,
+      max_length: None,
+      pattern: None,
+      format: Some(format),
+    )),
+  )
+}
+
+fn string_property_with_widget(
+  name: String,
+  min_length: option.Option(Int),
+) -> types.SchemaProperty {
+  types.SchemaProperty(
+    ..types.empty_property(),
+    field_type: Some(types.StringType),
+    string_constraints: Some(types.StringConstraints(
+      min_length: min_length,
+      max_length: None,
+      pattern: None,
+      format: None,
+    )),
+    render_hints: types.RenderHints(
+      ..types.empty_hints(),
+      widget: Some(types.CustomWidget(name)),
+    ),
+  )
+}
+
+pub fn date_format_renders_date_input_test() {
+  render(string_property_with_format(types.DateFormat), False)
+  |> string.contains("type=\"date\"")
+  |> should.be_true
+}
+
+pub fn time_format_renders_time_input_test() {
+  render(string_property_with_format(types.TimeFormat), False)
+  |> string.contains("type=\"time\"")
+  |> should.be_true
+}
+
+pub fn date_time_format_renders_text_input_test() {
+  render(string_property_with_format(types.CustomFormat("date-time")), False)
+  |> string.contains("type=\"text\"")
+  |> should.be_true
+}
+
+pub fn password_format_renders_password_input_test() {
+  render(string_property_with_format(types.PasswordFormat), False)
+  |> string.contains("type=\"password\"")
+  |> should.be_true
+}
+
+// Constraint attributes must survive the widget route too, not just the
+// format route — a botched threading of the type override through
+// render_input could produce the right `type` while dropping the
+// minlength/maxlength/pattern assembly it sits next to.
+pub fn password_widget_renders_password_input_test() {
+  let html = render(string_property_with_widget("password", Some(8)), False)
+  should.be_true(string.contains(html, "type=\"password\""))
+  should.be_true(string.contains(html, "minlength=\"8\""))
+}
+
+fn string_property_with_max_length(
+  format: types.StringFormat,
+  max: Int,
+) -> types.SchemaProperty {
+  types.SchemaProperty(
+    ..types.empty_property(),
+    field_type: Some(types.StringType),
+    string_constraints: Some(types.StringConstraints(
+      min_length: None,
+      max_length: Some(max),
+      pattern: None,
+      format: Some(format),
+    )),
+  )
+}
+
+fn password_widget_with_format(
+  format: types.StringFormat,
+  max_length: option.Option(Int),
+) -> types.SchemaProperty {
+  types.SchemaProperty(
+    ..types.empty_property(),
+    field_type: Some(types.StringType),
+    string_constraints: Some(types.StringConstraints(
+      min_length: None,
+      max_length: max_length,
+      pattern: None,
+      format: Some(format),
+    )),
+    render_hints: types.RenderHints(
+      ..types.empty_hints(),
+      widget: Some(types.CustomWidget("password")),
+    ),
+  )
+}
+
+// ui:widget wins over a conflicting format.
+pub fn password_widget_beats_date_format_test() {
+  render(password_widget_with_format(types.DateFormat, None), False)
+  |> string.contains("type=\"password\"")
+  |> should.be_true
+}
+
+// ui:widget is dispatched before the maxLength > 100 textarea threshold.
+pub fn password_widget_beats_textarea_threshold_test() {
+  let html =
+    render(password_widget_with_format(types.PasswordFormat, Some(128)), False)
+  should.be_true(string.contains(html, "type=\"password\""))
+  should.be_false(string.contains(html, "<textarea"))
+}
+
+// format: "password" alone beats the maxLength > 100 textarea threshold,
+// same as the ui:widget route above — a declared password must never
+// render in the clear, regardless of length. Originally a documented
+// asymmetry (see design.md D3); reversed during PR review.
+pub fn password_format_alone_beats_textarea_threshold_test() {
+  let html =
+    render(string_property_with_max_length(types.PasswordFormat, 128), False)
+  should.be_true(string.contains(html, "type=\"password\""))
+  should.be_false(string.contains(html, "<textarea"))
 }

@@ -32,7 +32,7 @@ validation. Change the schema; the form follows.
   form, with one widget family per JSON type and automatic widget selection.
 - **Validation** wired to the schema keywords — required fields, string
   length bounds, number bounds, array length bounds, and basic format
-  checks (email, url, date, …).
+  checks (email, url).
 - **Conditional fields** (`if`/`then`/`else`) that appear and disappear as
   the user edits the form.
 - **Three ways to ship it**: as a Gleam library inside a Lustre app, as a

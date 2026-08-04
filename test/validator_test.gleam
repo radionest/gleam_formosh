@@ -365,6 +365,69 @@ pub fn pattern_skipped_for_empty_optional_string_test() {
   errors |> should.equal([])
 }
 
+fn birth_date_path() -> path.FieldPath {
+  path.from_field_name("birth_date")
+}
+
+// Newly recognized formats are not validated: promoting "date" from
+// CustomFormat to DateFormat must not switch on format validation.
+// validator.validate_field's format case only special-cases email/url —
+// every other variant, DateFormat included, falls through the catch-all
+// untouched. A non-conforming value must not produce a format error.
+pub fn date_format_value_is_not_validated_test() {
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\": \"object\", \"properties\": {\"birth_date\": {\"type\": \"string\", \"format\": \"date\"}}}",
+    )
+  let assert Ok(prop) = list.key_find(schema.properties, "birth_date")
+  let errors =
+    validator.validate_field(
+      birth_date_path(),
+      Some(StringValue("not-a-date")),
+      prop,
+      False,
+      prop.render_hints.widget,
+    )
+
+  errors |> should.equal([])
+}
+
+fn password_path() -> path.FieldPath {
+  path.from_field_name("password")
+}
+
+fn password_with_min_length(min: Int) -> SchemaProperty {
+  SchemaProperty(
+    ..empty_property(),
+    field_type: Some(types.StringType),
+    string_constraints: Some(types.StringConstraints(
+      min_length: Some(min),
+      max_length: None,
+      pattern: None,
+      format: Some(types.PasswordFormat),
+    )),
+  )
+}
+
+// Masking is presentational only (Task 3 renders format: "password" as
+// type="password"): it must not weaken or bypass ordinary string
+// validation. A too-short value still produces a minLength error, same as
+// any other string field.
+pub fn password_format_min_length_still_validates_test() {
+  let property = password_with_min_length(8)
+  let errors =
+    validator.validate_field(
+      password_path(),
+      Some(StringValue("abc")),
+      property,
+      False,
+      property.render_hints.widget,
+    )
+
+  list.any(errors, fn(e) { e.rule == "minLength" })
+  |> should.be_true()
+}
+
 fn n_path() -> path.FieldPath {
   path.from_field_name("n")
 }
