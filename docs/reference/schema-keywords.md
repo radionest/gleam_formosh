@@ -91,7 +91,7 @@ field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 | `url` / `uri` | ✅ | `<input type="url">` | checks `http://` / `https://` prefix |
 | `date` | ✅ | `<input type="date">` — native picker | not validated |
 | `time` | ✅ | `<input type="time">` — native picker | not validated |
-| `password` | ✅ | `<input type="password">` — masked, and `••••••••` in review mode | not validated |
+| `password` | ✅ | `<input type="password">` — masked (only when the field reaches `render_input`; `maxLength > 100` or a non-input `ui:widget` falls back to plaintext — see [UiSchema § Password masking](ui-schema.md#password-masking)), and `••••••••` in review mode | not validated |
 | `date-time` | 🟡 | `<input type="text">` — deliberately not wired; RFC 3339 requires an offset that `datetime-local` rejects (see [Widget Selection](widgets.md)) | not validated |
 | `uuid` | 🟡 | `<input type="text">` | not validated |
 | anything else | 🟡 | `<input type="text">` (`CustomFormat`) | not validated |
@@ -161,4 +161,10 @@ probably one of these:
    type="date">` and `<input type="time">` only accept `YYYY-MM-DD` /
    `HH:mm[:ss]` — a value outside that shape renders as an empty input with
    no console error, so normalise non-conforming timestamps before passing
-   them as `initial-values`.
+   them as `initial-values`. On a **required** field this also silently
+   blocks submission: the empty `<input required>` fails the browser's own
+   constraint validation, while formosh's validator still sees the
+   original string in `model.values` and reports the field satisfied —
+   Submit stays enabled, but clicking it does nothing and formosh renders
+   no error. See [Widget Selection § Data
+   contract](widgets.md#html-input-type-from-format).

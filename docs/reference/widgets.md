@@ -113,6 +113,31 @@ unreachable from a parsed schema. See `ROADMAP.md`.
 > renders as an empty input with no console error. If your backend sends a
 > full timestamp for a `format: "date"` field, normalise it before passing
 > it as `initial-values`.
+>
+> **On a required field this silently blocks submission.**
+> `input_attributes` (`field_common.gleam`) sets `required` on every input
+> regardless of format, and the `<form>` carries no `novalidate`
+> (`form/view.gleam`). An empty `<input type="date" required>` — which is
+> what you get here — fails the browser's own constraint validation and
+> refuses to submit, while formosh's validator still sees the original
+> non-conforming string in `model.values`, considers the field satisfied,
+> and leaves **Submit enabled**. What you'll observe: Submit appears
+> enabled, but clicking it does nothing and formosh renders no error. Same
+> class of problem as the hidden-required-field case documented in
+> `CLAUDE.md` (search `hidden_blocks_warn`) — an otherwise-invisible cause
+> blocking submit — though there is currently no equivalent warning for
+> this one. Remedy: normalise to `YYYY-MM-DD` (`time`: `HH:mm[:ss]`)
+> before passing the value as `initial-values`.
+
+**String-constraint attributes still apply, even though HTML ignores them
+on `date`/`time`.** `get_string_constraints_attributes`
+(`string_field.gleam`) emits `minlength` / `maxlength` / `pattern`
+unconditionally — but the `date` and `time` input types ignore all three
+per the HTML spec. A `pattern`-constrained `format: "date"` field
+therefore loses the browser-side pre-submit blocking it had as
+`type="text"`. Formosh's own validator still enforces `pattern` (see
+[Schema Keywords](schema-keywords.md#string-constraints)), so nothing
+goes unvalidated — only the earlier, native feedback does.
 
 ## Number fields
 
