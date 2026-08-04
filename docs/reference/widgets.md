@@ -74,7 +74,9 @@ flowchart TD
     UW -- "none" --> EV{"enum_values present?"}
     EV -- "yes, ≤5 options" --> R5["radio group"]
     EV -- "yes, >5 options" --> S5["select dropdown"]
-    EV -- "no" --> ML{"maxLength > 100?"}
+    EV -- "no" --> PWF{"format is<br/>password?"}
+    PWF -- "yes" --> PW2["password input<br/>(skips the maxLength textarea check)"]
+    PWF -- "no" --> ML{"maxLength > 100?"}
     ML -- "yes" --> TA2["textarea"]
     ML -- "no" --> TXT["text input<br/>(type from format, see below)"]
 ```

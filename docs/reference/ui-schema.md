@@ -142,14 +142,12 @@ widget, these are ignored (no silent `image/*` fallback).
 ### Password masking
 
 `ui:widget: "password"` forces `<input type="password">` regardless of the
-field's `format` — the widget hint **wins over a conflicting `format`**,
-and (unlike `format: "password"` alone) it is dispatched **before** the
-`maxLength > 100 → textarea` threshold, so a long password field stays a
-password input instead of falling back to a textarea. `format: "password"`
-without the widget hint does not get that same precedence: a
-`maxLength: 128` password declared only via `format` still becomes an
-unmasked textarea — a documented edge case, not a bug. See [HTML input
-type from `format`](widgets.md#html-input-type-from-format).
+field's `format` — the widget hint **wins over a conflicting `format`**.
+`format: "password"` alone also forces `<input type="password">`, and both
+routes win over the `maxLength > 100 → textarea` threshold
+**unconditionally**: a declared password never renders as an unmasked
+textarea, no matter how long `maxLength` is. See [HTML input type from
+`format`](widgets.md#html-input-type-from-format).
 
 Masking is presentational only, in both edit mode and read-only (review)
 mode: the raw value still lives in `model.values` and is still published

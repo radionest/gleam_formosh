@@ -7,9 +7,9 @@ paths:
 
 When creating or modifying field renderers, follow these business logic rules:
 
-- `maxLength > 100` renders as textarea, otherwise as input — except
-  `ui:widget: "password"`, which wins over the threshold and stays a
-  password input
+- `maxLength > 100` renders as textarea, otherwise as input — except a
+  password field (`format: "password"` or `ui:widget: "password"`), which
+  always wins over the threshold and stays a password input
 - `enum` with ≤5 options renders as radio buttons
 - `enum` with >5 options renders as select dropdown
 - Boolean fields render as Yes/No radio buttons

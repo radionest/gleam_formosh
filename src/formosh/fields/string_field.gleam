@@ -43,7 +43,8 @@ pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
 /// `"select"` / `"radio"` force the corresponding enum widget regardless
 /// of option count, `"password"` forces a password input. Without an
 /// override, the field type is inferred from schema (enum values →
-/// select/radio, maxLength > 100 → textarea).
+/// select/radio, maxLength > 100 → textarea, unless `format` is
+/// `password` — masking always wins over the textarea threshold).
 fn render_string_or_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
   case widget_name(ctx) {
     Some("textarea") -> render_textarea(ctx)
@@ -54,12 +55,16 @@ fn render_string_or_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
       case ctx.property.enum_values {
         Some(_enum_vals) -> render_enum(ctx)
         None -> {
-          // Check if it's a textarea based on max length
+          // A declared password format always wins over the maxLength
+          // textarea threshold — a secret must never render in the
+          // clear, at any length. Otherwise, fall back to a textarea
+          // based on max length.
           case ctx.property.string_constraints {
             Some(constraints) ->
-              case constraints.max_length {
-                Some(max) if max > 100 -> render_textarea(ctx)
-                _ -> render_input(ctx)
+              case constraints.format, constraints.max_length {
+                Some(types.PasswordFormat), _ -> render_input(ctx)
+                _, Some(max) if max > 100 -> render_textarea(ctx)
+                _, _ -> render_input(ctx)
               }
             None -> render_input(ctx)
           }

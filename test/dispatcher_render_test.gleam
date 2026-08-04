@@ -237,11 +237,13 @@ pub fn password_widget_beats_textarea_threshold_test() {
   should.be_false(string.contains(html, "<textarea"))
 }
 
-// Documented edge: the format-only route runs AFTER the maxLength > 100
-// threshold, so a long password declared only via `format` still becomes a
-// textarea. Asserted so the behaviour is a decision, not a surprise.
-pub fn password_format_alone_still_hits_textarea_threshold_test() {
-  render(string_property_with_max_length(types.PasswordFormat, 128), False)
-  |> string.contains("<textarea")
-  |> should.be_true
+// format: "password" alone beats the maxLength > 100 textarea threshold,
+// same as the ui:widget route above — a declared password must never
+// render in the clear, regardless of length. Originally a documented
+// asymmetry (see design.md D3); reversed during PR review.
+pub fn password_format_alone_beats_textarea_threshold_test() {
+  let html =
+    render(string_property_with_max_length(types.PasswordFormat, 128), False)
+  should.be_true(string.contains(html, "type=\"password\""))
+  should.be_false(string.contains(html, "<textarea"))
 }

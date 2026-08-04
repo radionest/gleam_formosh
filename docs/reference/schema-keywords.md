@@ -91,7 +91,7 @@ field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 | `url` / `uri` | ✅ | `<input type="url">` | checks `http://` / `https://` prefix |
 | `date` | ✅ | `<input type="date">` — native picker | not validated |
 | `time` | ✅ | `<input type="time">` — native picker | not validated |
-| `password` | ✅ | `<input type="password">` — masked (only when the field reaches `render_input`; `maxLength > 100` or a non-input `ui:widget` falls back to plaintext — see [UiSchema § Password masking](ui-schema.md#password-masking)), and `••••••••` in review mode | not validated |
+| `password` | ✅ | `<input type="password">` — masked, regardless of `maxLength`: both the `format` and `ui:widget` routes win over the textarea threshold unconditionally (see [UiSchema § Password masking](ui-schema.md#password-masking)), and `••••••••` in review mode | not validated |
 | `date-time` | 🟡 | `<input type="text">` — deliberately not wired; RFC 3339 requires an offset that `datetime-local` rejects (see [Widget Selection](widgets.md)) | not validated |
 | `uuid` | 🟡 | `<input type="text">` | not validated |
 | anything else | 🟡 | `<input type="text">` (`CustomFormat`) | not validated |
