@@ -150,10 +150,15 @@ instead of editable inputs:
 
 - Enums show their label, booleans show Yes/No.
 - Nested objects render as groups; arrays of flat objects render as tables.
+- Password fields show a fixed `••••••••` mask instead of the stored value, so
+  a review row never reveals a secret. An unset password still shows the usual
+  `—`. The mask is presentational only — see
+  [UiSchema § Password masking](../reference/ui-schema.md#password-masking).
 - Submit / Reset controls are hidden.
 
 Use this to display the stored values of a record that is no longer
-editable. Pair with `initial-values` to feed in the data. Styling uses the
+editable — with the one exception that password values are masked rather
+than shown. Pair with `initial-values` to feed in the data. Styling uses the
 `readonly-*` part names — see [Styling](styling.md).
 
 ## Custom cross-field validator
