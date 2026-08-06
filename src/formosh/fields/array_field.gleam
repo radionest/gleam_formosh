@@ -83,15 +83,22 @@ pub fn render_container(
       )
     _, _ -> set.new()
   }
-  let completed_count =
-    list.index_fold(items, 0, fn(acc, item, index) {
-      case
-        array_collapse.is_completed(model, ctx.path, index, item, incomplete)
-      {
-        True -> acc + 1
-        False -> acc
-      }
-    })
+  // Discarded by the header slot below when collapsing isn't available, so
+  // don't pay for the scan (is_completed -> has_errors_under_path walks the
+  // whole error map per row) in that case — mirrors the `incomplete` guard
+  // just above.
+  let completed_count = case collapse_available {
+    True ->
+      list.index_fold(items, 0, fn(acc, item, index) {
+        case
+          array_collapse.is_completed(model, ctx.path, index, item, incomplete)
+        {
+          True -> acc + 1
+          False -> acc
+        }
+      })
+    False -> 0
+  }
 
   html.div([class("array-field")], [
     field_common.render_container_label(
@@ -232,12 +239,20 @@ fn render_array_item(
           ),
         ]
       }
+      // Presence-only, lowercase — matches the `data-error`/`data-readonly`
+      // convention (`field_dispatcher.wrap_with_errors`) and `data-exiting`
+      // (`swipe_review_field`): a bare `bool.to_string` would emit
+      // `data-collapsed="False"` on every row even with collapsing off,
+      // which is neither a valid presence selector nor consistent casing.
+      let collapsed_attr = case is_collapsed {
+        True -> [attribute.attribute("data-collapsed", "true")]
+        False -> []
+      }
       html.div(
-        [
-          class("array-item"),
-          attribute.attribute("part", "array-item"),
-          attribute.attribute("data-collapsed", bool.to_string(is_collapsed)),
-        ],
+        list.flatten([
+          [class("array-item"), attribute.attribute("part", "array-item")],
+          collapsed_attr,
+        ]),
         list.flatten([
           summary,
           [render_array_item_header(ctx, removable, orderable, count, index)],
@@ -268,18 +283,46 @@ fn render_item_summary(
       model.selected_branches,
       fields,
     )
+  // `summary_values` can legitimately return `[]` (unknown names, `false`
+  // booleans, blank strings all omitted) while the row is still
+  // `is_completed` — completion only needs ONE non-blank field, and
+  // `BooleanValue(False)` counts as non-blank. Without a fallback that
+  // renders a zero-content `<button>`: no visible text, no accessible name,
+  // and no way back into the row — the exact failure D1 exists to prevent.
+  let spans = case values {
+    [] -> [summary_fallback_span(row_path)]
+    _ ->
+      list.index_map(values, fn(text, i) { summary_span(text, i) })
+      |> list.flatten
+  }
   let expanded = list.contains(model.array_rows_expanded, row_path)
   html.button(
     [
       type_("button"),
       class("array-item-summary"),
       attribute.attribute("part", "array-item-summary"),
-      attribute.attribute("aria-expanded", bool.to_string(expanded)),
+      attribute.attribute("aria-expanded", case expanded {
+        True -> "true"
+        False -> "false"
+      }),
       event.on_click(model.array_msg(ToggleRowExpanded(row_path))),
     ],
-    list.index_map(values, fn(text, i) { summary_span(text, i) })
-      |> list.flatten,
+    spans,
   )
+}
+
+/// Fallback content for a completed row whose `summary_values` yields
+/// nothing: the row's 1-based position, read off `row_path`'s own trailing
+/// `ArraySegment` — keeps the button non-empty and its accessible name
+/// non-empty either way.
+fn summary_fallback_span(row_path: path.FieldPath) -> Element(FormMsg) {
+  let index = case list.last(row_path) {
+    Ok(path.ArraySegment(i)) -> i
+    _ -> 0
+  }
+  html.span([attribute.attribute("part", "array-item-summary-value")], [
+    html.text(int.to_string(index + 1)),
+  ])
 }
 
 /// A literal separator between values, so the line reads correctly with no

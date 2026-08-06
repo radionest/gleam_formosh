@@ -32,6 +32,18 @@ fn rows() -> types.Value {
   ])
 }
 
+/// A single valid, fully-filled row — for tests that need exactly one row
+/// in the array, so there is no sibling row whose own rendering could
+/// satisfy an assertion by accident.
+fn single_valid_row() -> types.Value {
+  types.ArrayValue([
+    types.ObjectValue([
+      #("label", types.StringValue("Диафрагма")),
+      #("state", types.StringValue("absent")),
+    ]),
+  ])
+}
+
 fn init(ui: String) -> model.FormModel {
   let assert Ok(schema) = parser.parse_schema(schema_json)
   let assert Ok(ui_schema) = ui_parser.parse(ui)
@@ -69,8 +81,11 @@ pub fn completed_row_collapses_incomplete_row_does_not_test() {
 pub fn header_renders_toggle_and_progress_test() {
   let html = render(init(ui_json))
   html |> string.contains("Сворачивать заполненные") |> should.be_true
-  html |> string.contains("array-progress") |> should.be_true
-  html |> string.contains("1 / 2") |> should.be_true
+  // Exact element text content — pins the "no prefix word" rule. A bare
+  // `contains("1 / 2")` would also pass for e.g. "Completed: 1 / 2".
+  html
+  |> string.contains("part=\"array-progress\">1 / 2</span>")
+  |> should.be_true
 }
 
 pub fn toggle_stays_rendered_when_switched_off_test() {
@@ -80,10 +95,15 @@ pub fn toggle_stays_rendered_when_switched_off_test() {
       model.array_msg(ToggleCollapseCompleted(zones)),
     )
   let html = render(m1)
-  // Every row expanded…
+  // Every row expanded, no summaries left…
   html |> string.contains("zones.[0].state") |> should.be_true
-  // …and the toggle is still there to switch back on.
+  html |> string.contains("array-item-summary") |> should.be_false
+  // …the toggle is still there to switch back on, rendered unchecked (a
+  // Lustre `attribute.checked(False)` is a DOM property, not an attribute,
+  // so it never appears in `element.to_string` output at all — "checked"
+  // absent from the whole render is exactly "the box is unchecked").
   html |> string.contains("Сворачивать заполненные") |> should.be_true
+  html |> string.contains("checked") |> should.be_false
 }
 
 pub fn expanded_completed_row_keeps_its_summary_test() {
@@ -106,15 +126,39 @@ pub fn option_absent_renders_exactly_as_before_test() {
   plain |> string.contains("array-item-summary") |> should.be_false
   plain |> string.contains("array-progress") |> should.be_false
   plain |> string.contains("array-toggle") |> should.be_false
-  // Both rows fully rendered.
+  // `data-collapsed` is presence-only (fix round 1, item 1) — it must never
+  // appear at all when collapsing isn't even available.
+  plain |> string.contains("data-collapsed") |> should.be_false
+  // Both rows fully rendered, structurally intact: fields, per-row header,
+  // and the container's own add/remove controls all present.
   plain |> string.contains("zones.[0].state") |> should.be_true
   plain |> string.contains("zones.[1].state") |> should.be_true
+  plain |> string.contains("array-item-fields") |> should.be_true
+  plain |> string.contains("add-array-item") |> should.be_true
+  plain |> string.contains("remove-array-item") |> should.be_true
+  // The per-row header renders before that row's fields, not after —
+  // catches a reordering of `.array-item`'s children.
+  let assert [before_first_fields, ..] =
+    string.split(plain, "array-item-fields")
+  before_first_fields |> string.contains("array-item-header") |> should.be_true
 }
 
 pub fn remove_control_stays_reachable_while_collapsed_test() {
-  // Row 0 is collapsed; its remove button must still be rendered, which the
-  // "row becomes a button" shape would have lost.
-  let html = render(init(ui_json))
+  // Single row, no minItems: if the collapsed row's whole header were
+  // dropped (the "row becomes a button" shape this guards against), this is
+  // the ONLY row in the array, so remove-array-item would vanish entirely —
+  // nothing else in the fixture can satisfy the assertion by accident, the
+  // way a second (expanded) row's own header could.
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let assert Ok(ui_schema) = ui_parser.parse(ui_json)
+  let m0 =
+    model.init_with_full_config(schema, None, False, dict.new(), ui_schema)
+  let m1 =
+    model.FormModel(
+      ..m0,
+      values: types.ObjectValue([#("zones", single_valid_row())]),
+    )
+  let html = render(m1)
   html |> string.contains("array-item-summary") |> should.be_true
   html |> string.contains("remove-array-item") |> should.be_true
 }
@@ -137,6 +181,10 @@ pub fn readonly_array_emits_no_collapse_affordances_test() {
   html |> string.contains("array-toggle") |> should.be_false
   html |> string.contains("array-progress") |> should.be_false
   html |> string.contains("array-item-summary") |> should.be_false
+  // Positive: the array still renders its rows — readonly, not suppressed
+  // or emptied. Without this, the three assertions above would also pass
+  // vacuously if the whole array stopped rendering.
+  html |> string.contains("zones.[0].state") |> should.be_true
 }
 
 pub fn review_mode_ignores_the_option_test() {
@@ -202,17 +250,7 @@ pub fn array_length_error_stays_visible_while_rows_collapse_test() {
   let m1 =
     model.FormModel(
       ..m0,
-      values: types.ObjectValue([
-        #(
-          "zones",
-          types.ArrayValue([
-            types.ObjectValue([
-              #("label", types.StringValue("Диафрагма")),
-              #("state", types.StringValue("absent")),
-            ]),
-          ]),
-        ),
-      ]),
+      values: types.ObjectValue([#("zones", single_valid_row())]),
     )
   let #(m2, _) = update.update(m1, model.ValidateForm)
   let html = render(m2)
@@ -222,4 +260,47 @@ pub fn array_length_error_stays_visible_while_rows_collapse_test() {
   // …but the array-level length error still renders.
   html |> string.contains("data-error") |> should.be_true
   html |> string.contains("At least 2 item(s) required") |> should.be_true
+}
+
+// --- fix round 1, item 6: summary fallback when summary_values is empty ---
+
+const empty_summary_schema_json = "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"affected\":{\"type\":\"boolean\"},\"note\":{\"type\":\"string\"}}}}}}"
+
+const empty_summary_ui_json = "{\"zones\":{\"ui:options\":{\"collapseCompleted\":true,\"summaryFields\":[\"affected\"]}}}"
+
+pub fn empty_summary_falls_back_to_row_number_test() {
+  // `affected: False` makes the row `is_completed` (only ONE non-blank
+  // field is required, and `BooleanValue(False)` counts as non-blank) —
+  // but `summary_values` omits `false` booleans, and `note` is blank, so
+  // the summary line has literally nothing to show for `summaryFields:
+  // ["affected"]`. The button must still get non-empty, visible content.
+  let assert Ok(schema) = parser.parse_schema(empty_summary_schema_json)
+  let assert Ok(ui_schema) = ui_parser.parse(empty_summary_ui_json)
+  let m0 =
+    model.init_with_full_config(schema, None, False, dict.new(), ui_schema)
+  let m1 =
+    model.FormModel(
+      ..m0,
+      values: types.ObjectValue([
+        #(
+          "zones",
+          types.ArrayValue([
+            types.ObjectValue([
+              #("affected", types.BooleanValue(False)),
+              #("note", types.StringValue("")),
+            ]),
+          ]),
+        ),
+      ]),
+    )
+  let html = render(m1)
+  // The row collapses (it IS completed)…
+  html |> string.contains("array-item-summary") |> should.be_true
+  // …and the button falls back to the row's 1-based position rather than
+  // rendering empty. This is the single row in the array, so "1" is
+  // unambiguous — and distinct from the "1 / 1" progress text, which never
+  // puts a digit directly against a closing `</span>`.
+  html
+  |> string.contains("part=\"array-item-summary-value\">1</span>")
+  |> should.be_true
 }
