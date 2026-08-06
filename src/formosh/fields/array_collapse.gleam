@@ -3,12 +3,18 @@
 //// the renderer (`array_field`) builds on these, mirroring the
 //// `swipe_review` / `swipe_review_field` split.
 
+import formosh/fields/value_display
 import formosh/form/model.{type FormModel}
 import formosh/form/path.{type FieldPath}
+import formosh/form/union_resolver
+import formosh/schema/properties
 import formosh/schema/types.{type SchemaProperty, type Value}
+import formosh/schema/ui_resolver
+import formosh/schema/ui_schema.{type UiSchema}
 import formosh/schema/validator
 import formosh/validation/field_requirements
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/list
 import gleam/option
 import gleam/set.{type Set}
@@ -107,5 +113,93 @@ fn is_blank(value: Value) -> Bool {
   case value {
     types.ArrayValue([]) | types.ObjectValue([]) -> True
     other -> field_requirements.is_empty_value(option.Some(other))
+  }
+}
+
+/// Display strings for one row's summary line, in `fields` order. The caller
+/// wraps each in its own element — this module stays Lustre-free.
+///
+/// Names are looked up against the row's RESOLVED schema, so a field a
+/// conditional branch introduced is available and one it removed is skipped.
+/// An empty `fields` defaults to every scalar field in schema order, which
+/// deliberately excludes arrays: a lesion count only appears when the author
+/// lists it.
+pub fn summary_values(
+  ui_schema: UiSchema,
+  row_path: FieldPath,
+  item_schema: SchemaProperty,
+  item: Value,
+  selected: List(#(FieldPath, Int)),
+  fields: List(String),
+) -> List(String) {
+  let resolved =
+    union_resolver.resolve_effective_property(
+      item_schema,
+      item,
+      row_path,
+      selected,
+    )
+  case resolved.properties {
+    option.Some(props) -> {
+      let names = case fields {
+        [] -> scalar_names(props)
+        chosen -> chosen
+      }
+      list.filter_map(names, fn(name) {
+        case properties.get(props, name), field_value(item, name) {
+          option.Some(prop), option.Some(value) ->
+            case entry(ui_schema, row_path, name, prop, value) {
+              option.Some(text) -> Ok(text)
+              option.None -> Error(Nil)
+            }
+          _, _ -> Error(Nil)
+        }
+      })
+    }
+    option.None -> []
+  }
+}
+
+fn scalar_names(props: List(#(String, SchemaProperty))) -> List(String) {
+  props
+  |> list.filter(fn(pair) {
+    case { pair.1 }.field_type {
+      option.Some(types.ArrayType) | option.Some(types.ObjectType) -> False
+      _ -> True
+    }
+  })
+  |> list.map(fn(pair) { pair.0 })
+}
+
+fn field_value(item: Value, name: String) -> option.Option(Value) {
+  case item {
+    types.ObjectValue(fields) ->
+      list.key_find(fields, name) |> option.from_result
+    _ -> option.None
+  }
+}
+
+fn entry(
+  ui_schema: UiSchema,
+  row_path: FieldPath,
+  name: String,
+  prop: SchemaProperty,
+  value: Value,
+) -> option.Option(String) {
+  let field_path = list.append(row_path, [path.PropertySegment(name)])
+  let hints = ui_resolver.resolve_hints(ui_schema, field_path, prop)
+  let title = value_display.label_text(name, prop, hints)
+  case value {
+    // Empty values are omitted outright rather than rendered as the unset
+    // dash `display_value` would return — a summary line is not a review row.
+    types.NullValue | types.StringValue("") -> option.None
+    types.ArrayValue([]) -> option.None
+    types.ArrayValue(xs) ->
+      option.Some(title <> ": " <> int.to_string(list.length(xs)))
+    types.BooleanValue(False) -> option.None
+    types.BooleanValue(True) -> option.Some(title)
+    types.ObjectValue(_) -> option.None
+    other ->
+      option.Some(value_display.display_value(prop, hints, option.Some(other)))
   }
 }
