@@ -20,6 +20,13 @@ fn row(index: Int) {
   [PropertySegment("zones"), ArraySegment(index)]
 }
 
+// A path scoped under a row, e.g. a nested array's own collapse toggle.
+// Handlers are path-agnostic, so this need not exist in the schema — it only
+// has to reindex the same way a real nested collapse-off entry would.
+fn nested_path(index: Int) {
+  list.append(row(index), [PropertySegment("nested")])
+}
+
 fn init() -> model.FormModel {
   let assert Ok(schema) = parser.parse_schema(schema_json)
   let assert Ok(ui) = ui_parser.parse(ui_json)
@@ -56,16 +63,33 @@ pub fn toggle_collapse_off_then_on_test() {
 }
 
 pub fn recollapsing_clears_row_expansions_test() {
+  // A row expanded under a DIFFERENT array must survive re-collapsing
+  // `zones` — proves the clear is scoped by path prefix, not unconditional.
+  let other_row = [PropertySegment("other"), ArraySegment(0)]
   let m0 = init()
   let #(m1, _) = update.update(m0, model.array_msg(ToggleRowExpanded(row(1))))
   let #(m2, _) =
-    update.update(m1, model.array_msg(ToggleCollapseCompleted(zones)))
+    update.update(m1, model.array_msg(ToggleRowExpanded(other_row)))
   let #(m3, _) =
     update.update(m2, model.array_msg(ToggleCollapseCompleted(zones)))
-  m3.array_rows_expanded |> should.equal([])
+  let #(m4, _) =
+    update.update(m3, model.array_msg(ToggleCollapseCompleted(zones)))
+  m4.array_rows_expanded |> should.equal([other_row])
 }
 
 pub fn expanding_one_row_leaves_siblings_test() {
+  // Expand two DIFFERENT rows and require both survive — an implementation
+  // that replaces the list on each expand (`[row_path]` instead of
+  // `[row_path, ..model.array_rows_expanded]`) would pass a same-row
+  // toggle-on/toggle-off test but fails this one.
+  let m0 = init()
+  let #(m1, _) = update.update(m0, model.array_msg(ToggleRowExpanded(row(0))))
+  let #(m2, _) = update.update(m1, model.array_msg(ToggleRowExpanded(row(2))))
+  m2.array_rows_expanded |> list.contains(row(0)) |> should.be_true
+  m2.array_rows_expanded |> list.contains(row(2)) |> should.be_true
+}
+
+pub fn toggling_row_expanded_twice_collapses_it_test() {
   let m0 = init()
   let #(m1, _) = update.update(m0, model.array_msg(ToggleRowExpanded(row(1))))
   m1.array_rows_expanded |> should.equal([row(1)])
@@ -100,22 +124,52 @@ pub fn toggling_does_not_touch_values_or_dirty_test() {
 pub fn removing_earlier_row_shifts_expansion_test() {
   let m0 = init()
   let #(m1, _) = update.update(m0, model.array_msg(ToggleRowExpanded(row(2))))
-  let #(m2, _) = update.update(m1, model.RemoveArrayItemPath(zones, 0))
-  m2.array_rows_expanded |> should.equal([row(1)])
+  let #(m2, _) =
+    update.update(m1, model.array_msg(ToggleCollapseCompleted(zones)))
+  let #(m3, _) =
+    update.update(m2, model.array_msg(ToggleCollapseCompleted(nested_path(2))))
+  let #(m4, _) = update.update(m3, model.RemoveArrayItemPath(zones, 0))
+  m4.array_rows_expanded |> should.equal([row(1)])
+  // The array's own collapse-off entry (`zones`) is unaffected by which row
+  // moved — deliberately pinned because it is correct but non-obvious:
+  // `reindex_after_array_removal` falls through to `Some(path)` when
+  // nothing remains after stripping the array prefix, so the user's toggle
+  // is never silently reset by removing a row.
+  m4.array_collapse_off |> list.contains(zones) |> should.be_true
+  // A collapse-off entry scoped to a row shifts down with its row, the same
+  // way array_rows_expanded entries do.
+  m4.array_collapse_off |> list.contains(nested_path(1)) |> should.be_true
+  m4.array_collapse_off |> list.contains(nested_path(2)) |> should.be_false
 }
 
 pub fn removing_expanded_row_drops_its_state_test() {
   let m0 = init()
   let #(m1, _) = update.update(m0, model.array_msg(ToggleRowExpanded(row(1))))
-  let #(m2, _) = update.update(m1, model.RemoveArrayItemPath(zones, 1))
-  m2.array_rows_expanded |> should.equal([])
+  let #(m2, _) =
+    update.update(m1, model.array_msg(ToggleCollapseCompleted(zones)))
+  let #(m3, _) =
+    update.update(m2, model.array_msg(ToggleCollapseCompleted(nested_path(1))))
+  let #(m4, _) = update.update(m3, model.RemoveArrayItemPath(zones, 1))
+  m4.array_rows_expanded |> should.equal([])
+  // The array's own entry survives removing one of its rows...
+  m4.array_collapse_off |> list.contains(zones) |> should.be_true
+  // ...but an entry scoped to the removed row itself is dropped, same as
+  // array_rows_expanded.
+  m4.array_collapse_off |> list.contains(nested_path(1)) |> should.be_false
 }
 
 pub fn moving_row_carries_expansion_test() {
   let m0 = init()
   let #(m1, _) = update.update(m0, model.array_msg(ToggleRowExpanded(row(0))))
-  let #(m2, _) = update.update(m1, model.MoveArrayItemPath(zones, 0, 2))
-  m2.array_rows_expanded |> should.equal([row(2)])
+  let #(m2, _) =
+    update.update(m1, model.array_msg(ToggleCollapseCompleted(zones)))
+  let #(m3, _) =
+    update.update(m2, model.array_msg(ToggleCollapseCompleted(nested_path(0))))
+  let #(m4, _) = update.update(m3, model.MoveArrayItemPath(zones, 0, 2))
+  m4.array_rows_expanded |> should.equal([row(2)])
+  m4.array_collapse_off |> list.contains(zones) |> should.be_true
+  m4.array_collapse_off |> list.contains(nested_path(2)) |> should.be_true
+  m4.array_collapse_off |> list.contains(nested_path(0)) |> should.be_false
 }
 
 pub fn reset_clears_collapse_state_test() {
