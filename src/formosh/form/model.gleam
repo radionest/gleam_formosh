@@ -771,7 +771,7 @@ pub fn clear_errors_at_path(
 ///   path, so each descendant entry has to be filtered out on its own —
 ///   `errors` by canonical-string key (`is_error_key_under_path`),
 ///   `touched_fields` by structural `FieldPath` list-prefix
-///   (`has_path_prefix`). These are two different mechanisms; see each
+///   (`path.is_prefix_of`). These are two different mechanisms; see each
 ///   helper's doc. Both already handle an `ArraySegment`-terminated
 ///   `field_path` correctly (index-aware matching), so — unlike `values` —
 ///   they need no corresponding split.
@@ -785,7 +785,7 @@ pub fn clear_subtree(model: FormModel, field_path: FieldPath) -> FormModel {
     values: clear_subtree_values(model, field_path),
     errors: new_errors,
     touched_fields: list.filter(model.touched_fields, fn(touched) {
-      !has_path_prefix(field_path, touched)
+      !path.is_prefix_of(field_path, touched)
     }),
     is_valid: dict.size(new_errors) == 0,
   )
@@ -838,18 +838,6 @@ fn array_row_reset_value(model: FormModel, array_path: FieldPath) -> Value {
         option.None -> types.NullValue
       }
     Error(_) -> types.NullValue
-  }
-}
-
-/// True when `candidate` is `prefix` itself or a structural descendant of
-/// it — e.g. `[value]` prefixes both `[value]` and `[value, city]`. Used
-/// for `touched_fields`, which is keyed by `FieldPath`, not by string.
-fn has_path_prefix(prefix: FieldPath, candidate: FieldPath) -> Bool {
-  case prefix, candidate {
-    [], _ -> True
-    [p, ..prefix_rest], [c, ..candidate_rest] ->
-      p == c && has_path_prefix(prefix_rest, candidate_rest)
-    _, _ -> False
   }
 }
 

@@ -591,3 +591,13 @@ pub fn is_prefix_of_unrelated_test() {
   ])
   |> should.be_false
 }
+
+// The prefix is longer than the path: matching segments run out before the
+// prefix does, so this must not fall through to the exact-match clause and
+// wrongly return True.
+pub fn is_prefix_of_prefix_longer_than_path_test() {
+  path.is_prefix_of([path.PropertySegment("zones"), path.ArraySegment(0)], [
+    path.PropertySegment("zones"),
+  ])
+  |> should.be_false
+}
