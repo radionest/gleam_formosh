@@ -272,20 +272,28 @@ pub fn conditional_subtree_keeps_row_open_test() {
   set.contains(incomplete, 0) |> should.be_true
 }
 
-const summary_schema_json = "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"zone_id\":{\"type\":\"integer\",\"title\":\"№ зоны\"},\"label\":{\"type\":\"string\",\"title\":\"Зона\"},\"state\":{\"type\":\"string\",\"title\":\"Состояние\",\"oneOf\":[{\"const\":\"present\",\"title\":\"Есть\"},{\"const\":\"absent\",\"title\":\"Нет\"}]},\"affected\":{\"type\":\"boolean\",\"title\":\"Поражение\"},\"secret\":{\"type\":\"string\",\"format\":\"password\",\"title\":\"Код\"},\"lesions\":{\"type\":\"array\",\"title\":\"Очаги\",\"items\":{\"type\":\"object\"}}}}}}}"
+const summary_schema_json = "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"zone_id\":{\"type\":\"integer\",\"title\":\"№ зоны\"},\"label\":{\"type\":\"string\",\"title\":\"Зона\"},\"state\":{\"type\":\"string\",\"title\":\"Состояние\",\"oneOf\":[{\"const\":\"present\",\"title\":\"Есть\"},{\"const\":\"absent\",\"title\":\"Нет\"}]},\"affected\":{\"type\":\"boolean\",\"title\":\"Поражение\"},\"secret\":{\"type\":\"string\",\"format\":\"password\",\"title\":\"Код\"},\"lesions\":{\"type\":\"array\",\"title\":\"Очаги\",\"items\":{\"type\":\"object\"}},\"tags\":{\"title\":\"Метки\",\"items\":{\"type\":\"string\"}},\"contact\":{\"type\":\"object\",\"title\":\"Контакт\",\"properties\":{\"phone\":{\"type\":\"string\"}}}}}}}}"
 
-fn summary_of(row: types.Value, fields: List(String)) -> List(String) {
+fn summary_of_with_ui(
+  ui: ui_schema.UiSchema,
+  row: types.Value,
+  fields: List(String),
+) -> List(String) {
   let assert Ok(schema) = parser.parse_schema(summary_schema_json)
   let assert option.Some(prop) = properties.get(schema.properties, "zones")
   let assert option.Some(items) = prop.items
   array_collapse.summary_values(
-    ui_schema.empty_ui_schema(),
+    ui,
     [PropertySegment("zones"), ArraySegment(0)],
     items,
     row,
     [],
     fields,
   )
+}
+
+fn summary_of(row: types.Value, fields: List(String)) -> List(String) {
+  summary_of_with_ui(ui_schema.empty_ui_schema(), row, fields)
 }
 
 pub fn summary_honours_explicit_order_test() {
@@ -347,12 +355,15 @@ pub fn summary_empty_array_is_omitted_test() {
 pub fn summary_default_is_scalar_fields_in_schema_order_test() {
   let row =
     types.ObjectValue([
-      #("zone_id", types.IntegerValue(4)),
       #("label", types.StringValue("Диафрагма")),
+      #("zone_id", types.IntegerValue(4)),
       #("affected", types.BooleanValue(True)),
       #("lesions", types.ArrayValue([types.ObjectValue([])])),
     ])
-  // Default omits `lesions` — the default set is scalar fields only.
+  // Row order is label, zone_id — schema order is zone_id, label. Asserting
+  // schema order here also catches an implementation that iterates the row's
+  // own value order instead of the resolved schema's properties.
+  // Default also omits `lesions` — the default set is scalar fields only.
   summary_of(row, []) |> should.equal(["4", "Диафрагма", "Поражение"])
 }
 
@@ -366,4 +377,92 @@ pub fn summary_masks_password_field_test() {
 pub fn summary_omits_empty_password_field_test() {
   let row = types.ObjectValue([#("secret", types.StringValue(""))])
   summary_of(row, ["secret"]) |> should.equal([])
+}
+
+pub fn summary_masks_password_field_holding_array_value_test() {
+  // A password-masked field whose stored value is an ArrayValue (reachable
+  // e.g. through mismatched `initial-values`) must still mask rather than
+  // fall into the array-count arm, which would disclose the length.
+  let row =
+    types.ObjectValue([
+      #(
+        "secret",
+        types.ArrayValue([
+          types.StringValue("a"),
+          types.StringValue("b"),
+          types.StringValue("c"),
+        ]),
+      ),
+    ])
+  summary_of(row, ["secret"]) |> should.equal(["••••••••"])
+}
+
+// --- ui-schema hint resolution (fix round 1, item 1) ---
+
+pub fn summary_ui_widget_password_masks_non_format_field_test() {
+  let assert Ok(ui) =
+    ui_parser.parse(
+      "{\"zones\":{\"items\":{\"label\":{\"ui:widget\":\"password\"}}}}",
+    )
+  let row = types.ObjectValue([#("label", types.StringValue("hunter2"))])
+  summary_of_with_ui(ui, row, ["label"]) |> should.equal(["••••••••"])
+}
+
+pub fn summary_ui_title_overrides_schema_title_test() {
+  let assert Ok(ui) =
+    ui_parser.parse(
+      "{\"zones\":{\"items\":{\"affected\":{\"ui:title\":\"Задействовано\"}}}}",
+    )
+  let row = types.ObjectValue([#("affected", types.BooleanValue(True))])
+  summary_of_with_ui(ui, row, ["affected"]) |> should.equal(["Задействовано"])
+}
+
+// --- untyped-property default-set exclusion (fix round 1, item 3) ---
+
+pub fn summary_untyped_array_property_excluded_from_default_test() {
+  let row =
+    types.ObjectValue([
+      #("zone_id", types.IntegerValue(4)),
+      #(
+        "tags",
+        types.ArrayValue([types.StringValue("a"), types.StringValue("b")]),
+      ),
+    ])
+  // `tags` declares no `type`, so `scalar_names` alone cannot exclude it —
+  // the default set additionally checks the row's own value shape.
+  summary_of(row, []) |> should.equal(["4"])
+}
+
+pub fn summary_untyped_array_property_shows_count_when_explicit_test() {
+  let row =
+    types.ObjectValue([
+      #(
+        "tags",
+        types.ArrayValue([types.StringValue("a"), types.StringValue("b")]),
+      ),
+    ])
+  summary_of(row, ["tags"]) |> should.equal(["Метки: 2"])
+}
+
+// --- ObjectValue omission deviation, guarded (fix round 1, item 5) ---
+
+pub fn summary_object_value_contributes_nothing_test() {
+  // Deliberate deviation from the design table (flagged at review): an
+  // ObjectValue field is omitted outright rather than routed through
+  // `display_value`, which would render the unset dash. See the task-6
+  // report / PR description.
+  let row =
+    types.ObjectValue([
+      #("contact", types.ObjectValue([#("phone", types.StringValue("123"))])),
+    ])
+  summary_of(row, ["contact"]) |> should.equal([])
+}
+
+pub fn summary_object_typed_property_excluded_from_default_test() {
+  let row =
+    types.ObjectValue([
+      #("zone_id", types.IntegerValue(4)),
+      #("contact", types.ObjectValue([#("phone", types.StringValue("123"))])),
+    ])
+  summary_of(row, []) |> should.equal(["4"])
 }

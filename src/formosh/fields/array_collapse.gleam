@@ -142,7 +142,18 @@ pub fn summary_values(
   case resolved.properties {
     option.Some(props) -> {
       let names = case fields {
-        [] -> scalar_names(props)
+        [] ->
+          // `scalar_names` filters on the declared `field_type`, which is
+          // `None` for a property with no `"type"` key — so an untyped
+          // property holding an array still needs excluding here, by its
+          // actual row value, to honour "the default set excludes arrays".
+          scalar_names(props)
+          |> list.filter(fn(name) {
+            case field_value(item, name) {
+              option.Some(types.ArrayValue(_)) -> False
+              _ -> True
+            }
+          })
         chosen -> chosen
       }
       list.filter_map(names, fn(name) {
@@ -195,7 +206,13 @@ fn entry(
     types.NullValue | types.StringValue("") -> option.None
     types.ArrayValue([]) -> option.None
     types.ArrayValue(xs) ->
-      option.Some(title <> ": " <> int.to_string(list.length(xs)))
+      case value_display.is_password(prop, hints) {
+        // A password-masked field must mask even when its stored value is
+        // an ArrayValue (reachable through mismatched `initial-values`) —
+        // the count arm below would otherwise disclose the length.
+        True -> option.Some(value_display.password_mask)
+        False -> option.Some(title <> ": " <> int.to_string(list.length(xs)))
+      }
     types.BooleanValue(False) -> option.None
     types.BooleanValue(True) -> option.Some(title)
     types.ObjectValue(_) -> option.None
