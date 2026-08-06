@@ -211,6 +211,9 @@ pub fn no_completed_row_has_errors_beneath_it_test() {
   ]
   let m0 = model_with(rows)
   let #(m1, _) = update.update(m0, model.ValidateForm)
+  // Non-vacuity guard: row 0 must actually be completed, or the `True`
+  // branch below never runs and the loop proves nothing.
+  completed(m1, rows, 0) |> should.be_true
   let incomplete =
     array_collapse.incomplete_rows(
       zones_path,
