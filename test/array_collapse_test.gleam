@@ -466,3 +466,36 @@ pub fn summary_object_typed_property_excluded_from_default_test() {
     ])
   summary_of(row, []) |> should.equal(["4"])
 }
+
+// --- password decision hoisted above the value-shape case (fix round 2) ---
+
+pub fn summary_masks_password_field_holding_true_boolean_test() {
+  let row = types.ObjectValue([#("secret", types.BooleanValue(True))])
+  summary_of(row, ["secret"]) |> should.equal(["••••••••"])
+}
+
+pub fn summary_masks_password_field_holding_false_boolean_test() {
+  // `False` must mask exactly like `True` — omitting one and masking the
+  // other would leak the stored bit through presence/absence alone.
+  let row = types.ObjectValue([#("secret", types.BooleanValue(False))])
+  summary_of(row, ["secret"]) |> should.equal(["••••••••"])
+}
+
+pub fn summary_ui_widget_password_masks_boolean_value_test() {
+  let assert Ok(ui) =
+    ui_parser.parse(
+      "{\"zones\":{\"items\":{\"label\":{\"ui:widget\":\"password\"}}}}",
+    )
+  let row = types.ObjectValue([#("label", types.BooleanValue(True))])
+  summary_of_with_ui(ui, row, ["label"]) |> should.equal(["••••••••"])
+}
+
+pub fn summary_omits_null_password_field_test() {
+  let row = types.ObjectValue([#("secret", types.NullValue)])
+  summary_of(row, ["secret"]) |> should.equal([])
+}
+
+pub fn summary_omits_empty_array_password_field_test() {
+  let row = types.ObjectValue([#("secret", types.ArrayValue([]))])
+  summary_of(row, ["secret"]) |> should.equal([])
+}

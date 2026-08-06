@@ -202,21 +202,32 @@ fn entry(
   let title = value_display.label_text(name, prop, hints)
   case value {
     // Empty values are omitted outright rather than rendered as the unset
-    // dash `display_value` would return — a summary line is not a review row.
+    // dash `display_value` would return — a summary line is not a review
+    // row. Password or not: omission discloses strictly less than a mask.
     types.NullValue | types.StringValue("") -> option.None
     types.ArrayValue([]) -> option.None
-    types.ArrayValue(xs) ->
+    non_empty ->
       case value_display.is_password(prop, hints) {
-        // A password-masked field must mask even when its stored value is
-        // an ArrayValue (reachable through mismatched `initial-values`) —
-        // the count arm below would otherwise disclose the length.
+        // A password field masks every non-empty value uniformly, whatever
+        // its shape — including BooleanValue(False). Patching one shape's
+        // arm at a time (as the ArrayValue arm briefly was) leaves every
+        // other shape still able to leak; hoisting the check here is what
+        // stops the next arm from reintroducing the same hole.
         True -> option.Some(value_display.password_mask)
-        False -> option.Some(title <> ": " <> int.to_string(list.length(xs)))
+        False ->
+          case non_empty {
+            types.ArrayValue(xs) ->
+              option.Some(title <> ": " <> int.to_string(list.length(xs)))
+            types.BooleanValue(False) -> option.None
+            types.BooleanValue(True) -> option.Some(title)
+            types.ObjectValue(_) -> option.None
+            other ->
+              option.Some(value_display.display_value(
+                prop,
+                hints,
+                option.Some(other),
+              ))
+          }
       }
-    types.BooleanValue(False) -> option.None
-    types.BooleanValue(True) -> option.Some(title)
-    types.ObjectValue(_) -> option.None
-    other ->
-      option.Some(value_display.display_value(prop, hints, option.Some(other)))
   }
 }
