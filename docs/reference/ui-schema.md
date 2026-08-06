@@ -93,7 +93,7 @@ default (or `x-*` extension where applicable)".
 | Key | Type | Effect |
 |-----|------|--------|
 | `ui:widget` | string | Override the auto-selected widget. Recognized: `"image-upload"`, `"hidden"`, `"swipe-review"`, plus the string-field hints `"textarea"`, `"select"`, `"radio"`, `"password"`. `"select"` / `"radio"` also apply to an `anyOf` union chooser on the same path — same ≤5-radio / >5-select contract as a string `enum`, see [Union chooser](widgets.md#union-chooser-anyof-2-branches). Anything else becomes a `CustomWidget(raw)` that custom renderers can dispatch on. See [Widget Selection](widgets.md). |
-| `ui:options` | object | Free-form bag of widget-specific settings, passed through to the renderer as a `Dict(String, Value)`. E.g. `swipe-review` reads `swipeRight` / `swipeLeft` / `button` / `hideAnsweredLabel` from here. |
+| `ui:options` | object | Free-form bag of widget-specific settings, passed through to the renderer as a `Dict(String, Value)`. E.g. `swipe-review` reads `swipeRight` / `swipeLeft` / `button` / `hideAnsweredLabel` from here; an array reads `collapseCompleted` / `collapseCompletedLabel` / `summaryFields` to collapse completed rows — see [Collapse completed array rows](#collapse-completed-array-rows) below. |
 
 ### Labels and help
 
@@ -128,6 +128,25 @@ default (or `x-*` extension where applicable)".
 
 `x-addable` / `x-removable` on the schema node are a deprecated fallback
 with the same meaning; UiSchema wins on collision.
+
+### Collapse completed array rows
+
+Set inside `ui:options` on the array node itself — these are not top-level
+`ui:*` keys, they live in the free-form bag described above:
+
+| Key | Type | Default | Effect |
+|-----|------|---------|--------|
+| `collapseCompleted` | bool | `false` | Enables the feature on this array. Absent (or `false`) means no behaviour change at all — the array renders exactly as it did before this feature existed. |
+| `collapseCompletedLabel` | string | `"Collapse completed"` | Caption on the toggle checkbox. |
+| `summaryFields` | string[] | `[]` | Row fields shown in the collapsed summary, in the given order. `[]` defaults to every **scalar** field of the row's resolved schema, in schema order — this deliberately excludes arrays, so a nested array only shows up in the summary (as `"Title: N"`) when you list it explicitly. |
+
+A row collapses only when all three hold: it has at least one non-empty own
+field, array-item validation reports no error at its index, and no recorded
+error in the form's error map falls under its path. That third check treats
+`model.errors` as authoritative for "nothing wrong in this row" — see
+[Collapsing completed rows](widgets.md#collapsing-completed-rows) for a
+known gap where a cross-field validator's error on a path only a per-row
+conditional reveals never reaches that map.
 
 ### Image upload
 
@@ -191,7 +210,7 @@ for compatibility).
 
 ## Worked examples
 
-All three are lifted from `demo/schemas/*.ui.json` — open them in the demo
+All four are lifted from `demo/schemas/*.ui.json` — open them in the demo
 (`make demo`) to see them live.
 
 ### Disable array controls and lock down nested reordering
@@ -250,6 +269,36 @@ choices via `ui:options`:
 `swipe-review` reads its choice definitions from `ui:options` — that's the
 free-form bag the renderer reads when the built-in widgets don't cover
 your case.
+
+### Collapse completed rows in a long array
+
+A radiology zones array where each row is noise once it's been read —
+collapse it to a one-line summary once it's filled in:
+
+```json
+{
+  "zones": {
+    "ui:addable": false,
+    "ui:removable": false,
+    "ui:orderable": false,
+    "ui:options": {
+      "collapseCompleted": true,
+      "collapseCompletedLabel": "Сворачивать заполненные",
+      "summaryFields": ["zone_id", "label", "affected", "lesions"]
+    },
+    "items": {
+      "lesions": { "ui:orderable": false }
+    }
+  }
+}
+```
+
+`summaryFields` lists `lesions` explicitly — the default set would have
+excluded it, since it's an array (`"Очаги: 2"` only appears because the
+author asked for it). A row collapses once `affected` is set and nothing is
+wrong under that row's path; unchecking `affected` again reopens it, since
+the lesion this schema auto-creates (`minItems: 1` once `affected` is true)
+starts out unfilled.
 
 ## Source of truth
 

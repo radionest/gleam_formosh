@@ -193,6 +193,60 @@ Rows auto-create up to `minItems` (with item-field defaults applied). Array
 items can themselves be objects or arrays — nesting to any depth — so the
 container recurses through the same dispatcher.
 
+### Collapsing completed rows
+
+Opt in per array via `ui:options` on that array node —
+[`collapseCompleted` / `collapseCompletedLabel` /
+`summaryFields`](ui-schema.md#collapse-completed-array-rows). With the
+option off (the default), an array renders exactly as described above;
+nothing in this section changes anything.
+
+When it's on, and the array isn't read-only, a header renders above the
+rows: a toggle checkbox plus a `"{completed} / {total}"` progress count.
+The header renders even while the user has switched collapsing off — it's
+the only control that can switch it back on — but switching it back on
+discards every row the user had individually reopened, so re-enabling is a
+real "collapse everything again" action, not a no-op.
+
+A row collapses only when all three hold:
+
+- it has at least one non-empty own field,
+- array-item validation reports no error at its index, and
+- no recorded error in the form's error map falls under its path.
+
+Two consequences follow directly from the first condition:
+
+- **A row whose fields are all optional stays expanded until something is
+  filled in.** An empty row has no non-empty field, so it can't collapse no
+  matter how loosely its schema constrains it — by design, not a bug: mark
+  a row field required, or fill something in, to see it collapse.
+- **A freshly added row always renders expanded**, even one whose item
+  schema is all-optional-with-defaults and so satisfies "completed" the
+  instant `AddArrayItemPath` builds it — without this, clicking "Add" would
+  immediately collapse the row the user just asked to fill in. Rows a
+  `minItems` top-up auto-creates are **not** force-expanded this way; they
+  render collapsed or expanded purely from the predicate above, same as any
+  other row.
+
+A completed row whose `summaryFields` resolve to nothing to show (every
+named field blank, or a lone boolean that's `false`) falls back to
+rendering its 1-based row number instead of an empty button — an empty
+button would have no visible text and no accessible name, a dead end back
+into the row.
+
+**Known gap.** The third condition trusts `model.errors` as the complete
+record of "something's wrong in this row" — it isn't, always. A
+cross-field validator's error keyed on a path that only a per-row
+conditional reveals (e.g. `zones.[3].lesions.[0].length_mm`, where
+`lesions` exists only once *that* row's own `affected` is true) is dropped
+by `filter_cross_error` before it ever reaches `model.errors`: that check
+resolves the path against the array's raw, unresolved item schema — one
+shared template for every row — not against that row's own resolved
+conditionals. Such an error neither blocks submit nor holds the row open.
+Schema-level validation (the second condition above) doesn't have this
+gap — it resolves each row's own conditionals before checking — so this
+only affects a custom `with_validator` cross-validator's own error paths.
+
 ## Object fields
 
 A nested `<fieldset>` with one labelled child per property. Child order is
@@ -310,6 +364,7 @@ own dispatch from there.
 | String sub-decision (oneOf / enum / textarea / input) | `src/formosh/fields/string_field.gleam` |
 | HTML `type` from `format` | `string_field.get_input_type` |
 | Array container + add/remove gating | `src/formosh/fields/array_field.gleam` |
+| Collapse-completed logic (options, predicate, summaries) | `src/formosh/fields/array_collapse.gleam` |
 | Object fieldset | `src/formosh/fields/object_field.gleam` |
 | Union chooser (`anyOf`, 2+ branches) | `src/formosh/fields/union_field.gleam` |
 | Branch resolution / materialization (`selected_branches`) | `src/formosh/form/union_resolver.gleam` |

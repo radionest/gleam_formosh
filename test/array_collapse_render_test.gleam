@@ -137,6 +137,11 @@ pub fn option_absent_renders_exactly_as_before_test() {
   plain |> string.contains("data-collapsed") |> should.be_false
   // Both rows fully rendered, structurally intact: fields, per-row header,
   // and the container's own add/remove controls all present.
+  // The part surface renders regardless of the collapse option — the
+  // `array-item-fields` / `add-array-item` / `array-item-header` checks
+  // below match class names, not parts, so this pins the guarantee that
+  // `part="array-field"` is not itself gated on `collapseCompleted`.
+  plain |> string.contains("part=\"array-field\"") |> should.be_true
   plain |> string.contains("zones.[0].state") |> should.be_true
   plain |> string.contains("zones.[1].state") |> should.be_true
   plain |> string.contains("array-item-fields") |> should.be_true

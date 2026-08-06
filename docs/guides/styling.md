@@ -48,7 +48,14 @@ formosh-form::part(field)[data-error] { border-color: red; }
 
 /* A readOnly field rendered as disabled */
 formosh-form::part(field)[data-readonly] { opacity: 0.6; }
+
+/* A completed array row currently collapsed to its summary */
+formosh-form::part(array-item)[data-collapsed] { padding-block: 0.25rem; }
 ```
+
+`data-collapsed` is presence-only: it appears (value `"true"`) only on a
+row that is actually collapsed, and is absent — not `"false"` — on every
+other row, matching `data-error` and `data-readonly` above.
 
 ## 3. Parent stylesheets are auto-adopted
 
@@ -77,6 +84,24 @@ Every styled element exposes a part. Grouped by area:
 **Inputs (by widget):**
 `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`,
 `boolean`, `checkbox-wrapper`, `checkbox-group`.
+
+**Arrays:**
+`array-field` (outer container), `array-items` (the row list), `array-item`
+(one row's wrapper), `array-item-fields` (that row's child fields — this is
+the one part that disappears entirely on a collapsed row), `array-item-header`
+(per-row move/remove controls, present either way), `array-add`.
+
+**Collapse-completed arrays** (`ui:options.collapseCompleted`) — adds:
+`array-toggle` (the header checkbox), `array-progress` (the counter),
+`array-item-summary` (the collapsed row's own button),
+`array-item-summary-value`, `array-item-summary-sep`.
+
+The progress text is bare `"{completed} / {total}"` — no prefix word. Add
+one yourself, e.g. `formosh-form::part(array-progress)::before { content:
+"Done: "; }`. `array-item-summary-value` has no descendant combinator to
+lean on (see below), so every value in a row's summary — whichever field
+produced it — styles identically; there's no way to single out, say, just
+the first one through `::part()` alone.
 
 **Union (`anyOf`, 2+ branches):**
 `union` (outer wrapper), `union-radio` (radio-group chooser, ≤5 branches by
@@ -126,6 +151,11 @@ because some elements carry **two** part tokens (e.g.
 `part="radio-group boolean"`) — they are reachable through either token,
 but a `radio-item` inside a boolean group cannot be styled differently
 from one inside an enum group through Shadow Parts alone.
+
+The same limit applies to a collapsed row's summary: every
+`array-item-summary-value` styles identically wherever it appears, because
+there is no `formosh-form::part(array-item) ::part(array-item-summary-value)`
+to scope by which row — or which field within the row — produced it.
 
 Workarounds when you need to differentiate:
 
