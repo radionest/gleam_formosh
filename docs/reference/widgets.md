@@ -217,11 +217,13 @@ A row collapses only when all three hold:
 - array-item validation reports no error at its index, and
 - no recorded error in the form's error map falls under its path.
 
-A completed row always renders its summary as a real `<button>`, in
-**both** the collapsed and expanded state — clicking it toggles between
-them (`aria-expanded` reflects which). Only the row's field container
-actually hides; the per-row move/remove header and the way back into the
-row are never lost.
+While collapsing is switched on, a completed row always renders its
+summary as a real `<button>`, in **both** the collapsed and expanded
+state — clicking it toggles between them (`aria-expanded` reflects which),
+and only the row's field container actually hides. Switching collapsing
+off removes every summary button outright, regardless of completion — but
+the header's progress count keeps counting completed rows either way,
+since it depends only on `collapseCompleted`/read-only, not on the toggle.
 
 Three consequences follow directly from the predicate above:
 

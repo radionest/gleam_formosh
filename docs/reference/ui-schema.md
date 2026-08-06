@@ -149,12 +149,14 @@ known gap where a cross-field validator's error on a path only a per-row
 conditional reveals never reaches that map.
 
 Two value-formatting rules matter when picking `summaryFields`: a
-`password`-format (or `ui:widget: "password"`) field always renders the
-fixed `••••••••` mask, never the real value; and a boolean field renders
-its own title when `true` and is omitted entirely when `false`. The worked
-example below leans on the second rule — a cleared `affected` contributes
-nothing to the summary line, which is why a collapsed row shows only
-`zone_id` and `label`.
+non-empty `password`-format (or `ui:widget: "password"`) value renders the
+fixed `••••••••` mask, never the real value — an empty one is simply
+omitted, like any other blank field; and a boolean field renders its own
+title when `true` and is omitted entirely when `false`. The worked example
+below leans on the second rule for its simplest case: with `affected` set
+to `false`, a collapsed row shows only `zone_id` and `label` — a row that
+instead completes with `affected: true` (lesions filled in too) would also
+show the boolean's title and an `"Очаги: N"` count.
 
 ### Image upload
 
@@ -250,11 +252,12 @@ The `items` block is the template applied to every zone row; the nested
 an array (`"Очаги: 2"` only appears because the author asked for it).
 
 A row collapses once `affected` is set to `false` — `false` still counts
-as a filled field (only an absent, null, or empty-string value doesn't),
-and with `affected` false the schema requires no `lesions` at all, so
-there's nothing left that could fail. Setting `affected` to `true` reopens
-the row, because the lesion the schema then auto-creates (`minItems: 1`)
-starts out unfilled and fails its own required fields.
+as a filled field (only an absent, null, empty-string, empty-array, or
+empty-object value doesn't), and with `affected` false the schema requires
+no `lesions` at all, so there's nothing left that could fail. Setting
+`affected` to `true` reopens the row, because the lesion the schema then
+auto-creates (`minItems: 1`) starts out unfilled and fails its own
+required fields.
 
 ### Help text and placeholders for pattern-validated fields
 

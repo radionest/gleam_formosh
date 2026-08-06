@@ -137,7 +137,7 @@ pub fn option_absent_renders_exactly_as_before_test() {
   plain |> string.contains("data-collapsed") |> should.be_false
   // Both rows fully rendered, structurally intact: fields, per-row header,
   // and the container's own add/remove controls all present.
-  // None of the checks below pin down the `part="..."` attribute
+  // None of the name-only checks below pin down the `part="..."` attribute
   // specifically: `array-item-fields` / `array-item-header` are emitted as
   // both class and part under the identical string (so a plain `contains`
   // can't tell which one matched), and `add-array-item` is a class only —

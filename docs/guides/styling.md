@@ -97,9 +97,9 @@ demo's own `ui:removable`/`ui:orderable: false` zones), `array-add`.
 `array-toggle` (the `<label>` wrapping the header's checkbox and caption —
 the part sits on the label, not the `<input>`), `array-progress` (the
 counter), `array-item-summary` (a completed row's own summary button —
-renders in **both** the expanded and collapsed state, so it's always the
-way back in; only `array-item-fields` actually hides), `array-item-summary-value`,
-`array-item-summary-sep`.
+while the per-array toggle is switched on, renders in **both** the
+expanded and collapsed state; switched off, it doesn't render at all, for
+any row), `array-item-summary-value`, `array-item-summary-sep`.
 
 The progress text is bare `"{completed} / {total}"` — no prefix word. Add
 one yourself, e.g. `formosh-form::part(array-progress)::before { content:
