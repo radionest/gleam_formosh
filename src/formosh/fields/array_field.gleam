@@ -100,7 +100,7 @@ pub fn render_container(
     False -> 0
   }
 
-  html.div([class("array-field")], [
+  html.div([class("array-field"), attribute.attribute("part", "array-field")], [
     field_common.render_container_label(
       field_name: array_name,
       property: ctx.property,
@@ -124,7 +124,7 @@ pub fn render_container(
       False -> element.none()
     },
     html.div(
-      [class("array-items")],
+      [class("array-items"), attribute.attribute("part", "array-items")],
       list.index_map(items, fn(item, index) {
         render_array_item(
           ctx,
@@ -148,6 +148,7 @@ pub fn render_container(
           [
             type_("button"),
             class("add-array-item"),
+            attribute.attribute("part", "array-add"),
             event.on_click(AddArrayItemPath(ctx.path)),
           ],
           [html.text("Добавить элемент")],
@@ -391,7 +392,13 @@ fn render_array_item_header(
   }
   let controls = list.append(move_buttons, remove_button)
   use <- bool.guard(ctx.is_readonly || list.is_empty(controls), element.none())
-  html.div([class("array-item-header")], controls)
+  html.div(
+    [
+      class("array-item-header"),
+      attribute.attribute("part", "array-item-header"),
+    ],
+    controls,
+  )
 }
 
 /// Render every child field of a single row.

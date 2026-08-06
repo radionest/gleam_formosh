@@ -76,6 +76,10 @@ pub fn completed_row_collapses_incomplete_row_does_not_test() {
   html |> string.contains("zones.[1].state") |> should.be_true
   // …and row 0's inputs are gone.
   html |> string.contains("zones.[0].state") |> should.be_false
+  // …row 0 carries the collapsed-state marker, presence-only and lowercase.
+  html |> string.contains("data-collapsed=\"true\"") |> should.be_true
+  // …and its summary button reports the same state to assistive tech.
+  html |> string.contains("aria-expanded=\"false\"") |> should.be_true
 }
 
 pub fn header_renders_toggle_and_progress_test() {
@@ -119,6 +123,8 @@ pub fn expanded_completed_row_keeps_its_summary_test() {
   html |> string.contains("zones.[0].state") |> should.be_true
   // …and the summary control is still there to close it again.
   html |> string.contains("array-item-summary") |> should.be_true
+  // …reporting its expanded state to assistive tech.
+  html |> string.contains("aria-expanded=\"true\"") |> should.be_true
 }
 
 pub fn option_absent_renders_exactly_as_before_test() {
@@ -303,4 +309,22 @@ pub fn empty_summary_falls_back_to_row_number_test() {
   html
   |> string.contains("part=\"array-item-summary-value\">1</span>")
   |> should.be_true
+}
+
+// --- task 8: the array's full `::part()` surface, in one render ---
+
+pub fn array_exposes_its_part_surface_test() {
+  let html = render(init(ui_json))
+  html |> string.contains("part=\"array-field\"") |> should.be_true
+  html |> string.contains("part=\"array-items\"") |> should.be_true
+  html |> string.contains("part=\"array-item\"") |> should.be_true
+  html |> string.contains("part=\"array-item-header\"") |> should.be_true
+  html |> string.contains("part=\"array-add\"") |> should.be_true
+  html |> string.contains("part=\"array-toggle\"") |> should.be_true
+  html |> string.contains("part=\"array-progress\"") |> should.be_true
+  html |> string.contains("part=\"array-item-summary\"") |> should.be_true
+  html |> string.contains("part=\"array-item-summary-value\"") |> should.be_true
+  // The fixture's `summaryFields` has two entries (`label`, `state`) and row 0
+  // fills both, so the separator between summary values renders too.
+  html |> string.contains("part=\"array-item-summary-sep\"") |> should.be_true
 }
