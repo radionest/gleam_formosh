@@ -250,6 +250,11 @@ rendering its 1-based row number instead of an empty button — an empty
 button would have no visible text and no accessible name, a dead end back
 into the row.
 
+A field the expanded row itself would hide — `ui:widget: "hidden"`, or
+`readOnly` while `show_readonly_fields` is off — contributes nothing to the
+summary either, named explicitly or picked up by the default: collapsing a
+row never shows a value its expanded state would not.
+
 **Known gap.** The third condition trusts `model.errors` as the complete
 record of "something's wrong in this row" — it isn't, always. A
 cross-field validator's error keyed on a path that only a per-row

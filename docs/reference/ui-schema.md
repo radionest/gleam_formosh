@@ -138,7 +138,7 @@ Set inside `ui:options` on the array node itself — these are not top-level
 |-----|------|---------|--------|
 | `collapseCompleted` | bool | `false` | Enables the feature on this array. Absent (or `false`) means no behaviour change at all — the array renders exactly as it did before this feature existed. |
 | `collapseCompletedLabel` | string | `"Collapse completed"` | Caption on the toggle checkbox. |
-| `summaryFields` | string[] | `[]` | Row fields shown in the collapsed summary, in the given order. `[]` defaults to every **scalar** field of the row's resolved schema, in schema order — array- and object-typed fields are both excluded from that default, so either only appears when you list it explicitly, and even then an explicitly listed object field (or an unknown field name) is silently dropped rather than shown or erroring. |
+| `summaryFields` | string[] | `[]` | Row fields shown in the collapsed summary, in the given order. `[]` defaults to every **scalar** field of the row's resolved schema, in schema order — array- and object-typed fields are both excluded from that default, so either only appears when you list it explicitly, and even then an explicitly listed object field (or an unknown field name) is silently dropped rather than shown or erroring. A field the expanded row itself would hide — `ui:widget: "hidden"`, or `readOnly` while `show_readonly_fields` is off — is dropped the same way, named explicitly or picked up by the default: collapsing never shows a value the expanded row would not. |
 
 A row collapses only when all three hold: it has at least one non-empty own
 field, array-item validation reports no error at its index, and no recorded
