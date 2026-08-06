@@ -5,7 +5,8 @@ import formosh/form/path.{type FieldPath}
 import formosh/form/union_resolver
 import formosh/form/visibility
 import formosh/form/widget_msg.{
-  type ExitDir, type ImageUploadEvent, type SwipeReviewEvent, type WidgetMsg,
+  type ArrayFieldEvent, type ExitDir, type ImageUploadEvent,
+  type SwipeReviewEvent, type WidgetMsg,
 }
 import formosh/schema/conditional_resolver
 import formosh/schema/properties
@@ -94,6 +95,14 @@ pub type FormModel {
     // Each is kept rendered (flying off) until its `transitionend` clears it.
     // Only populated in hide-answered mode. Empty unless a fly-off is in flight.
     swipe_exiting: List(#(FieldPath, ExitDir)),
+    // Array paths where the user switched collapsing off. A negative list, so
+    // "enabled by default" needs no entry. Reindexes with the array like
+    // touched_fields.
+    array_collapse_off: List(FieldPath),
+    // Row paths the user clicked open. Only user-driven expansion is stored;
+    // a row that stopped validating expands from the predicate, so it
+    // re-collapses on its own once valid again.
+    array_rows_expanded: List(FieldPath),
   )
 }
 
@@ -165,6 +174,12 @@ pub fn image_msg(event: ImageUploadEvent) -> FormMsg {
 /// `WidgetEvent(SwipeReview(...))` wrapper at emission sites.
 pub fn swipe_msg(event: SwipeReviewEvent) -> FormMsg {
   WidgetEvent(widget_msg.SwipeReview(event))
+}
+
+/// Build a `FormMsg` from an `ArrayFieldEvent` — collapses the
+/// `WidgetEvent(ArrayField(...))` wrapper at emission sites.
+pub fn array_msg(event: ArrayFieldEvent) -> FormMsg {
+  WidgetEvent(widget_msg.ArrayField(event))
 }
 
 /// Initialize a new form model from a JSON Schema.
@@ -261,6 +276,8 @@ pub fn init_with_full_config(
     swipe_drag: option.None,
     swipe_hide_answered: True,
     swipe_exiting: [],
+    array_collapse_off: [],
+    array_rows_expanded: [],
   )
 }
 
@@ -364,6 +381,8 @@ pub fn reset(model: FormModel) -> FormModel {
     swipe_drag: option.None,
     swipe_hide_answered: True,
     swipe_exiting: [],
+    array_collapse_off: [],
+    array_rows_expanded: [],
   )
 }
 

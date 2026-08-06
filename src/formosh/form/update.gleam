@@ -14,9 +14,10 @@ import formosh/form/model.{
 import formosh/form/path
 import formosh/form/union_resolver
 import formosh/form/widget_msg.{
-  AnswerZone, DragCancel, DragEnd, DragMove, DragStart, ExitDone, ExitLeft,
-  ExitRight, FillRemaining, ImageCompleted, ImageFailed, ImageRemoved,
-  ImageRequested, ImageStarted, ImageUpload, SwipeReview, ToggleHideAnswered,
+  AnswerZone, ArrayField, DragCancel, DragEnd, DragMove, DragStart, ExitDone,
+  ExitLeft, ExitRight, FillRemaining, ImageCompleted, ImageFailed, ImageRemoved,
+  ImageRequested, ImageStarted, ImageUpload, SwipeReview,
+  ToggleCollapseCompleted, ToggleHideAnswered, ToggleRowExpanded,
 }
 import formosh/schema/properties
 import formosh/schema/types.{type Value}
@@ -184,12 +185,28 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
             None -> Error(Nil)
           }
         })
+      let new_collapse_off =
+        list.filter_map(model.array_collapse_off, fn(p) {
+          case path.reindex_after_array_removal(p, field_path, index) {
+            Some(new_p) -> Ok(new_p)
+            None -> Error(Nil)
+          }
+        })
+      let new_rows_expanded =
+        list.filter_map(model.array_rows_expanded, fn(p) {
+          case path.reindex_after_array_removal(p, field_path, index) {
+            Some(new_p) -> Ok(new_p)
+            None -> Error(Nil)
+          }
+        })
       let new_model =
         model.FormModel(
           ..model,
           values: new_values,
           touched_fields: new_touched,
           selected_branches: new_selected,
+          array_collapse_off: new_collapse_off,
+          array_rows_expanded: new_rows_expanded,
           is_dirty: True,
         )
       let validated_model = validate_all_fields(new_model)
@@ -214,12 +231,22 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
             entry.1,
           )
         })
+      let new_collapse_off =
+        list.map(model.array_collapse_off, fn(p) {
+          path.reindex_after_array_move(p, field_path, from, to)
+        })
+      let new_rows_expanded =
+        list.map(model.array_rows_expanded, fn(p) {
+          path.reindex_after_array_move(p, field_path, from, to)
+        })
       let new_model =
         model.FormModel(
           ..model,
           values: new_values,
           touched_fields: new_touched,
           selected_branches: new_selected,
+          array_collapse_off: new_collapse_off,
+          array_rows_expanded: new_rows_expanded,
           is_dirty: True,
         )
       let validated_model = validate_all_fields(new_model)
@@ -285,6 +312,9 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
 
     WidgetEvent(SwipeReview(swipe_event)) ->
       handle_swipe_review_event(model, swipe_event)
+
+    WidgetEvent(ArrayField(array_event)) ->
+      handle_array_field_event(model, array_event)
   }
 }
 
@@ -452,6 +482,60 @@ fn handle_swipe_review_event(
       ),
       effect.none(),
     )
+  }
+}
+
+/// Collapse view state only: no revalidation, no `resolved_schema` recompute,
+/// no `ensure_min_items` — these messages never touch `values`.
+fn handle_array_field_event(
+  model: FormModel,
+  event: widget_msg.ArrayFieldEvent,
+) -> #(FormModel, Effect(FormMsg)) {
+  case event {
+    ToggleCollapseCompleted(array_path) ->
+      case list.contains(model.array_collapse_off, array_path) {
+        // Switching collapsing back on discards every user expansion under
+        // this array, so "collapse all" is a real action.
+        True -> #(
+          model.FormModel(
+            ..model,
+            array_collapse_off: list.filter(model.array_collapse_off, fn(p) {
+              p != array_path
+            }),
+            array_rows_expanded: list.filter(model.array_rows_expanded, fn(p) {
+              !path.is_prefix_of(array_path, p)
+            }),
+          ),
+          effect.none(),
+        )
+        False -> #(
+          model.FormModel(..model, array_collapse_off: [
+            array_path,
+            ..model.array_collapse_off
+          ]),
+          effect.none(),
+        )
+      }
+
+    ToggleRowExpanded(row_path) ->
+      case list.contains(model.array_rows_expanded, row_path) {
+        True -> #(
+          model.FormModel(
+            ..model,
+            array_rows_expanded: list.filter(model.array_rows_expanded, fn(p) {
+              p != row_path
+            }),
+          ),
+          effect.none(),
+        )
+        False -> #(
+          model.FormModel(..model, array_rows_expanded: [
+            row_path,
+            ..model.array_rows_expanded
+          ]),
+          effect.none(),
+        )
+      }
   }
 }
 

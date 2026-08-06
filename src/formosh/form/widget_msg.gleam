@@ -6,6 +6,14 @@ import formosh/form/path.{type FieldPath}
 pub type WidgetMsg {
   ImageUpload(ImageUploadEvent)
   SwipeReview(SwipeReviewEvent)
+  ArrayField(ArrayFieldEvent)
+}
+
+pub type ArrayFieldEvent {
+  /// Flip whether this array collapses its completed rows.
+  ToggleCollapseCompleted(array_path: FieldPath)
+  /// Open or close one completed row.
+  ToggleRowExpanded(row_path: FieldPath)
 }
 
 pub type ImageUploadEvent {
