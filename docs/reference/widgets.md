@@ -191,22 +191,25 @@ and UiSchema flags:
 
 Rows auto-create up to `minItems` (with item-field defaults applied). Array
 items can themselves be objects or arrays — nesting to any depth — so the
-container recurses through the same dispatcher.
+container recurses through the same dispatcher. (Collapsing completed rows,
+below, is narrower: only object-shaped rows ever qualify.)
 
 ### Collapsing completed rows
 
 Opt in per array via `ui:options` on that array node —
 [`collapseCompleted` / `collapseCompletedLabel` /
-`summaryFields`](ui-schema.md#collapse-completed-array-rows). With the
-option off (the default), an array renders exactly as described above;
-nothing in this section changes anything.
+`summaryFields`](ui-schema.md#collapse-completed-array-rows) — **and** the
+array must not be read-only; the two together gate the *entire* feature,
+not just the header below. With either one missing, an array renders
+exactly as described above: no toggle, no progress, no summary, nothing in
+this section applies.
 
-When it's on, and the array isn't read-only, a header renders above the
-rows: a toggle checkbox plus a `"{completed} / {total}"` progress count.
-The header renders even while the user has switched collapsing off — it's
-the only control that can switch it back on — but switching it back on
-discards every row the user had individually reopened, so re-enabling is a
-real "collapse everything again" action, not a no-op.
+When both hold, a header renders above the rows: a toggle checkbox plus a
+`"{completed} / {total}"` progress count. The header renders even while
+the user has switched collapsing off — it's the only control that can
+switch it back on — but switching it back on discards every row the user
+had individually reopened, so re-enabling is a real "collapse everything
+again" action, not a no-op.
 
 A row collapses only when all three hold:
 
@@ -214,8 +217,19 @@ A row collapses only when all three hold:
 - array-item validation reports no error at its index, and
 - no recorded error in the form's error map falls under its path.
 
-Two consequences follow directly from the first condition:
+A completed row always renders its summary as a real `<button>`, in
+**both** the collapsed and expanded state — clicking it toggles between
+them (`aria-expanded` reflects which). Only the row's field container
+actually hides; the per-row move/remove header and the way back into the
+row are never lost.
 
+Three consequences follow directly from the predicate above:
+
+- **Only object-shaped rows can ever collapse.** The first condition's
+  "non-empty own field" check only understands an object row — it walks
+  the row's own fields to look for one. An array whose `items` is a bare
+  scalar, or itself another array, never collapses, no matter how the
+  option is configured.
 - **A row whose fields are all optional stays expanded until something is
   filled in.** An empty row has no non-empty field, so it can't collapse no
   matter how loosely its schema constrains it — by design, not a bug: mark

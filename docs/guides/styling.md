@@ -89,12 +89,17 @@ Every styled element exposes a part. Grouped by area:
 `array-field` (outer container), `array-items` (the row list), `array-item`
 (one row's wrapper), `array-item-fields` (that row's child fields — this is
 the one part that disappears entirely on a collapsed row), `array-item-header`
-(per-row move/remove controls, present either way), `array-add`.
+(per-row move/remove controls — rendered regardless of collapse state, but
+nothing at all in read-only mode or when neither control applies, as in the
+demo's own `ui:removable`/`ui:orderable: false` zones), `array-add`.
 
 **Collapse-completed arrays** (`ui:options.collapseCompleted`) — adds:
-`array-toggle` (the header checkbox), `array-progress` (the counter),
-`array-item-summary` (the collapsed row's own button),
-`array-item-summary-value`, `array-item-summary-sep`.
+`array-toggle` (the `<label>` wrapping the header's checkbox and caption —
+the part sits on the label, not the `<input>`), `array-progress` (the
+counter), `array-item-summary` (a completed row's own summary button —
+renders in **both** the expanded and collapsed state, so it's always the
+way back in; only `array-item-fields` actually hides), `array-item-summary-value`,
+`array-item-summary-sep`.
 
 The progress text is bare `"{completed} / {total}"` — no prefix word. Add
 one yourself, e.g. `formosh-form::part(array-progress)::before { content:
@@ -152,7 +157,7 @@ because some elements carry **two** part tokens (e.g.
 but a `radio-item` inside a boolean group cannot be styled differently
 from one inside an enum group through Shadow Parts alone.
 
-The same limit applies to a collapsed row's summary: every
+The same limit applies to a completed row's summary: every
 `array-item-summary-value` styles identically wherever it appears, because
 there is no `formosh-form::part(array-item) ::part(array-item-summary-value)`
 to scope by which row — or which field within the row — produced it.

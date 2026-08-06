@@ -138,7 +138,7 @@ Set inside `ui:options` on the array node itself — these are not top-level
 |-----|------|---------|--------|
 | `collapseCompleted` | bool | `false` | Enables the feature on this array. Absent (or `false`) means no behaviour change at all — the array renders exactly as it did before this feature existed. |
 | `collapseCompletedLabel` | string | `"Collapse completed"` | Caption on the toggle checkbox. |
-| `summaryFields` | string[] | `[]` | Row fields shown in the collapsed summary, in the given order. `[]` defaults to every **scalar** field of the row's resolved schema, in schema order — this deliberately excludes arrays, so a nested array only shows up in the summary (as `"Title: N"`) when you list it explicitly. |
+| `summaryFields` | string[] | `[]` | Row fields shown in the collapsed summary, in the given order. `[]` defaults to every **scalar** field of the row's resolved schema, in schema order — array- and object-typed fields are both excluded from that default, so either only appears when you list it explicitly, and even then an explicitly listed object field (or an unknown field name) is silently dropped rather than shown or erroring. |
 
 A row collapses only when all three hold: it has at least one non-empty own
 field, array-item validation reports no error at its index, and no recorded
@@ -147,6 +147,14 @@ error in the form's error map falls under its path. That third check treats
 [Collapsing completed rows](widgets.md#collapsing-completed-rows) for a
 known gap where a cross-field validator's error on a path only a per-row
 conditional reveals never reaches that map.
+
+Two value-formatting rules matter when picking `summaryFields`: a
+`password`-format (or `ui:widget: "password"`) field always renders the
+fixed `••••••••` mask, never the real value; and a boolean field renders
+its own title when `true` and is omitted entirely when `false`. The worked
+example below leans on the second rule — a cleared `affected` contributes
+nothing to the summary line, which is why a collapsed row shows only
+`zone_id` and `label`.
 
 ### Image upload
 
@@ -210,13 +218,13 @@ for compatibility).
 
 ## Worked examples
 
-All four are lifted from `demo/schemas/*.ui.json` — open them in the demo
+All three are lifted from `demo/schemas/*.ui.json` — open them in the demo
 (`make demo`) to see them live.
 
-### Disable array controls and lock down nested reordering
+### Disable array controls and collapse completed rows
 
-A medical scoring form where zones are fixed and per-zone lesions can't be
-rearranged:
+A medical scoring form where zones are fixed, per-zone lesions can't be
+rearranged, and each row collapses to a summary once it's filled in:
 
 ```json
 {
@@ -224,6 +232,11 @@ rearranged:
     "ui:addable": false,
     "ui:removable": false,
     "ui:orderable": false,
+    "ui:options": {
+      "collapseCompleted": true,
+      "collapseCompletedLabel": "Сворачивать заполненные",
+      "summaryFields": ["zone_id", "label", "affected", "lesions"]
+    },
     "items": {
       "lesions": { "ui:orderable": false }
     }
@@ -232,7 +245,16 @@ rearranged:
 ```
 
 The `items` block is the template applied to every zone row; the nested
-`lesions.ui:orderable` reaches inside each row.
+`lesions.ui:orderable` reaches inside each row. `summaryFields` lists
+`lesions` explicitly — the default set would have excluded it, since it's
+an array (`"Очаги: 2"` only appears because the author asked for it).
+
+A row collapses once `affected` is set to `false` — `false` still counts
+as a filled field (only an absent, null, or empty-string value doesn't),
+and with `affected` false the schema requires no `lesions` at all, so
+there's nothing left that could fail. Setting `affected` to `true` reopens
+the row, because the lesion the schema then auto-creates (`minItems: 1`)
+starts out unfilled and fails its own required fields.
 
 ### Help text and placeholders for pattern-validated fields
 
@@ -269,36 +291,6 @@ choices via `ui:options`:
 `swipe-review` reads its choice definitions from `ui:options` — that's the
 free-form bag the renderer reads when the built-in widgets don't cover
 your case.
-
-### Collapse completed rows in a long array
-
-A radiology zones array where each row is noise once it's been read —
-collapse it to a one-line summary once it's filled in:
-
-```json
-{
-  "zones": {
-    "ui:addable": false,
-    "ui:removable": false,
-    "ui:orderable": false,
-    "ui:options": {
-      "collapseCompleted": true,
-      "collapseCompletedLabel": "Сворачивать заполненные",
-      "summaryFields": ["zone_id", "label", "affected", "lesions"]
-    },
-    "items": {
-      "lesions": { "ui:orderable": false }
-    }
-  }
-}
-```
-
-`summaryFields` lists `lesions` explicitly — the default set would have
-excluded it, since it's an array (`"Очаги: 2"` only appears because the
-author asked for it). A row collapses once `affected` is set and nothing is
-wrong under that row's path; unchecking `affected` again reopens it, since
-the lesion this schema auto-creates (`minItems: 1` once `affected` is true)
-starts out unfilled.
 
 ## Source of truth
 
