@@ -289,6 +289,7 @@ fn summary_of_with_ui(
     row,
     [],
     fields,
+    True,
   )
 }
 
@@ -498,4 +499,69 @@ pub fn summary_omits_null_password_field_test() {
 pub fn summary_omits_empty_array_password_field_test() {
   let row = types.ObjectValue([#("secret", types.ArrayValue([]))])
   summary_of(row, ["secret"]) |> should.equal([])
+}
+
+// --- suppressed fields contribute nothing (final review item 1) ---
+//
+// `array_collapse.entry` must route through `ui_resolver.is_suppressed` —
+// the same predicate `field_dispatcher.render_field_at_path` gates the
+// expanded row on — rather than re-deriving the rule, so a field the
+// expanded row hides never surfaces in the collapsed summary.
+
+const suppression_schema_json = "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"label\":{\"type\":\"string\",\"title\":\"Зона\"},\"secretNote\":{\"type\":\"string\",\"title\":\"Скрыто\",\"readOnly\":true}}}}}}"
+
+fn summary_of_suppression(
+  ui: ui_schema.UiSchema,
+  row: types.Value,
+  fields: List(String),
+  show_readonly_fields: Bool,
+) -> List(String) {
+  let assert Ok(schema) = parser.parse_schema(suppression_schema_json)
+  let assert option.Some(prop) = properties.get(schema.properties, "zones")
+  let assert option.Some(items) = prop.items
+  array_collapse.summary_values(
+    ui,
+    [PropertySegment("zones"), ArraySegment(0)],
+    items,
+    row,
+    [],
+    fields,
+    show_readonly_fields,
+  )
+}
+
+pub fn hidden_field_contributes_nothing_to_summary_test() {
+  let assert Ok(ui) =
+    ui_parser.parse(
+      "{\"zones\":{\"items\":{\"label\":{\"ui:widget\":\"hidden\"}}}}",
+    )
+  let row = types.ObjectValue([#("label", types.StringValue("Диафрагма"))])
+  summary_of_suppression(ui, row, ["label"], True) |> should.equal([])
+}
+
+pub fn readonly_field_omitted_when_show_readonly_fields_false_test() {
+  let row = types.ObjectValue([#("secretNote", types.StringValue("x"))])
+  summary_of_suppression(
+    ui_schema.empty_ui_schema(),
+    row,
+    ["secretNote"],
+    False,
+  )
+  |> should.equal([])
+}
+
+pub fn readonly_field_included_when_show_readonly_fields_true_test() {
+  let row = types.ObjectValue([#("secretNote", types.StringValue("x"))])
+  summary_of_suppression(ui_schema.empty_ui_schema(), row, ["secretNote"], True)
+  |> should.equal(["x"])
+}
+
+pub fn default_summary_fields_exclude_suppressed_fields_test() {
+  let row =
+    types.ObjectValue([
+      #("label", types.StringValue("Диафрагма")),
+      #("secretNote", types.StringValue("x")),
+    ])
+  summary_of_suppression(ui_schema.empty_ui_schema(), row, [], False)
+  |> should.equal(["Диафрагма"])
 }

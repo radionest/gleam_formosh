@@ -141,10 +141,17 @@ pub fn option_absent_renders_exactly_as_before_test() {
   // specifically: `array-item-fields` / `array-item-header` are emitted as
   // both class and part under the identical string (so a plain `contains`
   // can't tell which one matched), and `add-array-item` is a class only —
-  // its part is `array-add`. A literal `part="array-field"` match is what
-  // actually pins the guarantee that the part surface isn't gated on
-  // `collapseCompleted`.
+  // its part is `array-add`. Literal `part="..."` matches (closing quote
+  // included, so `array-item` can't false-positive inside `array-items` /
+  // `array-item-header` / `-fields` / `-summary`) are what actually pin the
+  // spec's "WHEN any array is rendered" scenario for the pre-existing
+  // elements — container, item list, each item, each item header, and add
+  // control — independently of `collapseCompleted`.
   plain |> string.contains("part=\"array-field\"") |> should.be_true
+  plain |> string.contains("part=\"array-items\"") |> should.be_true
+  plain |> string.contains("part=\"array-item\"") |> should.be_true
+  plain |> string.contains("part=\"array-item-header\"") |> should.be_true
+  plain |> string.contains("part=\"array-add\"") |> should.be_true
   plain |> string.contains("zones.[0].state") |> should.be_true
   plain |> string.contains("zones.[1].state") |> should.be_true
   plain |> string.contains("array-item-fields") |> should.be_true
@@ -328,6 +335,7 @@ pub fn array_exposes_its_part_surface_test() {
   html |> string.contains("part=\"array-item\"") |> should.be_true
   html |> string.contains("part=\"array-item-header\"") |> should.be_true
   html |> string.contains("part=\"array-add\"") |> should.be_true
+  html |> string.contains("part=\"array-collapse-header\"") |> should.be_true
   html |> string.contains("part=\"array-toggle\"") |> should.be_true
   html |> string.contains("part=\"array-progress\"") |> should.be_true
   html |> string.contains("part=\"array-item-summary\"") |> should.be_true
@@ -335,4 +343,47 @@ pub fn array_exposes_its_part_surface_test() {
   // The fixture's `summaryFields` has two entries (`label`, `state`) and row 0
   // fills both, so the separator between summary values renders too.
   html |> string.contains("part=\"array-item-summary-sep\"") |> should.be_true
+}
+
+// --- final review item 4a: the summary toggles the row both ways ---
+
+pub fn toggling_summary_twice_collapses_the_row_again_test() {
+  let row_path = [PropertySegment("zones"), ArraySegment(0)]
+  let #(m1, _) =
+    update.update(init(ui_json), model.array_msg(ToggleRowExpanded(row_path)))
+  let #(m2, _) = update.update(m1, model.array_msg(ToggleRowExpanded(row_path)))
+  let html = render(m2)
+  // Back to collapsed: fields hidden again…
+  html |> string.contains("zones.[0].state") |> should.be_false
+  // …the summary control is still there, since the row is still completed…
+  html |> string.contains("array-item-summary") |> should.be_true
+  // …and both attribute-level state markers agree it is collapsed again.
+  html |> string.contains("data-collapsed=\"true\"") |> should.be_true
+  html |> string.contains("aria-expanded=\"false\"") |> should.be_true
+}
+
+// --- final review item 4b: the separator's literal text, not just its part ---
+
+pub fn summary_separator_renders_the_literal_dot_text_test() {
+  // Fixture row 0 fills both `summaryFields` (`label`, `state`), so the
+  // separator between them renders. `array_exposes_its_part_surface_test`
+  // (task 8) only pins `part="array-item-summary-sep"`'s presence — an
+  // empty separator span would carry the same part name and pass that
+  // check, so this pins the literal text inside it too.
+  let html = render(init(ui_json))
+  html
+  |> string.contains("part=\"array-item-summary-sep\"> · </span>")
+  |> should.be_true
+}
+
+// --- final review item 4c: the toggle caption defaults when unset ---
+
+const ui_json_default_label = "{\"zones\":{\"ui:options\":{\"collapseCompleted\":true}}}"
+
+pub fn toggle_caption_defaults_when_label_absent_test() {
+  // No `collapseCompletedLabel` in the options bag — every other render
+  // test uses `ui_json`, which always sets a custom label, so the "renders
+  // the default caption" half of the scenario was untested at this level.
+  let html = render(init(ui_json_default_label))
+  html |> string.contains("Collapse completed") |> should.be_true
 }

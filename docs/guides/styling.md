@@ -94,6 +94,7 @@ nothing at all in read-only mode or when neither control applies, as in the
 demo's own `ui:removable`/`ui:orderable: false` zones), `array-add`.
 
 **Collapse-completed arrays** (`ui:options.collapseCompleted`) — adds:
+`array-collapse-header` (wraps the toggle and progress element),
 `array-toggle` (the `<label>` wrapping the header's checkbox and caption —
 the part sits on the label, not the `<input>`), `array-progress` (the
 counter), `array-item-summary` (a completed row's own summary button —

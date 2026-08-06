@@ -13,6 +13,7 @@ import formosh/schema/ui_resolver
 import formosh/schema/ui_schema.{type UiSchema}
 import formosh/schema/validator
 import formosh/validation/field_requirements
+import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
@@ -124,6 +125,11 @@ fn is_blank(value: Value) -> Bool {
 /// An empty `fields` defaults to every scalar field in schema order, which
 /// deliberately excludes arrays: a lesion count only appears when the author
 /// lists it.
+///
+/// A field `ui_resolver.is_suppressed` would hide from the expanded row —
+/// `ui:widget: "hidden"`, or `readOnly` while `show_readonly_fields` is
+/// false — contributes nothing here either, so a collapsed row never shows
+/// a value the expanded row would not.
 pub fn summary_values(
   ui_schema: UiSchema,
   row_path: FieldPath,
@@ -131,6 +137,7 @@ pub fn summary_values(
   item: Value,
   selected: List(#(FieldPath, Int)),
   fields: List(String),
+  show_readonly_fields: Bool,
 ) -> List(String) {
   let resolved =
     union_resolver.resolve_effective_property(
@@ -159,7 +166,16 @@ pub fn summary_values(
       list.filter_map(names, fn(name) {
         case properties.get(props, name), field_value(item, name) {
           option.Some(prop), option.Some(value) ->
-            case entry(ui_schema, row_path, name, prop, value) {
+            case
+              entry(
+                ui_schema,
+                row_path,
+                name,
+                prop,
+                value,
+                show_readonly_fields,
+              )
+            {
               option.Some(text) -> Ok(text)
               option.None -> Error(Nil)
             }
@@ -196,9 +212,23 @@ fn entry(
   name: String,
   prop: SchemaProperty,
   value: Value,
+  show_readonly_fields: Bool,
 ) -> option.Option(String) {
   let field_path = list.append(row_path, [path.PropertySegment(name)])
   let hints = ui_resolver.resolve_hints(ui_schema, field_path, prop)
+  // Same suppression decision `field_dispatcher.render_field_at_path` makes
+  // for the expanded row — `is_readonly` mirrors `make_child_ctx`'s
+  // inheritance rule (the row itself is never readonly here, since
+  // `collapse_available` already requires `!ctx.is_readonly`, so only the
+  // field's own `readOnly`/`ui:readonly` can apply). Routing through
+  // `is_suppressed` rather than re-deriving it is what keeps a hidden or
+  // suppressed-readonly field from surfacing in the summary while its
+  // expanded row shows nothing.
+  let is_readonly = prop.read_only || option.unwrap(hints.readonly, False)
+  use <- bool.guard(
+    ui_resolver.is_suppressed(hints, is_readonly, show_readonly_fields),
+    option.None,
+  )
   let title = value_display.label_text(name, prop, hints)
   case value {
     // Empty values are omitted outright rather than rendered as the unset
