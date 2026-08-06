@@ -154,6 +154,16 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           }
         Error(_) -> types.ObjectValue([])
       }
+      // The new row lands at the pre-add length: read it from model.values
+      // before add_array_item_at_path appends, not from values recomputed
+      // afterward — ensure_min_items below can append further rows of its
+      // own to the same array, which would shift a post-hoc length reading
+      // off the row the user actually created.
+      let new_index = case model.get_value_at_path(model, field_path) {
+        Some(types.ArrayValue(items)) -> list.length(items)
+        _ -> 0
+      }
+      let new_row_path = list.append(field_path, [path.ArraySegment(new_index)])
       let new_values =
         path.add_array_item_at_path(model.values, field_path, new_item)
       let reconciled_values =
@@ -162,8 +172,24 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
           new_values,
           model.selected_branches,
         )
+      // A user explicitly creating a row must see it, mirroring the "add"
+      // branch of ToggleRowExpanded — otherwise a row that already
+      // satisfies is_completed the instant it's built (e.g. an
+      // all-optional item schema with defaults) renders collapsed before
+      // the user who just clicked "Add" ever sees it.
+      let new_rows_expanded = case
+        list.contains(model.array_rows_expanded, new_row_path)
+      {
+        True -> model.array_rows_expanded
+        False -> [new_row_path, ..model.array_rows_expanded]
+      }
       let new_model =
-        model.FormModel(..model, values: reconciled_values, is_dirty: True)
+        model.FormModel(
+          ..model,
+          values: reconciled_values,
+          array_rows_expanded: new_rows_expanded,
+          is_dirty: True,
+        )
       let validated_model = validate_all_fields(new_model)
       #(validated_model, effect.none())
     }

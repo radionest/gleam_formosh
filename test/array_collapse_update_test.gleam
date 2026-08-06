@@ -1,3 +1,4 @@
+import formosh/fields/array_collapse
 import formosh/form/model
 import formosh/form/path.{ArraySegment, PropertySegment}
 import formosh/form/update
@@ -5,6 +6,7 @@ import formosh/form/widget_msg.{ToggleCollapseCompleted, ToggleRowExpanded}
 import formosh/schema/parser
 import formosh/schema/types
 import formosh/schema/ui_parser
+import formosh/schema/ui_schema
 import gleam/dict
 import gleam/list
 import gleam/option.{None}
@@ -181,4 +183,99 @@ pub fn reset_clears_collapse_state_test() {
   m3.array_rows_expanded |> should.equal([])
   m3.array_collapse_off |> should.equal([])
   list.length(m3.array_collapse_off) |> should.equal(0)
+}
+
+// Fix round 2: AddArrayItemPath must force-expand the row it just created,
+// or a row that happens to satisfy `is_completed` the instant it's built
+// (see `defaulted_optional_schema_json` below) renders collapsed before the
+// user who clicked "Add" ever sees it.
+
+const defaulted_optional_schema_json = "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"note\":{\"type\":\"string\",\"default\":\"n/a\"}}}}}}"
+
+const min_items_schema_json = "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"minItems\":3,\"items\":{\"type\":\"object\",\"properties\":{\"label\":{\"type\":\"string\"}}}}}}"
+
+fn init_from_schema(schema_json: String) -> model.FormModel {
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let m =
+    model.init_with_full_config(
+      schema,
+      None,
+      False,
+      dict.new(),
+      ui_schema.empty_ui_schema(),
+    )
+  model.FormModel(
+    ..m,
+    values: types.ObjectValue([#("zones", types.ArrayValue([]))]),
+  )
+}
+
+pub fn add_array_item_expands_the_new_row_test() {
+  // Regression for the reproduced defect: an item schema with a defaulted
+  // optional field and no `required` at all satisfies `is_completed` the
+  // moment the row is built, before the user does anything else.
+  let m0 = init_from_schema(defaulted_optional_schema_json)
+  let #(m1, _) = update.update(m0, model.AddArrayItemPath(zones))
+  m1.array_rows_expanded |> should.equal([row(0)])
+  let assert option.Some(types.ArrayValue(rows)) =
+    model.get_value_at_path(m1, zones)
+  let assert Ok(zones_prop) = model.find_resolved_property_at_path(m1, zones)
+  let assert option.Some(item_schema) = zones_prop.items
+  let incomplete =
+    array_collapse.incomplete_rows(
+      zones,
+      item_schema,
+      rows,
+      m1.selected_branches,
+    )
+  let assert Ok(item) = list.first(rows)
+  // The predicate itself is untouched — this row genuinely is_completed.
+  // It stays visible only because the expansion entry above overrides
+  // collapse, which is what proves the fix is view state, not a predicate
+  // change.
+  array_collapse.is_completed(m1, zones, 0, item, incomplete)
+  |> should.be_true
+}
+
+pub fn add_array_item_expands_the_new_index_test() {
+  // init() already holds 3 rows (indices 0-2); the fresh row must be named
+  // by its own new index (3), not 0 and not the previous last index (2).
+  let m0 = init()
+  let #(m1, _) = update.update(m0, model.AddArrayItemPath(zones))
+  m1.array_rows_expanded |> should.equal([row(3)])
+}
+
+pub fn add_array_item_leaves_existing_expansion_undisturbed_test() {
+  let m0 = init()
+  let #(m1, _) = update.update(m0, model.array_msg(ToggleRowExpanded(row(1))))
+  let #(m2, _) = update.update(m1, model.AddArrayItemPath(zones))
+  m2.array_rows_expanded |> list.contains(row(1)) |> should.be_true
+  m2.array_rows_expanded |> list.contains(row(3)) |> should.be_true
+  list.length(m2.array_rows_expanded) |> should.equal(2)
+}
+
+pub fn bulk_collapse_after_add_discards_fresh_row_expansion_test() {
+  let m0 = init()
+  let #(m1, _) = update.update(m0, model.AddArrayItemPath(zones))
+  m1.array_rows_expanded |> list.contains(row(3)) |> should.be_true
+  let #(m2, _) =
+    update.update(m1, model.array_msg(ToggleCollapseCompleted(zones)))
+  let #(m3, _) =
+    update.update(m2, model.array_msg(ToggleCollapseCompleted(zones)))
+  m3.array_rows_expanded |> should.equal([])
+}
+
+pub fn add_array_item_does_not_force_expand_ensure_min_items_rows_test() {
+  // minItems 3 on an initially empty array: the manual add lands one row,
+  // then ensure_min_items tops the SAME array up to 3 in the SAME dispatch.
+  // Only the user's own row (index 0) may be forced open — the two rows
+  // ensure_min_items appends on top (indices 1, 2) are not user-created.
+  // This also guards the off-by-one trap named in the task: computing the
+  // new index from the post-reconcile array length would misname index 2.
+  let m0 = init_from_schema(min_items_schema_json)
+  let #(m1, _) = update.update(m0, model.AddArrayItemPath(zones))
+  let assert option.Some(types.ArrayValue(rows)) =
+    model.get_value_at_path(m1, zones)
+  list.length(rows) |> should.equal(3)
+  m1.array_rows_expanded |> should.equal([row(0)])
 }
