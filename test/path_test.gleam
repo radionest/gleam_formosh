@@ -525,3 +525,69 @@ pub fn reindex_after_move_outside_array_unchanged_test() {
   path.reindex_after_array_move(other, [path.PropertySegment("tags")], 1, 3)
   |> should.equal(other)
 }
+
+// ---- relative_to / is_prefix_of ----
+
+pub fn relative_to_exact_match_test() {
+  path.relative_to([path.PropertySegment("zones")], [
+    path.PropertySegment("zones"),
+  ])
+  |> should.equal(option.Some([]))
+}
+
+pub fn relative_to_returns_remainder_test() {
+  path.relative_to(
+    [
+      path.PropertySegment("zones"),
+      path.ArraySegment(3),
+      path.PropertySegment("state"),
+    ],
+    [path.PropertySegment("zones")],
+  )
+  |> should.equal(
+    option.Some([path.ArraySegment(3), path.PropertySegment("state")]),
+  )
+}
+
+pub fn relative_to_unrelated_path_test() {
+  path.relative_to([path.PropertySegment("other")], [
+    path.PropertySegment("zones"),
+  ])
+  |> should.equal(option.None)
+}
+
+pub fn is_prefix_of_exact_match_test() {
+  path.is_prefix_of([path.PropertySegment("zones")], [
+    path.PropertySegment("zones"),
+  ])
+  |> should.be_true
+}
+
+pub fn is_prefix_of_deep_descendant_test() {
+  path.is_prefix_of([path.PropertySegment("zones"), path.ArraySegment(3)], [
+    path.PropertySegment("zones"),
+    path.ArraySegment(3),
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("form"),
+  ])
+  |> should.be_true
+}
+
+// Segments compare structurally, so the string-prefix hazard that would make
+// "zones.[3]" match "zones.[30]" cannot occur.
+pub fn is_prefix_of_sibling_index_test() {
+  path.is_prefix_of([path.PropertySegment("zones"), path.ArraySegment(3)], [
+    path.PropertySegment("zones"),
+    path.ArraySegment(30),
+  ])
+  |> should.be_false
+}
+
+pub fn is_prefix_of_unrelated_test() {
+  path.is_prefix_of([path.PropertySegment("zones")], [
+    path.PropertySegment("other"),
+    path.ArraySegment(0),
+  ])
+  |> should.be_false
+}

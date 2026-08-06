@@ -701,6 +701,19 @@ pub fn has_errors_at_path(model: FormModel, field_path: FieldPath) -> Bool {
   }
 }
 
+/// True when any recorded error lies at `prefix` or beneath it.
+///
+/// `has_errors_at_path` is an exact-match lookup; this scans the whole error
+/// map structurally through each error's own `FieldPath`, so it catches
+/// errors on nested fields of a subtree — including ones a cross-field
+/// validator recorded, which the schema validator never produced.
+pub fn has_errors_under_path(model: FormModel, prefix: FieldPath) -> Bool {
+  dict.values(model.errors)
+  |> list.any(fn(errors) {
+    list.any(errors, fn(err) { path.is_prefix_of(prefix, err.field) })
+  })
+}
+
 /// Get validation errors for a field at a specific path.
 /// 
 /// ## Parameters

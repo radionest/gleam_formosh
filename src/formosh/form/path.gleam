@@ -404,6 +404,23 @@ pub fn reindex_after_array_move(
   }
 }
 
+/// The remainder of `path` after stripping `prefix`, or `None` when `path`
+/// does not lie under `prefix`. Exact match yields `Some([])`.
+///
+/// Segments compare structurally, so `zones.[3]` never matches `zones.[30]`
+/// the way a string-prefix test would.
+pub fn relative_to(path: FieldPath, prefix: FieldPath) -> Option(FieldPath) {
+  strip_prefix(path, prefix)
+}
+
+/// True when `path` is `prefix` itself or lies beneath it.
+pub fn is_prefix_of(prefix: FieldPath, path: FieldPath) -> Bool {
+  case relative_to(path, prefix) {
+    Some(_) -> True
+    None -> False
+  }
+}
+
 fn strip_prefix(path: FieldPath, prefix: FieldPath) -> Option(FieldPath) {
   case prefix, path {
     [], rest -> Some(rest)
