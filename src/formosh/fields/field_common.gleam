@@ -1,5 +1,6 @@
 // Common field rendering utilities
 
+import formosh/fields/value_display
 import formosh/form/model.{type FormModel, type FormMsg, UpdateFieldPath}
 import formosh/form/path
 import formosh/schema/types.{type RenderHints}
@@ -9,7 +10,6 @@ import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/string
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -37,19 +37,12 @@ pub fn render_required_marker(is_required: Bool) -> Element(FormMsg) {
   }
 }
 
-/// Visible text for a field label: `hints.title` (UiSchema override) wins
-/// over `property.title` (JSON Schema), which in turn wins over the field
-/// name with underscores replaced by spaces and capitalised.
 pub fn label_text(
   field_name: String,
   property: types.SchemaProperty,
   hints: RenderHints,
 ) -> String {
-  case hints.title, property.title {
-    Some(t), _ -> t
-    None, Some(t) -> t
-    None, None -> field_name |> string.replace("_", " ") |> string.capitalise()
-  }
+  value_display.label_text(field_name, property, hints)
 }
 
 /// Render a field label with optional required indicator.
