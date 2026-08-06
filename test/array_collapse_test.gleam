@@ -1,9 +1,21 @@
 import formosh/fields/array_collapse
-import formosh/form/path.{PropertySegment}
+import formosh/form/model
+import formosh/form/path.{ArraySegment, PropertySegment}
+import formosh/form/update
+import formosh/schema/parser
+import formosh/schema/properties
 import formosh/schema/types
 import formosh/schema/ui_parser
 import formosh/schema/ui_resolver
+import formosh/schema/ui_schema
+import formosh/validation/cross_validator
+import formosh/validation/error
+import gleam/dict
+import gleam/list
+import gleam/option.{None}
+import gleam/set
 import gleeunit/should
+import simplifile
 
 fn hints_for(ui_json: String) -> types.RenderHints {
   let assert Ok(ui) = ui_parser.parse(ui_json)
@@ -50,4 +62,209 @@ pub fn options_drop_non_string_summary_entries_test() {
     )
   array_collapse.options(hints.options).summary_fields
   |> should.equal(["label", "state"])
+}
+
+const row_schema_json = "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"state\"],\"properties\":{\"label\":{\"type\":\"string\"},\"state\":{\"type\":\"string\"},\"note\":{\"type\":\"string\"}}}}}}"
+
+const zones_path = [PropertySegment("zones")]
+
+fn model_with(rows: List(types.Value)) -> model.FormModel {
+  let assert Ok(schema) = parser.parse_schema(row_schema_json)
+  let m =
+    model.init_with_full_config(
+      schema,
+      None,
+      False,
+      dict.new(),
+      ui_schema.empty_ui_schema(),
+    )
+  model.FormModel(
+    ..m,
+    values: types.ObjectValue([#("zones", types.ArrayValue(rows))]),
+  )
+}
+
+fn item_schema(m: model.FormModel) -> types.SchemaProperty {
+  let assert option.Some(prop) = properties.get(m.schema.properties, "zones")
+  let assert option.Some(items) = prop.items
+  items
+}
+
+fn completed(m: model.FormModel, rows: List(types.Value), index: Int) -> Bool {
+  let incomplete =
+    array_collapse.incomplete_rows(
+      zones_path,
+      item_schema(m),
+      rows,
+      m.selected_branches,
+    )
+  let assert Ok(item) = list.drop(rows, index) |> list.first
+  array_collapse.is_completed(m, zones_path, index, item, incomplete)
+}
+
+pub fn empty_row_is_not_completed_test() {
+  let rows = [types.ObjectValue([])]
+  completed(model_with(rows), rows, 0) |> should.be_false
+}
+
+pub fn row_missing_required_field_is_not_completed_test() {
+  let rows = [types.ObjectValue([#("label", types.StringValue("a"))])]
+  completed(model_with(rows), rows, 0) |> should.be_false
+}
+
+pub fn filled_valid_row_is_completed_test() {
+  let rows = [
+    types.ObjectValue([
+      #("label", types.StringValue("a")),
+      #("state", types.StringValue("absent")),
+    ]),
+  ]
+  completed(model_with(rows), rows, 0) |> should.be_true
+}
+
+pub fn all_optional_empty_row_is_not_completed_test() {
+  // No `required` at all: schema validation is clean, so only the non-empty
+  // conjunct keeps this row open.
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"note\":{\"type\":\"string\"}}}}}}",
+    )
+  let rows = [types.ObjectValue([#("note", types.StringValue(""))])]
+  let m =
+    model.FormModel(
+      ..model.init_with_full_config(
+        schema,
+        None,
+        False,
+        dict.new(),
+        ui_schema.empty_ui_schema(),
+      ),
+      values: types.ObjectValue([#("zones", types.ArrayValue(rows))]),
+    )
+  completed(m, rows, 0) |> should.be_false
+}
+
+pub fn only_invalid_rows_are_reported_incomplete_test() {
+  let rows = [
+    types.ObjectValue([#("state", types.StringValue("absent"))]),
+    types.ObjectValue([#("label", types.StringValue("b"))]),
+  ]
+  let m = model_with(rows)
+  array_collapse.incomplete_rows(
+    zones_path,
+    item_schema(m),
+    rows,
+    m.selected_branches,
+  )
+  |> set.contains(1)
+  |> should.be_true
+}
+
+pub fn cross_validator_error_keeps_its_row_open_test() {
+  let rows = [
+    types.ObjectValue([
+      #("label", types.StringValue("a")),
+      #("state", types.StringValue("absent")),
+    ]),
+  ]
+  let m0 = model_with(rows)
+  let flag_row_zero =
+    cross_validator.pure(fn(_m) {
+      [
+        error.ValidationError(
+          field: [
+            PropertySegment("zones"),
+            ArraySegment(0),
+            PropertySegment("state"),
+          ],
+          message: "not allowed here",
+          rule: "custom",
+        ),
+      ]
+    })
+  let m1 =
+    model.FormModel(
+      ..m0,
+      validator: option.Some(flag_row_zero),
+      touched_fields: [
+        [PropertySegment("zones"), ArraySegment(0), PropertySegment("state")],
+      ],
+    )
+  let #(m2, _) = update.update(m1, model.ValidateForm)
+  // The schema is satisfied, so validate_array_items is silent…
+  array_collapse.incomplete_rows(
+    zones_path,
+    item_schema(m2),
+    rows,
+    m2.selected_branches,
+  )
+  |> set.contains(0)
+  |> should.be_false
+  // …but the recorded cross-field error still keeps the row open.
+  completed(m2, rows, 0) |> should.be_false
+}
+
+pub fn no_completed_row_has_errors_beneath_it_test() {
+  let rows = [
+    types.ObjectValue([#("state", types.StringValue("absent"))]),
+    types.ObjectValue([#("label", types.StringValue("b"))]),
+  ]
+  let m0 = model_with(rows)
+  let #(m1, _) = update.update(m0, model.ValidateForm)
+  let incomplete =
+    array_collapse.incomplete_rows(
+      zones_path,
+      item_schema(m1),
+      rows,
+      m1.selected_branches,
+    )
+  list.index_map(rows, fn(item, index) {
+    case array_collapse.is_completed(m1, zones_path, index, item, incomplete) {
+      True ->
+        model.has_errors_under_path(m1, [
+          PropertySegment("zones"),
+          ArraySegment(index),
+        ])
+        |> should.be_false
+      False -> Nil
+    }
+  })
+  Nil
+}
+
+pub fn conditional_subtree_keeps_row_open_test() {
+  let assert Ok(json) =
+    simplifile.read("demo/schemas/carcinomatosis_radiology.json")
+  let assert Ok(schema) = parser.parse_schema(json)
+  let m0 =
+    model.init_with_full_config(
+      schema,
+      None,
+      False,
+      dict.new(),
+      ui_schema.empty_ui_schema(),
+    )
+  // `affected: true` lifts a `lesions` array with minItems 1 into the row; its
+  // auto-created element is missing `form`/`contour`, so the row stays open.
+  let #(m1, _) =
+    update.update(
+      m0,
+      model.UpdateFieldPath(
+        [PropertySegment("zones"), ArraySegment(0), PropertySegment("affected")],
+        types.BooleanValue(True),
+      ),
+    )
+  let assert option.Some(types.ArrayValue(rows)) =
+    model.get_value_at_path(m1, zones_path)
+  let assert option.Some(zones_prop) =
+    properties.get(m1.schema.properties, "zones")
+  let assert option.Some(items) = zones_prop.items
+  let incomplete =
+    array_collapse.incomplete_rows(
+      zones_path,
+      items,
+      rows,
+      m1.selected_branches,
+    )
+  set.contains(incomplete, 0) |> should.be_true
 }
