@@ -152,18 +152,21 @@ Two value-formatting rules matter when picking `summaryFields`: a
 non-empty `password`-format (or `ui:widget: "password"`) value renders the
 fixed `••••••••` mask, never the real value — an empty one is simply
 omitted, like any other blank field; and a boolean field renders its own
-title when `true` and is omitted entirely when `false` (an empty value is
-dropped first of all; past that, masking is decided before the non-empty
-value's shape is dispatched on, so a boolean carrying a password hint masks
-rather than following the boolean rule).
+title when `true` and is omitted entirely when `false` (a null, empty-string,
+or empty-array value is dropped before masking is considered at all; past
+that, masking is decided before the value's shape is dispatched on, so a
+boolean carrying a password hint masks rather than following the boolean
+rule).
 
 The worked example below leans on the second rule for its simplest case:
 with `affected` set to `false`, a collapsed row shows only `zone_id` and
 `label`. Both are `readOnly`, so whether they reach the summary at all
 turns on `show_readonly_fields` — and the two entry points disagree on its
 default: `<formosh-form>` starts it **on**, `FormConfig` starts it **off**.
-Through the component those fields therefore appear unless you set
-`show-readonly-fields="false"`; built through `FormConfig` without
+Through the component those fields therefore appear unless the attribute is
+set to something other than the exact string `"true"` — the parse is strict,
+so `"false"`, `"1"`, `"TRUE"` and a bare valueless attribute all read as
+off; built through `FormConfig` without
 `with_show_readonly_fields(True)`, the suppression rule above drops them
 from the summary and the row collapses to just its 1-based number. A row
 that instead completes with `affected: true` (lesions filled in too) would
