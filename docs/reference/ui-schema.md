@@ -152,18 +152,22 @@ Two value-formatting rules matter when picking `summaryFields`: a
 non-empty `password`-format (or `ui:widget: "password"`) value renders the
 fixed `••••••••` mask, never the real value — an empty one is simply
 omitted, like any other blank field; and a boolean field renders its own
-title when `true` and is omitted entirely when `false` (masking is decided
-before the value's shape is inspected at all, so a boolean carrying a
-password hint masks rather than following the boolean rule).
+title when `true` and is omitted entirely when `false` (an empty value is
+dropped first of all; past that, masking is decided before the non-empty
+value's shape is dispatched on, so a boolean carrying a password hint masks
+rather than following the boolean rule).
 
 The worked example below leans on the second rule for its simplest case:
 with `affected` set to `false`, a collapsed row shows only `zone_id` and
-`label` — and only because that demo sets `show-readonly-fields="true"`.
-Both fields are `readOnly` in its schema, so under the `FormConfig` default
-(flag off) the suppression rule above drops them from the summary too and
-the row collapses to just its 1-based number. A row that instead completes
-with `affected: true` (lesions filled in too) would also show the boolean's
-title and an `"Очаги: N"` count.
+`label`. Both are `readOnly`, so whether they reach the summary at all
+turns on `show_readonly_fields` — and the two entry points disagree on its
+default: `<formosh-form>` starts it **on**, `FormConfig` starts it **off**.
+Through the component those fields therefore appear unless you set
+`show-readonly-fields="false"`; built through `FormConfig` without
+`with_show_readonly_fields(True)`, the suppression rule above drops them
+from the summary and the row collapses to just its 1-based number. A row
+that instead completes with `affected: true` (lesions filled in too) would
+also show the boolean's title and an `"Очаги: N"` count.
 
 ### Image upload
 
@@ -266,13 +270,14 @@ no `lesions` at all, so there's nothing left that could fail. Setting
 auto-creates (`minItems: 1`) starts out unfilled and fails its own
 required fields.
 
-What that collapsed row actually *shows* depends on one attribute outside
-this file: `zone_id` and `label` are both `readOnly`, so they only reach
-the summary because the demo page sets `show-readonly-fields="true"`. Drop
-that attribute — or build the same form through `FormConfig`, where the
-flag defaults to `False` — and both fields are suppressed from the summary
-along with everything else the expanded row hides, leaving the row number
-as the only thing left to render.
+What that collapsed row actually *shows* turns on `show_readonly_fields`,
+since `zone_id` and `label` are both `readOnly`. In the demo they appear
+because `<formosh-form>` defaults that flag **on** — the page's own
+`show-readonly-fields="true"` only restates the default. Build the same
+form through `FormConfig`, where the flag defaults to `False`, and both
+fields are suppressed from the summary along with everything else the
+expanded row hides, leaving the row number as the only thing left to
+render.
 
 ### Help text and placeholders for pattern-validated fields
 

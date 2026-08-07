@@ -112,8 +112,7 @@ One module per widget family, all funnneled through one dispatcher:
 `array_collapse.gleam` is the one widget module that reaches into
 `schema/validator`: deciding whether a row is "completed" means asking
 whether it currently validates, so validation is invoked from the **render**
-path and not only from `update`. That makes `validator` the sole schema
-module with an importer on each side of the MVU split. The call is one
+path and not only from `update`. The call is one
 `validate_array_items` pass over the whole list per array — not one per row
 — so it costs no more than the `validate_all_fields` that already runs on
 every value change.
