@@ -234,8 +234,10 @@ Three consequences follow directly from the predicate above:
   option is configured.
 - **A row whose fields are all optional stays expanded until something is
   filled in.** An empty row has no non-empty field, so it can't collapse no
-  matter how loosely its schema constrains it — by design, not a bug: mark
-  a row field required, or fill something in, to see it collapse.
+  matter how loosely its schema constrains it — by design, not a bug: fill
+  something in to see it collapse. Marking a row field `required` does the
+  opposite: the still-empty row then carries a `RequiredField` error, which
+  fails the predicate's second condition and pins the row open.
 - **A freshly added row always renders expanded**, even one whose item
   schema is all-optional-with-defaults and so satisfies "completed" the
   instant `AddArrayItemPath` builds it — without this, clicking "Add" would

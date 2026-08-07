@@ -44,14 +44,23 @@ state, so you can style by state without writing class toggles yourself:
 
 ```css
 /* A field that currently has a validation error */
-formosh-form::part(field)[data-error] { border-color: red; }
+[part=field][data-error] { border-color: red; }
 
 /* A readOnly field rendered as disabled */
-formosh-form::part(field)[data-readonly] { opacity: 0.6; }
+[part=field][data-readonly] { opacity: 0.6; }
 
 /* A completed array row currently collapsed to its summary */
-formosh-form::part(array-item)[data-collapsed] { padding-block: 0.25rem; }
+[part=array-item][data-collapsed] { padding-block: 0.25rem; }
 ```
+
+Note the `[part=…]` form rather than `::part(…)`. State selectors **cannot**
+be written as `formosh-form::part(field)[data-error]` — an attribute selector
+cannot follow a pseudo-element, so the browser drops the whole rule at parse
+time and the style silently never applies. The `[part=…][data-…]` form above
+works instead because parent stylesheets are auto-adopted into the shadow root
+(§3), which is also the constraint it carries: these rules must live in a
+stylesheet the page adopts. Unlike the `::part()` selectors in §1, they are not
+reachable from a stylesheet that only sees the custom element from outside.
 
 `data-collapsed` is presence-only: it appears (value `"true"`) only on a
 row that is actually collapsed, and is absent — not `"false"` — on every
