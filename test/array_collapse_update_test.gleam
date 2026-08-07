@@ -185,6 +185,37 @@ pub fn reset_clears_collapse_state_test() {
   list.length(m3.array_collapse_off) |> should.equal(0)
 }
 
+// `clear_subtree` is the union-branch-switch reset. It prunes the two collapse
+// lists on the same structural prefix as `touched_fields`: without that, a
+// switch that wipes a row's values leaves the row still marked user-expanded,
+// so refilling it keeps it open instead of letting it collapse again.
+pub fn clear_subtree_prunes_collapse_state_under_path_test() {
+  let m0 = init()
+  let #(m1, _) = update.update(m0, model.array_msg(ToggleRowExpanded(row(1))))
+  let #(m2, _) =
+    update.update(m1, model.array_msg(ToggleCollapseCompleted(zones)))
+  let #(m3, _) =
+    update.update(m2, model.array_msg(ToggleCollapseCompleted(nested_path(1))))
+  let m4 = model.clear_subtree(m3, row(1))
+  m4.array_rows_expanded |> should.equal([])
+  m4.array_collapse_off |> list.contains(nested_path(1)) |> should.be_false
+  // The array's own toggle sits outside the cleared row, so it survives —
+  // same asymmetry the remove/move reindex tests above pin.
+  m4.array_collapse_off |> list.contains(zones) |> should.be_true
+}
+
+pub fn clear_subtree_of_whole_array_drops_every_entry_test() {
+  let m0 = init()
+  let #(m1, _) = update.update(m0, model.array_msg(ToggleRowExpanded(row(0))))
+  let #(m2, _) =
+    update.update(m1, model.array_msg(ToggleCollapseCompleted(zones)))
+  let #(m3, _) =
+    update.update(m2, model.array_msg(ToggleCollapseCompleted(nested_path(0))))
+  let m4 = model.clear_subtree(m3, zones)
+  m4.array_rows_expanded |> should.equal([])
+  m4.array_collapse_off |> should.equal([])
+}
+
 // Fix round 2: AddArrayItemPath must force-expand the row it just created,
 // or a row that happens to satisfy `is_completed` the instant it's built
 // (see `defaulted_optional_schema_json` below) renders collapsed before the

@@ -794,6 +794,12 @@ pub fn clear_errors_at_path(
 ///   helper's doc. Both already handle an `ArraySegment`-terminated
 ///   `field_path` correctly (index-aware matching), so — unlike `values` —
 ///   they need no corresponding split.
+/// - `array_collapse_off` / `array_rows_expanded`: view-only, but pruned on
+///   the same structural prefix as `touched_fields`. A branch switch that
+///   wipes a row's values would otherwise leave that row still marked
+///   user-expanded, so refilling it would keep it open instead of letting it
+///   collapse; a switch that drops an array outright would strand entries
+///   pointing at a subtree that no longer exists.
 pub fn clear_subtree(model: FormModel, field_path: FieldPath) -> FormModel {
   let new_errors =
     dict.filter(model.errors, fn(key, _errors) {
@@ -805,6 +811,12 @@ pub fn clear_subtree(model: FormModel, field_path: FieldPath) -> FormModel {
     errors: new_errors,
     touched_fields: list.filter(model.touched_fields, fn(touched) {
       !path.is_prefix_of(field_path, touched)
+    }),
+    array_collapse_off: list.filter(model.array_collapse_off, fn(array_path) {
+      !path.is_prefix_of(field_path, array_path)
+    }),
+    array_rows_expanded: list.filter(model.array_rows_expanded, fn(row_path) {
+      !path.is_prefix_of(field_path, row_path)
     }),
     is_valid: dict.size(new_errors) == 0,
   )

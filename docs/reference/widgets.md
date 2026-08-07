@@ -255,7 +255,10 @@ and reindexes with the array on remove/move the way `touched_fields` does. A
 row that merely *stops* satisfying the predicate opens without recording
 anything, so it re-collapses on its own once its error clears. Resetting the
 form drops both pieces of collapse state outright: every array back to
-collapsing-on, no row individually reopened.
+collapsing-on, no row individually reopened. Switching an `anyOf` branch is
+narrower — it prunes only the entries sitting under the subtree it clears,
+so a row reset by the switch stops counting as user-expanded while the rest
+of the form keeps its collapse state.
 
 A completed row whose `summaryFields` resolve to nothing to show (every
 named field blank, or a lone boolean that's `false`) falls back to
