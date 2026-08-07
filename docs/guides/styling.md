@@ -58,9 +58,13 @@ be written as `formosh-form::part(field)[data-error]` — an attribute selector
 cannot follow a pseudo-element, so the browser drops the whole rule at parse
 time and the style silently never applies. The `[part=…][data-…]` form above
 works instead because parent stylesheets are auto-adopted into the shadow root
-(§3), which is also the constraint it carries: these rules must live in a
-stylesheet the page adopts. Unlike the `::part()` selectors in §1, they are not
-reachable from a stylesheet that only sees the custom element from outside.
+(§3) — an ordinary page `<style>` or `<link>` is adopted, so in the usual case
+this simply works. Adoption is still the dependency it rests on, and does not
+reach a stylesheet inside an *enclosing* shadow root, or one added to the
+document after the component adopted at connect time. One further trap: because
+adopted sheets count as inner context, a *normal* host `::part(field)`
+declaration beats `[part=field][data-error]` regardless of specificity
+(§ Cascade order).
 
 `data-collapsed` is presence-only: it appears (value `"true"`) only on a
 row that is actually collapsed, and is absent — not `"false"` — on every
