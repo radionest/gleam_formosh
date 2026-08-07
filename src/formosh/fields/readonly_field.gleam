@@ -14,6 +14,7 @@
 // inputs and no events, so the value is genuinely immutable.
 
 import formosh/fields/field_common.{type FieldRenderCtx}
+import formosh/fields/value_display
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path.{ArraySegment, PropertySegment}
 import formosh/form/union_resolver
@@ -21,18 +22,12 @@ import formosh/schema/properties
 import formosh/schema/types.{type RenderHints, type SchemaProperty, type Value}
 import formosh/schema/ui_resolver
 import gleam/bool
-import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
-
-const dash = "—"
-
-const password_mask = "••••••••"
 
 /// Render a single field (at any depth) as a static summary node.
 pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
@@ -49,7 +44,7 @@ pub fn render(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
         _ ->
           render_row(
             label_for(ctx),
-            display_value(ctx.property, ctx.hints, ctx.value),
+            value_display.display_value(ctx.property, ctx.hints, ctx.value),
           )
       }
   }
@@ -102,86 +97,6 @@ fn label_for(ctx: FieldRenderCtx) -> String {
   )
 }
 
-/// True when a field should be masked in review mode — either the schema
-/// declares `format: "password"` or a `ui:widget: "password"` hint applies.
-/// The mask is a fixed string: a length-proportional one would leak the
-/// value's length.
-fn is_password(property: SchemaProperty, hints: RenderHints) -> Bool {
-  let by_widget = hints.widget == Some(types.CustomWidget("password"))
-  let by_format = case property.string_constraints {
-    Some(constraints) -> constraints.format == Some(types.PasswordFormat)
-    None -> False
-  }
-  by_widget || by_format
-}
-
-/// Format a leaf value for display, mapping enum codes to their oneOf label
-/// and masking password fields.
-fn display_value(
-  property: SchemaProperty,
-  hints: RenderHints,
-  value: Option(Value),
-) -> String {
-  case value {
-    None | Some(types.NullValue) -> dash
-    Some(v) ->
-      case is_password(property, hints), v {
-        True, types.StringValue("") -> dash
-        True, _ -> password_mask
-        False, _ ->
-          case enum_label(property, v) {
-            Some(label) -> label
-            None -> scalar_to_string(v)
-          }
-      }
-  }
-}
-
-fn scalar_to_string(value: Value) -> String {
-  case value {
-    types.StringValue("") -> dash
-    types.StringValue(s) -> s
-    types.IntegerValue(i) -> int.to_string(i)
-    types.NumberValue(n) -> float.to_string(n)
-    types.BooleanValue(True) -> "Yes"
-    types.BooleanValue(False) -> "No"
-    types.NullValue -> dash
-    // Containers are handled by render_object / render_array, never here.
-    types.ArrayValue(_) | types.ObjectValue(_) -> dash
-  }
-}
-
-/// Resolve a stored enum code to its human label via `oneOf` const+title
-/// options. Plain `enum` lists carry no labels (the code *is* the label), so
-/// they fall through to `scalar_to_string`.
-fn enum_label(property: SchemaProperty, value: Value) -> Option(String) {
-  case property.one_of {
-    Some(schemas) -> {
-      let target = scalar_to_string(value)
-      one_of_options(schemas)
-      |> list.find(fn(opt) { opt.0 == target })
-      |> result.map(fn(opt) { opt.1 })
-      |> option.from_result
-    }
-    None -> None
-  }
-}
-
-/// Extract const+title pairs from oneOf sub-schemas. Same shape as
-/// `string_field.extract_one_of_options`, kept local so the read-only path
-/// has no dependency on the editable widgets; the const is formatted with
-/// this module's `scalar_to_string` so the key matches `enum_label`'s lookup.
-fn one_of_options(one_of: List(SchemaProperty)) -> List(#(String, String)) {
-  use schema <- list.filter_map(one_of)
-  use vals <- result.try(option.to_result(schema.enum_values, Nil))
-  use const_val <- result.try(case vals {
-    [val] -> Ok(val)
-    _ -> Error(Nil)
-  })
-  let value = scalar_to_string(const_val)
-  Ok(#(value, option.unwrap(schema.title, value)))
-}
-
 // --- Object groups ---
 
 fn render_object(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
@@ -232,13 +147,13 @@ fn render_array(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
     _ -> []
   }
   let body = case items, ctx.property.items {
-    [], _ -> [render_value_only(dash)]
+    [], _ -> [render_value_only(value_display.dash)]
     _, Some(item_schema) ->
       case scalar_object_columns(ctx, model, item_schema) {
         Some(columns) -> [render_table(columns, items)]
         None -> render_groups(ctx, model, item_schema, items)
       }
-    _, None -> [render_value_only(dash)]
+    _, None -> [render_value_only(value_display.dash)]
   }
   group(label_for(ctx), body)
 }
@@ -317,7 +232,7 @@ fn render_table(
           let #(name, prop, col_hints) = col
           let cell = path.get_at_path(item, [PropertySegment(name)])
           html.td([attribute.attribute("part", "readonly-td")], [
-            html.text(display_value(prop, col_hints, cell)),
+            html.text(value_display.display_value(prop, col_hints, cell)),
           ])
         }),
       )
@@ -358,7 +273,7 @@ fn render_groups(
       _ ->
         render_row(
           "#" <> int.to_string(index + 1),
-          display_value(
+          value_display.display_value(
             item_schema,
             ui_resolver.resolve_hints(model.ui_schema, item_path, item_schema),
             Some(item),

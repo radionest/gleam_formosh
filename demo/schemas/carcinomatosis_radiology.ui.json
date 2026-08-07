@@ -3,6 +3,11 @@
     "ui:addable": false,
     "ui:removable": false,
     "ui:orderable": false,
+    "ui:options": {
+      "collapseCompleted": true,
+      "collapseCompletedLabel": "Сворачивать заполненные",
+      "summaryFields": ["zone_id", "label", "affected", "lesions"]
+    },
     "items": {
       "lesions": {
         "ui:orderable": false

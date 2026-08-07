@@ -87,7 +87,7 @@ architectural fact about the schema layer — see
 | `path.gleam` | `FieldPath` — `PropertySegment` / `ArraySegment` lists for addressing any value in the tree. |
 | `defaults.gleam` | Default-value hydration, `ensure_min_items` for arrays. |
 | `json_utils.gleam` | `Value` ↔ `json.Json` conversions. |
-| `widget_msg.gleam` | Widget-specific message types (swipe-review, image upload). |
+| `widget_msg.gleam` | Widget-specific message types (swipe-review, image upload, array collapse/expand). |
 
 ### Widgets — `src/formosh/fields/`
 
@@ -100,12 +100,22 @@ One module per widget family, all funnneled through one dispatcher:
 | `number_field.gleam` | Number input (with `step` from `multipleOf`). |
 | `boolean_field.gleam` | Yes/No radios / toggle. |
 | `array_field.gleam` | Dynamic list with add/remove/move controls. |
+| `array_collapse.gleam` | Pure collapse-completed logic for `array_field.gleam`: `ui:options` parsing, the completed predicate, summary-text assembly. No Lustre dependency, mirroring the `swipe_review` / `swipe_review_field` split. |
 | `object_field.gleam` | Nested fieldset. |
 | `union_field.gleam` | Branch chooser for a 2+-member `anyOf` (radio/select) plus the active branch's own widget beneath it. |
 | `image_field.gleam` | Image upload widget. |
 | `readonly_field.gleam` | Static label→value summary (review mode). |
+| `value_display.gleam` | Value→display-text helpers (label resolution, `oneOf` enum-to-title, password masking) shared by `field_common.gleam` (field labels), `readonly_field.gleam` (review-mode display), and `array_collapse.gleam` (completed-row summaries). |
 | `swipe_review_field.gleam` / `swipe_review.gleam` | The `ui:widget: "swipe-review"` tap-based zone burndown. |
 | `field_common.gleam` | Shared rendering context (`FieldRenderCtx`) and helpers. |
+
+`array_collapse.gleam` is the one widget module that reaches into
+`schema/validator`: deciding whether a row is "completed" means asking
+whether it currently validates, so validation is invoked from the **render**
+path and not only from `update`. The call is one
+`validate_array_items` pass over the whole list per array — not one per row
+— so it costs no more than the `validate_all_fields` that already runs on
+every value change.
 
 ### Validation — `src/formosh/validation/`
 

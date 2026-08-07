@@ -5,7 +5,8 @@ import formosh/form/path.{type FieldPath}
 import formosh/form/union_resolver
 import formosh/form/visibility
 import formosh/form/widget_msg.{
-  type ExitDir, type ImageUploadEvent, type SwipeReviewEvent, type WidgetMsg,
+  type ArrayFieldEvent, type ExitDir, type ImageUploadEvent,
+  type SwipeReviewEvent, type WidgetMsg,
 }
 import formosh/schema/conditional_resolver
 import formosh/schema/properties
@@ -94,6 +95,14 @@ pub type FormModel {
     // Each is kept rendered (flying off) until its `transitionend` clears it.
     // Only populated in hide-answered mode. Empty unless a fly-off is in flight.
     swipe_exiting: List(#(FieldPath, ExitDir)),
+    // Array paths where the user switched collapsing off. A negative list, so
+    // "enabled by default" needs no entry. Reindexes with the array like
+    // touched_fields.
+    array_collapse_off: List(FieldPath),
+    // Row paths the user clicked open. Only user-driven expansion is stored;
+    // a row that stopped validating expands from the predicate, so it
+    // re-collapses on its own once valid again.
+    array_rows_expanded: List(FieldPath),
   )
 }
 
@@ -165,6 +174,12 @@ pub fn image_msg(event: ImageUploadEvent) -> FormMsg {
 /// `WidgetEvent(SwipeReview(...))` wrapper at emission sites.
 pub fn swipe_msg(event: SwipeReviewEvent) -> FormMsg {
   WidgetEvent(widget_msg.SwipeReview(event))
+}
+
+/// Build a `FormMsg` from an `ArrayFieldEvent` — collapses the
+/// `WidgetEvent(ArrayField(...))` wrapper at emission sites.
+pub fn array_msg(event: ArrayFieldEvent) -> FormMsg {
+  WidgetEvent(widget_msg.ArrayField(event))
 }
 
 /// Initialize a new form model from a JSON Schema.
@@ -261,6 +276,8 @@ pub fn init_with_full_config(
     swipe_drag: option.None,
     swipe_hide_answered: True,
     swipe_exiting: [],
+    array_collapse_off: [],
+    array_rows_expanded: [],
   )
 }
 
@@ -364,6 +381,8 @@ pub fn reset(model: FormModel) -> FormModel {
     swipe_drag: option.None,
     swipe_hide_answered: True,
     swipe_exiting: [],
+    array_collapse_off: [],
+    array_rows_expanded: [],
   )
 }
 
@@ -701,6 +720,19 @@ pub fn has_errors_at_path(model: FormModel, field_path: FieldPath) -> Bool {
   }
 }
 
+/// True when any recorded error lies at `prefix` or beneath it.
+///
+/// `has_errors_at_path` is an exact-match lookup; this scans the whole error
+/// map structurally through each error's own `FieldPath`, so it catches
+/// errors on nested fields of a subtree — including ones a cross-field
+/// validator recorded, which the schema validator never produced.
+pub fn has_errors_under_path(model: FormModel, prefix: FieldPath) -> Bool {
+  dict.values(model.errors)
+  |> list.any(fn(errors) {
+    list.any(errors, fn(err) { path.is_prefix_of(prefix, err.field) })
+  })
+}
+
 /// Get validation errors for a field at a specific path.
 /// 
 /// ## Parameters
@@ -758,10 +790,16 @@ pub fn clear_errors_at_path(
 ///   path, so each descendant entry has to be filtered out on its own —
 ///   `errors` by canonical-string key (`is_error_key_under_path`),
 ///   `touched_fields` by structural `FieldPath` list-prefix
-///   (`has_path_prefix`). These are two different mechanisms; see each
+///   (`path.is_prefix_of`). These are two different mechanisms; see each
 ///   helper's doc. Both already handle an `ArraySegment`-terminated
 ///   `field_path` correctly (index-aware matching), so — unlike `values` —
 ///   they need no corresponding split.
+/// - `array_collapse_off` / `array_rows_expanded`: view-only, but pruned on
+///   the same structural prefix as `touched_fields`. A branch switch that
+///   wipes a row's values would otherwise leave that row still marked
+///   user-expanded, so refilling it would keep it open instead of letting it
+///   collapse; a switch that drops an array outright would strand entries
+///   pointing at a subtree that no longer exists.
 pub fn clear_subtree(model: FormModel, field_path: FieldPath) -> FormModel {
   let new_errors =
     dict.filter(model.errors, fn(key, _errors) {
@@ -772,7 +810,13 @@ pub fn clear_subtree(model: FormModel, field_path: FieldPath) -> FormModel {
     values: clear_subtree_values(model, field_path),
     errors: new_errors,
     touched_fields: list.filter(model.touched_fields, fn(touched) {
-      !has_path_prefix(field_path, touched)
+      !path.is_prefix_of(field_path, touched)
+    }),
+    array_collapse_off: list.filter(model.array_collapse_off, fn(array_path) {
+      !path.is_prefix_of(field_path, array_path)
+    }),
+    array_rows_expanded: list.filter(model.array_rows_expanded, fn(row_path) {
+      !path.is_prefix_of(field_path, row_path)
     }),
     is_valid: dict.size(new_errors) == 0,
   )
@@ -825,18 +869,6 @@ fn array_row_reset_value(model: FormModel, array_path: FieldPath) -> Value {
         option.None -> types.NullValue
       }
     Error(_) -> types.NullValue
-  }
-}
-
-/// True when `candidate` is `prefix` itself or a structural descendant of
-/// it — e.g. `[value]` prefixes both `[value]` and `[value, city]`. Used
-/// for `touched_fields`, which is keyed by `FieldPath`, not by string.
-fn has_path_prefix(prefix: FieldPath, candidate: FieldPath) -> Bool {
-  case prefix, candidate {
-    [], _ -> True
-    [p, ..prefix_rest], [c, ..candidate_rest] ->
-      p == c && has_path_prefix(prefix_rest, candidate_rest)
-    _, _ -> False
   }
 }
 

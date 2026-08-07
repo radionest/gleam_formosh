@@ -191,7 +191,98 @@ and UiSchema flags:
 
 Rows auto-create up to `minItems` (with item-field defaults applied). Array
 items can themselves be objects or arrays — nesting to any depth — so the
-container recurses through the same dispatcher.
+container recurses through the same dispatcher. (Collapsing completed rows,
+below, is narrower: only object-shaped rows ever qualify.)
+
+### Collapsing completed rows
+
+Opt in per array via `ui:options` on that array node —
+[`collapseCompleted` / `collapseCompletedLabel` /
+`summaryFields`](ui-schema.md#collapse-completed-array-rows) — **and** the
+array must not be read-only; the two together gate the *entire* feature,
+not just the header below. With either one missing, an array renders
+exactly as described above: no toggle, no progress, no summary, nothing in
+this section applies.
+
+When both hold, a header renders above the rows: a toggle checkbox plus a
+`"{completed} / {total}"` progress count. The header renders even while
+the user has switched collapsing off — it's the only control that can
+switch it back on — but switching it back on discards every row the user
+had individually reopened, so re-enabling is a real "collapse everything
+again" action, not a no-op.
+
+A row collapses only when all three hold:
+
+- it has at least one non-empty own field,
+- array-item validation reports no error at its index, and
+- no recorded error in the form's error map falls under its path.
+
+While collapsing is switched on, a completed row always renders its
+summary as a real `<button>`, in **both** the collapsed and expanded
+state — clicking it toggles between them (`aria-expanded` reflects which),
+and only the row's field container actually hides. Switching collapsing
+off removes every summary button outright, regardless of completion — but
+the header's progress count keeps counting completed rows either way,
+since it depends only on `collapseCompleted`/read-only, not on the toggle.
+
+Three consequences follow directly from the predicate above:
+
+- **Only object-shaped rows can ever collapse.** The first condition's
+  "non-empty own field" check only understands an object row — it walks
+  the row's own fields to look for one. An array whose `items` is a bare
+  scalar, or itself another array, never collapses, no matter how the
+  option is configured.
+- **A row whose fields are all optional stays expanded until something is
+  filled in.** An empty row has no non-empty field, so it can't collapse no
+  matter how loosely its schema constrains it — by design, not a bug: fill
+  something in to see it collapse. Marking a row field `required` does not
+  help, at either stage: a still-empty row already fails the first condition,
+  and once the row is partly filled the unsatisfied required field contributes
+  a `required` validation error that fails the second — pinning the row open
+  either way.
+- **A freshly added row always renders expanded**, even one whose item
+  schema is all-optional-with-defaults and so satisfies "completed" the
+  instant `AddArrayItemPath` builds it — without this, clicking "Add" would
+  immediately collapse the row the user just asked to fill in. Rows a
+  `minItems` top-up auto-creates are **not** force-expanded this way; they
+  render collapsed or expanded purely from the predicate above, same as any
+  other row.
+
+Expansion the user asks for is sticky; the automatic kind is not. Clicking a
+row's summary records that row's path, and the row stays open from then on
+even while it goes on satisfying the predicate — the record survives edits,
+and reindexes with the array on remove/move the way `touched_fields` does. A
+row that merely *stops* satisfying the predicate opens without recording
+anything, so it re-collapses on its own once its error clears. Resetting the
+form drops both pieces of collapse state outright: every array back to
+collapsing-on, no row individually reopened. Switching an `anyOf` branch is
+narrower — it prunes only the entries sitting under the subtree it clears,
+so a row reset by the switch stops counting as user-expanded while the rest
+of the form keeps its collapse state.
+
+A completed row whose `summaryFields` resolve to nothing to show (every
+named field blank, or a lone boolean that's `false`) falls back to
+rendering its 1-based row number instead of an empty button — an empty
+button would have no visible text and no accessible name, a dead end back
+into the row.
+
+A field the expanded row itself would hide — `ui:widget: "hidden"`, or
+`readOnly` while `show_readonly_fields` is off — contributes nothing to the
+summary either, named explicitly or picked up by the default: collapsing a
+row never shows a value its expanded state would not.
+
+**Known gap.** The third condition trusts `model.errors` as the complete
+record of "something's wrong in this row" — it isn't, always. A
+cross-field validator's error keyed on a path that only a per-row
+conditional reveals (e.g. `zones.[3].lesions.[0].length_mm`, where
+`lesions` exists only once *that* row's own `affected` is true) is dropped
+by `filter_cross_error` before it ever reaches `model.errors`: that check
+resolves the path against the array's raw, unresolved item schema — one
+shared template for every row — not against that row's own resolved
+conditionals. Such an error neither blocks submit nor holds the row open.
+Schema-level validation (the second condition above) doesn't have this
+gap — it resolves each row's own conditionals before checking — so this
+only affects a custom `with_validator` cross-validator's own error paths.
 
 ## Object fields
 
@@ -310,6 +401,7 @@ own dispatch from there.
 | String sub-decision (oneOf / enum / textarea / input) | `src/formosh/fields/string_field.gleam` |
 | HTML `type` from `format` | `string_field.get_input_type` |
 | Array container + add/remove gating | `src/formosh/fields/array_field.gleam` |
+| Collapse-completed logic (options, predicate, summaries) | `src/formosh/fields/array_collapse.gleam` |
 | Object fieldset | `src/formosh/fields/object_field.gleam` |
 | Union chooser (`anyOf`, 2+ branches) | `src/formosh/fields/union_field.gleam` |
 | Branch resolution / materialization (`selected_branches`) | `src/formosh/form/union_resolver.gleam` |

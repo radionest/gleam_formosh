@@ -93,7 +93,7 @@ default (or `x-*` extension where applicable)".
 | Key | Type | Effect |
 |-----|------|--------|
 | `ui:widget` | string | Override the auto-selected widget. Recognized: `"image-upload"`, `"hidden"`, `"swipe-review"`, plus the string-field hints `"textarea"`, `"select"`, `"radio"`, `"password"`. `"select"` / `"radio"` also apply to an `anyOf` union chooser on the same path — same ≤5-radio / >5-select contract as a string `enum`, see [Union chooser](widgets.md#union-chooser-anyof-2-branches). Anything else becomes a `CustomWidget(raw)` that custom renderers can dispatch on. See [Widget Selection](widgets.md). |
-| `ui:options` | object | Free-form bag of widget-specific settings, passed through to the renderer as a `Dict(String, Value)`. E.g. `swipe-review` reads `swipeRight` / `swipeLeft` / `button` / `hideAnsweredLabel` from here. |
+| `ui:options` | object | Free-form bag of widget-specific settings, passed through to the renderer as a `Dict(String, Value)`. E.g. `swipe-review` reads `swipeRight` / `swipeLeft` / `button` / `hideAnsweredLabel` from here; an array reads `collapseCompleted` / `collapseCompletedLabel` / `summaryFields` to collapse completed rows — see [Collapse completed array rows](#collapse-completed-array-rows) below. |
 
 ### Labels and help
 
@@ -128,6 +128,49 @@ default (or `x-*` extension where applicable)".
 
 `x-addable` / `x-removable` on the schema node are a deprecated fallback
 with the same meaning; UiSchema wins on collision.
+
+### Collapse completed array rows
+
+Set inside `ui:options` on the array node itself — these are not top-level
+`ui:*` keys, they live in the free-form bag described above:
+
+| Key | Type | Default | Effect |
+|-----|------|---------|--------|
+| `collapseCompleted` | bool | `false` | Enables the feature on this array. Absent (or `false`) means no behaviour change at all — the array renders exactly as it did before this feature existed. |
+| `collapseCompletedLabel` | string | `"Collapse completed"` | Caption on the toggle checkbox. |
+| `summaryFields` | string[] | `[]` | Row fields shown in the collapsed summary, in the given order. `[]` defaults to every **scalar** field of the row's resolved schema, in schema order — array- and object-typed fields are both excluded from that default, so either only appears when you list it explicitly, and even then an explicitly listed object field (or an unknown field name) is silently dropped rather than shown or erroring. A field the expanded row itself would hide — `ui:widget: "hidden"`, or `readOnly` while `show_readonly_fields` is off — is dropped the same way, named explicitly or picked up by the default: collapsing never shows a value the expanded row would not. |
+
+A row collapses only when all three hold: it has at least one non-empty own
+field, array-item validation reports no error at its index, and no recorded
+error in the form's error map falls under its path. That third check treats
+`model.errors` as authoritative for "nothing wrong in this row" — see
+[Collapsing completed rows](widgets.md#collapsing-completed-rows) for a
+known gap where a cross-field validator's error on a path only a per-row
+conditional reveals never reaches that map.
+
+Two value-formatting rules matter when picking `summaryFields`: a
+non-empty `password`-format (or `ui:widget: "password"`) value renders the
+fixed `••••••••` mask, never the real value — an empty one is simply
+omitted, like any other blank field; and a boolean field renders its own
+title when `true` and is omitted entirely when `false` (a null, empty-string,
+or empty-array value is dropped before masking is considered at all; past
+that, masking is decided before the value's shape is dispatched on, so a
+boolean carrying a password hint masks rather than following the boolean
+rule).
+
+The worked example below leans on the second rule for its simplest case:
+with `affected` set to `false`, a collapsed row shows only `zone_id` and
+`label`. Both are `readOnly`, so whether they reach the summary at all
+turns on `show_readonly_fields` — and the two entry points disagree on its
+default: `<formosh-form>` starts it **on**, `FormConfig` starts it **off**.
+Through the component those fields therefore appear unless the attribute is
+set to something other than the exact string `"true"` — the parse is strict,
+so `"false"`, `"1"`, `"TRUE"` and a bare valueless attribute all read as
+off; built through `FormConfig` without
+`with_show_readonly_fields(True)`, the suppression rule above drops them
+from the summary and the row collapses to just its 1-based number. A row
+that instead completes with `affected: true` (lesions filled in too) would
+also show the boolean's title and an `"Очаги: N"` count.
 
 ### Image upload
 
@@ -194,10 +237,10 @@ for compatibility).
 All three are lifted from `demo/schemas/*.ui.json` — open them in the demo
 (`make demo`) to see them live.
 
-### Disable array controls and lock down nested reordering
+### Disable array controls and collapse completed rows
 
-A medical scoring form where zones are fixed and per-zone lesions can't be
-rearranged:
+A medical scoring form where zones are fixed, per-zone lesions can't be
+rearranged, and each row collapses to a summary once it's filled in:
 
 ```json
 {
@@ -205,6 +248,11 @@ rearranged:
     "ui:addable": false,
     "ui:removable": false,
     "ui:orderable": false,
+    "ui:options": {
+      "collapseCompleted": true,
+      "collapseCompletedLabel": "Сворачивать заполненные",
+      "summaryFields": ["zone_id", "label", "affected", "lesions"]
+    },
     "items": {
       "lesions": { "ui:orderable": false }
     }
@@ -213,7 +261,26 @@ rearranged:
 ```
 
 The `items` block is the template applied to every zone row; the nested
-`lesions.ui:orderable` reaches inside each row.
+`lesions.ui:orderable` reaches inside each row. `summaryFields` lists
+`lesions` explicitly — the default set would have excluded it, since it's
+an array (`"Очаги: 2"` only appears because the author asked for it).
+
+A row collapses once `affected` is set to `false` — `false` still counts
+as a filled field (only an absent, null, empty-string, empty-array, or
+empty-object value doesn't), and with `affected` false the schema requires
+no `lesions` at all, so there's nothing left that could fail. Setting
+`affected` to `true` reopens the row, because the lesion the schema then
+auto-creates (`minItems: 1`) starts out unfilled and fails its own
+required fields.
+
+What that collapsed row actually *shows* turns on `show_readonly_fields`,
+since `zone_id` and `label` are both `readOnly`. In the demo they appear
+because `<formosh-form>` defaults that flag **on** — the page's own
+`show-readonly-fields="true"` only restates the default. Build the same
+form through `FormConfig`, where the flag defaults to `False`, and both
+fields are suppressed from the summary along with everything else the
+expanded row hides, leaving the row number as the only thing left to
+render.
 
 ### Help text and placeholders for pattern-validated fields
 

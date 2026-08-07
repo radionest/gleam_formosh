@@ -4,6 +4,7 @@
 /// and the add-item button. Child field rendering is delegated back to
 /// the caller via `render_child` — this keeps a single source of truth
 /// for widget dispatch (see `field_dispatcher.render_field_at_path`).
+import formosh/fields/array_collapse
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, MoveArrayItemPath,
@@ -11,12 +12,15 @@ import formosh/form/model.{
 }
 import formosh/form/path
 import formosh/form/union_resolver
+import formosh/form/widget_msg.{ToggleCollapseCompleted, ToggleRowExpanded}
 import formosh/schema/properties
 import formosh/schema/types.{type SchemaProperty, type Value}
 import formosh/schema/ui_resolver
 import gleam/bool
+import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/set
 import lustre/attribute.{class, disabled, type_}
 import lustre/element.{type Element}
 import lustre/element/html
@@ -65,7 +69,43 @@ pub fn render_container(
   let removable = option.unwrap(ctx.hints.removable, True) && count > min_items
   let orderable = option.unwrap(ctx.hints.orderable, True)
 
-  html.div([class("array-field")], [
+  let collapse = array_collapse.options(ctx.hints.options)
+  let collapse_available = collapse.enabled && !ctx.is_readonly
+  let collapse_active =
+    collapse_available && !list.contains(model.array_collapse_off, ctx.path)
+  let incomplete = case collapse_available, ctx.property.items {
+    True, Some(item_schema) ->
+      array_collapse.incomplete_rows(
+        ctx.path,
+        item_schema,
+        items,
+        model.selected_branches,
+      )
+    _, _ -> set.new()
+  }
+  // `is_completed` -> `has_errors_under_path` walks the whole error map per
+  // row, so each row's flag is computed exactly once here and reused below
+  // for both the header count and that row's own render, rather than paying
+  // for the scan twice per row. Gated on `collapse_available` alone (not
+  // `collapse_active`) so the header keeps reporting a count while the user
+  // has collapsing switched off, and so this stays a no-op when collapsing
+  // isn't available at all — mirrors the `incomplete` guard just above.
+  let row_completed = case collapse_available {
+    True ->
+      list.index_map(items, fn(item, index) {
+        array_collapse.is_completed(model, ctx.path, index, item, incomplete)
+      })
+    False -> list.map(items, fn(_) { False })
+  }
+  let completed_count =
+    list.fold(row_completed, 0, fn(acc, item_completed) {
+      case item_completed {
+        True -> acc + 1
+        False -> acc
+      }
+    })
+
+  html.div([class("array-field"), attribute.attribute("part", "array-field")], [
     field_common.render_container_label(
       field_name: array_name,
       property: ctx.property,
@@ -77,9 +117,21 @@ pub fn render_container(
       Some(desc) -> html.p([class("field-description")], [html.text(desc)])
       None -> element.none()
     },
+    case collapse_available {
+      True ->
+        render_collapse_header(
+          ctx,
+          collapse.label,
+          collapse_active,
+          completed_count,
+          count,
+        )
+      False -> element.none()
+    },
     html.div(
-      [class("array-items")],
-      list.index_map(items, fn(item, index) {
+      [class("array-items"), attribute.attribute("part", "array-items")],
+      list.index_map(list.zip(items, row_completed), fn(pair, index) {
+        let #(item, item_completed) = pair
         render_array_item(
           ctx,
           removable,
@@ -87,6 +139,9 @@ pub fn render_container(
           count,
           item,
           index,
+          collapse,
+          collapse_active,
+          item_completed,
           model,
           render_child,
         )
@@ -99,6 +154,7 @@ pub fn render_container(
           [
             type_("button"),
             class("add-array-item"),
+            attribute.attribute("part", "array-add"),
             event.on_click(AddArrayItemPath(ctx.path)),
           ],
           [html.text("Добавить элемент")],
@@ -107,7 +163,43 @@ pub fn render_container(
   ])
 }
 
+/// Toggle + progress. Rendered whenever collapsing is available, including
+/// while the user has it switched off — gating this on `array_collapse_off`
+/// would delete the only control that can switch it back on.
+fn render_collapse_header(
+  ctx: FieldRenderCtx,
+  label: String,
+  active: Bool,
+  completed: Int,
+  total: Int,
+) -> Element(FormMsg) {
+  html.div(
+    [
+      class("array-collapse-header"),
+      attribute.attribute("part", "array-collapse-header"),
+    ],
+    [
+      html.label([attribute.attribute("part", "array-toggle")], [
+        html.input([
+          type_("checkbox"),
+          attribute.checked(active),
+          event.on_click(model.array_msg(ToggleCollapseCompleted(ctx.path))),
+        ]),
+        html.text(label),
+      ]),
+      html.span([attribute.attribute("part", "array-progress")], [
+        html.text(int.to_string(completed) <> " / " <> int.to_string(total)),
+      ]),
+    ],
+  )
+}
+
 /// Render a single row: optional control header, plus child fields.
+///
+/// A completed row (per `is_completed`, gated on `collapse_active`) always
+/// renders its summary control, in both the collapsed and expanded state —
+/// only `array-item-fields` toggles, so the move/remove header and the way
+/// back to the fields stay reachable either way.
 fn render_array_item(
   ctx: FieldRenderCtx,
   removable: Bool,
@@ -115,19 +207,159 @@ fn render_array_item(
   count: Int,
   item: Value,
   index: Int,
+  collapse: array_collapse.CollapseOptions,
+  collapse_active: Bool,
+  row_completed: Bool,
   model: FormModel,
   render_child: fn(FieldRenderCtx, FormModel) -> Element(FormMsg),
 ) -> Element(FormMsg) {
   case ctx.property.items {
-    Some(item_schema) ->
-      html.div([class("array-item")], [
-        render_array_item_header(ctx, removable, orderable, count, index),
-        html.div(
-          [class("array-item-fields")],
-          render_item_fields(ctx, item_schema, item, index, model, render_child),
-        ),
-      ])
+    Some(item_schema) -> {
+      let row_path = list.append(ctx.path, [path.ArraySegment(index)])
+      let is_completed = collapse_active && row_completed
+      // Computed once and reused below (`is_collapsed` and the summary's
+      // own `aria-expanded`) instead of re-deriving the same
+      // `list.contains` scan a second time inside `render_item_summary`.
+      let expanded = list.contains(model.array_rows_expanded, row_path)
+      let is_collapsed = is_completed && !expanded
+      let summary = case is_completed {
+        True -> [
+          render_item_summary(
+            row_path,
+            item_schema,
+            item,
+            collapse.summary_fields,
+            model,
+            expanded,
+          ),
+        ]
+        False -> []
+      }
+      let body = case is_collapsed {
+        True -> []
+        False -> [
+          html.div(
+            [
+              class("array-item-fields"),
+              attribute.attribute("part", "array-item-fields"),
+            ],
+            render_item_fields(
+              ctx,
+              item_schema,
+              item,
+              index,
+              model,
+              render_child,
+            ),
+          ),
+        ]
+      }
+      // Presence-only, lowercase — matches the `data-error`/`data-readonly`
+      // convention (`field_dispatcher.wrap_with_errors`) and `data-exiting`
+      // (`swipe_review_field`): a bare `bool.to_string` would emit
+      // `data-collapsed="False"` on every row even with collapsing off,
+      // which is neither a valid presence selector nor consistent casing.
+      let collapsed_attr = case is_collapsed {
+        True -> [attribute.attribute("data-collapsed", "true")]
+        False -> []
+      }
+      html.div(
+        list.flatten([
+          [class("array-item"), attribute.attribute("part", "array-item")],
+          collapsed_attr,
+        ]),
+        list.flatten([
+          summary,
+          [render_array_item_header(ctx, removable, orderable, count, index)],
+          body,
+        ]),
+      )
+    }
     None -> element.none()
+  }
+}
+
+/// The summary line — a real button, so it is focusable and keyboard-operable.
+/// Rendered for a completed row in BOTH states: collapsing hides only the
+/// fields, so the control that reopens the row never disappears.
+///
+/// `expanded` is computed once by the caller (`render_array_item`, which
+/// already needs the same `array_rows_expanded` lookup for `is_collapsed`)
+/// and passed in rather than re-derived here.
+fn render_item_summary(
+  row_path: path.FieldPath,
+  item_schema: SchemaProperty,
+  item: Value,
+  fields: List(String),
+  model: FormModel,
+  expanded: Bool,
+) -> Element(FormMsg) {
+  let values =
+    array_collapse.summary_values(
+      model.ui_schema,
+      row_path,
+      item_schema,
+      item,
+      model.selected_branches,
+      fields,
+      model.show_readonly_fields,
+    )
+  // `summary_values` can legitimately return `[]` (unknown names, `false`
+  // booleans, blank strings all omitted) while the row is still
+  // `is_completed` — completion only needs ONE non-blank field, and
+  // `BooleanValue(False)` counts as non-blank. Without a fallback that
+  // renders a zero-content `<button>`: no visible text, no accessible name,
+  // and no way back into the row — the exact failure D1 exists to prevent.
+  let spans = case values {
+    [] -> [summary_fallback_span(row_path)]
+    _ ->
+      list.index_map(values, fn(text, i) { summary_span(text, i) })
+      |> list.flatten
+  }
+  html.button(
+    [
+      type_("button"),
+      class("array-item-summary"),
+      attribute.attribute("part", "array-item-summary"),
+      attribute.attribute("aria-expanded", case expanded {
+        True -> "true"
+        False -> "false"
+      }),
+      event.on_click(model.array_msg(ToggleRowExpanded(row_path))),
+    ],
+    spans,
+  )
+}
+
+/// Fallback content for a completed row whose `summary_values` yields
+/// nothing: the row's 1-based position, read off `row_path`'s own trailing
+/// `ArraySegment` — keeps the button non-empty and its accessible name
+/// non-empty either way.
+fn summary_fallback_span(row_path: path.FieldPath) -> Element(FormMsg) {
+  let index = case list.last(row_path) {
+    Ok(path.ArraySegment(i)) -> i
+    _ -> 0
+  }
+  html.span([attribute.attribute("part", "array-item-summary-value")], [
+    html.text(int.to_string(index + 1)),
+  ])
+}
+
+/// A literal separator between values, so the line reads correctly with no
+/// stylesheet applied.
+fn summary_span(text: String, index: Int) -> List(Element(FormMsg)) {
+  let value =
+    html.span([attribute.attribute("part", "array-item-summary-value")], [
+      html.text(text),
+    ])
+  case index {
+    0 -> [value]
+    _ -> [
+      html.span([attribute.attribute("part", "array-item-summary-sep")], [
+        html.text(" · "),
+      ]),
+      value,
+    ]
   }
 }
 
@@ -179,7 +411,13 @@ fn render_array_item_header(
   }
   let controls = list.append(move_buttons, remove_button)
   use <- bool.guard(ctx.is_readonly || list.is_empty(controls), element.none())
-  html.div([class("array-item-header")], controls)
+  html.div(
+    [
+      class("array-item-header"),
+      attribute.attribute("part", "array-item-header"),
+    ],
+    controls,
+  )
 }
 
 /// Render every child field of a single row.

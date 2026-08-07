@@ -44,11 +44,31 @@ state, so you can style by state without writing class toggles yourself:
 
 ```css
 /* A field that currently has a validation error */
-formosh-form::part(field)[data-error] { border-color: red; }
+[part=field][data-error] { border-color: red; }
 
 /* A readOnly field rendered as disabled */
-formosh-form::part(field)[data-readonly] { opacity: 0.6; }
+[part=field][data-readonly] { opacity: 0.6; }
+
+/* A completed array row currently collapsed to its summary */
+[part=array-item][data-collapsed] { padding-block: 0.25rem; }
 ```
+
+Note the `[part=…]` form rather than `::part(…)`. State selectors **cannot**
+be written as `formosh-form::part(field)[data-error]` — an attribute selector
+cannot follow a pseudo-element, so the browser drops the whole rule at parse
+time and the style silently never applies. The `[part=…][data-…]` form above
+works instead because parent stylesheets are auto-adopted into the shadow root
+(§3) — an ordinary page `<style>` or `<link>` is adopted, so in the usual case
+this simply works. Adoption is still the dependency it rests on, and does not
+reach a stylesheet inside an *enclosing* shadow root, or one added to the
+document after the component adopted at connect time. One further trap: because
+adopted sheets count as inner context, a *normal* host `::part(field)`
+declaration beats `[part=field][data-error]` regardless of specificity
+(§ Cascade order).
+
+`data-collapsed` is presence-only: it appears (value `"true"`) only on a
+row that is actually collapsed, and is absent — not `"false"` — on every
+other row, matching `data-error` and `data-readonly` above.
 
 ## 3. Parent stylesheets are auto-adopted
 
@@ -77,6 +97,30 @@ Every styled element exposes a part. Grouped by area:
 **Inputs (by widget):**
 `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`,
 `boolean`, `checkbox-wrapper`, `checkbox-group`.
+
+**Arrays:**
+`array-field` (outer container), `array-items` (the row list), `array-item`
+(one row's wrapper), `array-item-fields` (that row's child fields — this is
+the one part that disappears entirely on a collapsed row), `array-item-header`
+(per-row move/remove controls — rendered regardless of collapse state, but
+nothing at all in read-only mode or when neither control applies, as in the
+demo's own `ui:removable`/`ui:orderable: false` zones), `array-add`.
+
+**Collapse-completed arrays** (`ui:options.collapseCompleted`) — adds:
+`array-collapse-header` (wraps the toggle and progress element),
+`array-toggle` (the `<label>` wrapping the header's checkbox and caption —
+the part sits on the label, not the `<input>`), `array-progress` (the
+counter), `array-item-summary` (a completed row's own summary button —
+while the per-array toggle is switched on, renders in **both** the
+expanded and collapsed state; switched off, it doesn't render at all, for
+any row), `array-item-summary-value`, `array-item-summary-sep`.
+
+The progress text is bare `"{completed} / {total}"` — no prefix word. Add
+one yourself, e.g. `formosh-form::part(array-progress)::before { content:
+"Done: "; }`. `array-item-summary-value` has no descendant combinator to
+lean on (see below), so every value in a row's summary — whichever field
+produced it — styles identically; there's no way to single out, say, just
+the first one through `::part()` alone.
 
 **Union (`anyOf`, 2+ branches):**
 `union` (outer wrapper), `union-radio` (radio-group chooser, ≤5 branches by
@@ -126,6 +170,11 @@ because some elements carry **two** part tokens (e.g.
 `part="radio-group boolean"`) — they are reachable through either token,
 but a `radio-item` inside a boolean group cannot be styled differently
 from one inside an enum group through Shadow Parts alone.
+
+The same limit applies to a completed row's summary: every
+`array-item-summary-value` styles identically wherever it appears, because
+there is no `formosh-form::part(array-item) ::part(array-item-summary-value)`
+to scope by which row — or which field within the row — produced it.
 
 Workarounds when you need to differentiate:
 
