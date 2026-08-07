@@ -248,6 +248,15 @@ Three consequences follow directly from the predicate above:
   render collapsed or expanded purely from the predicate above, same as any
   other row.
 
+Expansion the user asks for is sticky; the automatic kind is not. Clicking a
+row's summary records that row's path, and the row stays open from then on
+even while it goes on satisfying the predicate — the record survives edits,
+and reindexes with the array on remove/move the way `touched_fields` does. A
+row that merely *stops* satisfying the predicate opens without recording
+anything, so it re-collapses on its own once its error clears. Resetting the
+form drops both pieces of collapse state outright: every array back to
+collapsing-on, no row individually reopened.
+
 A completed row whose `summaryFields` resolve to nothing to show (every
 named field blank, or a lone boolean that's `false`) falls back to
 rendering its 1-based row number instead of an empty button — an empty

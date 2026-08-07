@@ -208,7 +208,12 @@ Behavior worth knowing:
   the cross-field error for the same field is suppressed until the schema
   error clears.
 - **Errors on unknown paths are dropped** (with a console warning) — make
-  sure your `field:` path actually exists in the schema.
+  sure your `field:` path actually exists in the schema. "Exists" is checked
+  against an array's raw `items` template, not against each row's own
+  resolved conditionals, so an error keyed on a path that only a per-row
+  `if`/`then` reveals is dropped even though that row really does have the
+  field — see [Collapsing completed
+  rows](../reference/widgets.md#collapsing-completed-rows).
 - **Cost.** The validator runs on every keystroke. If yours serializes the
   whole tree to JSON or calls an expensive JS function, mind the perf.
 

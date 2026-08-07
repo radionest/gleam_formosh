@@ -152,11 +152,18 @@ Two value-formatting rules matter when picking `summaryFields`: a
 non-empty `password`-format (or `ui:widget: "password"`) value renders the
 fixed `••••••••` mask, never the real value — an empty one is simply
 omitted, like any other blank field; and a boolean field renders its own
-title when `true` and is omitted entirely when `false`. The worked example
-below leans on the second rule for its simplest case: with `affected` set
-to `false`, a collapsed row shows only `zone_id` and `label` — a row that
-instead completes with `affected: true` (lesions filled in too) would also
-show the boolean's title and an `"Очаги: N"` count.
+title when `true` and is omitted entirely when `false` (masking is decided
+before the value's shape is inspected at all, so a boolean carrying a
+password hint masks rather than following the boolean rule).
+
+The worked example below leans on the second rule for its simplest case:
+with `affected` set to `false`, a collapsed row shows only `zone_id` and
+`label` — and only because that demo sets `show-readonly-fields="true"`.
+Both fields are `readOnly` in its schema, so under the `FormConfig` default
+(flag off) the suppression rule above drops them from the summary too and
+the row collapses to just its 1-based number. A row that instead completes
+with `affected: true` (lesions filled in too) would also show the boolean's
+title and an `"Очаги: N"` count.
 
 ### Image upload
 
@@ -258,6 +265,14 @@ no `lesions` at all, so there's nothing left that could fail. Setting
 `affected` to `true` reopens the row, because the lesion the schema then
 auto-creates (`minItems: 1`) starts out unfilled and fails its own
 required fields.
+
+What that collapsed row actually *shows* depends on one attribute outside
+this file: `zone_id` and `label` are both `readOnly`, so they only reach
+the summary because the demo page sets `show-readonly-fields="true"`. Drop
+that attribute — or build the same form through `FormConfig`, where the
+flag defaults to `False` — and both fields are suppressed from the summary
+along with everything else the expanded row hides, leaving the row number
+as the only thing left to render.
 
 ### Help text and placeholders for pattern-validated fields
 
