@@ -156,20 +156,104 @@ Implemented" section shrinks by ~60%.
 
 **Scope:** M. **Breaking:** no. **Depends on:** UI Schema.
 
-- [ ] Layout nodes in UI Schema (as in JSONForms):
-  `{ "type": "VerticalLayout" | "HorizontalLayout" | "Group" | "Categorization", "elements": [...], "label"?: ... }`;
-  leaves are `{ "type": "Control", "scope": "#/properties/foo" }`
-- [ ] No `ui_schema` → fall back to the current linear render (back-compat)
-- [ ] `Group` — `<fieldset>` with a legend
-- [ ] `HorizontalLayout` — CSS grid, equal columns
-- [ ] `Categorization` — tabs (no wizard yet)
+A JSONForms-style layout tree (`Control` nodes addressed by
+`scope: "#/properties/foo"`) was the original plan; it was evaluated against
+the real schemas and rejected. Two reasons. First, it requires every field to
+be listed — RJSF's own Layout Grid docs note that automatic hierarchical
+iteration is disabled — and formosh's target schemas are dominated by
+`if/then` branches, so a conditionally-appearing field that nobody listed
+would vanish intermittently. Second, JSONForms carries presentation hints on
+the `Control` node, which would break the path→hints isomorphism that
+`ui_resolver.lookup` and all nine `resolve_hints` call sites depend on, and
+would stop one ui-schema file serving several forms via superset semantics.
 
-**Files:** `src/formosh/schema/ui_schema.gleam` (layout union type),
-`src/formosh/fields/layout.gleam` (new), `src/formosh/form/view.gleam`
-(branch point: root layout present → render it, otherwise the old flow).
+**Design that replaced it — the anchored layout tree.** A `ui:layout` key
+holds an ordered array of nodes. The tree is anchored at the container it sits
+on, and every leaf is a path relative to that anchor; a bare child name is the
+one-segment case. Hints stay on the existing path-keyed `UiProperty` tree and
+are never carried by a layout node.
 
-**Acceptance:** demo with a 2-column layout, a nested `Group`, and tabs over
-3 sections; everything works as before without a `ui_schema`.
+- [ ] `ui:layout` array of nodes: `Row`, `Group`, and bare-string leaves
+- [ ] Anchored at root, at a nested object, and at an array `items` template
+- [ ] Leaves are single-segment; a `.` is rejected at parse time and reserved
+      for the cross-container follow-on below
+- [ ] Absent leaf skipped silently; a node whose children all resolve to
+      nothing renders nothing
+- [ ] Fields the layout does not place render after it, ordered by `ui:order`
+      — nothing can disappear
+- [ ] No `ui:layout` → the current linear render, byte-identical (back-compat)
+- [ ] Per-field `data-name` / `data-path` on the `part="field"` wrapper, so a
+      stylesheet can target one field (prerequisite for any CSS-driven layout)
+
+**Not in this stage:** `Categorization` / tabs, review-mode layout, and
+cross-container addressing — all tracked as follow-ons below.
+
+**Files:** `src/formosh/schema/ui_schema.gleam` (`LayoutNode` + a `layout`
+field on `UiSchema` and `UiProperty`), `src/formosh/schema/ui_parser.gleam`,
+`src/formosh/fields/layout.gleam` (new, `arrange/3`), and the three render
+seams: `form/view.gleam`, `fields/object_field.gleam`,
+`fields/array_field.gleam`. `schema/ui_resolver.gleam` and
+`form/visibility.gleam` are deliberately untouched.
+
+**Acceptance:** `{year, month, day}` renders on one row inside an array row;
+a conditional field named in a `Group` renders next to its trigger instead of
+at the end of the container; a form with no `ui:layout` is unchanged.
+
+---
+
+## Layout follow-ons
+
+Ordered by priority. Each is independently shippable — in particular
+`Steps`/`Tabs` does **not** depend on cross-container leaves: an audit of 9
+demo and 8 production ui-schemas found that root children already form the
+natural steps.
+
+**1. Server-side error location.** **Scope:** M. A failed submit currently
+collapses to one string (`update.gleam:1045-1047` → `SubmissionError`), so a
+FastAPI 422 body is dumped verbatim at the bottom of the form and no field is
+marked. There is no path-keyed injection point either — nothing in the public
+API sets errors, and `model.add_error_at_path` is unreachable from the
+`<formosh-form>` boundary. Ranked first because Steps/Tabs can hide an invalid
+field behind a closed door.
+
+- [ ] Emit the raw failure body as an event; accept a path-keyed error dict
+      back (attribute + public function). formosh should not guess between
+      FastAPI / DRF / problem+json shapes — the host maps, formosh accepts
+- [ ] `model.errors` is already keyed by canonical dot-strings, so a correctly
+      keyed dict drops straight in
+- [ ] **Touched-gate hazard:** `field_dispatcher.render_visible` hides errors
+      on untouched fields, with `error.is_array_length` as the only sanctioned
+      bypass. Injected errors need an auto-touch of their paths or their own
+      bypass predicate, or they will be invisible
+
+**2. `Steps` / `Tabs`.** **Scope:** M. **Depends on:** Layouts.
+
+- [ ] `Steps` / `Tabs` nodes; active index per container as
+      `List(#(FieldPath, Int))` — same shape as `selected_branches`, with the
+      same reindex-on-array-mutation discipline
+- [ ] Error badges per step via the existing `model.has_errors_under_path`
+- [ ] Auto-open the first failing step on a blocked submit
+- [ ] Parts: `tablist`, `tab`, `tab-panel`, `step`, `progress`
+
+**3. Cross-container layout leaves.** **Scope:** M. **Depends on:** Layouts.
+Relaxes the reserved dot, enabling rows that mix children of two objects,
+dissolving a nesting level, and steps that cut across the data model. Files
+written against the single-segment grammar need no migration.
+
+- [ ] Multi-segment leaves resolved via a `ctx_at_path` chain walk that reuses
+      `make_child_ctx` at each hop (never re-deriving the inheritance rules)
+- [ ] Rendered-path coverage map; duplicate leaf emits a `console.warn`
+- [ ] `leftovers: "hidden" | "strict"` policies; `"hidden"` joins
+      `visibility.invisible_paths` so `can_submit` still blocks and
+      `hidden_errors` still reports
+- [ ] A leaf may never cross an array boundary — enforced at parse time
+- [ ] The coverage map, inverted, is also the "which step holds this error"
+      index for follow-on 1
+
+**4. Layout in review mode.** **Scope:** S. `readonly_field.gleam:126` still
+calls `apply_order`, so `ui:layout` is ignored under `read-only="true"`.
+Groups and rows in a review sheet read well; tabs should collapse to
+sequential sections.
 
 ---
 
