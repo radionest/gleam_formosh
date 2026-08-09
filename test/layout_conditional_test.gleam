@@ -1,9 +1,8 @@
 // Two guarantees the design makes that the structural tests do not reach:
 //
-// 1. properties.merge appends if/then-injected properties at the END of the
-//    container (properties.gleam:73), so without a layout a detail field
-//    lands far from the checkbox that revealed it. Naming it in a Group must
-//    relocate it.
+// 1. properties.merge appends if/then-injected properties at the end of the
+//    container, so without a layout a detail field lands far from the
+//    checkbox that revealed it. Naming it in a Group must relocate it.
 // 2. Review mode (readonly_field) deliberately still uses apply_order, so
 //    ui:layout must have no effect there in this version.
 
@@ -83,7 +82,7 @@ fn leak_schema() -> types.JsonSchema {
 /// explicitly — `model.init` alone leaves `resolved_schema` equal to the raw
 /// (unresolved) schema, so `ascites_thickness` would never reach
 /// `render_form_body`'s `ordered_properties`.
-fn model_with(ui_json: String, read_only: Bool) -> String {
+fn model_with(ui_json ui_json: String, read_only read_only: Bool) -> String {
   let assert Ok(ui) = ui_parser.parse(ui_json)
   let schema = leak_schema()
   let values = types.ObjectValue([#("ascites", types.BooleanValue(True))])
@@ -101,8 +100,8 @@ fn model_with(ui_json: String, read_only: Bool) -> String {
 pub fn injected_field_renders_inside_its_group_test() {
   let html =
     model_with(
-      "{\"ui:layout\":[{\"type\":\"Group\",\"label\":\"Асцит\",\"elements\":[\"ascites\",\"ascites_thickness\"]},\"ileus\"]}",
-      False,
+      ui_json: "{\"ui:layout\":[{\"type\":\"Group\",\"label\":\"Асцит\",\"elements\":[\"ascites\",\"ascites_thickness\"]},\"ileus\"]}",
+      read_only: False,
     )
   html |> string.contains("part=\"group\"") |> should.be_true
   // The injected field must appear before `ileus`, not after it.
@@ -114,7 +113,11 @@ pub fn injected_field_renders_inside_its_group_test() {
 }
 
 pub fn without_layout_injected_field_trails_test() {
-  let html = model_with("{}", False)
+  let html = model_with(ui_json: "{}", read_only: False)
+  // Presence guard: without this, a conditional that stopped injecting the
+  // field entirely would also leave it absent before `ileus` — the negative
+  // assertion below would stay green while proving nothing.
+  html |> string.contains("data-name=\"ascites_thickness\"") |> should.be_true
   let assert Ok(#(before_ileus, _)) =
     string.split_once(html, "data-name=\"ileus\"")
   before_ileus
@@ -125,10 +128,17 @@ pub fn without_layout_injected_field_trails_test() {
 pub fn review_mode_ignores_layout_test() {
   let with_layout =
     model_with(
-      "{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"ascites\",\"ileus\"]}]}",
-      True,
+      ui_json: "{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"ascites\",\"ileus\"]}]}",
+      read_only: True,
     )
-  let without_layout = model_with("{}", True)
+  let without_layout = model_with(ui_json: "{}", read_only: True)
   with_layout |> should.equal(without_layout)
   with_layout |> string.contains("part=\"row\"") |> should.be_false
+  // Positive pin: the conditional actually fired and the readonly rendering
+  // of the injected field is actually present. Without this, a conditional
+  // that never fires in review mode (or read-only rendering emitting
+  // nothing at all) would leave both HTML strings equal and row-marker-free
+  // too — the two assertions above would stay green while proving nothing
+  // about the conditional-schema delta this test exists to cover.
+  with_layout |> string.contains("Толщина, мм") |> should.be_true
 }
