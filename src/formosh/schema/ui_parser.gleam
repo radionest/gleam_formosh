@@ -13,7 +13,8 @@ import formosh/schema/types.{
   UnexpectedValue, UploadConfig,
 }
 import formosh/schema/ui_schema.{
-  type UiProperty, type UiSchema, UiProperty, UiSchema, empty_ui_schema,
+  type LayoutNode, type UiProperty, type UiSchema, GroupNode, LeafNode, RowNode,
+  UiProperty, UiSchema, empty_ui_schema,
 }
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
@@ -55,11 +56,12 @@ fn parse_ui_schema(dyn: Dynamic) -> Result(UiSchema, ParseError) {
     Error(_) -> Error(UnexpectedValue("UiSchema root must be a JSON object"))
     Ok(entries) -> {
       let order = extract_order(entries)
+      use layout <- result.try(extract_layout(entries))
       // Root has no `items` template (form root is always an object), so
       // every non-`ui:*` key — including a property literally named
       // "items" — is treated as a top-level child.
       use children <- result.try(parse_children(entries, as_root: True))
-      Ok(UiSchema(properties: children, order: order))
+      Ok(UiSchema(properties: children, order: order, layout: layout))
     }
   }
 }
@@ -83,6 +85,7 @@ fn parse_ui_property(dyn: Dynamic) -> Result(UiProperty, ParseError) {
       let orderable = extract_bool(entries, "ui:orderable")
       let upload = extract_upload(entries, widget)
       use items <- result.try(extract_items(entries))
+      use layout <- result.try(extract_layout(entries))
       // Inside a UiProperty, `items` is reserved for the array-element
       // template — any property called "items" in the data schema would
       // collide with that, but the JSON Schema reserves the same name, so
@@ -105,6 +108,7 @@ fn parse_ui_property(dyn: Dynamic) -> Result(UiProperty, ParseError) {
         upload: upload,
         properties: children,
         items: items,
+        layout: layout,
       ))
     }
   }
@@ -134,6 +138,72 @@ fn extract_items(
       Some(prop)
     }
     Error(_) -> Ok(None)
+  }
+}
+
+fn extract_layout(
+  entries: List(#(String, Dynamic)),
+) -> Result(Option(List(LayoutNode)), ParseError) {
+  case list.key_find(entries, "ui:layout") {
+    Error(_) -> Ok(None)
+    Ok(dyn) -> {
+      use nodes <- result.map(parse_layout_elements(dyn, "ui:layout"))
+      Some(nodes)
+    }
+  }
+}
+
+fn parse_layout_elements(
+  dyn: Dynamic,
+  what: String,
+) -> Result(List(LayoutNode), ParseError) {
+  case decode.run(dyn, decode.list(decode.dynamic)) {
+    Error(_) -> Error(UnexpectedValue(what <> " must be a JSON array"))
+    Ok(items) -> list.try_map(items, parse_layout_node)
+  }
+}
+
+fn parse_layout_node(dyn: Dynamic) -> Result(LayoutNode, ParseError) {
+  case decode.run(dyn, decode.string) {
+    Ok(name) -> parse_layout_leaf(name)
+    Error(_) -> parse_layout_container(dyn)
+  }
+}
+
+fn parse_layout_leaf(name: String) -> Result(LayoutNode, ParseError) {
+  case string.contains(name, ".") {
+    True ->
+      Error(UnexpectedValue(
+        "ui:layout leaf \""
+        <> name
+        <> "\" contains '.', which is reserved for path addressing",
+      ))
+    False -> Ok(LeafNode(name))
+  }
+}
+
+fn parse_layout_container(dyn: Dynamic) -> Result(LayoutNode, ParseError) {
+  case dynamic_object.entries(dyn) {
+    Error(_) ->
+      Error(UnexpectedValue(
+        "ui:layout element must be a string or a layout node object",
+      ))
+    Ok(entries) -> {
+      use elements <- result.try(case list.key_find(entries, "elements") {
+        Error(_) ->
+          Error(UnexpectedValue("ui:layout node is missing \"elements\""))
+        Ok(elements_dyn) ->
+          parse_layout_elements(elements_dyn, "ui:layout \"elements\"")
+      })
+      case extract_string(entries, "type") {
+        Some("Row") -> Ok(RowNode(elements))
+        Some("Group") ->
+          Ok(GroupNode(extract_string(entries, "label"), elements))
+        Some(other) ->
+          Error(UnexpectedValue("unknown ui:layout node type: " <> other))
+        None -> Error(UnexpectedValue("ui:layout node is missing \"type\""))
+      }
+    }
   }
 }
 

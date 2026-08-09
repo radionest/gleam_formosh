@@ -1,12 +1,18 @@
 /// Test for parsing basic_leak_signs.json schema
+import dom_containment
+import formosh/form/model
+import formosh/form/view
 import formosh/schema/conditional_resolver
 import formosh/schema/parser
 import formosh/schema/properties
 import formosh/schema/types.{BooleanValue, ObjectValue}
+import formosh/schema/ui_parser
 import gleam/list
 import gleam/option.{Some}
+import gleam/string
 import gleeunit
 import gleeunit/should
+import lustre/element
 import simplifile
 
 pub fn main() {
@@ -111,4 +117,47 @@ pub fn multiple_conditionals_independent_test() {
   resolved_schema.properties
   |> properties.has_key("ileus_diametr")
   |> should.be_false()
+}
+
+/// `ui:layout` groups the ascites detail fields under the "Асцит" checkbox
+/// instead of leaving them to trail after `ileus` in raw conditional-inject
+/// order. This is the automated substitute for eyeballing `make demo`: same
+/// schema/ui-schema pair, same trigger, checked against the rendered HTML
+/// instead of a browser.
+pub fn ui_layout_relocates_ascites_thickness_test() {
+  let assert Ok(schema_json) =
+    simplifile.read("demo/schemas/basic_leak_signs.json")
+  let assert Ok(ui_json) =
+    simplifile.read("demo/schemas/basic_leak_signs.ui.json")
+
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+
+  let values = ObjectValue([#("ascites", BooleanValue(True))])
+  let m =
+    model.FormModel(
+      ..model.init(schema),
+      ui_schema: ui,
+      values: values,
+      resolved_schema: model.recompute_resolved_schema(schema, values, []),
+    )
+  let html = view.view(m) |> element.to_string
+
+  // The layout nests four groups in document order: "Пузырьки газа",
+  // "Свободный газ", "Асцит" (third), "Кишечная непроходимость" (fourth,
+  // containing `ileus`). Skip past the first two `part="group"` markers,
+  // then bound the third group's own subtree — proving `ascites_thickness`
+  // is actually nested inside the "Асцит" group, not merely textually
+  // ahead of `ileus`.
+  let assert Ok(#(_, after_first_group)) =
+    string.split_once(html, "part=\"group\"")
+  let assert Ok(#(_, after_second_group)) =
+    string.split_once(after_first_group, "part=\"group\"")
+  let assert Ok(ascites_group) =
+    dom_containment.slice_element(after_second_group, "part=\"group\"")
+
+  ascites_group |> string.contains("Асцит") |> should.be_true()
+  ascites_group
+  |> string.contains("data-name=\"ascites_thickness\"")
+  |> should.be_true()
 }

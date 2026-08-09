@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "UiSchema"
-description: "The parallel JSON tree that controls how a Formosh form is presented: ui:* keys, widget overrides, field ordering, and array controls."
+description: "The parallel JSON tree that controls how a Formosh form is presented: ui:* keys, widget overrides, field ordering, layout, and array controls."
 ---
 
 # UiSchema
@@ -117,6 +117,7 @@ default (or `x-*` extension where applicable)".
 | Key | Type | Effect |
 |-----|------|--------|
 | `ui:order` | string[] | Reorders children of this object. Fields not listed keep their schema order after the listed ones. Use `"*"` as a wildcard to mean "the rest, in schema order". |
+| `ui:layout` | array | Arranges children into `Row`/`Group` nodes instead of a flat list; unplaced fields still render after it, in `ui:order`. See [Layout with `ui:layout`](#layout-with-uilayout) below. |
 
 ### Array controls
 
@@ -201,6 +202,110 @@ Masking is presentational only, in both edit mode and read-only (review)
 mode: the raw value still lives in `model.values` and is still published
 via the `formosh-change` event. Do not treat it as a security boundary.
 
+### Layout with `ui:layout`
+
+`ui:layout` arranges a container's own fields into an explicit tree instead
+of the default flat, one-field-per-row list. It is set beside the other
+`ui:*` keys on the form root, a nested object, or an array's `items`
+template (applied to every row alike — see
+[How the tree is walked](#how-the-tree-is-walked)), and holds an ordered
+array of **nodes**:
+
+| Node | JSON shape | Renders as |
+|------|-----------|------------|
+| Leaf | a bare string naming a field | the field itself, unchanged |
+| `Row` | `{ "type": "Row", "elements": [...] }` | `part="row"`, an inline CSS grid |
+| `Group` | `{ "type": "Group", "label": "...", "elements": [...] }` | `part="group"` wrapping an optional `part="group-label"` and a `part="group-body"` |
+
+```json
+{
+  "ui:layout": [
+    "invalid",
+    { "type": "Row", "elements": ["length_mm", "height_mm"] },
+    { "type": "Group", "label": "Асцит", "elements": [
+      "ascites",
+      { "type": "Row", "elements": ["ascites_type", "ascites_thickness"] }
+    ]}
+  ]
+}
+```
+
+`invalid` renders on its own line, `length_mm` and `height_mm` share a row,
+and the "Асцит" group wraps its trigger checkbox and a row of two detail
+fields under one label.
+
+Two working examples ship with the demo (`make demo`):
+`demo/schemas/basic_leak_signs.ui.json` is a realistic form along the same
+lines — it groups every conditionally injected detail field under the
+checkbox that reveals it. `demo/schemas/layout_showcase.ui.json` exercises
+every rule below in one form, one numbered `Group` per rule.
+
+A few rules govern how a layout resolves:
+
+- **A leaf names a direct child of the container the layout is anchored
+  on.** Nesting a leaf inside a `Row`/`Group` changes only how it renders,
+  not what it can address — it still resolves against the anchoring
+  container's own fields, never a nested object's. A `.` in a leaf is
+  rejected at parse time — cross-container path addressing isn't
+  supported yet; the dot is reserved for it.
+- **A leaf may name an array** — it renders the whole array field, controls
+  and all, but a layout can never address inside one. To lay out an
+  array's own rows, put a `ui:layout` on that array's `items` template,
+  anchored to the row itself.
+- **`ui:layout` must be a JSON array, and so must every node's
+  `elements`.** An object (`{"a": ..., "b": ...}` instead of `["a", ...]`)
+  is rejected, because object key order isn't preserved by every backing
+  store and `ui:layout` depends on order.
+- **Both rejections above are `Error(ParseError)` through the Gleam API**
+  (`formosh.parse_ui_schema` / `with_ui_schema_json`, see
+  [Attaching a UiSchema](#attaching-a-uischema)). Through `<formosh-form>`,
+  a `ui-schema` attribute that fails to parse is reported only as a console
+  error — the component never applies it, so **every** `ui:*` hint in the
+  document is dropped, not just the offending leaf or node, and the form
+  gives no visible sign of it. Tracked as
+  [#120](https://github.com/radionest/gleam_formosh/issues/120).
+- **A leaf naming a field that isn't currently present is skipped
+  silently**, not treated as an error — so one UiSchema file can serve
+  several forms, and a `Group` can name a conditionally-injected field
+  before its trigger has fired. The flip side: a **mistyped** leaf is
+  indistinguishable from a conditionally-absent one — nothing warns, and
+  the field simply renders among the leftovers after the layout instead of
+  where you placed it. If a field won't move, check the spelling first.
+- **A `Row` or `Group` whose named leaves are all absent renders nothing
+  at all** — no empty grid, no empty label. That covers only *absence*: a
+  leaf naming a field that exists but is hidden — `ui:widget: "hidden"`,
+  or `readOnly` while `show_readonly_fields` is off — still counts as a
+  child, because the field dispatcher renders an empty-but-present element
+  for it rather than dropping it. A `Group` wrapping only such suppressed
+  leaves still renders its `part="group"` wrapper and, if given a `label`,
+  a visible `part="group-label"` over an empty `part="group-body"`.
+- **Fields the layout doesn't place still render, after every placed
+  node, ordered by `ui:order`** — exactly as they would with no layout.
+  `ui:order` keeps doing its normal job over that leftover set; a layout
+  can relocate fields but never hide them.
+- **Naming the same field twice is valid grammar** — `["a", "a"]`, or `a`
+  inside two different `Group`s — and renders the field twice. Nothing
+  detects or rejects it: the two copies get duplicate `id` attributes and,
+  for a radio-backed field, duplicate `id`/`for` pairs, which is invalid
+  HTML. Treat it as author error to avoid, not a constraint the parser
+  validates today.
+- **Review mode (`read-only="true"`) ignores `ui:layout`.** The review
+  summary renders in plain `ui:order` order, with or without a layout —
+  except inside array rows, where `ui:order` is dropped too. Both review
+  renderings of an array (the fixed-column table and the per-row groups it
+  falls back to when item-level conditionals make the field set
+  row-dependent) resolve each row's fields without applying an order, so
+  array-row children always render in schema order. Laying out the review
+  summary isn't supported today — a known limitation, not a bug.
+
+`Row`'s default grid is `repeat(auto-fit, minmax(min(100%,12rem), 1fr))`,
+which collapses to fewer columns on narrow viewports with no media query
+needed. Tune the gap with the `--formosh-row-gap` custom property (default
+`1rem`), or override `grid-template-columns` outright via
+`formosh-form::part(row)` — see
+[Styling](../guides/styling.md#overriding-the-uilayout-grid) for the full
+recipe, including targeting one field by name.
+
 ## How the tree is walked
 
 Lookup follows the schema's `FieldPath` (`src/formosh/schema/ui_resolver.gleam`):
@@ -212,7 +317,8 @@ Lookup follows the schema's `FieldPath` (`src/formosh/schema/ui_resolver.gleam`)
   to schema defaults without error.
 
 Root path (`[]`) returns `empty_ui_property()` — root-level options like
-`ui:order` live on the `UiSchema` itself, not on a `UiProperty`.
+`ui:order` and `ui:layout` live on the `UiSchema` itself, not on a
+`UiProperty`.
 
 ## Merge precedence with `x-*` extensions
 
@@ -327,3 +433,6 @@ your case.
 | Path-based lookup + `x-*` merge + suppression predicate | `src/formosh/schema/ui_resolver.gleam` |
 | Recognized `ui:widget` values | `ui_parser.extract_widget` |
 | Where hints are consumed by renderers | `FieldRenderCtx.hints` in `src/formosh/fields/field_common.gleam` |
+| Layout node types (`LayoutNode` and its constructors) | `src/formosh/schema/ui_schema.gleam` |
+| The `arrange` walker (`Row` / `Group` / leftover placement) | `src/formosh/fields/layout.gleam` |
+| `ui:layout` parsing (node/leaf validation) | `ui_parser.extract_layout` |

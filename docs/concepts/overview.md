@@ -49,9 +49,14 @@ validation. Change the schema; the form follows.
 - **Not a backend.** Submission is pluggable: HTTP POST/PUT, a custom
   handler, or "none" (you read the values yourself). Formosh does not store
   anything.
-- **Not a styling system.** The component ships with no default CSS. Bring
-  your own via `::part()`, `data-*` attributes, or adopted parent
-  stylesheets — see [Styling](../guides/styling.md).
+- **Not a styling system.** The component ships with essentially no
+  default CSS — the exceptions are a few narrow inline styles whose element
+  would be broken without them (a `ui:layout` `Row`'s grid, a collapsing
+  array row's fold transition, the swipe widget's drag transforms), each
+  opt-in and listed in
+  [Styling](../guides/styling.md#cascade-order). Bring your own via `::part()`, `data-*`
+  attributes, or adopted parent stylesheets — see
+  [Styling](../guides/styling.md).
 
 ## Alpha status
 

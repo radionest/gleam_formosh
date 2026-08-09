@@ -6,9 +6,11 @@
 /// number, nested object, array, image-upload widget — goes through the
 /// same selection logic as top-level fields.
 import formosh/fields/field_common.{type FieldRenderCtx}
+import formosh/fields/layout
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path.{PropertySegment}
 import formosh/schema/properties
+import formosh/schema/ui_resolver
 import gleam/list
 import gleam/option.{None, Some}
 import lustre/attribute.{class}
@@ -53,21 +55,31 @@ fn render_nested_fields(
   render_child: fn(FieldRenderCtx, FormModel) -> Element(FormMsg),
 ) -> List(Element(FormMsg)) {
   case ctx.property.properties {
-    Some(props) ->
-      properties.apply_order(props, ctx.hints.order)
-      |> list.map(fn(entry) {
-        let #(child_name, child_prop) = entry
-        let child_path = list.append(ctx.path, [PropertySegment(child_name)])
-        let child_ctx =
-          field_common.make_child_ctx(
-            parent: ctx,
-            model: model,
-            path: child_path,
-            property: child_prop,
-            is_required: list.contains(ctx.property.required, child_name),
-          )
-        render_child(child_ctx, model)
+    Some(props) -> {
+      let ordered = properties.apply_order(props, ctx.hints.order)
+      let node_ui = ui_resolver.lookup(model.ui_schema, ctx.path)
+      // `ordered` is both `arrange`'s `entries` and the lookup target
+      // inside the closure — same invariant as the root seam in
+      // `view.gleam`'s `render_form_body`.
+      layout.arrange(node_ui.layout, ordered, fn(child_name) {
+        case list.key_find(ordered, child_name) {
+          Ok(child_prop) -> {
+            let child_path =
+              list.append(ctx.path, [PropertySegment(child_name)])
+            let child_ctx =
+              field_common.make_child_ctx(
+                parent: ctx,
+                model: model,
+                path: child_path,
+                property: child_prop,
+                is_required: list.contains(ctx.property.required, child_name),
+              )
+            Some(render_child(child_ctx, model))
+          }
+          Error(_) -> None
+        }
       })
+    }
     None -> []
   }
 }

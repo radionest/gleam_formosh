@@ -297,8 +297,10 @@ only affects a custom `with_validator` cross-validator's own error paths.
 
 A nested `<fieldset>` with one labelled child per property. Child order is
 preserved from the schema (`properties` is a `List`, not a `Dict`) but can
-be overridden via `ui:order`. `readOnly` fields inside the object are
-hidden unless `show_readonly_fields` is on.
+be overridden via `ui:order`, or restructured into rows and groups via a
+`ui:layout` on the object's ui-property — see [Layout with
+`ui:layout`](ui-schema.md#layout-with-uilayout). `readOnly` fields inside
+the object are hidden unless `show_readonly_fields` is on.
 
 ## Union chooser (`anyOf`, 2+ branches)
 

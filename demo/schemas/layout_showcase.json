@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/layout_showcase.schema.json",
+  "title": "Витрина ui:layout",
+  "description": "Каждая пронумерованная группа демонстрирует одно правило ui:layout. Схема сама по себе плоская — всю структуру задаёт layout_showcase.ui.json",
+  "type": "object",
+  "properties": {
+    "first_name": {
+      "type": "string",
+      "title": "Имя"
+    },
+    "last_name": {
+      "type": "string",
+      "title": "Фамилия"
+    },
+    "middle_name": {
+      "type": "string",
+      "title": "Отчество"
+    },
+    "delivery_note": {
+      "type": "string",
+      "title": "Как добраться"
+    },
+    "city": {
+      "type": "string",
+      "title": "Город"
+    },
+    "postal_code": {
+      "type": "string",
+      "title": "Индекс",
+      "pattern": "^[0-9]{6}$"
+    },
+    "passport": {
+      "type": "object",
+      "title": "Паспорт",
+      "description": "ui:layout этого объекта лежит в его собственном узле UiSchema и адресует только его поля — из корневого layout внутрь объекта не заглянуть",
+      "properties": {
+        "series": {
+          "type": "string",
+          "title": "Серия"
+        },
+        "number": {
+          "type": "string",
+          "title": "Номер"
+        },
+        "issued_by": {
+          "type": "string",
+          "title": "Кем выдан"
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date",
+          "title": "Дата выдачи"
+        }
+      }
+    },
+    "contacts": {
+      "type": "array",
+      "title": "Контакты",
+      "description": "Leaf может назвать массив целиком, но не может адресовать внутрь него. Раскладка строки задана отдельно — в items, и применяется к каждой строке одинаково",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Тип",
+            "enum": ["Телефон", "E-mail", "Мессенджер"]
+          },
+          "value": {
+            "type": "string",
+            "title": "Значение"
+          },
+          "note": {
+            "type": "string",
+            "title": "Примечание"
+          }
+        }
+      }
+    },
+    "has_extra": {
+      "type": "boolean",
+      "title": "Показать дополнительные поля"
+    },
+    "tracking_id": {
+      "type": "string",
+      "title": "Идентификатор трекинга",
+      "default": "trk-0001"
+    },
+    "comment": {
+      "type": "string",
+      "title": "Комментарий"
+    },
+    "source": {
+      "type": "string",
+      "title": "Источник",
+      "enum": ["Сайт", "Звонок", "Партнёр"]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "has_extra": { "const": true }
+        }
+      },
+      "then": {
+        "properties": {
+          "extra_a": {
+            "type": "string",
+            "title": "Дополнительное поле A"
+          },
+          "extra_b": {
+            "type": "string",
+            "title": "Дополнительное поле B"
+          }
+        }
+      }
+    }
+  ]
+}

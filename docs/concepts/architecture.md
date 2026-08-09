@@ -66,7 +66,7 @@ can render without re-parsing.
 | `composer.gleam` | Deep-merges `allOf` members into their parent node at parse time (properties, required, bounds, conditionals); also normalizes `anyOf` (null members → `nullable`, single survivor merges into the node, 2+ survivors stay a union). |
 | `conditional_resolver.gleam` | Re-evaluates `if`/`then`/`else` against the **current** values — this is the runtime half of conditionals (the parse-time half just records the rules). |
 | `properties.gleam` | Helpers for walking and querying the property tree. |
-| `ui_parser.gleam` / `ui_schema.gleam` / `ui_resolver.gleam` | The UiSchema subsystem: presentation hints (`ui:widget`, `ui:order`, placeholders, help text) parsed separately from the data schema. |
+| `ui_parser.gleam` / `ui_schema.gleam` / `ui_resolver.gleam` | The UiSchema subsystem: presentation hints (`ui:widget`, `ui:order`, `ui:layout`, placeholders, help text) parsed separately from the data schema. |
 | `serializer.gleam` | Round-trip a parsed `JsonSchema` back to JSON. |
 | `validator.gleam` | Schema-driven per-field validation (required, length, bounds, format). |
 
@@ -81,7 +81,7 @@ architectural fact about the schema layer — see
 |--------|----------------|
 | `model.gleam` | The `FormModel` record, `FormMsg` variants, `SubmitConfig`, and the `init_*` constructors. The single source of truth for form state. |
 | `update.gleam` | Pure `update(model, msg) -> #(model, effect)`. Field edits, array add/remove/move, touch tracking, submit flow. |
-| `view.gleam` | Pure `view(model) -> Element(msg)`. Delegates per-field rendering to `fields/field_dispatcher`. |
+| `view.gleam` | Pure `view(model) -> Element(msg)`. Delegates per-field rendering to `fields/field_dispatcher`, arranging top-level fields via `fields/layout.arrange` when a `ui:layout` is set. |
 | `visibility.gleam` | Computes the set of hidden paths (hidden widgets, suppressed readonly). Drives the submit gate. |
 | `union_resolver.gleam` | Resolves which `anyOf` member is "active" for a field path (`FormModel.selected_branches`, inferred from the value when unset) and materializes it into the node, so every walker (render, validate, visibility, defaults) sees a single effective schema. |
 | `path.gleam` | `FieldPath` — `PropertySegment` / `ArraySegment` lists for addressing any value in the tree. |
@@ -91,11 +91,13 @@ architectural fact about the schema layer — see
 
 ### Widgets — `src/formosh/fields/`
 
-One module per widget family, all funnneled through one dispatcher:
+One module per widget family, plus the shared helpers they lean on, all
+funnelled through one dispatcher:
 
 | Module | Renders |
 |--------|---------|
 | `field_dispatcher.gleam` | **Single entry point** for any field at any depth. Picks the widget and wraps it with error/touched/readonly state. |
+| `layout.gleam` | Arranges a container's own fields per its `ui:layout` (`Row`/`Group` nodes around leaves); called from `view.gleam` (root), `object_field.gleam` (nested objects), and `array_field.gleam` (array rows). |
 | `string_field.gleam` | Text, textarea, email, url, date, time, password, date-time (text), enum radios/select. |
 | `number_field.gleam` | Number input (with `step` from `multipleOf`). |
 | `boolean_field.gleam` | Yes/No radios / toggle. |

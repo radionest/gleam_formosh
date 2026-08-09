@@ -266,7 +266,26 @@ Presentation hints parallel to the JSON Schema. See the full field list in
 `src/formosh/schema/ui_schema.gleam` — every field is an optional override
 (widget, options, order, placeholder, help, autofocus, disabled, readonly,
 title, description, addable, removable, orderable, upload, properties,
-items).
+items, layout). `layout` arranges the container's own children into `Row` /
+`Group` nodes instead of the default flat list — see [Layout with
+`ui:layout`](ui-schema.md#layout-with-uilayout).
+
+```gleam
+pub type LayoutNode {
+  LeafNode(name: String)
+  RowNode(elements: List(LayoutNode))
+  GroupNode(label: Option(String), elements: List(LayoutNode))
+}
+```
+
+> **Breaking change.** `UiSchema` and `UiProperty` both gained this `layout`
+> field, and Gleam requires every field in a record constructor or pattern
+> match unless you use a `..` spread — so any code that builds or matches
+> either type without naming `layout` stops compiling on upgrade. This
+> applies to labelled construction (`UiSchema(properties: …, order: …)`)
+> exactly as it does to positional. Add `layout: None` (or a real layout) at
+> each call site, or switch to a `..` spread over `empty_ui_schema()` /
+> `empty_ui_property()`.
 
 ### `ValidationError`
 
@@ -313,6 +332,7 @@ or `formosh.FormModel` will **not** compile:
 | `FieldPath`, `PropertySegment`, `ArraySegment`, `get_at_path` | `formosh/form/path` |
 | `ValidationError` | `formosh/validation/error` |
 | `UiSchema` | `formosh/schema/ui_schema` |
+| `LayoutNode` + constructors (`LeafNode`, `RowNode`, `GroupNode`) | `formosh/schema/ui_schema` |
 | `value_to_json` | `formosh/form/json_utils` |
 
 (Ergonomic wrapper constructors on the root module are a candidate

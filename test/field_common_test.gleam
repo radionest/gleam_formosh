@@ -205,6 +205,7 @@ pub fn make_field_ctx_or_merges_disabled_from_hints_test() {
         ),
       ],
       order: None,
+      layout: None,
     )
   let m = model_with_ui(ui)
   let ctx =
@@ -233,6 +234,7 @@ pub fn make_field_ctx_or_merges_readonly_from_hints_test() {
         ),
       ],
       order: None,
+      layout: None,
     )
   let m = model_with_ui(ui)
   let ctx =
@@ -268,6 +270,7 @@ pub fn make_child_ctx_or_merges_hints_disabled_test() {
         ),
       ],
       order: None,
+      layout: None,
     )
   let m = model_with_ui(ui)
   let parent = parent_ctx_with(False, False, False)

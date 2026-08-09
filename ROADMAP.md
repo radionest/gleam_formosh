@@ -150,11 +150,14 @@ Implemented" section shrinks by ~60%.
 
 ---
 
-## Layouts
+## Layouts — shipped
 
 **Goal.** Enable forms more complex than "everything top-to-bottom".
 
-**Scope:** M. **Breaking:** no. **Depends on:** UI Schema.
+**Scope:** M. **Breaking:** yes, for Gleam consumers — `UiSchema` and
+`UiProperty` gained a `layout` field, so a construction or pattern match
+without a `..` spread stops compiling (see `docs/reference/api.md`); the
+`ui:layout` JSON key itself is purely additive. **Depends on:** UI Schema.
 
 A JSONForms-style layout tree (`Control` nodes addressed by
 `scope: "#/properties/foo"`) was the original plan; it was evaluated against
@@ -175,23 +178,29 @@ on, and every leaf is a path relative to that anchor; a bare child name is the
 one-segment case. Hints stay on the existing path-keyed `UiProperty` tree and
 are never carried by a layout node.
 
-- [ ] `ui:layout` array of nodes: `Row`, `Group`, and bare-string leaves
-- [ ] Anchored at root, at a nested object, and at an array `items` template
-- [ ] Leaves are single-segment; a `.` is rejected at parse time and reserved
+- [x] `ui:layout` array of nodes: `Row`, `Group`, and bare-string leaves
+- [x] Anchored at root, at a nested object, and at an array `items` template
+- [x] Leaves are single-segment; a `.` is rejected at parse time and reserved
       for the cross-container follow-on below. Caveat: `path_format.gleam`
       does no escaping, so a property literally named `a.b` is already
       ambiguous in `model.errors` keys and can never be addressed by a leaf
-- [ ] Naming the same field twice is valid single-segment grammar
+- [x] Naming the same field twice is valid single-segment grammar
       (`["a", "a"]`, or `a` in two Groups) and renders it twice, emitting
       duplicate `attribute.id` values (`field_common.gleam:199`) and duplicate
       radio `id`/`for` pairs. Detection ships with the coverage map in
       follow-on 3; until then, document it as author error
-- [ ] Absent leaf skipped silently; a node whose children all resolve to
-      nothing renders nothing
-- [ ] Fields the layout does not place render after it, ordered by `ui:order`
+- [x] Absent leaf skipped silently; a node whose leaves are **all absent**
+      renders nothing. A leaf that is present but suppressed
+      (`ui:widget: "hidden"`, `readOnly` with `show_readonly_fields` off)
+      still counts as a child, so its node still renders — see
+      `docs/reference/ui-schema.md`
+- [x] Fields the layout does not place render after it, ordered by `ui:order`
       — nothing can disappear
-- [ ] No `ui:layout` → the current linear render, byte-identical (back-compat)
-- [ ] Per-field `data-name` / `data-path` on the `part="field"` wrapper, so a
+- [x] No `ui:layout` → the current linear render, field for field and in the
+      same order (back-compat). Not byte-identical: the `data-name` /
+      `data-path` attributes below ship unconditionally, so every
+      `part="field"` wrapper gains them with or without a layout
+- [x] Per-field `data-name` / `data-path` on the `part="field"` wrapper, so a
       stylesheet can target one field (prerequisite for any CSS-driven layout)
 
 **Not in this stage:** `Categorization` / tabs, review-mode layout, and
@@ -206,7 +215,9 @@ seams: `form/view.gleam`, `fields/object_field.gleam`,
 
 **Acceptance:** `{year, month, day}` renders on one row inside an array row;
 a conditional field named in a `Group` renders next to its trigger instead of
-at the end of the container; a form with no `ui:layout` is unchanged.
+at the end of the container; a form with no `ui:layout` renders the same
+fields in the same order as before (plus the unconditional `data-*`
+attributes).
 
 ---
 
@@ -485,7 +496,7 @@ API break.
 After that, two independent tracks that can run in parallel:
 
 - **"Standards" track:** JSON Schema gap-closing → i18n.
-- **"UX" track:** Layouts → server-side error location → `Steps`/`Tabs` →
+- **"UX" track:** Layouts (done) → server-side error location → `Steps`/`Tabs` →
   Expressions. Error location comes before `Steps`/`Tabs` because a step can
   hide an invalid field behind a closed door, and a failed submit currently
   says nothing about which field failed. Cross-container leaves and

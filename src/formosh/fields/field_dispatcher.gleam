@@ -72,7 +72,7 @@ fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
 
   let field_element = render_widget(ctx, model)
 
-  wrap_with_errors(field_element, visible_errors, ctx.is_readonly)
+  wrap_with_errors(ctx, field_element, visible_errors)
 }
 
 fn render_widget(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
@@ -134,20 +134,22 @@ fn render_widget_by_type(
 }
 
 fn wrap_with_errors(
+  ctx: FieldRenderCtx,
   field_element: Element(FormMsg),
   errors: List(ValidationError),
-  is_readonly: Bool,
 ) -> Element(FormMsg) {
   let show_error = errors != []
   let base_attrs = [
     attribute.class("formosh-field"),
     attribute.attribute("part", "field"),
+    attribute.attribute("data-name", path.get_field_name(ctx.path)),
+    attribute.attribute("data-path", path.to_string(ctx.path)),
   ]
   let error_attr = case show_error {
     True -> [attribute.attribute("data-error", "true")]
     False -> []
   }
-  let readonly_attr = case is_readonly {
+  let readonly_attr = case ctx.is_readonly {
     True -> [attribute.attribute("data-readonly", "true")]
     False -> []
   }

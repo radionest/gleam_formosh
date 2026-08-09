@@ -2,6 +2,7 @@
 
 import formosh/fields/field_common
 import formosh/fields/field_dispatcher
+import formosh/fields/layout
 import formosh/fields/readonly_field
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
@@ -68,10 +69,23 @@ fn render_form_body(model: FormModel) -> Element(FormMsg) {
       model.resolved_schema.properties,
       model.ui_schema.order,
     )
+  // Review mode never honours `ui:layout` — the review output must render
+  // identically with or without a layout key (spec Non-Goal for this
+  // version).
+  let active_layout = case model.read_only {
+    True -> None
+    False -> model.ui_schema.layout
+  }
+  // `entries` and the lookup inside `render_leaf` must both be
+  // `ordered_properties`: `arrange`'s `None` pass-through and its
+  // leftover-exclusion both depend on `render_leaf` being total over
+  // `entries`' names.
   let fields =
-    list.map(ordered_properties, fn(pair) {
-      let #(field_name, property) = pair
-      render_field(model, field_name, property)
+    layout.arrange(active_layout, ordered_properties, fn(name) {
+      case list.key_find(ordered_properties, name) {
+        Ok(property) -> Some(render_field(model, name, property))
+        Error(_) -> None
+      }
     })
 
   // In read-only (review) mode there is nothing to submit or reset, so the

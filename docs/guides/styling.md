@@ -7,8 +7,18 @@ description: "Customize Formosh appearance: ::part() selectors, data-state attri
 # Styling
 
 Formosh renders inside an **open Shadow DOM** when used as the
-`<formosh-form>` web component. There are no default styles — the form
-arrives unstyled and you bring your own CSS.
+`<formosh-form>` web component. There are essentially no default styles —
+the form arrives unstyled and you bring your own CSS — with a few narrow
+exceptions, because their inline style *is* their meaning: a `ui:layout`
+`Row` carries its own grid ([Overriding the `ui:layout`
+grid](#overriding-the-uilayout-grid)), a collapsing array row carries its
+own fold transition ([`array-item-body` — the
+fold](#array-item-body--the-fold)), and the swipe widget carries its
+per-frame drag and fly-off transforms. Each is opt-in, and the full list
+lives in [Cascade order](#cascade-order). A `Row` that didn't lay out
+horizontally out of the box would be broken, not merely unstyled, so the
+horizontal arrangement ships and an override only replaces it — the same
+reasoning holds for the fold.
 
 There are three surfaces for customization, in increasing order of
 specificity. The first two only apply in web-component mode (Shadow DOM);
@@ -72,6 +82,15 @@ other row, matching `data-error` and `data-readonly` above. A collapsed row
 keeps its fields in the DOM — see `array-item-body` in the catalog below —
 so style the fold, don't assume the content is gone.
 
+`data-name` and `data-path` on `part="field"` are **identity, not
+state** — unlike the attributes above, they don't toggle with interaction,
+they name which field the wrapper is: `data-name` is the field's final
+path segment (e.g. `ascites_thickness`) and `data-path` its full
+dot-notation path (e.g. `zones.[0].affected`). The same restriction noted
+above applies: write `[part=field][data-name="…"]`, never
+`formosh-form::part(field)[data-name="…"]` — the pseudo-element can't be
+followed by an attribute selector.
+
 ## 3. Parent stylesheets are auto-adopted
 
 Lustre clones the host document's CSS into the shadow root, so plain class
@@ -91,7 +110,11 @@ Every styled element exposes a part. Grouped by area:
 
 **Core / layout:**
 `container`, `header`, `title`, `description`, `form`, `footer`, `submit`,
-`reset`, `success`, `error-message`, `loading`.
+`reset`, `success`, `error-message`, `loading`, `row`, `group`,
+`group-label`, `group-body` — the last four appear only where a
+`ui:layout` actually places a `Row` or `Group` node (a layout of bare
+leaves emits none of them), and `group-label` only when that `Group` has
+a `label`.
 
 **Field scaffolding:**
 `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`.
@@ -156,8 +179,9 @@ yet reachable through `ui:widget` — see `ROADMAP.md`.)
 ### `array-item-body` — the fold
 
 `array-item-body` wraps `array-item-fields` and is what actually folds.
-These are the library's only inline styles outside the swipe widget — the
-fold has to work with no stylesheet at all, so it cannot be left to CSS:
+Like the `ui:layout` `Row` grid and the swipe widget's transforms, these are
+inline because the fold has to work with no stylesheet at all — it cannot be
+left to CSS ([full list](#cascade-order)):
 
 ```css
 display: grid;
@@ -223,6 +247,48 @@ demo (`demo/index.html`) — note the `[part=…]` form for `array-toggle`,
 .array-item-summary[aria-expanded="true"]::before { transform: rotate(90deg); }
 ```
 
+### Overriding the `ui:layout` grid
+
+`row` and `group` exist only where a container's `ui:layout` places a `Row`
+or `Group` node — a form with no `ui:layout` never emits them (see
+[Layout with `ui:layout`](../reference/ui-schema.md#layout-with-uilayout)).
+Override the grid, tune its gap, and target one field by its stable name:
+
+```css
+formosh-form::part(row) { grid-template-columns: 2fr 1fr; }
+formosh-form { --formosh-row-gap: 0.75rem; }
+[part="field"][data-name="length_mm"] { grid-column: span 2; }
+[part="row"] [part="field"] { min-width: 0; }
+```
+
+`::part(row)` and the `--formosh-row-gap` custom property both reach the
+component from the host document, the same as any other `::part()`
+override (§1). The `[part="field"][data-name=…]` rule is the same
+`[part=…][data-…]` form from [§2](#2-data--attributes-for-state), not a
+pseudo-element chain, so it depends on parent-stylesheet adoption (§3) the
+same way. The [cascade order](#cascade-order) trap applies here too: a
+plain host `::part(field)` declaration beats `[part=field][data-name=…]`
+regardless of specificity, same as it beats `[part=field][data-error]`.
+
+Grid items default to `min-width: auto`, so without the rule above, a
+`part="field"` holding a `<select>`, a long unbroken word, or a
+default-width `<input>` overflows its track instead of shrinking to fit —
+a container can't set `min-width` on its own items, so the library ships
+nothing for this and page CSS has to supply it, the same way the demo
+does (`demo/index.html`).
+
+**`Row` and `Group` are not symmetric.** A `Row` writes its own inline
+`display:grid` (with `--formosh-row-gap`) precisely so it works with zero
+page CSS — the override above only needs to *replace* that default. A
+`Group` emits bare `group` / `group-label` / `group-body` wrappers with no
+styling of their own, so without page CSS its fields render flush against
+each other under an unstyled label. A minimal rule to make one readable:
+
+```css
+formosh-form::part(group-label) { font-weight: 600; margin-bottom: 4px; }
+formosh-form::part(group-body) { display: flex; flex-direction: column; gap: 12px; }
+```
+
 ## Cascade and limitations
 
 ### Cascade order
@@ -235,9 +301,13 @@ a host `::part(input)` rule beats any adopted `.formosh-input` rule. For
 beats a host `::part()` one. Specificity only breaks ties between rules in
 the *same* context (two adopted rules, or two host rules).
 
-The library also writes a handful of **inline** styles itself — the array
-fold ([`array-item-body`](#array-item-body--the-fold)) and the swipe
-widget's drag/fly-off transforms. These do **not** form a tier above the
+The library also writes a handful of **inline** styles itself, and this is
+the authoritative list — three opt-in features, five call sites: the
+`ui:layout` `Row` grid (`fields/layout.gleam`), the array fold
+([`array-item-body`](#array-item-body--the-fold), two sites in
+`fields/array_field.gleam`), and the swipe widget's drag/fly-off transforms
+(two sites in `fields/swipe_review_field.gleam`). These do **not** form a
+tier above the
 two contexts. Element-attached styles are sorted *below* context in the
 cascade, and they belong to the shadow tree, so the same rule above still
 decides: a host-document `::part()` rule overrides them as a normal

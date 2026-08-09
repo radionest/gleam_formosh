@@ -166,10 +166,11 @@ let assert Ok(config) =
   formosh.with_ui_schema_json(config, ui_schema_json_string)
 ```
 
-The full list of `ui:*` keys (`ui:widget`, `ui:order`, `ui:placeholder`,
-`ui:help`, `ui:addable`, `ui:removable`, `ui:accept`, …), the JSON tree
-shape, merge precedence with `x-*` extensions, and three worked examples
-are in [UiSchema](../reference/ui-schema.md). The short version: it
+The full list of `ui:*` keys (`ui:widget`, `ui:order`, `ui:layout`,
+`ui:placeholder`, `ui:help`, `ui:addable`, `ui:removable`, `ui:accept`, …),
+the JSON tree shape, merge precedence with `x-*` extensions, and three
+worked examples are in [UiSchema](../reference/ui-schema.md). The short
+version: it
 mirrors your schema's shape, `ui:*` keys are settings on the current node,
 `items` is the array-row template, every other key is a child property.
 
