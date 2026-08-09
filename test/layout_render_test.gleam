@@ -1,0 +1,88 @@
+// End-to-end render tests: a ui:layout on a real model must place real
+// fields. The date-triple case is the one that motivated the feature —
+// {year, month, day} renders as six stacked inputs per row without it.
+
+import formosh/form/model
+import formosh/form/view
+import formosh/schema/types
+import formosh/schema/ui_parser
+import gleam/option.{None, Some}
+import gleam/string
+import gleeunit/should
+import lustre/element
+
+fn int_property(title: String) -> types.SchemaProperty {
+  types.SchemaProperty(
+    ..types.empty_property(),
+    field_type: Some(types.IntegerType),
+    title: Some(title),
+  )
+}
+
+fn date_schema() -> types.JsonSchema {
+  types.JsonSchema(
+    title: None,
+    description: None,
+    field_type: types.ObjectType,
+    properties: [
+      #("year", int_property("Год")),
+      #("month", int_property("Месяц")),
+      #("day", int_property("День")),
+    ],
+    required: [],
+    defs: None,
+    conditionals: [],
+    all_of: None,
+    string_constraints: None,
+    number_constraints: None,
+  )
+}
+
+fn render_with(ui_json: String) -> String {
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let m = model.init(date_schema())
+  view.view(model.FormModel(..m, ui_schema: ui)) |> element.to_string
+}
+
+pub fn root_row_places_three_fields_test() {
+  let html =
+    render_with(
+      "{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\",\"day\"]}]}",
+    )
+  html |> string.contains("part=\"row\"") |> should.be_true
+  html |> string.contains("data-name=\"year\"") |> should.be_true
+  html |> string.contains("data-name=\"month\"") |> should.be_true
+  html |> string.contains("data-name=\"day\"") |> should.be_true
+}
+
+pub fn root_group_wraps_fields_test() {
+  let html =
+    render_with(
+      "{\"ui:layout\":[{\"type\":\"Group\",\"label\":\"Дата\",\"elements\":[\"year\"]}]}",
+    )
+  html |> string.contains("part=\"group\"") |> should.be_true
+  html |> string.contains("Дата") |> should.be_true
+}
+
+pub fn root_leftovers_still_render_test() {
+  let html = render_with("{\"ui:layout\":[\"day\"]}")
+  html |> string.contains("data-name=\"day\"") |> should.be_true
+  html |> string.contains("data-name=\"year\"") |> should.be_true
+  html |> string.contains("data-name=\"month\"") |> should.be_true
+}
+
+pub fn root_without_layout_is_unchanged_test() {
+  let html = render_with("{}")
+  html |> string.contains("part=\"row\"") |> should.be_false
+  html |> string.contains("part=\"group\"") |> should.be_false
+  html |> string.contains("data-name=\"year\"") |> should.be_true
+}
+
+pub fn ui_order_without_layout_still_orders_test() {
+  let html = render_with("{\"ui:order\":[\"day\",\"year\",\"month\"]}")
+  let assert Ok(#(before_year, after_year)) =
+    string.split_once(html, "data-name=\"year\"")
+  before_year |> string.contains("data-name=\"day\"") |> should.be_true
+  after_year |> string.contains("data-name=\"month\"") |> should.be_true
+  html |> string.contains("part=\"row\"") |> should.be_false
+}

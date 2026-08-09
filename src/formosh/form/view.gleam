@@ -2,6 +2,7 @@
 
 import formosh/fields/field_common
 import formosh/fields/field_dispatcher
+import formosh/fields/layout
 import formosh/fields/readonly_field
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
@@ -69,9 +70,11 @@ fn render_form_body(model: FormModel) -> Element(FormMsg) {
       model.ui_schema.order,
     )
   let fields =
-    list.map(ordered_properties, fn(pair) {
-      let #(field_name, property) = pair
-      render_field(model, field_name, property)
+    layout.arrange(model.ui_schema.layout, ordered_properties, fn(name) {
+      case list.key_find(ordered_properties, name) {
+        Ok(property) -> Some(render_field(model, name, property))
+        Error(_) -> None
+      }
     })
 
   // In read-only (review) mode there is nothing to submit or reset, so the
