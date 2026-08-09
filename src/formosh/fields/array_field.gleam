@@ -293,10 +293,13 @@ fn render_array_item(
 /// Styles are inline for the same reason `swipe_review_field` puts its
 /// fly-off transition inline: the library ships no stylesheet, and without
 /// them a collapsed row would simply show its fields. Appearance stays with
-/// the caller — this is only the folding mechanism. Duration is overridable
-/// via `--formosh-collapse-duration`, everything else via `!important`
-/// (author `!important` outranks inline styles), which is also how the
-/// standard `prefers-reduced-motion` reset switches the fold off.
+/// the caller — this is only the folding mechanism. Being inline does not
+/// make them hard to override: element-attached styles sort below context,
+/// so a host-document `::part(array-item-body)` rule beats them as a normal
+/// declaration. `!important` is only needed from an adopted stylesheet —
+/// which is how the standard `prefers-reduced-motion` reset switches the
+/// fold off — and the duration also reads
+/// `--formosh-collapse-duration`.
 ///
 /// An array with no collapsing configured renders exactly as it did before
 /// the feature existed: the bare fields container, no wrapper, no styles.

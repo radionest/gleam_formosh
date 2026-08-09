@@ -166,7 +166,7 @@ overflow: hidden;
 transition: grid-template-rows var(--formosh-collapse-duration, 180ms) ease;
 ```
 
-Three consequences:
+Four consequences:
 
 - **It renders for every row of a collapse-enabled array**, collapsed or
   not — a wrapper that only appeared once the row was shut would have
@@ -177,10 +177,18 @@ Three consequences:
   (`array-item-fields` itself picks up an inline `min-height: 0` inside such
   an array — a grid item's automatic minimum size would otherwise hold the
   `0fr` track open at its content height.)
-- **Inline styles outrank adopted stylesheets.** Set the duration through
-  `--formosh-collapse-duration` on the host; override anything else with
-  `!important`, which is also how the usual reduced-motion reset switches
-  the fold off:
+- **`overflow: hidden` applies in both states**, so it clips whatever
+  overflows a row's fields even while the row is open — a focus ring or
+  `box-shadow` drawn outside the input's border box is cut off unless
+  something inside the wrapper reserves room for it. Give
+  `array-item-fields` enough padding to contain the ring rather than trying
+  to switch `overflow` off, which would break the fold. (The demo's own
+  3px focus ring shows this.)
+- **Inline styles outrank adopted stylesheets, but not host `::part()`
+  rules.** A host `::part(array-item-body)` rule overrides them with no
+  `!important`; from an adopted stylesheet you need `!important`, which is
+  how the usual reduced-motion reset switches the fold off. Set the
+  duration through `--formosh-collapse-duration` on the host:
 
 ```css
 formosh-form { --formosh-collapse-duration: 300ms; }
@@ -227,12 +235,23 @@ a host `::part(input)` rule beats any adopted `.formosh-input` rule. For
 beats a host `::part()` one. Specificity only breaks ties between rules in
 the *same* context (two adopted rules, or two host rules).
 
-Above both sits a third tier: the handful of **inline** styles the library
-writes itself — the array fold ([`array-item-body`](#array-item-body--the-fold))
-and the swipe widget's drag/fly-off transforms. Inline beats every normal
-declaration from either context, so overriding one takes `!important`
-(which outranks inline in turn) or, for the fold's duration, the
-`--formosh-collapse-duration` custom property it reads.
+The library also writes a handful of **inline** styles itself — the array
+fold ([`array-item-body`](#array-item-body--the-fold)) and the swipe
+widget's drag/fly-off transforms. These do **not** form a tier above the
+two contexts. Element-attached styles are sorted *below* context in the
+cascade, and they belong to the shadow tree, so the same rule above still
+decides: a host-document `::part()` rule overrides them as a normal
+declaration, no `!important` needed.
+
+```css
+/* wins over the inline transition on array-item-body */
+formosh-form::part(array-item-body) { transition: none; }
+```
+
+An adopted `.array-item-body` rule does not — that is inner context, same
+tree as the inline style, and there element-attached wins. Reach for
+`!important` only from an adopted stylesheet, or set the fold's duration
+through the `--formosh-collapse-duration` custom property it reads.
 
 ### No descendant combinator inside `::part()`
 
