@@ -126,9 +126,10 @@ the complete signatures live in [Public API](../reference/api.md).
 
 ## 5. Style it
 
-Formosh ships with **no default CSS**. The component renders inside an open
-Shadow DOM with `::part()` hooks for every styled element — the fastest way
-to a usable form:
+Formosh ships with **essentially no default CSS** — see
+[Styling](../guides/styling.md) for the two deliberate exceptions. The
+component renders inside an open Shadow DOM with `::part()` hooks for every
+styled element — the fastest way to a usable form:
 
 ```css
 formosh-form { display: block; max-width: 32rem; }

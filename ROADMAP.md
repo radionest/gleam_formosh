@@ -150,11 +150,14 @@ Implemented" section shrinks by ~60%.
 
 ---
 
-## Layouts
+## Layouts — shipped
 
 **Goal.** Enable forms more complex than "everything top-to-bottom".
 
-**Scope:** M. **Breaking:** no. **Depends on:** UI Schema.
+**Scope:** M. **Breaking:** yes, for Gleam consumers — `UiSchema` and
+`UiProperty` gained a `layout` field, so a construction or pattern match
+without a `..` spread stops compiling (see `docs/reference/api.md`); the
+`ui:layout` JSON key itself is purely additive. **Depends on:** UI Schema.
 
 A JSONForms-style layout tree (`Control` nodes addressed by
 `scope: "#/properties/foo"`) was the original plan; it was evaluated against
@@ -491,7 +494,7 @@ API break.
 After that, two independent tracks that can run in parallel:
 
 - **"Standards" track:** JSON Schema gap-closing → i18n.
-- **"UX" track:** Layouts → server-side error location → `Steps`/`Tabs` →
+- **"UX" track:** Layouts (done) → server-side error location → `Steps`/`Tabs` →
   Expressions. Error location comes before `Steps`/`Tabs` because a step can
   hide an invalid field behind a closed door, and a failed submit currently
   says nothing about which field failed. Cross-container leaves and

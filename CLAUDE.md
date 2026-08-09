@@ -92,7 +92,7 @@ Registers as `<formosh-form>` custom element. Attributes: `schema`, `ui-schema`,
 
 `read-only="true"` renders the whole form as a static label→value summary (review mode) instead of inputs, hiding Submit/Reset — distinct from `show-readonly-fields`, which only toggles visibility of schema `readOnly` fields in edit mode. One exception to "plain value": `password`-format / `ui:widget: "password"` fields show a fixed `••••••••` mask instead of the stored value, same as in edit mode — see `docs/reference/widgets.md`. Drives the `readonly_field` renderer (`src/formosh/fields/readonly_field.gleam`); exposes `::part(readonly-field|readonly-label|readonly-value|readonly-group|readonly-group-label|readonly-group-body|readonly-table|readonly-th|readonly-td)`.
 
-Styling: the component runs in open Shadow DOM, so target it via `::part()` selectors (`formosh-form::part(input)`, etc.) and `[part=field][data-error]` / `[part=field][data-readonly]` for field state. Parent stylesheets are also auto-adopted, so plain `.formosh-input { ... }` rules still apply inside the shadow root. Part catalog: `docs/guides/styling.md`.
+Styling: the component runs in open Shadow DOM, so target it via `::part()` selectors (`formosh-form::part(input)`, etc.) and `[part=field][data-error]` / `[part=field][data-readonly]` for field state, plus `[part=field][data-name=…]` / `[data-path=…]` for field identity (not state). Parent stylesheets are also auto-adopted, so plain `.formosh-input { ... }` rules still apply inside the shadow root. Part catalog: `docs/guides/styling.md`.
 
 ## UiSchema
 

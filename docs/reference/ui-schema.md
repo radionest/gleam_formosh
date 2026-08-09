@@ -244,6 +244,10 @@ A few rules govern how a layout resolves:
   container's own fields, never a nested object's. A `.` in a leaf is
   rejected at parse time — cross-container path addressing isn't
   supported yet; the dot is reserved for it.
+- **A leaf may name an array** — it renders the whole array field, controls
+  and all, but a layout can never address inside one. To lay out an
+  array's own rows, put a `ui:layout` on that array's `items` template,
+  anchored to the row itself.
 - **`ui:layout` must be a JSON array, and so must every node's
   `elements`.** An object (`{"a": ..., "b": ...}` instead of `["a", ...]`)
   is rejected, because object key order isn't preserved by every backing
@@ -259,7 +263,10 @@ A few rules govern how a layout resolves:
 - **A leaf naming a field that isn't currently present is skipped
   silently**, not treated as an error — so one UiSchema file can serve
   several forms, and a `Group` can name a conditionally-injected field
-  before its trigger has fired.
+  before its trigger has fired. The flip side: a **mistyped** leaf is
+  indistinguishable from a conditionally-absent one — nothing warns, and
+  the field simply renders among the leftovers after the layout instead of
+  where you placed it. If a field won't move, check the spelling first.
 - **A `Row` or `Group` whose named leaves are all absent renders nothing
   at all** — no empty grid, no empty label. That covers only *absence*: a
   leaf naming a field that exists but is hidden — `ui:widget: "hidden"`,
@@ -302,7 +309,8 @@ Lookup follows the schema's `FieldPath` (`src/formosh/schema/ui_resolver.gleam`)
   to schema defaults without error.
 
 Root path (`[]`) returns `empty_ui_property()` — root-level options like
-`ui:order` live on the `UiSchema` itself, not on a `UiProperty`.
+`ui:order` and `ui:layout` live on the `UiSchema` itself, not on a
+`UiProperty`.
 
 ## Merge precedence with `x-*` extensions
 

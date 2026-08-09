@@ -7,8 +7,16 @@ description: "Customize Formosh appearance: ::part() selectors, data-state attri
 # Styling
 
 Formosh renders inside an **open Shadow DOM** when used as the
-`<formosh-form>` web component. There are no default styles — the form
-arrives unstyled and you bring your own CSS.
+`<formosh-form>` web component. There are essentially no default styles —
+the form arrives unstyled and you bring your own CSS — with two deliberate
+exceptions, because their inline style *is* their meaning: a `ui:layout`
+`Row` carries its own grid ([Overriding the `ui:layout`
+grid](#overriding-the-uilayout-grid)) and a collapsing array row carries
+its own fold transition ([`array-item-body` — the
+fold](#array-item-body--the-fold)). A `Row` that didn't lay out
+horizontally out of the box would be broken, not merely unstyled, so the
+horizontal arrangement ships and an override only replaces it — the same
+reasoning holds for the fold.
 
 There are three surfaces for customization, in increasing order of
 specificity. The first two only apply in web-component mode (Shadow DOM);
