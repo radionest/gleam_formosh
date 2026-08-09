@@ -408,6 +408,96 @@ async function focusFieldInput(name) {
   }, name);
 }
 
+// The fold is a CSS transition on `grid-template-rows`, which only runs if
+// the element carries a previous computed value — a node inserted already at
+// `0fr` snaps shut instead. The row's children are unkeyed, so this comes
+// down to node identity: the summary occupies a slot in every state
+// (`element.none()` when the row is incomplete) precisely so completing a
+// row does not shift its siblings and force a rebuild.
+//
+// Only a real browser can see this. The string-render tests in
+// `test/array_collapse_render_test.gleam` compare markup, and the markup is
+// identical either way — what differs is whether the body survives the
+// patch. Marking the node and re-reading the mark after the fold is the
+// assertion those tests structurally cannot make.
+test("completing a row folds the body node it already had", async () => {
+  const schema = JSON.stringify({
+    type: "object",
+    properties: {
+      visits: {
+        type: "array",
+        minItems: 1,
+        title: "Visits",
+        items: {
+          type: "object",
+          properties: { note: { type: "string", title: "Note" } },
+          required: ["note"],
+        },
+      },
+    },
+  });
+  const uiSchema = JSON.stringify({
+    visits: { "ui:options": { collapseCompleted: true } },
+  });
+  await page.evaluate(
+    (s, u) => {
+      window.__reset();
+      const form = document.querySelector("formosh-form");
+      form.setAttribute("ui-schema", u);
+      window.__setSchema(s);
+    },
+    schema,
+    uiSchema,
+  );
+  await lastEvent("formosh-ready");
+
+  // `minItems: 1` makes the reconcile top the array up to one row, which
+  // starts expanded and incomplete.
+  await page.waitForFunction(() => {
+    const root = document.querySelector("formosh-form").shadowRoot;
+    const body = root.querySelector(".array-item-body");
+    return body && !root.querySelector(".array-item[data-collapsed]");
+  });
+  await page.evaluate(() => {
+    document
+      .querySelector("formosh-form")
+      .shadowRoot.querySelector(".array-item-body").dataset.e2eProbe = "kept";
+  });
+
+  // Filling the row's only required field completes it, which folds it
+  // automatically — the exact moment the old code rebuilt the body.
+  await page.evaluate(() => {
+    document
+      .querySelector("formosh-form")
+      .shadowRoot.querySelector(".array-item-body input")
+      .focus();
+  });
+  await page.keyboard.type("seen");
+  await page.waitForFunction(() =>
+    document
+      .querySelector("formosh-form")
+      .shadowRoot.querySelector(".array-item[data-collapsed]"),
+  );
+
+  const probe = await shadowEval(
+    () =>
+      document
+        .querySelector("formosh-form")
+        .shadowRoot.querySelector(".array-item-body").dataset.e2eProbe,
+  );
+  assert.equal(
+    probe,
+    "kept",
+    "the collapsed row must fold the body element it already had; a replaced node has no value to transition from",
+  );
+
+  // Clean up so the shared page carries no collapse-enabled array into the
+  // date/time test that follows.
+  await page.evaluate(() => {
+    document.querySelector("formosh-form").removeAttribute("ui-schema");
+  });
+});
+
 // Formosh inputs are fully controlled (field_common.input_attributes sets
 // both `value` and `on_input`), so every keystroke round-trips through the
 // model and back into the element. A native date/time control fires `input`

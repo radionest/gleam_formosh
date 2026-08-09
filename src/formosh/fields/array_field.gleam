@@ -224,8 +224,16 @@ fn render_array_item(
       // `list.contains` scan a second time inside `render_item_summary`.
       let expanded = list.contains(model.array_rows_expanded, row_path)
       let is_collapsed = is_completed && !expanded
+      // Occupies its slot in every state — `element.none()` renders as an
+      // empty text node, so the markup is unchanged, but the row's children
+      // keep a stable length. They are unkeyed: a summary that appeared only
+      // once the row completed would shift the header and the body down one
+      // index, and a positional diff would then rebuild the body from
+      // scratch. A freshly created element already at `0fr` has no previous
+      // computed value to transition from, so the automatic fold would snap
+      // shut — and the row's inputs would be torn down mid-edit.
       let summary = case is_completed {
-        True -> [
+        True ->
           render_item_summary(
             row_path,
             item_schema,
@@ -233,9 +241,8 @@ fn render_array_item(
             collapse.summary_fields,
             model,
             expanded,
-          ),
-        ]
-        False -> []
+          )
+        False -> element.none()
       }
       let body =
         render_item_body(
@@ -262,11 +269,11 @@ fn render_array_item(
           [class("array-item"), attribute.attribute("part", "array-item")],
           collapsed_attr,
         ]),
-        list.flatten([
+        [
           summary,
-          [render_array_item_header(ctx, removable, orderable, count, index)],
-          [body],
-        ]),
+          render_array_item_header(ctx, removable, orderable, count, index),
+          body,
+        ],
       )
     }
     None -> element.none()
