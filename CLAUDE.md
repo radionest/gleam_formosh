@@ -96,13 +96,14 @@ Styling: the component runs in open Shadow DOM, so target it via `::part()` sele
 
 ## UiSchema
 
-Presentation hints live in a parallel `UiSchema` (react-jsonschema-form-style JSON: `ui:widget`, `ui:order`, `ui:placeholder`, `ui:help`, `ui:autofocus`, `ui:disabled`, `ui:readonly`, `ui:title`, `ui:description`, `ui:options`, `ui:addable`, `ui:removable`, `ui:orderable`, `ui:accept`, `ui:maxFileSize`). Children are nested inline by field name; `items` is the array-element template. `lookup` (`formosh/schema/ui_resolver`) walks by `FieldPath` — `ArraySegment` ignores the index and descends into `items`. Full reference: `docs/reference/ui-schema.md`.
+Presentation hints live in a parallel `UiSchema` (react-jsonschema-form-style JSON: `ui:widget`, `ui:order`, `ui:layout`, `ui:placeholder`, `ui:help`, `ui:autofocus`, `ui:disabled`, `ui:readonly`, `ui:title`, `ui:description`, `ui:options`, `ui:addable`, `ui:removable`, `ui:orderable`, `ui:accept`, `ui:maxFileSize`). Children are nested inline by field name; `items` is the array-element template. `lookup` (`formosh/schema/ui_resolver`) walks by `FieldPath` — `ArraySegment` ignores the index and descends into `items`. Full reference: `docs/reference/ui-schema.md`.
 
 - `x-widget` / `x-accept` / `x-max-file-size` / `x-addable` / `x-removable` extensions are **deprecated as of v0.7** and read as fallback only. They will be removed in **v0.9**. Use UiSchema instead.
 - `ui:disabled` and `ui:readonly` **OR-merge** with the parent / schema. `ui:disabled: false` on a child of a disabled container does NOT re-enable it — mirrors HTML's `disabled` inheritance and JSON Schema's `readOnly`. To selectively enable, hoist the disabled flag to the leaf instead of the container.
 - `ui:orderable` toggles the per-row ▲/▼ reorder buttons on an array (default `true`). Set `ui:orderable: false` to hide them. Buttons are disabled at the ends and hidden when the array has one item or fewer; controls expose classes `move-array-item-up` / `move-array-item-down`.
 - `ui:options` on an array node additionally supports `collapseCompleted` (bool, default `false`), `collapseCompletedLabel` (string, default `"Collapse completed"`), and `summaryFields` (string[], default `[]` — every scalar field of the row's resolved schema, in schema order, arrays and objects excluded) to collapse completed rows to a one-line summary. See `docs/reference/ui-schema.md#collapse-completed-array-rows` and `docs/reference/widgets.md#collapsing-completed-rows`.
 - `ui:accept` / `ui:maxFileSize` are only honoured when `ui:widget: "image-upload"` is set. Without the widget hint they are silently dropped (the `UploadConfig` is not emitted).
+- `ui:layout` arranges a container's fields into `Row`/`Group` nodes instead of one field per row; leaves are single-segment child names — a `.` is rejected and reserved for future path addressing — and it has no effect in review mode (`read-only="true"`). See `docs/reference/ui-schema.md#layout-with-uilayout`.
 
 ## Notes
 

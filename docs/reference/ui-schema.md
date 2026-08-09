@@ -117,6 +117,7 @@ default (or `x-*` extension where applicable)".
 | Key | Type | Effect |
 |-----|------|--------|
 | `ui:order` | string[] | Reorders children of this object. Fields not listed keep their schema order after the listed ones. Use `"*"` as a wildcard to mean "the rest, in schema order". |
+| `ui:layout` | array | Arranges children into `Row`/`Group` nodes instead of a flat list; unplaced fields still render after it, in `ui:order`. See [Layout with `ui:layout`](#layout-with-uilayout) below. |
 
 ### Array controls
 
@@ -200,6 +201,80 @@ of those on a `format: "password"` field is almost certainly a mistake.
 Masking is presentational only, in both edit mode and read-only (review)
 mode: the raw value still lives in `model.values` and is still published
 via the `formosh-change` event. Do not treat it as a security boundary.
+
+### Layout with `ui:layout`
+
+`ui:layout` arranges a container's own fields into an explicit tree instead
+of the default flat, one-field-per-row list. It is set beside the other
+`ui:*` keys on the form root, a nested object, or an array's `items`
+template (applied to every row alike — see
+[How the tree is walked](#how-the-tree-is-walked)), and holds an ordered
+array of **nodes**:
+
+| Node | JSON shape | Renders as |
+|------|-----------|------------|
+| Leaf | a bare string naming a field | the field itself, unchanged |
+| `Row` | `{ "type": "Row", "elements": [...] }` | `part="row"`, an inline CSS grid |
+| `Group` | `{ "type": "Group", "label": "...", "elements": [...] }` | `part="group"` wrapping an optional `part="group-label"` and a `part="group-body"` |
+
+```json
+{
+  "ui:layout": [
+    "invalid",
+    { "type": "Row", "elements": ["width_mm", "height_mm"] },
+    { "type": "Group", "label": "Асцит", "elements": [
+      "ascites",
+      { "type": "Row", "elements": ["ascites_type", "ascites_thickness"] }
+    ]}
+  ]
+}
+```
+
+`invalid` renders on its own line, `width_mm` and `height_mm` share a row,
+and the "Асцит" group wraps its trigger checkbox and a row of two detail
+fields under one label. `demo/schemas/basic_leak_signs.ui.json` is a full
+working example along the same lines — it groups every conditionally
+injected detail field under the checkbox that reveals it.
+
+A few rules govern how a layout resolves:
+
+- **A leaf names a direct child of the container the layout is anchored
+  on.** Nesting a leaf inside a `Row`/`Group` changes only how it renders,
+  not what it can address — it still resolves against the anchoring
+  container's own fields, never a nested object's. A `.` in a leaf is
+  rejected at parse time; it's reserved for cross-container path
+  addressing in a future version.
+- **`ui:layout` must be a JSON array, and so must every node's
+  `elements`.** An object (`{"a": ..., "b": ...}` instead of `["a", ...]`)
+  is rejected, because object key order isn't preserved by every backing
+  store and `ui:layout` depends on order.
+- **A leaf naming a field that isn't currently present is skipped
+  silently**, not treated as an error — so one UiSchema file can serve
+  several forms, and a `Group` can name a conditionally-injected field
+  before its trigger has fired.
+- **A `Row` or `Group` whose children all resolve to nothing renders
+  nothing at all** — no empty grid, no empty label.
+- **Fields the layout doesn't place still render, after every placed
+  node, ordered by `ui:order`** — exactly as they would with no layout.
+  `ui:order` keeps doing its normal job over that leftover set; a layout
+  can relocate fields but never hide them.
+- **Naming the same field twice is valid grammar** — `["a", "a"]`, or `a`
+  inside two different `Group`s — and renders the field twice. Nothing
+  detects or rejects it: the two copies get duplicate `id` attributes and,
+  for a radio-backed field, duplicate `id`/`for` pairs, which is invalid
+  HTML. Treat it as author error to avoid, not a constraint the parser
+  validates, in this version.
+- **Review mode (`read-only="true"`) ignores `ui:layout`.** The review
+  summary always renders in plain `ui:order` order, with or without a
+  layout — a documented limitation of this version, not a bug.
+
+`Row`'s default grid is `repeat(auto-fit, minmax(min(100%,12rem), 1fr))`,
+which collapses to fewer columns on narrow viewports with no media query
+needed. Tune the gap with the `--formosh-row-gap` custom property (default
+`1rem`), or override `grid-template-columns` outright via
+`formosh-form::part(row)` — see
+[Styling](../guides/styling.md#overriding-the-uilayout-grid) for the full
+recipe, including targeting one field by name.
 
 ## How the tree is walked
 
@@ -327,3 +402,5 @@ your case.
 | Path-based lookup + `x-*` merge + suppression predicate | `src/formosh/schema/ui_resolver.gleam` |
 | Recognized `ui:widget` values | `ui_parser.extract_widget` |
 | Where hints are consumed by renderers | `FieldRenderCtx.hints` in `src/formosh/fields/field_common.gleam` |
+| Layout node types + `arrange` walker | `src/formosh/fields/layout.gleam` |
+| `ui:layout` parsing (node/leaf validation) | `ui_parser.extract_layout` |

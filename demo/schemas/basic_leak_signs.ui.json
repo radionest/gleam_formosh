@@ -1,0 +1,20 @@
+{
+  "ui:layout": [
+    "invalid",
+    { "type": "Group", "label": "Пузырьки газа", "elements": [
+      "air_bubble",
+      { "type": "Row", "elements": ["air_bubble_number", "air_bubble_size"] },
+      { "type": "Row", "elements": ["air_bubble_distance", "air_bubble_location"] }
+    ]},
+    { "type": "Group", "label": "Свободный газ",
+      "elements": ["pneumoperitoneum", "pneumoperitoneum_thickness"] },
+    { "type": "Group", "label": "Асцит", "elements": [
+      "ascites",
+      { "type": "Row", "elements": ["ascites_type", "ascites_thickness"] }
+    ]},
+    { "type": "Group", "label": "Кишечная непроходимость", "elements": [
+      "ileus",
+      { "type": "Row", "elements": ["ileus_diametr", "ileus_levels"] }
+    ]}
+  ]
+}

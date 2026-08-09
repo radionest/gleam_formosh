@@ -72,6 +72,15 @@ other row, matching `data-error` and `data-readonly` above. A collapsed row
 keeps its fields in the DOM — see `array-item-body` in the catalog below —
 so style the fold, don't assume the content is gone.
 
+`data-name` and `data-path` on `part="field"` are **identity, not
+state** — unlike the attributes above, they don't toggle with interaction,
+they name which field the wrapper is: `data-name` is the field's final
+path segment (e.g. `ascites_thickness`) and `data-path` its full
+dot-notation path (e.g. `zones.[0].affected`). The same restriction noted
+above applies: write `[part=field][data-name="…"]`, never
+`formosh-form::part(field)[data-name="…"]` — the pseudo-element can't be
+followed by an attribute selector.
+
 ## 3. Parent stylesheets are auto-adopted
 
 Lustre clones the host document's CSS into the shadow root, so plain class
@@ -91,7 +100,9 @@ Every styled element exposes a part. Grouped by area:
 
 **Core / layout:**
 `container`, `header`, `title`, `description`, `form`, `footer`, `submit`,
-`reset`, `success`, `error-message`, `loading`.
+`reset`, `success`, `error-message`, `loading`, `row`, `group`,
+`group-label`, `group-body` (the last four render only when a container's
+`ui:layout` is set).
 
 **Field scaffolding:**
 `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`.
@@ -222,6 +233,28 @@ demo (`demo/index.html`) — note the `[part=…]` form for `array-toggle`,
 .array-item-summary::before { content: "▸"; transition: transform 0.18s ease; }
 .array-item-summary[aria-expanded="true"]::before { transform: rotate(90deg); }
 ```
+
+### Overriding the `ui:layout` grid
+
+`row` and `group` exist only where a container's `ui:layout` places a `Row`
+or `Group` node — a form with no `ui:layout` never emits them (see
+[Layout with `ui:layout`](../reference/ui-schema.md#layout-with-uilayout)).
+Override the grid, tune its gap, and target one field by its stable name:
+
+```css
+formosh-form::part(row) { grid-template-columns: 2fr 1fr; }
+formosh-form { --formosh-row-gap: 0.75rem; }
+[part="field"][data-name="length_mm"] { grid-column: span 2; }
+```
+
+`::part(row)` and the `--formosh-row-gap` custom property both reach the
+component from the host document, the same as any other `::part()`
+override (§1). The `[part="field"][data-name=…]` rule is the same
+`[part=…][data-…]` form from [§2](#2-data--attributes-for-state), not a
+pseudo-element chain, so it depends on parent-stylesheet adoption (§3) the
+same way. The [cascade order](#cascade-order) trap applies here too: a
+plain host `::part(field)` declaration beats `[part=field][data-name=…]`
+regardless of specificity, same as it beats `[part=field][data-error]`.
 
 ## Cascade and limitations
 
