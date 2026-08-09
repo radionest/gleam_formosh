@@ -9,8 +9,10 @@
 /// 47-49`), would still make a bare `contains` check on that tail pass.
 ///
 /// `slice_element` returns the substring spanned by the element whose
-/// opening tag carries `marker`: from the marker itself through that same
-/// element's own matching closing tag, and nothing that follows it.
+/// opening tag carries the **first** occurrence of `marker`: from that
+/// marker through the same element's own matching closing tag, and nothing
+/// that follows it. Callers wanting a later occurrence — a second `Row`, a
+/// second array item — must pre-split the input themselves.
 ///
 /// Correctness rests on one assumption: Lustre escapes `<` both in text
 /// content and in attribute values, so no `<div` / `</div>` token in

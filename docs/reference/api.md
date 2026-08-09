@@ -280,10 +280,12 @@ pub type LayoutNode {
 
 > **Breaking change.** `UiSchema` and `UiProperty` both gained this `layout`
 > field, and Gleam requires every field in a record constructor or pattern
-> match unless you use a `..` spread — so code that builds or matches either
-> type positionally without naming `layout` (e.g.
-> `UiSchema(properties: …, order: …)`) stops compiling on upgrade. Add
-> `layout: None` (or a real layout) at each call site.
+> match unless you use a `..` spread — so any code that builds or matches
+> either type without naming `layout` stops compiling on upgrade. This
+> applies to labelled construction (`UiSchema(properties: …, order: …)`)
+> exactly as it does to positional. Add `layout: None` (or a real layout) at
+> each call site, or switch to a `..` spread over `empty_ui_schema()` /
+> `empty_ui_property()`.
 
 ### `ValidationError`
 
