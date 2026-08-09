@@ -88,14 +88,23 @@ fn render_node(
     RowNode(elements) -> {
       let #(children, used_next) = render_nodes(elements, render_leaf, used)
       case children {
-        [] -> #(None, used_next)
+        // A Row whose children are all currently absent must still occupy
+        // its slot in the parent's children list — `element.none()`
+        // serializes to nothing, so markup is unaffected, but a later
+        // sibling's position stays stable when the condition that hides
+        // these children flips. Same rationale as
+        // `array_field.gleam`'s row summary: unkeyed children mean a
+        // list-length change forces a positional diff to rebuild every
+        // later sibling from scratch, tearing down a focused input mid-edit.
+        [] -> #(Some(element.none()), used_next)
         _ -> #(Some(row_element(children)), used_next)
       }
     }
     GroupNode(label, elements) -> {
       let #(children, used_next) = render_nodes(elements, render_leaf, used)
       case children {
-        [] -> #(None, used_next)
+        // See the RowNode branch above — same slot-holding rationale.
+        [] -> #(Some(element.none()), used_next)
         _ -> #(Some(group_element(label, children)), used_next)
       }
     }

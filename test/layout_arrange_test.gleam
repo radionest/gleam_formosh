@@ -128,3 +128,31 @@ pub fn nested_nodes_render_in_place_test() {
   row |> string.contains("data-n=\"b\"") |> should.be_true
   row |> string.contains("data-n=\"c\"") |> should.be_true
 }
+
+/// A Group whose only leaf is currently absent must still occupy its slot
+/// in the returned list — markup cannot observe this (`element.none()`
+/// serializes to nothing), so the assertion targets `arrange`'s returned
+/// list directly, mirroring the slot-holding pattern established at
+/// `array_field.gleam:228-236`. Without the fix, the collapsed Group is
+/// dropped from the list entirely and this equals 1, not 2.
+pub fn collapsed_group_keeps_its_slot_test() {
+  let nodes =
+    Some([GroupNode(Some("Пусто"), [LeafNode("gone")]), LeafNode("a")])
+  let rendered = layout.arrange(nodes, entries(["a"]), leaf_renderer(["a"]))
+  list.length(rendered) |> should.equal(2)
+}
+
+/// Same layout, rendered once with the Group's leaf absent (Group collapses
+/// to `element.none()`) and once present (Group renders normally) — the
+/// returned list length must stay identical either way, so "a" always lands
+/// at the same index. An unkeyed positional diff only ever sees index 0
+/// change shape; it must never see a length change that would reindex and
+/// rebuild "a" from scratch.
+pub fn group_collapse_does_not_shift_sibling_position_test() {
+  let nodes =
+    Some([GroupNode(Some("Пусто"), [LeafNode("gone")]), LeafNode("a")])
+  let collapsed = layout.arrange(nodes, entries(["a"]), leaf_renderer(["a"]))
+  let expanded =
+    layout.arrange(nodes, entries(["a", "gone"]), leaf_renderer(["a", "gone"]))
+  list.length(collapsed) |> should.equal(list.length(expanded))
+}

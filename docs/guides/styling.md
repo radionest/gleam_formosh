@@ -258,6 +258,7 @@ Override the grid, tune its gap, and target one field by its stable name:
 formosh-form::part(row) { grid-template-columns: 2fr 1fr; }
 formosh-form { --formosh-row-gap: 0.75rem; }
 [part="field"][data-name="length_mm"] { grid-column: span 2; }
+[part="row"] [part="field"] { min-width: 0; }
 ```
 
 `::part(row)` and the `--formosh-row-gap` custom property both reach the
@@ -268,6 +269,13 @@ pseudo-element chain, so it depends on parent-stylesheet adoption (§3) the
 same way. The [cascade order](#cascade-order) trap applies here too: a
 plain host `::part(field)` declaration beats `[part=field][data-name=…]`
 regardless of specificity, same as it beats `[part=field][data-error]`.
+
+Grid items default to `min-width: auto`, so without the rule above, a
+`part="field"` holding a `<select>`, a long unbroken word, or a
+default-width `<input>` overflows its track instead of shrinking to fit —
+a container can't set `min-width` on its own items, so the library ships
+nothing for this and page CSS has to supply it, the same way the demo
+does (`demo/index.html`).
 
 **`Row` and `Group` are not symmetric.** A `Row` writes its own inline
 `display:grid` (with `--formosh-row-gap`) precisely so it works with zero

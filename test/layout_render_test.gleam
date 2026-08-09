@@ -111,6 +111,87 @@ pub fn read_only_root_ignores_layout_test() {
   with_layout |> should.equal(without_layout)
 }
 
+/// Root-level review mode is covered above, but `readonly_field` reaches a
+/// nested object through its own `render_object`/`render_props` walk, never
+/// through `object_field`, so a layout on a *nested* container needs its
+/// own pin — CLAUDE.md's "View refactors" pitfall warns that unifying the
+/// two container renderers could silently start honouring layouts here
+/// with an otherwise-green suite.
+pub fn read_only_nested_object_ignores_layout_test() {
+  let assert Ok(ui_with_layout) =
+    ui_parser.parse(
+      "{\"start\":{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\",\"day\"]}]}}",
+    )
+  let assert Ok(ui_without_layout) = ui_parser.parse("{}")
+  let m = model.init(nested_object_schema())
+  let with_layout =
+    view.view(model.FormModel(..m, ui_schema: ui_with_layout, read_only: True))
+    |> element.to_string
+  let without_layout =
+    view.view(
+      model.FormModel(..m, ui_schema: ui_without_layout, read_only: True),
+    )
+    |> element.to_string
+  with_layout |> string.contains("part=\"row\"") |> should.be_false
+  with_layout |> string.contains("part=\"group\"") |> should.be_false
+  with_layout |> should.equal(without_layout)
+}
+
+/// Same pin, for an array's `items` layout — `readonly_field.render_array`
+/// never calls `array_field`, so it never sees `items`' `ui:layout` either.
+pub fn read_only_array_items_ignores_layout_test() {
+  let assert Ok(ui_with_layout) =
+    ui_parser.parse(
+      "{\"events\":{\"items\":{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\"]}]}}}",
+    )
+  let assert Ok(ui_without_layout) = ui_parser.parse("{}")
+  let m = model.init(array_schema())
+  let values =
+    types.ObjectValue([
+      #("events", types.ArrayValue([types.ObjectValue([])])),
+    ])
+  let with_layout =
+    view.view(
+      model.FormModel(
+        ..m,
+        ui_schema: ui_with_layout,
+        read_only: True,
+        values: values,
+      ),
+    )
+    |> element.to_string
+  let without_layout =
+    view.view(
+      model.FormModel(
+        ..m,
+        ui_schema: ui_without_layout,
+        read_only: True,
+        values: values,
+      ),
+    )
+    |> element.to_string
+  with_layout |> string.contains("part=\"row\"") |> should.be_false
+  with_layout |> string.contains("part=\"group\"") |> should.be_false
+  with_layout |> should.equal(without_layout)
+}
+
+/// A leaf naming a field that exists but is suppressed (`ui:widget:
+/// "hidden"`) still counts as a child — `field_dispatcher` renders an
+/// empty-but-present element for it rather than dropping it — so a Group
+/// wrapping only such leaves still renders its wrapper and a visible label
+/// over an empty body. Documented at `docs/reference/ui-schema.md`.
+pub fn group_of_only_hidden_leaf_still_renders_test() {
+  let html =
+    render_with(
+      "{\"ui:layout\":[{\"type\":\"Group\",\"label\":\"Скрыто\",\"elements\":[\"day\"]}],\"day\":{\"ui:widget\":\"hidden\"}}",
+    )
+  html |> string.contains("part=\"group\"") |> should.be_true
+  html |> string.contains("part=\"group-label\"") |> should.be_true
+  html |> string.contains("Скрыто") |> should.be_true
+  html |> string.contains("part=\"group-body\"") |> should.be_true
+  html |> string.contains("data-name=\"day\"") |> should.be_false
+}
+
 fn nested_object_schema() -> types.JsonSchema {
   types.JsonSchema(..date_schema(), properties: [
     #(

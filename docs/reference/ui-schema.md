@@ -286,9 +286,12 @@ A few rules govern how a layout resolves:
   HTML. Treat it as author error to avoid, not a constraint the parser
   validates today.
 - **Review mode (`read-only="true"`) ignores `ui:layout`.** The review
-  summary always renders in plain `ui:order` order, with or without a
-  layout. Laying out the review summary isn't supported today — a known
-  limitation, not a bug.
+  summary renders in plain `ui:order` order, with or without a layout —
+  except inside array rows, where `ui:order` is dropped too (the
+  `render_groups` helper in `readonly_field.gleam` resolves each row's
+  fields with no order argument), so array-row children always render in
+  schema order regardless of `ui:order`. Laying out the review summary
+  isn't supported today — a known limitation, not a bug.
 
 `Row`'s default grid is `repeat(auto-fit, minmax(min(100%,12rem), 1fr))`,
 which collapses to fewer columns on narrow viewports with no media query
