@@ -140,6 +140,7 @@ pub fn render_container(
           item,
           index,
           collapse,
+          collapse_available,
           collapse_active,
           item_completed,
           model,
@@ -198,8 +199,8 @@ fn render_collapse_header(
 ///
 /// A completed row (per `is_completed`, gated on `collapse_active`) always
 /// renders its summary control, in both the collapsed and expanded state —
-/// only `array-item-fields` toggles, so the move/remove header and the way
-/// back to the fields stay reachable either way.
+/// only the row body folds, so the move/remove header and the way back to
+/// the fields stay reachable either way.
 fn render_array_item(
   ctx: FieldRenderCtx,
   removable: Bool,
@@ -208,6 +209,7 @@ fn render_array_item(
   item: Value,
   index: Int,
   collapse: array_collapse.CollapseOptions,
+  collapse_available: Bool,
   collapse_active: Bool,
   row_completed: Bool,
   model: FormModel,
@@ -235,25 +237,17 @@ fn render_array_item(
         ]
         False -> []
       }
-      let body = case is_collapsed {
-        True -> []
-        False -> [
-          html.div(
-            [
-              class("array-item-fields"),
-              attribute.attribute("part", "array-item-fields"),
-            ],
-            render_item_fields(
-              ctx,
-              item_schema,
-              item,
-              index,
-              model,
-              render_child,
-            ),
-          ),
-        ]
-      }
+      let body =
+        render_item_body(
+          ctx,
+          item_schema,
+          item,
+          index,
+          collapse_available,
+          is_collapsed,
+          model,
+          render_child,
+        )
       // Presence-only, lowercase — matches the `data-error`/`data-readonly`
       // convention (`field_dispatcher.wrap_with_errors`) and `data-exiting`
       // (`swipe_review_field`): a bare `bool.to_string` would emit
@@ -271,12 +265,90 @@ fn render_array_item(
         list.flatten([
           summary,
           [render_array_item_header(ctx, removable, orderable, count, index)],
-          body,
+          [body],
         ]),
       )
     }
     None -> element.none()
   }
+}
+
+/// The row's fields, plus — for a collapse-enabled array only — the wrapper
+/// that folds them.
+///
+/// The wrapper is rendered for *every* row of such an array, collapsed or
+/// not: an element that only appears once the row is already collapsed has
+/// nothing to animate from. Because it persists, the single value that
+/// changes between renders (`grid-template-rows`) transitions, in both
+/// directions and for the automatic fold a row does the moment it becomes
+/// completed.
+///
+/// Styles are inline for the same reason `swipe_review_field` puts its
+/// fly-off transition inline: the library ships no stylesheet, and without
+/// them a collapsed row would simply show its fields. Appearance stays with
+/// the caller — this is only the folding mechanism. Duration is overridable
+/// via `--formosh-collapse-duration`, everything else via `!important`
+/// (author `!important` outranks inline styles), which is also how the
+/// standard `prefers-reduced-motion` reset switches the fold off.
+///
+/// An array with no collapsing configured renders exactly as it did before
+/// the feature existed: the bare fields container, no wrapper, no styles.
+fn render_item_body(
+  ctx: FieldRenderCtx,
+  item_schema: SchemaProperty,
+  item: Value,
+  index: Int,
+  collapse_available: Bool,
+  is_collapsed: Bool,
+  model: FormModel,
+  render_child: fn(FieldRenderCtx, FormModel) -> Element(FormMsg),
+) -> Element(FormMsg) {
+  let fields_attrs = [
+    class("array-item-fields"),
+    attribute.attribute("part", "array-item-fields"),
+  ]
+  let children =
+    render_item_fields(ctx, item_schema, item, index, model, render_child)
+
+  use <- bool.guard(!collapse_available, html.div(fields_attrs, children))
+
+  html.div(
+    list.flatten([
+      [
+        class("array-item-body"),
+        attribute.attribute("part", "array-item-body"),
+        attribute.styles([
+          #("display", "grid"),
+          #("grid-template-rows", case is_collapsed {
+            True -> "0fr"
+            False -> "1fr"
+          }),
+          #("overflow", "hidden"),
+          #(
+            "transition",
+            "grid-template-rows var(--formosh-collapse-duration, 180ms) ease",
+          ),
+        ]),
+      ],
+      // Keeps the folded fields out of the tab order and off assistive
+      // tech — they stay in the DOM so the fold has something to animate,
+      // but a collapsed row must not be reachable as if it were open.
+      case is_collapsed {
+        True -> [attribute.attribute("inert", "true")]
+        False -> []
+      },
+    ]),
+    [
+      html.div(
+        // A grid item's automatic minimum size would hold the `0fr` track
+        // open at its content height. Zeroing it here rather than clipping
+        // (`overflow: hidden`, which the wrapper does) leaves the part the
+        // caller actually styles free of a visual side effect.
+        list.append(fields_attrs, [attribute.styles([#("min-height", "0")])]),
+        children,
+      ),
+    ],
+  )
 }
 
 /// The summary line — a real button, so it is focusable and keyboard-operable.

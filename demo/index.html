@@ -511,6 +511,98 @@
         .move-array-item-up:disabled,
         .move-array-item-down:disabled { opacity: 0.35; cursor: not-allowed; }
 
+        /* collapse-completed arrays — the toggle/progress/summary elements
+           carry parts but no class, so they're matched by [part=…] here.
+           The fold itself is animated by the library (inline styles on
+           .array-item-body); everything below is appearance only. */
+        .array-collapse-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed var(--line-strong);
+        }
+        [part="array-toggle"] {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            cursor: pointer;
+        }
+        [part="array-toggle"] input { accent-color: var(--magenta); cursor: pointer; }
+        [part="array-progress"] {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 999px;
+            background: var(--faff);
+            color: var(--ink);
+        }
+
+        /* a collapsible row puts its summary and its controls on one line,
+           and keeps the folding body on a full-width line of its own */
+        .array-item:has(> .array-item-body) {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+        .array-item:has(> .array-item-body) > .array-item-header {
+            flex: 0 0 auto;
+            margin-bottom: 0;
+        }
+        .array-item-body { flex: 1 1 100%; }
+
+        .array-item-summary {
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-body);
+            font-size: 0.92rem;
+            font-weight: 600;
+            text-align: left;
+            white-space: nowrap;
+            padding: 7px 10px;
+            background: transparent;
+            color: var(--ink);
+            border: 1.5px solid transparent;
+            border-radius: 9px;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .array-item-summary::before {
+            content: "▸";
+            flex: 0 0 auto;
+            color: var(--magenta);
+            font-size: 0.8rem;
+            transition: transform 0.18s ease;
+        }
+        .array-item-summary[aria-expanded="true"]::before { transform: rotate(90deg); }
+        .array-item-summary:hover {
+            background: rgba(255, 175, 243, 0.18);
+            border-color: var(--faff-deep);
+        }
+        .array-item-summary:focus-visible { outline: 2px solid var(--magenta); outline-offset: 2px; }
+        [part="array-item-summary-value"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        [part="array-item-summary-sep"] { color: var(--muted); }
+
+        /* a folded row reads as a compact bar rather than an empty card */
+        .array-item[data-collapsed] {
+            padding-block: 8px;
+            background: var(--surface);
+            border-style: dashed;
+        }
+
         /* readonly / review mode */
         formosh-form::part(readonly-field) {
             display: flex;

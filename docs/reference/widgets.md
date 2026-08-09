@@ -220,7 +220,12 @@ A row collapses only when all three hold:
 While collapsing is switched on, a completed row always renders its
 summary as a real `<button>`, in **both** the collapsed and expanded
 state — clicking it toggles between them (`aria-expanded` reflects which),
-and only the row's field container actually hides. Switching collapsing
+and only the row's field container actually folds. It folds rather than
+disappears: the fields stay in the DOM at zero height so the transition has
+something to animate, marked `inert` so a collapsed row is not reachable by
+keyboard or assistive tech. See
+[`array-item-body`](../guides/styling.md#array-item-body--the-fold) for the
+animation and how to retime or disable it. Switching collapsing
 off removes every summary button outright, regardless of completion — but
 the header's progress count keeps counting completed rows either way,
 since it depends only on `collapseCompleted`/read-only, not on the toggle.
