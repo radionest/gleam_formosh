@@ -511,10 +511,11 @@
         .move-array-item-up:disabled,
         .move-array-item-down:disabled { opacity: 0.35; cursor: not-allowed; }
 
-        /* collapse-completed arrays — the toggle/progress/summary elements
-           carry parts but no class, so they're matched by [part=…] here.
-           The fold itself is animated by the library (inline styles on
-           .array-item-body); everything below is appearance only. */
+        /* collapse-completed arrays — the toggle, the progress counter and
+           the summary's own spans carry parts but no class, so they're
+           matched by [part=…] here. The fold itself is animated by the
+           library (inline styles on .array-item-body); everything below is
+           appearance only. */
         .array-collapse-header {
             display: flex;
             align-items: center;

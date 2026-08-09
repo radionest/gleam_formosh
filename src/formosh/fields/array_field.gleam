@@ -352,7 +352,7 @@ fn render_item_body(
 }
 
 /// The summary line — a real button, so it is focusable and keyboard-operable.
-/// Rendered for a completed row in BOTH states: collapsing hides only the
+/// Rendered for a completed row in BOTH states: collapsing folds only the
 /// fields, so the control that reopens the row never disappears.
 ///
 /// `expanded` is computed once by the caller (`render_array_item`, which

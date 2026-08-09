@@ -85,6 +85,17 @@ fn render_form_body(model: FormModel) -> Element(FormMsg) {
     [
       attribute.class("formosh-form"),
       attribute.attribute("part", "form"),
+      // Formosh owns validation: the Submit button is already disabled
+      // unless `can_submit`, so native constraint validation can never
+      // approve a submit formosh blocked — it can only block one formosh
+      // approved, whenever the two disagree (an unanchored JSON Schema
+      // `pattern` compiled anchored into the HTML attribute, `multipleOf`
+      // vs `step` rounding). That disagreement is silent and unfixable by
+      // the user when the offending field sits inside a collapsed array
+      // row: `inert` keeps it out of reach but does NOT bar it from
+      // constraint validation, so the browser refuses the submit and has
+      // nothing it can focus to explain why.
+      attribute.attribute("novalidate", "true"),
       event.on_submit(fn(_) { model.FormSubmit }),
     ],
     body,

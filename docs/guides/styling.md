@@ -125,65 +125,6 @@ lean on (see below), so every value in a row's summary — whichever field
 produced it — styles identically; there's no way to single out, say, just
 the first one through `::part()` alone.
 
-### `array-item-body` — the fold
-
-`array-item-body` wraps `array-item-fields` and is what actually folds. It
-is the one part the library styles itself, inline, because the fold has to
-work with no stylesheet at all:
-
-```css
-display: grid;
-grid-template-rows: 1fr;   /* 0fr while the row is collapsed */
-overflow: hidden;
-transition: grid-template-rows var(--formosh-collapse-duration, 180ms) ease;
-```
-
-Three consequences:
-
-- **It renders for every row of a collapse-enabled array**, collapsed or
-  not — a wrapper that only appeared once the row was shut would have
-  nothing to animate from. Arrays without `collapseCompleted` don't get one
-  at all, and render exactly as they did before the feature existed.
-- **A collapsed row keeps its fields in the DOM**, folded to zero height and
-  marked `inert`, so they stay out of the tab order and off assistive tech.
-- **Inline styles outrank adopted stylesheets.** Set the duration through
-  `--formosh-collapse-duration` on the host; override anything else with
-  `!important`, which is also how the usual reduced-motion reset switches
-  the fold off:
-
-```css
-formosh-form { --formosh-collapse-duration: 300ms; }
-
-@media (prefers-reduced-motion: reduce) {
-  * { transition-duration: 0.001ms !important; }
-}
-```
-
-Appearance of the collapse controls is yours. A starting point matching the
-demo (`demo/index.html`) — note the `[part=…]` form, since `array-toggle`,
-`array-progress` and the summary spans carry a part but no class:
-
-```css
-.array-collapse-header {
-  display: flex; align-items: center; justify-content: space-between;
-}
-[part="array-toggle"] { display: inline-flex; align-items: center; gap: 8px; }
-[part="array-progress"] { padding: 3px 9px; border-radius: 999px; }
-
-/* summary and row controls on one line, the folding body below them */
-.array-item:has(> .array-item-body) { display: flex; flex-wrap: wrap; gap: 8px; }
-.array-item-body { flex: 1 1 100%; }
-
-.array-item-summary {
-  flex: 1 1 auto; min-width: 0; overflow: hidden;
-  display: flex; align-items: center; gap: 6px;
-  text-align: left; white-space: nowrap; cursor: pointer;
-  background: transparent; border: 1.5px solid transparent;
-}
-.array-item-summary::before { content: "▸"; transition: transform 0.18s ease; }
-.array-item-summary[aria-expanded="true"]::before { transform: rotate(90deg); }
-```
-
 **Union (`anyOf`, 2+ branches):**
 `union` (outer wrapper), `union-radio` (radio-group chooser, ≤5 branches by
 default), `union-select` (select chooser, >5 branches by default or
@@ -212,6 +153,68 @@ yet reachable through `ui:widget` — see `ROADMAP.md`.)
 `swipe-review-title`, `swipe-review-list`, `swipe-review-row`,
 `swipe-review-zone`, `swipe-review-answer`.
 
+### `array-item-body` — the fold
+
+`array-item-body` wraps `array-item-fields` and is what actually folds.
+These are the library's only inline styles outside the swipe widget — the
+fold has to work with no stylesheet at all, so it cannot be left to CSS:
+
+```css
+display: grid;
+grid-template-rows: 1fr;   /* 0fr while the row is collapsed */
+overflow: hidden;
+transition: grid-template-rows var(--formosh-collapse-duration, 180ms) ease;
+```
+
+Three consequences:
+
+- **It renders for every row of a collapse-enabled array**, collapsed or
+  not — a wrapper that only appeared once the row was shut would have
+  nothing to animate from. Arrays without `collapseCompleted` don't get one
+  at all, and render exactly as they did before the feature existed.
+- **A collapsed row keeps its fields in the DOM**, folded to zero height and
+  marked `inert`, so they stay out of the tab order and off assistive tech.
+  (`array-item-fields` itself picks up an inline `min-height: 0` inside such
+  an array — a grid item's automatic minimum size would otherwise hold the
+  `0fr` track open at its content height.)
+- **Inline styles outrank adopted stylesheets.** Set the duration through
+  `--formosh-collapse-duration` on the host; override anything else with
+  `!important`, which is also how the usual reduced-motion reset switches
+  the fold off:
+
+```css
+formosh-form { --formosh-collapse-duration: 300ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.001ms !important; }
+}
+```
+
+Appearance of the collapse controls is yours. A starting point matching the
+demo (`demo/index.html`) — note the `[part=…]` form for `array-toggle`,
+`array-progress` and the summary spans, which carry a part but no class:
+
+```css
+.array-collapse-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+[part="array-toggle"] { display: inline-flex; align-items: center; gap: 8px; }
+[part="array-progress"] { padding: 3px 9px; border-radius: 999px; }
+
+/* summary and row controls on one line, the folding body below them */
+.array-item:has(> .array-item-body) { display: flex; flex-wrap: wrap; gap: 8px; }
+.array-item-body { flex: 1 1 100%; }
+
+.array-item-summary {
+  flex: 1 1 auto; min-width: 0; overflow: hidden;
+  display: flex; align-items: center; gap: 6px;
+  text-align: left; white-space: nowrap; cursor: pointer;
+  background: transparent; border: 1.5px solid transparent;
+}
+.array-item-summary::before { content: "▸"; transition: transform 0.18s ease; }
+.array-item-summary[aria-expanded="true"]::before { transform: rotate(90deg); }
+```
+
 ## Cascade and limitations
 
 ### Cascade order
@@ -223,6 +226,13 @@ a host `::part(input)` rule beats any adopted `.formosh-input` rule. For
 `!important` declarations the order inverts: an adopted `!important` rule
 beats a host `::part()` one. Specificity only breaks ties between rules in
 the *same* context (two adopted rules, or two host rules).
+
+Above both sits a third tier: the handful of **inline** styles the library
+writes itself — the array fold ([`array-item-body`](#array-item-body--the-fold))
+and the swipe widget's drag/fly-off transforms. Inline beats every normal
+declaration from either context, so overriding one takes `!important`
+(which outranks inline in turn) or, for the fold's duration, the
+`--formosh-collapse-duration` custom property it reads.
 
 ### No descendant combinator inside `::part()`
 
