@@ -6,7 +6,7 @@ No version pinning — what matters is priority and dependency order, not
 release numbers. Sizes are rough estimates for solo development:
 S < 1 week, M ≈ 1–2 weeks, L ≈ 2–4 weeks, XL > 1 month.
 
-Checkboxes reflect the state as of July 2026 (v0.8.4).
+Checkboxes reflect the state as of August 2026 (v0.8.7).
 
 ---
 
@@ -156,39 +156,155 @@ Implemented" section shrinks by ~60%.
 
 **Scope:** M. **Breaking:** no. **Depends on:** UI Schema.
 
-- [ ] Layout nodes in UI Schema (as in JSONForms):
-  `{ "type": "VerticalLayout" | "HorizontalLayout" | "Group" | "Categorization", "elements": [...], "label"?: ... }`;
-  leaves are `{ "type": "Control", "scope": "#/properties/foo" }`
-- [ ] No `ui_schema` → fall back to the current linear render (back-compat)
-- [ ] `Group` — `<fieldset>` with a legend
-- [ ] `HorizontalLayout` — CSS grid, equal columns
-- [ ] `Categorization` — tabs (no wizard yet)
+A JSONForms-style layout tree (`Control` nodes addressed by
+`scope: "#/properties/foo"`) was the original plan; it was evaluated against
+the real schemas and rejected. Two reasons. First, it requires every field to
+be listed, and formosh's target schemas are dominated by `if/then` branches,
+so a conditionally-appearing field that nobody listed would vanish
+intermittently. (RJSF's Layout Grid adopts the same addressing model and
+documents the consequence outright — "the automatic hierarchical iteration is
+disabled" — which is what the behaviour looks like once shipped.) Second,
+JSONForms carries presentation hints on
+the `Control` node, which would break the path→hints isomorphism that
+`ui_resolver.lookup` and all nine `resolve_hints` call sites depend on, and
+would stop one ui-schema file serving several forms via superset semantics.
 
-**Files:** `src/formosh/schema/ui_schema.gleam` (layout union type),
-`src/formosh/fields/layout.gleam` (new), `src/formosh/form/view.gleam`
-(branch point: root layout present → render it, otherwise the old flow).
+**Design that replaced it — the anchored layout tree.** A `ui:layout` key
+holds an ordered array of nodes. The tree is anchored at the container it sits
+on, and every leaf is a path relative to that anchor; a bare child name is the
+one-segment case. Hints stay on the existing path-keyed `UiProperty` tree and
+are never carried by a layout node.
 
-**Acceptance:** demo with a 2-column layout, a nested `Group`, and tabs over
-3 sections; everything works as before without a `ui_schema`.
+- [ ] `ui:layout` array of nodes: `Row`, `Group`, and bare-string leaves
+- [ ] Anchored at root, at a nested object, and at an array `items` template
+- [ ] Leaves are single-segment; a `.` is rejected at parse time and reserved
+      for the cross-container follow-on below. Caveat: `path_format.gleam`
+      does no escaping, so a property literally named `a.b` is already
+      ambiguous in `model.errors` keys and can never be addressed by a leaf
+- [ ] Naming the same field twice is valid single-segment grammar
+      (`["a", "a"]`, or `a` in two Groups) and renders it twice, emitting
+      duplicate `attribute.id` values (`field_common.gleam:199`) and duplicate
+      radio `id`/`for` pairs. Detection ships with the coverage map in
+      follow-on 3; until then, document it as author error
+- [ ] Absent leaf skipped silently; a node whose children all resolve to
+      nothing renders nothing
+- [ ] Fields the layout does not place render after it, ordered by `ui:order`
+      — nothing can disappear
+- [ ] No `ui:layout` → the current linear render, byte-identical (back-compat)
+- [ ] Per-field `data-name` / `data-path` on the `part="field"` wrapper, so a
+      stylesheet can target one field (prerequisite for any CSS-driven layout)
+
+**Not in this stage:** `Categorization` / tabs, review-mode layout, and
+cross-container addressing — all tracked as follow-ons below.
+
+**Files:** `src/formosh/schema/ui_schema.gleam` (`LayoutNode` + a `layout`
+field on `UiSchema` and `UiProperty`), `src/formosh/schema/ui_parser.gleam`,
+`src/formosh/fields/layout.gleam` (new, `arrange/3`), and the three render
+seams: `form/view.gleam`, `fields/object_field.gleam`,
+`fields/array_field.gleam`. `schema/ui_resolver.gleam` and
+`form/visibility.gleam` are deliberately untouched.
+
+**Acceptance:** `{year, month, day}` renders on one row inside an array row;
+a conditional field named in a `Group` renders next to its trigger instead of
+at the end of the container; a form with no `ui:layout` is unchanged.
+
+---
+
+## Layout follow-ons
+
+Ordered by priority. Each is independently shippable — in particular
+`Steps`/`Tabs` does **not** depend on cross-container leaves: an audit of the
+9 demo schemas with non-trivial structure, plus the 8 ui-schemas of two
+consumer projects (out of this repo — `clarinet_nir_liver`,
+`clarinet_carcinomatosis`), found that root children already form the natural
+steps, and that not one ui-schema addresses across a container boundary.
+
+**1. Server-side error location.** **Scope:** M. A failed submit collapses to
+a single string: `handle_http_response` turns any non-2xx into
+`Error("Server error: " <> resp.body)` (`update.gleam:1047`; transport errors
+take the same route at `:1049-1060`), which becomes `SubmissionError` at
+`update.gleam:319` and renders as one blob at the bottom of the form. No field
+is marked.
+
+A path-keyed injection point does exist: `formosh.with_validator`
+(`formosh.gleam:254`) takes `fn(FormModel) -> List(ValidationError)` where each
+error carries a `FieldPath`, and those merge through `model.add_error_at_path`
+(`update.gleam:848-852`) and gate `can_submit`. So this stage should **extend
+`cross_validator`, not build a second mechanism**. What is genuinely missing is
+(a) an async/externally-fed source — `with_validator` is synchronous and re-runs
+on every value change — and (b) any route from the `<formosh-form>` boundary,
+which has no attribute or method for it. Ranked first because Steps/Tabs can
+hide an invalid field behind a closed door.
+
+- [ ] Emit the raw failure body as an event; accept a path-keyed error dict
+      back (attribute + public function). formosh should not guess between
+      FastAPI / DRF / problem+json shapes — the host maps, formosh accepts
+- [ ] `model.errors` is already keyed by canonical dot-strings, so a correctly
+      keyed dict drops straight in
+- [ ] Reuse the `cross_validator` merge path, including its existing
+      unknown-path drop and schema-errors-take-precedence rules
+- [ ] **Touched-gate hazard:** `field_dispatcher.render_visible` hides errors
+      on untouched fields, with `error.is_array_length` as the only sanctioned
+      bypass. `with_validator` is additionally skipped entirely while
+      `touched_fields` is empty. Injected errors need an auto-touch of their
+      paths or their own bypass predicate, or they will be invisible
+
+**2. `Steps` / `Tabs`.** **Scope:** M. **Depends on:** Layouts.
+**Supersedes the "Wizard / multi-step" stage below** — that stage predates the
+layout design and describes the same feature in `Categorization` terms. Fold
+its open items (`linear` / `allow_back` options, Prev/Next navigation, Submit
+only on the last step) into this one; do not implement both.
+
+- [ ] `Steps` / `Tabs` nodes; active index per container as
+      `List(#(FieldPath, Int))` — same shape as `selected_branches`, with the
+      same reindex-on-array-mutation discipline
+- [ ] Error badges per step via the existing `model.has_errors_under_path`
+- [ ] Auto-open the first failing step on a blocked submit
+- [ ] Parts: `tablist`, `tab`, `tab-panel`, `step`, `progress`,
+      `progress-step`
+
+**3. Cross-container layout leaves.** **Scope:** M. **Depends on:** Layouts.
+Relaxes the reserved dot, enabling rows that mix children of two objects,
+dissolving a nesting level, and steps that cut across the data model. Files
+written against the single-segment grammar need no migration.
+
+- [ ] Multi-segment leaves resolved via a `ctx_at_path` chain walk that reuses
+      `make_child_ctx` at each hop (never re-deriving the inheritance rules)
+- [ ] Rendered-path coverage map; duplicate leaf emits a `console.warn`
+- [ ] `leftovers: "hidden" | "strict"` policies; `"hidden"` joins
+      `visibility.invisible_paths` so `can_submit` still blocks and
+      `hidden_errors` still reports
+- [ ] A leaf may never cross an array boundary — enforced at parse time
+- [ ] The coverage map, inverted, is also the "which step holds this error"
+      index for follow-on 1
+
+**4. Layout in review mode.** **Scope:** S. `readonly_field.gleam:126` still
+calls `apply_order`, so `ui:layout` is ignored under `read-only="true"`.
+Groups and rows in a review sheet read well; tabs should collapse to
+sequential sections.
 
 ---
 
 ## Wizard / multi-step
 
+> **Superseded by "Layout follow-on 2 (`Steps` / `Tabs`)" above.** This stage
+> was written against the JSONForms `Categorization` node, which the layout
+> redesign removed; there is no longer any such node to specialize. Kept for
+> its open questions, which follow-on 2 must answer. Do not implement both.
+
 **Goal.** Long forms (surveys, checkout) — step-by-step UI with per-step
 validation.
 
-**Scope:** M. **Breaking:** no. **Depends on:** Layouts (`Categorization`
-already provides half of it).
+**Scope:** M. **Breaking:** no. **Depends on:** Layouts.
 
-- [ ] `Wizard` layout — a special case of `Categorization` with Prev/Next
-  navigation and Submit on the last step
+- [ ] Prev/Next navigation with Submit only on the last step
 - [ ] Step validation: the user cannot leave step N while its visible fields
   have errors
 - [ ] Progress bar as dedicated parts (`progress`, `progress-step`)
 - [ ] UI Schema options: `linear: bool` (can the user jump ahead),
   `allow_back: bool`
-- [ ] Model state: `current_step: Int`, `visited_steps: Set(Int)`
+- [ ] Model state: per-container active index (see follow-on 2) plus
+  `visited_steps`
 
 **Files:** `src/formosh/fields/wizard.gleam` (new), wizard state in
 `form/model.gleam`, `NextStep` / `PrevStep` / `GoToStep(Int)` in
@@ -369,7 +485,11 @@ API break.
 After that, two independent tracks that can run in parallel:
 
 - **"Standards" track:** JSON Schema gap-closing → i18n.
-- **"UX" track:** Layouts → Wizard → Expressions.
+- **"UX" track:** Layouts → server-side error location → `Steps`/`Tabs` →
+  Expressions. Error location comes before `Steps`/`Tabs` because a step can
+  hide an invalid field behind a closed door, and a failed submit currently
+  says nothing about which field failed. Cross-container leaves and
+  review-mode layout are independent of both and can land whenever convenient.
 
 Async validation and file upload are self-contained — slot them in whenever
 convenient.
