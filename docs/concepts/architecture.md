@@ -91,7 +91,8 @@ architectural fact about the schema layer — see
 
 ### Widgets — `src/formosh/fields/`
 
-One module per widget family, all funnneled through one dispatcher:
+One module per widget family, plus the shared helpers they lean on, all
+funnelled through one dispatcher:
 
 | Module | Renders |
 |--------|---------|

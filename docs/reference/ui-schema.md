@@ -251,9 +251,10 @@ A few rules govern how a layout resolves:
 - **Both rejections above are `Error(ParseError)` through the Gleam API**
   (`formosh.parse_ui_schema` / `with_ui_schema_json`, see
   [Attaching a UiSchema](#attaching-a-uischema)). Through `<formosh-form>`,
-  a `ui-schema` attribute that fails to parse only logs a console error —
-  the component never applies it, so **every** `ui:*` hint in the document
-  is silently dropped, not just the offending leaf or node. Tracked as
+  a `ui-schema` attribute that fails to parse is reported only as a console
+  error — the component never applies it, so **every** `ui:*` hint in the
+  document is dropped, not just the offending leaf or node, and the form
+  gives no visible sign of it. Tracked as
   [#120](https://github.com/radionest/gleam_formosh/issues/120).
 - **A leaf naming a field that isn't currently present is skipped
   silently**, not treated as an error — so one UiSchema file can serve
@@ -279,7 +280,8 @@ A few rules govern how a layout resolves:
   validates today.
 - **Review mode (`read-only="true"`) ignores `ui:layout`.** The review
   summary always renders in plain `ui:order` order, with or without a
-  layout — not supported today, not a bug.
+  layout. Laying out the review summary isn't supported today — a known
+  limitation, not a bug.
 
 `Row`'s default grid is `repeat(auto-fit, minmax(min(100%,12rem), 1fr))`,
 which collapses to fewer columns on narrow viewports with no media query
