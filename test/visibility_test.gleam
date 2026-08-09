@@ -197,6 +197,7 @@ pub fn ui_schema_hidden_widget_test() {
         ),
       ],
       order: None,
+      layout: None,
     )
   let result =
     visibility.invisible_paths(schema, ui, types.ObjectValue([]), False)
@@ -231,6 +232,7 @@ fn ui_widget_hidden(name: String) -> ui_schema.UiSchema {
       ),
     ],
     order: None,
+    layout: None,
   )
 }
 
@@ -246,6 +248,7 @@ fn ui_readonly(name: String) -> ui_schema.UiSchema {
       ),
     ],
     order: None,
+    layout: None,
   )
 }
 

@@ -11,6 +11,17 @@ import formosh/schema/types.{type UploadConfig, type Value, type Widget}
 import gleam/dict.{type Dict}
 import gleam/option.{type Option, None}
 
+/// A node in a container's `ui:layout` tree.
+///
+/// `LeafNode` names a direct child of the container the layout is anchored
+/// to. Multi-segment (dotted) names are rejected by the parser and reserved
+/// for future path addressing. `RowNode` and `GroupNode` nest freely.
+pub type LayoutNode {
+  LeafNode(name: String)
+  RowNode(elements: List(LayoutNode))
+  GroupNode(label: Option(String), elements: List(LayoutNode))
+}
+
 /// UI hints for a single field, parallel to `SchemaProperty`.
 ///
 /// All fields are optional overrides. A `None` value means "fall through to
@@ -52,6 +63,9 @@ pub type UiProperty {
     properties: List(#(String, UiProperty)),
     /// UI hints template for array elements — applies to every row.
     items: Option(UiProperty),
+    /// Arrangement of this container's children (`ui:layout`). `None` keeps
+    /// the current flat, `ui:order`-driven rendering.
+    layout: Option(List(LayoutNode)),
   )
 }
 
@@ -60,7 +74,11 @@ pub type UiProperty {
 /// Holds the top-level `ui:order` (applied to root-level fields) and child
 /// `UiProperty` nodes keyed by top-level field name.
 pub type UiSchema {
-  UiSchema(properties: List(#(String, UiProperty)), order: Option(List(String)))
+  UiSchema(
+    properties: List(#(String, UiProperty)),
+    order: Option(List(String)),
+    layout: Option(List(LayoutNode)),
+  )
 }
 
 /// Empty `UiProperty` with no overrides — used as fallback when lookup
@@ -83,6 +101,7 @@ pub fn empty_ui_property() -> UiProperty {
     upload: None,
     properties: [],
     items: None,
+    layout: None,
   )
 }
 
@@ -90,5 +109,5 @@ pub fn empty_ui_property() -> UiProperty {
 /// config option is supplied. All lookups return `empty_ui_property()`, so
 /// every field falls back to its schema-level defaults.
 pub fn empty_ui_schema() -> UiSchema {
-  UiSchema(properties: [], order: None)
+  UiSchema(properties: [], order: None, layout: None)
 }
