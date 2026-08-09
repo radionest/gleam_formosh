@@ -117,30 +117,34 @@ unreachable from a parsed schema. See `ROADMAP.md`.
 > full timestamp for a `format: "date"` field, normalise it before passing
 > it as `initial-values`.
 >
-> **On a required field this silently blocks submission.**
+> **On a required field the value is silently dropped.**
 > `input_attributes` (`field_common.gleam`) sets `required` on every input
-> regardless of format, and the `<form>` carries no `novalidate`
-> (`form/view.gleam`). An empty `<input type="date" required>` — which is
-> what you get here — fails the browser's own constraint validation and
-> refuses to submit, while formosh's validator still sees the original
-> non-conforming string in `model.values`, considers the field satisfied,
-> and leaves **Submit enabled**. What you'll observe: Submit appears
-> enabled, but clicking it does nothing and formosh renders no error. Same
-> class of problem as the hidden-required-field case documented in
-> `CLAUDE.md` (search `hidden_blocks_warn`) — an otherwise-invisible cause
-> blocking submit — though there is currently no equivalent warning for
-> this one. Remedy: normalise to `YYYY-MM-DD` (`time`: `HH:mm[:ss[.SSS]]`)
-> before passing the value as `initial-values`.
+> regardless of format, so an empty `<input type="date" required>` — which
+> is what you get here — is what the user sees, while formosh's validator
+> still reads the original non-conforming string from `model.values`,
+> considers the field satisfied, and leaves **Submit enabled**. Submitting
+> sends the unnormalised value the user never saw and had no way to
+> correct. Remedy: normalise to `YYYY-MM-DD` (`time`:
+> `HH:mm[:ss[.SSS]]`) before passing the value as `initial-values`.
+>
+> The browser does not intervene: the `<form>` carries `novalidate`
+> (`form/view.gleam`), so formosh's verdict is the only one that gates
+> submission. Before that attribute existed, this case also tripped native
+> constraint validation and the submit was refused with nothing on screen
+> to explain it.
 
 **String-constraint attributes still apply, even though HTML ignores them
 on `date`/`time`.** `get_string_constraints_attributes`
 (`string_field.gleam`) emits `minlength` / `maxlength` / `pattern`
 unconditionally — but the `date` and `time` input types ignore all three
-per the HTML spec. A `pattern`-constrained `format: "date"` field
-therefore loses the browser-side pre-submit blocking it had as
-`type="text"`. Formosh's own validator still enforces `pattern` (see
-[Schema Keywords](schema-keywords.md#string-constraints)), so nothing
-goes unvalidated — only the earlier, native feedback does.
+per the HTML spec. Nothing is blocked by this: the form sets `novalidate`,
+so no input type gates submission natively. What a `pattern`-constrained
+`format: "date"` field loses against `type="text"` is the browser's own
+inline signal — it never matches `:invalid` on that constraint, and
+`checkValidity()` reports it satisfied. Formosh's validator still enforces
+all three (see
+[Schema Keywords](schema-keywords.md#string-constraints)), so nothing goes
+unvalidated — only the native echo of it.
 
 #### Known limitation when editing a typed date
 
@@ -220,7 +224,12 @@ A row collapses only when all three hold:
 While collapsing is switched on, a completed row always renders its
 summary as a real `<button>`, in **both** the collapsed and expanded
 state — clicking it toggles between them (`aria-expanded` reflects which),
-and only the row's field container actually hides. Switching collapsing
+and only the row's field container actually folds. It folds rather than
+disappears: the fields stay in the DOM at zero height so the transition has
+something to animate, marked `inert` so a collapsed row is not reachable by
+keyboard or assistive tech. See
+[`array-item-body`](../guides/styling.md#array-item-body--the-fold) for the
+animation and how to retime or disable it. Switching collapsing
 off removes every summary button outright, regardless of completion — but
 the header's progress count keeps counting completed rows either way,
 since it depends only on `collapseCompleted`/read-only, not on the toggle.

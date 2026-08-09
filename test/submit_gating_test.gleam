@@ -7,12 +7,15 @@
 import formosh/form/model.{FormModel}
 import formosh/form/path
 import formosh/form/update
+import formosh/form/view
 import formosh/schema/types
 import formosh/schema/ui_schema
 import formosh/validation/error
 import gleam/dict
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
+import lustre/element
 
 fn empty_schema() -> types.JsonSchema {
   types.JsonSchema(
@@ -187,4 +190,24 @@ pub fn visible_required_blocks_via_validator_test() {
   let m = model.init(schema) |> update.validate_all_fields
   model.can_submit(m) |> should.be_false()
   model.is_valid_for_submit(m) |> should.be_false()
+}
+
+// The gates above are the ONLY ones: the rendered `<form>` opts out of
+// native constraint validation. Without `novalidate` the browser gets a
+// second, independent veto that can only ever subtract — the Submit button
+// is already disabled unless `can_submit`, so native validation never
+// approves a submit formosh blocked, and blocks one formosh approved
+// wherever the two disagree (a JSON Schema `pattern` is unanchored but the
+// HTML `pattern` attribute is compiled anchored; `multipleOf` vs `step`
+// rounding). Inside a collapsed array row that veto is also unexplainable:
+// the row's fields stay mounted so the fold can animate, and `inert` keeps
+// them unreachable but does NOT bar them from constraint validation, so the
+// browser refuses to submit with nothing it can focus to say why.
+pub fn form_opts_out_of_native_constraint_validation_test() {
+  let schema = schema_with([#("x", string_prop())], ["x"])
+  model.init(schema)
+  |> view.view
+  |> element.to_string
+  |> string.contains("novalidate")
+  |> should.be_true()
 }

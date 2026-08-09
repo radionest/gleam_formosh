@@ -68,7 +68,9 @@ declaration beats `[part=field][data-error]` regardless of specificity
 
 `data-collapsed` is presence-only: it appears (value `"true"`) only on a
 row that is actually collapsed, and is absent — not `"false"` — on every
-other row, matching `data-error` and `data-readonly` above.
+other row, matching `data-error` and `data-readonly` above. A collapsed row
+keeps its fields in the DOM — see `array-item-body` in the catalog below —
+so style the fold, don't assume the content is gone.
 
 ## 3. Parent stylesheets are auto-adopted
 
@@ -100,11 +102,11 @@ Every styled element exposes a part. Grouped by area:
 
 **Arrays:**
 `array-field` (outer container), `array-items` (the row list), `array-item`
-(one row's wrapper), `array-item-fields` (that row's child fields — this is
-the one part that disappears entirely on a collapsed row), `array-item-header`
-(per-row move/remove controls — rendered regardless of collapse state, but
-nothing at all in read-only mode or when neither control applies, as in the
-demo's own `ui:removable`/`ui:orderable: false` zones), `array-add`.
+(one row's wrapper), `array-item-fields` (that row's child fields),
+`array-item-header` (per-row move/remove controls — rendered regardless of
+collapse state, but nothing at all in read-only mode or when neither control
+applies, as in the demo's own `ui:removable`/`ui:orderable: false` zones),
+`array-add`.
 
 **Collapse-completed arrays** (`ui:options.collapseCompleted`) — adds:
 `array-collapse-header` (wraps the toggle and progress element),
@@ -113,7 +115,8 @@ the part sits on the label, not the `<input>`), `array-progress` (the
 counter), `array-item-summary` (a completed row's own summary button —
 while the per-array toggle is switched on, renders in **both** the
 expanded and collapsed state; switched off, it doesn't render at all, for
-any row), `array-item-summary-value`, `array-item-summary-sep`.
+any row), `array-item-summary-value`, `array-item-summary-sep`, and
+`array-item-body` (see below).
 
 The progress text is bare `"{completed} / {total}"` — no prefix word. Add
 one yourself, e.g. `formosh-form::part(array-progress)::before { content:
@@ -150,6 +153,76 @@ yet reachable through `ui:widget` — see `ROADMAP.md`.)
 `swipe-review-title`, `swipe-review-list`, `swipe-review-row`,
 `swipe-review-zone`, `swipe-review-answer`.
 
+### `array-item-body` — the fold
+
+`array-item-body` wraps `array-item-fields` and is what actually folds.
+These are the library's only inline styles outside the swipe widget — the
+fold has to work with no stylesheet at all, so it cannot be left to CSS:
+
+```css
+display: grid;
+grid-template-rows: 1fr;   /* 0fr while the row is collapsed */
+overflow: hidden;
+transition: grid-template-rows var(--formosh-collapse-duration, 180ms) ease;
+```
+
+Four consequences:
+
+- **It renders for every row of a collapse-enabled array**, collapsed or
+  not — a wrapper that only appeared once the row was shut would have
+  nothing to animate from. Arrays without `collapseCompleted` don't get one
+  at all, and render exactly as they did before the feature existed.
+- **A collapsed row keeps its fields in the DOM**, folded to zero height and
+  marked `inert`, so they stay out of the tab order and off assistive tech.
+  (`array-item-fields` itself picks up an inline `min-height: 0` inside such
+  an array — a grid item's automatic minimum size would otherwise hold the
+  `0fr` track open at its content height.)
+- **`overflow: hidden` applies in both states**, so it clips whatever
+  overflows a row's fields even while the row is open — a focus ring or
+  `box-shadow` drawn outside the input's border box is cut off unless
+  something inside the wrapper reserves room for it. Give
+  `array-item-fields` enough padding to contain the ring rather than trying
+  to switch `overflow` off, which would break the fold. (The demo's own
+  3px focus ring shows this.)
+- **Inline styles outrank adopted stylesheets, but not host `::part()`
+  rules.** A host `::part(array-item-body)` rule overrides them with no
+  `!important`; from an adopted stylesheet you need `!important`, which is
+  how the usual reduced-motion reset switches the fold off. Set the
+  duration through `--formosh-collapse-duration` on the host:
+
+```css
+formosh-form { --formosh-collapse-duration: 300ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.001ms !important; }
+}
+```
+
+Appearance of the collapse controls is yours. A starting point matching the
+demo (`demo/index.html`) — note the `[part=…]` form for `array-toggle`,
+`array-progress` and the summary spans, which carry a part but no class:
+
+```css
+.array-collapse-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+[part="array-toggle"] { display: inline-flex; align-items: center; gap: 8px; }
+[part="array-progress"] { padding: 3px 9px; border-radius: 999px; }
+
+/* summary and row controls on one line, the folding body below them */
+.array-item:has(> .array-item-body) { display: flex; flex-wrap: wrap; gap: 8px; }
+.array-item-body { flex: 1 1 100%; }
+
+.array-item-summary {
+  flex: 1 1 auto; min-width: 0; overflow: hidden;
+  display: flex; align-items: center; gap: 6px;
+  text-align: left; white-space: nowrap; cursor: pointer;
+  background: transparent; border: 1.5px solid transparent;
+}
+.array-item-summary::before { content: "▸"; transition: transform 0.18s ease; }
+.array-item-summary[aria-expanded="true"]::before { transform: rotate(90deg); }
+```
+
 ## Cascade and limitations
 
 ### Cascade order
@@ -161,6 +234,24 @@ a host `::part(input)` rule beats any adopted `.formosh-input` rule. For
 `!important` declarations the order inverts: an adopted `!important` rule
 beats a host `::part()` one. Specificity only breaks ties between rules in
 the *same* context (two adopted rules, or two host rules).
+
+The library also writes a handful of **inline** styles itself — the array
+fold ([`array-item-body`](#array-item-body--the-fold)) and the swipe
+widget's drag/fly-off transforms. These do **not** form a tier above the
+two contexts. Element-attached styles are sorted *below* context in the
+cascade, and they belong to the shadow tree, so the same rule above still
+decides: a host-document `::part()` rule overrides them as a normal
+declaration, no `!important` needed.
+
+```css
+/* wins over the inline transition on array-item-body */
+formosh-form::part(array-item-body) { transition: none; }
+```
+
+An adopted `.array-item-body` rule does not — that is inner context, same
+tree as the inline style, and there element-attached wins. Reach for
+`!important` only from an adopted stylesheet, or set the fold's duration
+through the `--formosh-collapse-duration` custom property it reads.
 
 ### No descendant combinator inside `::part()`
 

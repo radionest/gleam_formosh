@@ -161,12 +161,13 @@ probably one of these:
    type="date">` and `<input type="time">` only accept `YYYY-MM-DD` /
    `HH:mm[:ss[.SSS]]` — a value outside that shape renders as an empty
    input with no console error, so normalise non-conforming timestamps
-   before passing them as `initial-values`. On a **required** field this
-   also silently blocks submission: the empty `<input required>` fails the
-   browser's own constraint validation, while formosh's validator still
-   sees the original string in `model.values` and reports the field
-   satisfied — Submit stays enabled, but clicking it does nothing and
-   formosh renders no error. See [Widget Selection § Data
+   before passing them as `initial-values`. On a **required** field the
+   value is silently dropped: the user sees an empty `<input required>`,
+   while formosh's validator still sees the original string in
+   `model.values` and reports the field satisfied — Submit stays enabled
+   and sends a value that was never shown and could not be corrected. The
+   browser does not intervene, since the form carries `novalidate`. See
+   [Widget Selection § Data
    contract](widgets.md#html-input-type-from-format). A further native-input
    gotcha, even with a conforming value: clearing a single segment of an
    already-typed date can silently stop the field from accepting more

@@ -10,6 +10,7 @@ import formosh/schema/properties
 import formosh/schema/types
 import formosh/schema/ui_parser
 import gleam/dict
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
@@ -52,6 +53,23 @@ fn init(ui: String) -> model.FormModel {
   model.FormModel(..m, values: types.ObjectValue([#("zones", rows())]))
 }
 
+fn occurrences(html: String, needle: String) -> Int {
+  list.length(string.split(html, needle)) - 1
+}
+
+/// A folded row keeps its fields in the DOM: the body wrapper holds them at
+/// a zero-height grid track and marks them `inert`, so the fold has an
+/// element to animate. "This row is collapsed" is therefore a claim about
+/// the wrapper's state, not about the fields being gone — these two count
+/// how many rows are in each state.
+fn folded_rows(html: String) -> Int {
+  occurrences(html, "grid-template-rows:0fr")
+}
+
+fn open_rows(html: String) -> Int {
+  occurrences(html, "grid-template-rows:1fr")
+}
+
 fn render(m: model.FormModel) -> String {
   let assert Some(prop) = properties.get(m.schema.properties, "zones")
   let ctx =
@@ -74,8 +92,13 @@ pub fn completed_row_collapses_incomplete_row_does_not_test() {
   // …row 1 still shows its inputs.
   html |> string.contains("Печень") |> should.be_true
   html |> string.contains("zones.[1].state") |> should.be_true
-  // …and row 0's inputs are gone.
-  html |> string.contains("zones.[0].state") |> should.be_false
+  // …row 0's inputs stay in the DOM — folding animates them away rather
+  // than deleting them — but exactly one row is folded shut and inert,
+  // and exactly one is open.
+  html |> string.contains("zones.[0].state") |> should.be_true
+  html |> folded_rows |> should.equal(1)
+  html |> open_rows |> should.equal(1)
+  html |> occurrences("inert=\"true\"") |> should.equal(1)
   // …row 0 carries the collapsed-state marker, presence-only and lowercase.
   html |> string.contains("data-collapsed=\"true\"") |> should.be_true
   // …and its summary button reports the same state to assistive tech.
@@ -121,6 +144,10 @@ pub fn expanded_completed_row_keeps_its_summary_test() {
   let html = render(m1)
   // Fields are back…
   html |> string.contains("zones.[0].state") |> should.be_true
+  // …with both rows' bodies open and nothing left inert.
+  html |> open_rows |> should.equal(2)
+  html |> folded_rows |> should.equal(0)
+  html |> string.contains("inert") |> should.be_false
   // …and the summary control is still there to close it again.
   html |> string.contains("array-item-summary") |> should.be_true
   // …reporting its expanded state to assistive tech.
@@ -135,6 +162,13 @@ pub fn option_absent_renders_exactly_as_before_test() {
   // `data-collapsed` is presence-only (fix round 1, item 1) — it must never
   // appear at all when collapsing isn't even available.
   plain |> string.contains("data-collapsed") |> should.be_false
+  // Nor may the folding wrapper and its inline styles appear: an array with
+  // nothing to fold renders the bare fields container it always did, with
+  // no `style` attribute of any kind anywhere in the array's own chrome.
+  plain |> string.contains("array-item-body") |> should.be_false
+  plain |> string.contains("grid-template-rows") |> should.be_false
+  plain |> string.contains("min-height") |> should.be_false
+  plain |> string.contains("inert") |> should.be_false
   // Both rows fully rendered, structurally intact: fields, per-row header,
   // and the container's own add/remove controls all present.
   // None of the name-only checks below pin down the `part="..."` attribute
@@ -277,7 +311,7 @@ pub fn array_length_error_stays_visible_while_rows_collapse_test() {
   let html = render(m2)
   // The single row is completed and collapses…
   html |> string.contains("array-item-summary") |> should.be_true
-  html |> string.contains("zones.[0].state") |> should.be_false
+  html |> folded_rows |> should.equal(1)
   // …but the array-level length error still renders.
   html |> string.contains("data-error") |> should.be_true
   html |> string.contains("At least 2 item(s) required") |> should.be_true
@@ -334,7 +368,9 @@ pub fn array_exposes_its_part_surface_test() {
   html |> string.contains("part=\"array-items\"") |> should.be_true
   html |> string.contains("part=\"array-item\"") |> should.be_true
   html |> string.contains("part=\"array-item-header\"") |> should.be_true
+  html |> string.contains("part=\"array-item-fields\"") |> should.be_true
   html |> string.contains("part=\"array-add\"") |> should.be_true
+  html |> string.contains("part=\"array-item-body\"") |> should.be_true
   html |> string.contains("part=\"array-collapse-header\"") |> should.be_true
   html |> string.contains("part=\"array-toggle\"") |> should.be_true
   html |> string.contains("part=\"array-progress\"") |> should.be_true
@@ -353,8 +389,9 @@ pub fn toggling_summary_twice_collapses_the_row_again_test() {
     update.update(init(ui_json), model.array_msg(ToggleRowExpanded(row_path)))
   let #(m2, _) = update.update(m1, model.array_msg(ToggleRowExpanded(row_path)))
   let html = render(m2)
-  // Back to collapsed: fields hidden again…
-  html |> string.contains("zones.[0].state") |> should.be_false
+  // Back to collapsed: the row is folded shut again…
+  html |> folded_rows |> should.equal(1)
+  html |> occurrences("inert=\"true\"") |> should.equal(1)
   // …the summary control is still there, since the row is still completed…
   html |> string.contains("array-item-summary") |> should.be_true
   // …and both attribute-level state markers agree it is collapsed again.
@@ -373,6 +410,42 @@ pub fn summary_separator_renders_the_literal_dot_text_test() {
   let html = render(init(ui_json))
   html
   |> string.contains("part=\"array-item-summary-sep\"> · </span>")
+  |> should.be_true
+}
+
+// --- the folding wrapper the animation depends on ---
+
+pub fn folding_wrapper_renders_for_every_row_not_just_collapsed_ones_test() {
+  // The fold is a CSS transition on `grid-template-rows`, which only runs
+  // if the element carrying it survives the state change. A wrapper that
+  // appeared only once its row was already collapsed would have nothing to
+  // animate from — so every row of a collapse-enabled array gets one, and
+  // only the track value differs between the two states.
+  let collapsed = render(init(ui_json))
+  collapsed |> occurrences("part=\"array-item-body\"") |> should.equal(2)
+  collapsed |> folded_rows |> should.equal(1)
+  collapsed |> open_rows |> should.equal(1)
+
+  let #(m1, _) =
+    update.update(
+      init(ui_json),
+      model.array_msg(
+        ToggleRowExpanded([PropertySegment("zones"), ArraySegment(0)]),
+      ),
+    )
+  let expanded = render(m1)
+  expanded |> occurrences("part=\"array-item-body\"") |> should.equal(2)
+  expanded |> folded_rows |> should.equal(0)
+}
+
+pub fn folding_wrapper_leaves_its_duration_overridable_test() {
+  // The transition is inline (the library ships no stylesheet), so an
+  // adopted stylesheet cannot simply restate it. Duration goes through a
+  // custom property instead, which a host page can set without `!important`.
+  render(init(ui_json))
+  |> string.contains(
+    "transition:grid-template-rows var(--formosh-collapse-duration, 180ms) ease",
+  )
   |> should.be_true
 }
 
