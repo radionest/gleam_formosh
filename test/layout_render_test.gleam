@@ -49,10 +49,10 @@ pub fn root_row_places_three_fields_test() {
     render_with(
       "{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\",\"day\"]}]}",
     )
-  html |> string.contains("part=\"row\"") |> should.be_true
-  html |> string.contains("data-name=\"year\"") |> should.be_true
-  html |> string.contains("data-name=\"month\"") |> should.be_true
-  html |> string.contains("data-name=\"day\"") |> should.be_true
+  let assert Ok(#(_, after_row)) = string.split_once(html, "part=\"row\"")
+  after_row |> string.contains("data-name=\"year\"") |> should.be_true
+  after_row |> string.contains("data-name=\"month\"") |> should.be_true
+  after_row |> string.contains("data-name=\"day\"") |> should.be_true
 }
 
 pub fn root_group_wraps_fields_test() {
@@ -60,8 +60,10 @@ pub fn root_group_wraps_fields_test() {
     render_with(
       "{\"ui:layout\":[{\"type\":\"Group\",\"label\":\"Дата\",\"elements\":[\"year\"]}]}",
     )
-  html |> string.contains("part=\"group\"") |> should.be_true
   html |> string.contains("Дата") |> should.be_true
+  let assert Ok(#(_, after_group_body)) =
+    string.split_once(html, "part=\"group-body\"")
+  after_group_body |> string.contains("data-name=\"year\"") |> should.be_true
 }
 
 pub fn root_leftovers_still_render_test() {
@@ -76,6 +78,8 @@ pub fn root_without_layout_is_unchanged_test() {
   html |> string.contains("part=\"row\"") |> should.be_false
   html |> string.contains("part=\"group\"") |> should.be_false
   html |> string.contains("data-name=\"year\"") |> should.be_true
+  html |> string.contains("data-name=\"month\"") |> should.be_true
+  html |> string.contains("data-name=\"day\"") |> should.be_true
 }
 
 pub fn ui_order_without_layout_still_orders_test() {
@@ -85,4 +89,23 @@ pub fn ui_order_without_layout_still_orders_test() {
   before_year |> string.contains("data-name=\"day\"") |> should.be_true
   after_year |> string.contains("data-name=\"month\"") |> should.be_true
   html |> string.contains("part=\"row\"") |> should.be_false
+}
+
+pub fn read_only_root_ignores_layout_test() {
+  let assert Ok(ui_with_layout) =
+    ui_parser.parse(
+      "{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\",\"day\"]}]}",
+    )
+  let assert Ok(ui_without_layout) = ui_parser.parse("{}")
+  let m = model.init(date_schema())
+  let with_layout =
+    view.view(model.FormModel(..m, ui_schema: ui_with_layout, read_only: True))
+    |> element.to_string
+  let without_layout =
+    view.view(
+      model.FormModel(..m, ui_schema: ui_without_layout, read_only: True),
+    )
+    |> element.to_string
+  with_layout |> string.contains("part=\"row\"") |> should.be_false
+  with_layout |> should.equal(without_layout)
 }
