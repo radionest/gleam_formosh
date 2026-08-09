@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "UiSchema"
-description: "The parallel JSON tree that controls how a Formosh form is presented: ui:* keys, widget overrides, field ordering, and array controls."
+description: "The parallel JSON tree that controls how a Formosh form is presented: ui:* keys, widget overrides, field ordering, layout, and array controls."
 ---
 
 # UiSchema
@@ -221,7 +221,7 @@ array of **nodes**:
 {
   "ui:layout": [
     "invalid",
-    { "type": "Row", "elements": ["width_mm", "height_mm"] },
+    { "type": "Row", "elements": ["length_mm", "height_mm"] },
     { "type": "Group", "label": "Асцит", "elements": [
       "ascites",
       { "type": "Row", "elements": ["ascites_type", "ascites_thickness"] }
@@ -230,7 +230,7 @@ array of **nodes**:
 }
 ```
 
-`invalid` renders on its own line, `width_mm` and `height_mm` share a row,
+`invalid` renders on its own line, `length_mm` and `height_mm` share a row,
 and the "Асцит" group wraps its trigger checkbox and a row of two detail
 fields under one label. `demo/schemas/basic_leak_signs.ui.json` is a full
 working example along the same lines — it groups every conditionally
@@ -242,18 +242,31 @@ A few rules govern how a layout resolves:
   on.** Nesting a leaf inside a `Row`/`Group` changes only how it renders,
   not what it can address — it still resolves against the anchoring
   container's own fields, never a nested object's. A `.` in a leaf is
-  rejected at parse time; it's reserved for cross-container path
-  addressing in a future version.
+  rejected at parse time — cross-container path addressing isn't
+  supported yet; the dot is reserved for it.
 - **`ui:layout` must be a JSON array, and so must every node's
   `elements`.** An object (`{"a": ..., "b": ...}` instead of `["a", ...]`)
   is rejected, because object key order isn't preserved by every backing
   store and `ui:layout` depends on order.
+- **Both rejections above are `Error(ParseError)` through the Gleam API**
+  (`formosh.parse_ui_schema` / `with_ui_schema_json`, see
+  [Attaching a UiSchema](#attaching-a-uischema)). Through `<formosh-form>`,
+  a `ui-schema` attribute that fails to parse only logs a console error —
+  the component never applies it, so **every** `ui:*` hint in the document
+  is silently dropped, not just the offending leaf or node. Tracked as
+  [#120](https://github.com/radionest/gleam_formosh/issues/120).
 - **A leaf naming a field that isn't currently present is skipped
   silently**, not treated as an error — so one UiSchema file can serve
   several forms, and a `Group` can name a conditionally-injected field
   before its trigger has fired.
-- **A `Row` or `Group` whose children all resolve to nothing renders
-  nothing at all** — no empty grid, no empty label.
+- **A `Row` or `Group` whose named leaves are all absent renders nothing
+  at all** — no empty grid, no empty label. That covers only *absence*: a
+  leaf naming a field that exists but is hidden — `ui:widget: "hidden"`,
+  or `readOnly` while `show_readonly_fields` is off — still counts as a
+  child, because the field dispatcher renders an empty-but-present element
+  for it rather than dropping it. A `Group` wrapping only such suppressed
+  leaves still renders its `part="group"` wrapper and, if given a `label`,
+  a visible `part="group-label"` over an empty `part="group-body"`.
 - **Fields the layout doesn't place still render, after every placed
   node, ordered by `ui:order`** — exactly as they would with no layout.
   `ui:order` keeps doing its normal job over that leftover set; a layout
@@ -263,10 +276,10 @@ A few rules govern how a layout resolves:
   detects or rejects it: the two copies get duplicate `id` attributes and,
   for a radio-backed field, duplicate `id`/`for` pairs, which is invalid
   HTML. Treat it as author error to avoid, not a constraint the parser
-  validates, in this version.
+  validates today.
 - **Review mode (`read-only="true"`) ignores `ui:layout`.** The review
   summary always renders in plain `ui:order` order, with or without a
-  layout — a documented limitation of this version, not a bug.
+  layout — not supported today, not a bug.
 
 `Row`'s default grid is `repeat(auto-fit, minmax(min(100%,12rem), 1fr))`,
 which collapses to fewer columns on narrow viewports with no media query

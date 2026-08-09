@@ -101,8 +101,10 @@ Every styled element exposes a part. Grouped by area:
 **Core / layout:**
 `container`, `header`, `title`, `description`, `form`, `footer`, `submit`,
 `reset`, `success`, `error-message`, `loading`, `row`, `group`,
-`group-label`, `group-body` (the last four render only when a container's
-`ui:layout` is set).
+`group-label`, `group-body` — the last four appear only where a
+`ui:layout` actually places a `Row` or `Group` node (a layout of bare
+leaves emits none of them), and `group-label` only when that `Group` has
+a `label`.
 
 **Field scaffolding:**
 `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`.
