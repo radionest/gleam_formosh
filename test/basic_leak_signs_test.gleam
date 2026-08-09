@@ -1,4 +1,5 @@
 /// Test for parsing basic_leak_signs.json schema
+import dom_containment
 import formosh/form/model
 import formosh/form/view
 import formosh/schema/conditional_resolver
@@ -142,12 +143,21 @@ pub fn ui_layout_relocates_ascites_thickness_test() {
     )
   let html = view.view(m) |> element.to_string
 
-  // The "Асцит" group (containing ascites_thickness) sits before the
-  // "Кишечная непроходимость" group (containing ileus) in the ui:layout
-  // tree, so the injected field must appear earlier in the rendered HTML.
-  let assert Ok(#(before_ileus, _)) =
-    string.split_once(html, "data-name=\"ileus\"")
-  before_ileus
+  // The layout nests four groups in document order: "Пузырьки газа",
+  // "Свободный газ", "Асцит" (third), "Кишечная непроходимость" (fourth,
+  // containing `ileus`). Skip past the first two `part="group"` markers,
+  // then bound the third group's own subtree — proving `ascites_thickness`
+  // is actually nested inside the "Асцит" group, not merely textually
+  // ahead of `ileus`.
+  let assert Ok(#(_, after_first_group)) =
+    string.split_once(html, "part=\"group\"")
+  let assert Ok(#(_, after_second_group)) =
+    string.split_once(after_first_group, "part=\"group\"")
+  let assert Ok(ascites_group) =
+    dom_containment.slice_element(after_second_group, "part=\"group\"")
+
+  ascites_group |> string.contains("Асцит") |> should.be_true()
+  ascites_group
   |> string.contains("data-name=\"ascites_thickness\"")
   |> should.be_true()
 }

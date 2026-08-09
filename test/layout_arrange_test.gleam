@@ -2,6 +2,7 @@
 // `arrange` is generic, so a leaf renderer here is just "a span naming the
 // leaf" — which keeps these tests about structure, not about field widgets.
 
+import dom_containment
 import formosh/fields/layout
 import formosh/schema/ui_schema.{GroupNode, LeafNode, RowNode}
 import gleam/list
@@ -48,12 +49,14 @@ pub fn no_layout_renders_entries_in_order_test() {
 pub fn row_wraps_children_in_a_row_part_test() {
   let nodes = Some([RowNode([LeafNode("year"), LeafNode("month")])])
   let html = render(nodes, ["year", "month"], ["year", "month"])
-  html |> string.contains("part=\"row\"") |> should.be_true
-  html
+  let assert Ok(row) = dom_containment.slice_element(html, "part=\"row\"")
+  row
   |> string.contains(
     "display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));gap:var(--formosh-row-gap,1rem)",
   )
   |> should.be_true
+  row |> string.contains("data-n=\"year\"") |> should.be_true
+  row |> string.contains("data-n=\"month\"") |> should.be_true
 }
 
 pub fn group_emits_label_and_body_test() {
@@ -117,6 +120,11 @@ pub fn nested_nodes_render_in_place_test() {
       GroupNode(None, [LeafNode("a"), RowNode([LeafNode("b"), LeafNode("c")])]),
     ])
   let html = render(nodes, ["a", "b", "c"], ["a", "b", "c"])
-  html |> string.contains("part=\"group-body\"") |> should.be_true
-  html |> string.contains("part=\"row\"") |> should.be_true
+  let assert Ok(body) =
+    dom_containment.slice_element(html, "part=\"group-body\"")
+  body |> string.contains("data-n=\"a\"") |> should.be_true
+  body |> string.contains("part=\"row\"") |> should.be_true
+  let assert Ok(row) = dom_containment.slice_element(body, "part=\"row\"")
+  row |> string.contains("data-n=\"b\"") |> should.be_true
+  row |> string.contains("data-n=\"c\"") |> should.be_true
 }

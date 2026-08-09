@@ -2,6 +2,7 @@
 // fields. The date-triple case is the one that motivated the feature —
 // {year, month, day} renders as six stacked inputs per row without it.
 
+import dom_containment
 import formosh/form/model
 import formosh/form/view
 import formosh/schema/types
@@ -49,10 +50,10 @@ pub fn root_row_places_three_fields_test() {
     render_with(
       "{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\",\"day\"]}]}",
     )
-  let assert Ok(#(_, after_row)) = string.split_once(html, "part=\"row\"")
-  after_row |> string.contains("data-name=\"year\"") |> should.be_true
-  after_row |> string.contains("data-name=\"month\"") |> should.be_true
-  after_row |> string.contains("data-name=\"day\"") |> should.be_true
+  let assert Ok(row) = dom_containment.slice_element(html, "part=\"row\"")
+  row |> string.contains("data-name=\"year\"") |> should.be_true
+  row |> string.contains("data-name=\"month\"") |> should.be_true
+  row |> string.contains("data-name=\"day\"") |> should.be_true
 }
 
 pub fn root_group_wraps_fields_test() {
@@ -61,9 +62,9 @@ pub fn root_group_wraps_fields_test() {
       "{\"ui:layout\":[{\"type\":\"Group\",\"label\":\"Дата\",\"elements\":[\"year\"]}]}",
     )
   html |> string.contains("Дата") |> should.be_true
-  let assert Ok(#(_, after_group_body)) =
-    string.split_once(html, "part=\"group-body\"")
-  after_group_body |> string.contains("data-name=\"year\"") |> should.be_true
+  let assert Ok(body) =
+    dom_containment.slice_element(html, "part=\"group-body\"")
+  body |> string.contains("data-name=\"year\"") |> should.be_true
 }
 
 pub fn root_leftovers_still_render_test() {
@@ -139,10 +140,10 @@ pub fn nested_object_row_test() {
     render_nested_with(
       "{\"start\":{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\",\"day\"]}]}}",
     )
-  let assert Ok(#(_, after_row)) = string.split_once(html, "part=\"row\"")
-  after_row |> string.contains("data-path=\"start.year\"") |> should.be_true
-  after_row |> string.contains("data-path=\"start.month\"") |> should.be_true
-  after_row |> string.contains("data-path=\"start.day\"") |> should.be_true
+  let assert Ok(row) = dom_containment.slice_element(html, "part=\"row\"")
+  row |> string.contains("data-path=\"start.year\"") |> should.be_true
+  row |> string.contains("data-path=\"start.month\"") |> should.be_true
+  row |> string.contains("data-path=\"start.day\"") |> should.be_true
 }
 
 pub fn nested_object_leftovers_render_test() {
@@ -292,17 +293,18 @@ pub fn array_row_layout_places_conditionally_injected_field_test() {
 
   // Row 0: the conditional is active (kind = "special"), so `note` is
   // merged into `resolved.properties` and lands at its layout position,
-  // inside row 0's own row.
-  let assert Ok(#(_, after_first_row)) = string.split_once(html, "part=\"row\"")
-  let assert Ok(#(row_0, after_second_row)) =
-    string.split_once(after_first_row, "part=\"row\"")
+  // inside row 0's own row element.
+  let assert Ok(row_0) = dom_containment.slice_element(html, "part=\"row\"")
   row_0 |> string.contains("data-path=\"events.[0].note\"") |> should.be_true
 
   // Row 1: the conditional is inactive (kind = "plain") — `note` never
   // enters that row's resolved properties, so it renders nowhere, while
-  // the row's own `year` still renders normally.
-  after_second_row
-  |> string.contains("data-path=\"events.[1].year\"")
-  |> should.be_true
+  // the row's own `year` still renders normally, inside row 1's own row
+  // element (the second `part="row"` marker, reached by stepping past
+  // row 0's marker first).
+  let assert Ok(#(_, after_first_row)) = string.split_once(html, "part=\"row\"")
+  let assert Ok(row_1) =
+    dom_containment.slice_element(after_first_row, "part=\"row\"")
+  row_1 |> string.contains("data-path=\"events.[1].year\"") |> should.be_true
   html |> string.contains("data-path=\"events.[1].note\"") |> should.be_false
 }

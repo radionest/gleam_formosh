@@ -6,6 +6,7 @@
 // 2. Review mode (readonly_field) deliberately still uses apply_order, so
 //    ui:layout must have no effect there in this version.
 
+import dom_containment
 import formosh/form/model
 import formosh/form/view
 import formosh/schema/types
@@ -103,13 +104,15 @@ pub fn injected_field_renders_inside_its_group_test() {
       ui_json: "{\"ui:layout\":[{\"type\":\"Group\",\"label\":\"Асцит\",\"elements\":[\"ascites\",\"ascites_thickness\"]},\"ileus\"]}",
       read_only: False,
     )
-  html |> string.contains("part=\"group\"") |> should.be_true
-  // The injected field must appear before `ileus`, not after it.
-  let assert Ok(#(before_ileus, _)) =
-    string.split_once(html, "data-name=\"ileus\"")
-  before_ileus
+  let assert Ok(group) = dom_containment.slice_element(html, "part=\"group\"")
+  group
   |> string.contains("data-name=\"ascites_thickness\"")
   |> should.be_true
+  // Presence guard: without this, `ileus` disappearing entirely would also
+  // leave it out of `group`, and the exclusion check below would stay
+  // green while proving nothing.
+  html |> string.contains("data-name=\"ileus\"") |> should.be_true
+  group |> string.contains("data-name=\"ileus\"") |> should.be_false
 }
 
 pub fn without_layout_injected_field_trails_test() {
