@@ -369,6 +369,27 @@
         }
         formosh-form::part(description) { color: var(--muted); font-size: 0.92rem; }
 
+        /* ui:layout — `row` is self-styling (inline grid, see layout.gleam),
+           but `group` ships as bare wrappers: without this, group-body's
+           fields sit flush together under a group-label with no styling
+           at all. */
+        formosh-form::part(group-label) {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--magenta-ink);
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed var(--line-strong);
+        }
+        formosh-form::part(group-body) {
+            display: flex;
+            flex-direction: column;
+            gap: clamp(16px, 3vw, 22px);
+        }
+
         formosh-form::part(field),
         formosh-form::part(field-wrapper) {
             display: flex;

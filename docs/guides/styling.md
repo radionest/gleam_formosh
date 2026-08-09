@@ -258,6 +258,18 @@ same way. The [cascade order](#cascade-order) trap applies here too: a
 plain host `::part(field)` declaration beats `[part=field][data-name=…]`
 regardless of specificity, same as it beats `[part=field][data-error]`.
 
+**`Row` and `Group` are not symmetric.** A `Row` writes its own inline
+`display:grid` (with `--formosh-row-gap`) precisely so it works with zero
+page CSS — the override above only needs to *replace* that default. A
+`Group` emits bare `group` / `group-label` / `group-body` wrappers with no
+styling of their own, so without page CSS its fields render flush against
+each other under an unstyled label. A minimal rule to make one readable:
+
+```css
+formosh-form::part(group-label) { font-weight: 600; margin-bottom: 4px; }
+formosh-form::part(group-body) { display: flex; flex-direction: column; gap: 12px; }
+```
+
 ## Cascade and limitations
 
 ### Cascade order
