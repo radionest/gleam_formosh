@@ -142,6 +142,7 @@ pub fn nested_object_row_test() {
   let assert Ok(#(_, after_row)) = string.split_once(html, "part=\"row\"")
   after_row |> string.contains("data-path=\"start.year\"") |> should.be_true
   after_row |> string.contains("data-path=\"start.month\"") |> should.be_true
+  after_row |> string.contains("data-path=\"start.day\"") |> should.be_true
 }
 
 pub fn nested_object_leftovers_render_test() {
@@ -197,11 +198,111 @@ pub fn array_row_layout_applies_to_every_row_test() {
       ]),
     )
   let html = view.view(with_rows) |> element.to_string
-  let assert Ok(#(_, after_row)) = string.split_once(html, "part=\"row\"")
-  after_row
+  // Row 0's own row must contain row 0's own year — and row 1 must have
+  // produced a SECOND `part="row"` marker of its own (not merely have its
+  // fields fall after row 0's), otherwise a layout that only fires for
+  // index 0 would pass unnoticed.
+  let assert Ok(#(_, after_first_row)) = string.split_once(html, "part=\"row\"")
+  after_first_row
   |> string.contains("data-path=\"events.[0].year\"")
   |> should.be_true
-  after_row
+  let assert Ok(#(_, after_second_row)) =
+    string.split_once(after_first_row, "part=\"row\"")
+  after_second_row
   |> string.contains("data-path=\"events.[1].year\"")
   |> should.be_true
+}
+
+/// An array whose row schema injects a `note` field via an item-level
+/// if/then conditional (`kind == "special"`) — `note` is not a base
+/// property, only a then-branch addition (design D4, `union_resolver`).
+fn conditional_array_schema() -> types.JsonSchema {
+  let note_rule =
+    types.ConditionalRule(
+      if_schema: types.SchemaProperty(
+        ..types.empty_property(),
+        properties: Some([
+          #(
+            "kind",
+            types.SchemaProperty(
+              ..types.empty_property(),
+              enum_values: Some([types.StringValue("special")]),
+            ),
+          ),
+        ]),
+      ),
+      then_schema: Some(
+        types.SchemaProperty(
+          ..types.empty_property(),
+          properties: Some([#("note", int_property("Заметка"))]),
+        ),
+      ),
+      else_schema: None,
+    )
+  types.JsonSchema(..date_schema(), properties: [
+    #(
+      "events",
+      types.SchemaProperty(
+        ..types.empty_property(),
+        field_type: Some(types.ArrayType),
+        title: Some("События"),
+        items: Some(
+          types.SchemaProperty(
+            ..types.empty_property(),
+            field_type: Some(types.ObjectType),
+            properties: Some([
+              #(
+                "kind",
+                types.SchemaProperty(
+                  ..types.empty_property(),
+                  field_type: Some(types.StringType),
+                ),
+              ),
+              #("year", int_property("Год")),
+            ]),
+            conditionals: [note_rule],
+          ),
+        ),
+      ),
+    ),
+  ])
+}
+
+pub fn array_row_layout_places_conditionally_injected_field_test() {
+  let assert Ok(ui) =
+    ui_parser.parse(
+      "{\"events\":{\"items\":{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"note\"]}]}}}",
+    )
+  let m = model.init(conditional_array_schema())
+  let with_rows =
+    model.FormModel(
+      ..m,
+      ui_schema: ui,
+      values: types.ObjectValue([
+        #(
+          "events",
+          types.ArrayValue([
+            types.ObjectValue([#("kind", types.StringValue("special"))]),
+            types.ObjectValue([#("kind", types.StringValue("plain"))]),
+          ]),
+        ),
+      ]),
+    )
+  let html = view.view(with_rows) |> element.to_string
+
+  // Row 0: the conditional is active (kind = "special"), so `note` is
+  // merged into `resolved.properties` and lands at its layout position,
+  // inside row 0's own row.
+  let assert Ok(#(_, after_first_row)) = string.split_once(html, "part=\"row\"")
+  let assert Ok(#(row_0, after_second_row)) =
+    string.split_once(after_first_row, "part=\"row\"")
+  row_0 |> string.contains("data-path=\"events.[0].note\"") |> should.be_true
+
+  // Row 1: the conditional is inactive (kind = "plain") — `note` never
+  // enters that row's resolved properties, so it renders nowhere, while
+  // the row's own `year` still renders normally.
+  after_second_row
+  |> string.contains("data-path=\"events.[1].year\"")
+  |> should.be_true
+  html |> string.contains("data-path=\"events.[1].note\"") |> should.be_false
 }
