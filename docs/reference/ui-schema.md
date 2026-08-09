@@ -425,5 +425,6 @@ your case.
 | Path-based lookup + `x-*` merge + suppression predicate | `src/formosh/schema/ui_resolver.gleam` |
 | Recognized `ui:widget` values | `ui_parser.extract_widget` |
 | Where hints are consumed by renderers | `FieldRenderCtx.hints` in `src/formosh/fields/field_common.gleam` |
-| Layout node types + `arrange` walker | `src/formosh/fields/layout.gleam` |
+| Layout node types (`LayoutNode` and its constructors) | `src/formosh/schema/ui_schema.gleam` |
+| The `arrange` walker (`Row` / `Group` / leftover placement) | `src/formosh/fields/layout.gleam` |
 | `ui:layout` parsing (node/leaf validation) | `ui_parser.extract_layout` |

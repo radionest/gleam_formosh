@@ -8,12 +8,14 @@ description: "Customize Formosh appearance: ::part() selectors, data-state attri
 
 Formosh renders inside an **open Shadow DOM** when used as the
 `<formosh-form>` web component. There are essentially no default styles —
-the form arrives unstyled and you bring your own CSS — with two deliberate
+the form arrives unstyled and you bring your own CSS — with a few narrow
 exceptions, because their inline style *is* their meaning: a `ui:layout`
 `Row` carries its own grid ([Overriding the `ui:layout`
-grid](#overriding-the-uilayout-grid)) and a collapsing array row carries
-its own fold transition ([`array-item-body` — the
-fold](#array-item-body--the-fold)). A `Row` that didn't lay out
+grid](#overriding-the-uilayout-grid)), a collapsing array row carries its
+own fold transition ([`array-item-body` — the
+fold](#array-item-body--the-fold)), and the swipe widget carries its
+per-frame drag and fly-off transforms. Each is opt-in, and the full list
+lives in [Cascade order](#cascade-order). A `Row` that didn't lay out
 horizontally out of the box would be broken, not merely unstyled, so the
 horizontal arrangement ships and an override only replaces it — the same
 reasoning holds for the fold.
@@ -177,8 +179,9 @@ yet reachable through `ui:widget` — see `ROADMAP.md`.)
 ### `array-item-body` — the fold
 
 `array-item-body` wraps `array-item-fields` and is what actually folds.
-These are the library's only inline styles outside the swipe widget — the
-fold has to work with no stylesheet at all, so it cannot be left to CSS:
+Like the `ui:layout` `Row` grid and the swipe widget's transforms, these are
+inline because the fold has to work with no stylesheet at all — it cannot be
+left to CSS ([full list](#cascade-order)):
 
 ```css
 display: grid;
@@ -290,9 +293,13 @@ a host `::part(input)` rule beats any adopted `.formosh-input` rule. For
 beats a host `::part()` one. Specificity only breaks ties between rules in
 the *same* context (two adopted rules, or two host rules).
 
-The library also writes a handful of **inline** styles itself — the array
-fold ([`array-item-body`](#array-item-body--the-fold)) and the swipe
-widget's drag/fly-off transforms. These do **not** form a tier above the
+The library also writes a handful of **inline** styles itself, and this is
+the authoritative list — three opt-in features, five call sites: the
+`ui:layout` `Row` grid (`fields/layout.gleam`), the array fold
+([`array-item-body`](#array-item-body--the-fold), two sites in
+`fields/array_field.gleam`), and the swipe widget's drag/fly-off transforms
+(two sites in `fields/swipe_review_field.gleam`). These do **not** form a
+tier above the
 two contexts. Element-attached styles are sorted *below* context in the
 cascade, and they belong to the shadow tree, so the same rule above still
 decides: a host-document `::part()` rule overrides them as a normal

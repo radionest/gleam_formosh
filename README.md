@@ -453,7 +453,10 @@ Notes:
 - **Cascade**: adopted parent stylesheets and host-level `::part()` rules cascade by normal CSS specificity. To override a `.formosh-*` class rule, give your `::part()` selector higher specificity or use a more specific compound condition (`::part(input):not(:disabled)`).
 - **Compound parts**: elements that carry two part tokens (e.g. `part="radio-group boolean"`) are reachable through either token. `::part()` does not support descendant combinators — so `radio-item` inside a boolean group cannot be addressed differently from one inside an enum group through Shadow Parts alone.
 
-No default styles are included — bring your own CSS.
+Essentially no default styles are included — bring your own CSS. The
+exceptions are a few narrow inline styles that opt-in features cannot work
+without (a `ui:layout` `Row`'s grid, a collapsing array row's fold, the
+swipe widget's drag transforms); `docs/guides/styling.md` lists them.
 
 ## Development
 

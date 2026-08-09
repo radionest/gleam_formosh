@@ -127,7 +127,8 @@ the complete signatures live in [Public API](../reference/api.md).
 ## 5. Style it
 
 Formosh ships with **essentially no default CSS** — see
-[Styling](../guides/styling.md) for the two deliberate exceptions. The
+[Styling](../guides/styling.md#cascade-order) for the few narrow
+exceptions. The
 component renders inside an open Shadow DOM with `::part()` hooks for every
 styled element — the fastest way to a usable form:
 

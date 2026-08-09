@@ -215,7 +215,9 @@ seams: `form/view.gleam`, `fields/object_field.gleam`,
 
 **Acceptance:** `{year, month, day}` renders on one row inside an array row;
 a conditional field named in a `Group` renders next to its trigger instead of
-at the end of the container; a form with no `ui:layout` is unchanged.
+at the end of the container; a form with no `ui:layout` renders the same
+fields in the same order as before (plus the unconditional `data-*`
+attributes).
 
 ---
 
