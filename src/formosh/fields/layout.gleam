@@ -29,8 +29,12 @@ const row_style = "display:grid;grid-template-columns:repeat(auto-fit,minmax(min
 /// Arrange `entries` according to `layout`.
 ///
 /// With `None`, every entry renders in the order supplied. With `Some(nodes)`,
-/// nodes render in order and any entry the layout did not place is appended
+/// nodes render in order and any entry the layout did not name is appended
 /// afterwards — so a field can never disappear because the layout omitted it.
+/// Any name the layout visits is excluded from that fallback whether or not
+/// it produced output there — correct only because `render_leaf` must be a
+/// deterministic function of the name, so a second call could only repeat
+/// the same answer.
 pub fn arrange(
   layout: Option(List(LayoutNode)),
   entries: List(#(String, a)),

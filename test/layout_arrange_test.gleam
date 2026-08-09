@@ -41,15 +41,19 @@ fn render(
 
 pub fn no_layout_renders_entries_in_order_test() {
   let html = render(None, ["a", "b"], ["a", "b"])
-  html |> string.contains("data-n=\"a\"") |> should.be_true
-  html |> string.contains("data-n=\"b\"") |> should.be_true
+  let assert Ok(#(before, _)) = string.split_once(html, "data-n=\"b\"")
+  before |> string.contains("data-n=\"a\"") |> should.be_true
 }
 
 pub fn row_wraps_children_in_a_row_part_test() {
   let nodes = Some([RowNode([LeafNode("year"), LeafNode("month")])])
   let html = render(nodes, ["year", "month"], ["year", "month"])
   html |> string.contains("part=\"row\"") |> should.be_true
-  html |> string.contains("display:grid") |> should.be_true
+  html
+  |> string.contains(
+    "display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));gap:var(--formosh-row-gap,1rem)",
+  )
+  |> should.be_true
 }
 
 pub fn group_emits_label_and_body_test() {
@@ -77,10 +81,15 @@ pub fn absent_leaf_is_skipped_test() {
 }
 
 pub fn node_with_no_surviving_children_renders_nothing_test() {
-  let nodes = Some([GroupNode(Some("Пусто"), [LeafNode("gone")])])
+  let nodes =
+    Some([
+      GroupNode(Some("Пусто"), [LeafNode("gone")]),
+      RowNode([LeafNode("gone")]),
+    ])
   let html = render(nodes, [], [])
   html |> string.contains("part=\"group\"") |> should.be_false
   html |> string.contains("Пусто") |> should.be_false
+  html |> string.contains("part=\"row\"") |> should.be_false
 }
 
 pub fn unplaced_entries_are_appended_test() {
