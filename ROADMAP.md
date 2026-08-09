@@ -193,7 +193,10 @@ are never carried by a layout node.
       `docs/reference/ui-schema.md`
 - [x] Fields the layout does not place render after it, ordered by `ui:order`
       — nothing can disappear
-- [x] No `ui:layout` → the current linear render, byte-identical (back-compat)
+- [x] No `ui:layout` → the current linear render, field for field and in the
+      same order (back-compat). Not byte-identical: the `data-name` /
+      `data-path` attributes below ship unconditionally, so every
+      `part="field"` wrapper gains them with or without a layout
 - [x] Per-field `data-name` / `data-path` on the `part="field"` wrapper, so a
       stylesheet can target one field (prerequisite for any CSS-driven layout)
 
