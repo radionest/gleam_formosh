@@ -139,9 +139,9 @@ pub fn nested_object_row_test() {
     render_nested_with(
       "{\"start\":{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\",\"day\"]}]}}",
     )
-  html |> string.contains("part=\"row\"") |> should.be_true
-  html |> string.contains("data-path=\"start.year\"") |> should.be_true
-  html |> string.contains("data-path=\"start.month\"") |> should.be_true
+  let assert Ok(#(_, after_row)) = string.split_once(html, "part=\"row\"")
+  after_row |> string.contains("data-path=\"start.year\"") |> should.be_true
+  after_row |> string.contains("data-path=\"start.month\"") |> should.be_true
 }
 
 pub fn nested_object_leftovers_render_test() {
@@ -197,7 +197,11 @@ pub fn array_row_layout_applies_to_every_row_test() {
       ]),
     )
   let html = view.view(with_rows) |> element.to_string
-  html |> string.contains("part=\"row\"") |> should.be_true
-  html |> string.contains("data-path=\"events.[0].year\"") |> should.be_true
-  html |> string.contains("data-path=\"events.[1].year\"") |> should.be_true
+  let assert Ok(#(_, after_row)) = string.split_once(html, "part=\"row\"")
+  after_row
+  |> string.contains("data-path=\"events.[0].year\"")
+  |> should.be_true
+  after_row
+  |> string.contains("data-path=\"events.[1].year\"")
+  |> should.be_true
 }
