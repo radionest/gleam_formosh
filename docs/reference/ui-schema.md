@@ -232,9 +232,13 @@ array of **nodes**:
 
 `invalid` renders on its own line, `length_mm` and `height_mm` share a row,
 and the "Асцит" group wraps its trigger checkbox and a row of two detail
-fields under one label. `demo/schemas/basic_leak_signs.ui.json` is a full
-working example along the same lines — it groups every conditionally
-injected detail field under the checkbox that reveals it.
+fields under one label.
+
+Two working examples ship with the demo (`make demo`):
+`demo/schemas/basic_leak_signs.ui.json` is a realistic form along the same
+lines — it groups every conditionally injected detail field under the
+checkbox that reveals it. `demo/schemas/layout_showcase.ui.json` exercises
+every rule below in one form, one numbered `Group` per rule.
 
 A few rules govern how a layout resolves:
 

@@ -1,0 +1,95 @@
+{
+  "ui:order": ["source", "comment"],
+  "ui:layout": [
+    {
+      "type": "Group",
+      "label": "1 · Row — три поля в одну строку",
+      "elements": [
+        { "type": "Row", "elements": ["first_name", "last_name", "middle_name"] }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "2 · Group без label, вложенный в Group с label",
+      "elements": [
+        "delivery_note",
+        {
+          "type": "Group",
+          "elements": [
+            { "type": "Row", "elements": ["city", "postal_code"] }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "3 · Вложенный объект со своим ui:layout",
+      "elements": ["passport"]
+    },
+    {
+      "type": "Group",
+      "label": "4 · Leaf на массив + ui:layout на items",
+      "elements": ["contacts"]
+    },
+    {
+      "type": "Group",
+      "label": "5 · Условно внедряемые поля + опечатка «adress» рядом",
+      "elements": ["has_extra", "adress"]
+    },
+    {
+      "type": "Group",
+      "label": "5b · Пустой узел не рендерится вовсе — эта группа появится вместе с полями",
+      "elements": ["extra_a", "extra_b"]
+    },
+    {
+      "type": "Group",
+      "label": "6 · Скрытое поле держит слот: обёртка и label остаются, тело пустое",
+      "elements": ["tracking_id"]
+    }
+  ],
+  "first_name": {
+    "ui:help": "Row — это grid repeat(auto-fit, minmax(min(100%,12rem), 1fr)): сузьте окно, и три поля схлопнутся в столбец без media-запроса"
+  },
+  "delivery_note": {
+    "ui:help": "Ниже — Group без label: обёртка part=group есть, заголовка part=group-label нет"
+  },
+  "postal_code": {
+    "ui:placeholder": "6 цифр"
+  },
+  "passport": {
+    "ui:layout": [
+      { "type": "Row", "elements": ["series", "number"] },
+      {
+        "type": "Group",
+        "label": "Кем и когда выдан",
+        "elements": [
+          { "type": "Row", "elements": ["issued_by", "issued_at"] }
+        ]
+      }
+    ],
+    "series": { "ui:placeholder": "0000" },
+    "number": { "ui:placeholder": "000000" }
+  },
+  "contacts": {
+    "items": {
+      "ui:layout": [
+        { "type": "Row", "elements": ["kind", "value"] },
+        "note"
+      ],
+      "kind": { "ui:widget": "select" },
+      "value": { "ui:placeholder": "+7 900 000-00-00" }
+    }
+  },
+  "has_extra": {
+    "ui:help": "Включите — появятся extra_a/extra_b, а вместе с ними и вся группа 5b. Leaf «adress» в этой же группе не существует в схеме: он молча пропущен, опечатка и условно отсутствующее поле неотличимы"
+  },
+  "tracking_id": {
+    "ui:widget": "hidden"
+  },
+  "source": {
+    "ui:help": "Не размещено в ui:layout → рендерится после всех узлов раскладки, порядком управляет ui:order"
+  },
+  "comment": {
+    "ui:help": "…и идёт вторым, хотя в схеме объявлен раньше source — ui:order переставил остаток"
+  }
+}
