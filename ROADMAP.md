@@ -175,23 +175,23 @@ on, and every leaf is a path relative to that anchor; a bare child name is the
 one-segment case. Hints stay on the existing path-keyed `UiProperty` tree and
 are never carried by a layout node.
 
-- [ ] `ui:layout` array of nodes: `Row`, `Group`, and bare-string leaves
-- [ ] Anchored at root, at a nested object, and at an array `items` template
-- [ ] Leaves are single-segment; a `.` is rejected at parse time and reserved
+- [x] `ui:layout` array of nodes: `Row`, `Group`, and bare-string leaves
+- [x] Anchored at root, at a nested object, and at an array `items` template
+- [x] Leaves are single-segment; a `.` is rejected at parse time and reserved
       for the cross-container follow-on below. Caveat: `path_format.gleam`
       does no escaping, so a property literally named `a.b` is already
       ambiguous in `model.errors` keys and can never be addressed by a leaf
-- [ ] Naming the same field twice is valid single-segment grammar
+- [x] Naming the same field twice is valid single-segment grammar
       (`["a", "a"]`, or `a` in two Groups) and renders it twice, emitting
       duplicate `attribute.id` values (`field_common.gleam:199`) and duplicate
       radio `id`/`for` pairs. Detection ships with the coverage map in
       follow-on 3; until then, document it as author error
-- [ ] Absent leaf skipped silently; a node whose children all resolve to
+- [x] Absent leaf skipped silently; a node whose children all resolve to
       nothing renders nothing
-- [ ] Fields the layout does not place render after it, ordered by `ui:order`
+- [x] Fields the layout does not place render after it, ordered by `ui:order`
       — nothing can disappear
-- [ ] No `ui:layout` → the current linear render, byte-identical (back-compat)
-- [ ] Per-field `data-name` / `data-path` on the `part="field"` wrapper, so a
+- [x] No `ui:layout` → the current linear render, byte-identical (back-compat)
+- [x] Per-field `data-name` / `data-path` on the `part="field"` wrapper, so a
       stylesheet can target one field (prerequisite for any CSS-driven layout)
 
 **Not in this stage:** `Categorization` / tabs, review-mode layout, and
