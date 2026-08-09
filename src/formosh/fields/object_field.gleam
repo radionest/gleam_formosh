@@ -58,6 +58,9 @@ fn render_nested_fields(
     Some(props) -> {
       let ordered = properties.apply_order(props, ctx.hints.order)
       let node_ui = ui_resolver.lookup(model.ui_schema, ctx.path)
+      // `ordered` is both `arrange`'s `entries` and the lookup target
+      // inside the closure — same invariant as the root seam in
+      // `view.gleam`'s `render_form_body`.
       layout.arrange(node_ui.layout, ordered, fn(child_name) {
         case list.key_find(ordered, child_name) {
           Ok(child_prop) -> {

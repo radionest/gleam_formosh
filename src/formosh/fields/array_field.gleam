@@ -535,6 +535,9 @@ fn render_item_fields(
   case resolved.properties {
     Some(props) -> {
       let ordered = properties.apply_order(props, item_hints.order)
+      // `ordered` is both `arrange`'s `entries` and the lookup target
+      // inside the closure — same invariant as the root seam in
+      // `view.gleam`'s `render_form_body`.
       layout.arrange(item_ui.layout, ordered, fn(child_name) {
         case list.key_find(ordered, child_name) {
           Ok(child_prop) -> {
