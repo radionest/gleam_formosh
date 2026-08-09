@@ -156,3 +156,36 @@ pub fn group_collapse_does_not_shift_sibling_position_test() {
     layout.arrange(nodes, entries(["a", "gone"]), leaf_renderer(["a", "gone"]))
   list.length(collapsed) |> should.equal(list.length(expanded))
 }
+
+/// Same guarantee as the two tests above, for a bare absent leaf rather
+/// than a whole collapsed node — the narrower and more common case: a
+/// layout naming a conditionally-injected field directly (no wrapping
+/// Row/Group) must not let a later sibling shift index while that field is
+/// currently absent. `b_conditional` must hold its own slot as
+/// `element.none()` instead of being dropped, exactly like a leaf inside a
+/// collapsed Row/Group does.
+pub fn absent_leaf_does_not_shift_sibling_position_test() {
+  let nodes = Some([LeafNode("a"), LeafNode("b_conditional"), LeafNode("c")])
+  let without_b =
+    layout.arrange(nodes, entries(["a", "c"]), leaf_renderer(["a", "c"]))
+  let with_b =
+    layout.arrange(
+      nodes,
+      entries(["a", "b_conditional", "c"]),
+      leaf_renderer(["a", "b_conditional", "c"]),
+    )
+  // Same slot count either way.
+  list.length(without_b) |> should.equal(3)
+  list.length(with_b) |> should.equal(3)
+  // The actual claim: "c" is the third node in the layout regardless, so
+  // it must be the third element of the returned list either way — not
+  // just a count match, but "c" itself found at the stable index.
+  let assert Ok(third_without_b) = list.drop(without_b, 2) |> list.first
+  let assert Ok(third_with_b) = list.drop(with_b, 2) |> list.first
+  element.to_string(third_without_b)
+  |> string.contains("data-n=\"c\"")
+  |> should.be_true
+  element.to_string(third_with_b)
+  |> string.contains("data-n=\"c\"")
+  |> should.be_true
+}

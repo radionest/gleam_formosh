@@ -12,6 +12,20 @@
 /// It is also where a future multi-segment leaf lands: `render_leaf` already
 /// takes an arbitrary string, so path addressing extends the callers, not
 /// this module.
+///
+/// Every node — leaf, `Row`, or `Group` — always occupies exactly one slot
+/// in its parent's children list, whether or not it currently has anything
+/// to show: an absent leaf and a `Row`/`Group` with nothing real beneath it
+/// both render as `element.none()` rather than being omitted. Lustre's
+/// children at these seams are unkeyed, so omitting a node instead of
+/// holding its slot would shift every later sibling's index whenever a
+/// conditionally-injected field flips a node between present and absent,
+/// forcing a positional diff to rebuild them from scratch. "Real" tracks
+/// whether `render_leaf` answered `Some`, never whether the resulting
+/// element happens to equal `element.none()` — a present-but-suppressed
+/// leaf (`ui:widget: "hidden"`) answers `Some(element.none())` and must
+/// still count as real, exactly like a visible one, while a genuinely
+/// absent leaf answers `None` and must not.
 import formosh/schema/ui_schema.{type LayoutNode, GroupNode, LeafNode, RowNode}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -43,7 +57,7 @@ pub fn arrange(
   case layout {
     None -> render_all(entries, render_leaf)
     Some(nodes) -> {
-      let #(placed, used) = render_nodes(nodes, render_leaf, [])
+      let #(placed, used, _any_real) = render_nodes(nodes, render_leaf, [])
       let leftovers =
         list.filter(entries, fn(entry) { !list.contains(used, entry.0) })
       list.append(placed, render_all(leftovers, render_leaf))
@@ -51,6 +65,13 @@ pub fn arrange(
   }
 }
 
+// Unlike `render_node`, dropping a `None` here is correct as-is: every real
+// call site passes `entries` (or a filter of it) as both the list iterated
+// here and the list `render_leaf` looks names up against, so `render_leaf`
+// can only answer `None` for a name that was never in `entries` to begin
+// with — there is no slot to hold open. Only a `LayoutNode` leaf can name
+// something outside that closed loop (a layout referencing a field that
+// isn't currently resolved), which is exactly what `render_node` guards.
 fn render_all(
   entries: List(#(String, a)),
   render_leaf: fn(String) -> Option(Element(msg)),
@@ -63,18 +84,20 @@ fn render_all(
   })
 }
 
+// The third element of the tuple is "did any leaf in this subtree answer
+// `Some`", OR-folded across every node — see `render_node` for why a
+// `Row`/`Group` needs it instead of asking whether its own children list is
+// empty (it never is, once every node holds its own slot).
 fn render_nodes(
   nodes: List(LayoutNode),
   render_leaf: fn(String) -> Option(Element(msg)),
   used: List(String),
-) -> #(List(Element(msg)), List(String)) {
-  list.fold(nodes, #([], used), fn(acc, node) {
-    let #(elements, used_so_far) = acc
-    let #(rendered, used_next) = render_node(node, render_leaf, used_so_far)
-    case rendered {
-      Some(el) -> #(list.append(elements, [el]), used_next)
-      None -> #(elements, used_next)
-    }
+) -> #(List(Element(msg)), List(String), Bool) {
+  list.fold(nodes, #([], used, False), fn(acc, node) {
+    let #(elements, used_so_far, any_real_so_far) = acc
+    let #(el, used_next, node_real) =
+      render_node(node, render_leaf, used_so_far)
+    #(list.append(elements, [el]), used_next, any_real_so_far || node_real)
   })
 }
 
@@ -82,30 +105,42 @@ fn render_node(
   node: LayoutNode,
   render_leaf: fn(String) -> Option(Element(msg)),
   used: List(String),
-) -> #(Option(Element(msg)), List(String)) {
+) -> #(Element(msg), List(String), Bool) {
   case node {
-    LeafNode(name) -> #(render_leaf(name), [name, ..used])
+    LeafNode(name) ->
+      case render_leaf(name) {
+        // Present (even if suppressed to `element.none()` by the
+        // dispatcher) — counts as real, and the element IS the slot.
+        Some(el) -> #(el, [name, ..used], True)
+        // Absent — still occupies its slot, as `element.none()`, but does
+        // not count as real: a `Row`/`Group` of only such leaves must
+        // still collapse (see the RowNode/GroupNode branches below).
+        None -> #(element.none(), [name, ..used], False)
+      }
     RowNode(elements) -> {
-      let #(children, used_next) = render_nodes(elements, render_leaf, used)
-      case children {
-        // A Row whose children are all currently absent must still occupy
-        // its slot in the parent's children list — `element.none()`
-        // serializes to nothing, so markup is unaffected, but a later
-        // sibling's position stays stable when the condition that hides
-        // these children flips. Same rationale as
-        // `array_field.gleam`'s row summary: unkeyed children mean a
-        // list-length change forces a positional diff to rebuild every
-        // later sibling from scratch, tearing down a focused input mid-edit.
-        [] -> #(Some(element.none()), used_next)
-        _ -> #(Some(row_element(children)), used_next)
+      let #(children, used_next, any_real) =
+        render_nodes(elements, render_leaf, used)
+      case any_real {
+        // Nothing real beneath this Row — it holds its own slot instead of
+        // rendering an empty grid. `children` alone can no longer answer
+        // this: every present child now holds its own slot too, so a Row
+        // of only absent/suppressed leaves has a non-empty `children` full
+        // of placeholders, indistinguishable by length from one with real
+        // content — `any_real` is the only signal left that tells them
+        // apart (a `RowNode([])` with no declared elements at all is the
+        // one case `children` is still `[]`, and `any_real` is correctly
+        // `False` for it too).
+        False -> #(element.none(), used_next, False)
+        True -> #(row_element(children), used_next, True)
       }
     }
     GroupNode(label, elements) -> {
-      let #(children, used_next) = render_nodes(elements, render_leaf, used)
-      case children {
-        // See the RowNode branch above — same slot-holding rationale.
-        [] -> #(Some(element.none()), used_next)
-        _ -> #(Some(group_element(label, children)), used_next)
+      let #(children, used_next, any_real) =
+        render_nodes(elements, render_leaf, used)
+      case any_real {
+        // See the RowNode branch above — same collapse rationale.
+        False -> #(element.none(), used_next, False)
+        True -> #(group_element(label, children), used_next, True)
       }
     }
   }
