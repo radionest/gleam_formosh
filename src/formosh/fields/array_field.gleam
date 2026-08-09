@@ -6,6 +6,7 @@
 /// for widget dispatch (see `field_dispatcher.render_field_at_path`).
 import formosh/fields/array_collapse
 import formosh/fields/field_common.{type FieldRenderCtx}
+import formosh/fields/layout
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, MoveArrayItemPath,
   RemoveArrayItemPath,
@@ -530,23 +531,29 @@ fn render_item_fields(
   // template, looked up via the row's path.
   let item_hints =
     ui_resolver.resolve_hints(model.ui_schema, item_path, item_schema)
+  let item_ui = ui_resolver.lookup(model.ui_schema, item_path)
   case resolved.properties {
-    Some(props) ->
-      properties.apply_order(props, item_hints.order)
-      |> list.map(fn(entry) {
-        let #(child_name, child_prop) = entry
-        let child_path =
-          list.append(item_path, [path.PropertySegment(child_name)])
-        let child_ctx =
-          field_common.make_child_ctx(
-            parent: ctx,
-            model: model,
-            path: child_path,
-            property: child_prop,
-            is_required: list.contains(resolved.required, child_name),
-          )
-        render_child(child_ctx, model)
+    Some(props) -> {
+      let ordered = properties.apply_order(props, item_hints.order)
+      layout.arrange(item_ui.layout, ordered, fn(child_name) {
+        case list.key_find(ordered, child_name) {
+          Ok(child_prop) -> {
+            let child_path =
+              list.append(item_path, [path.PropertySegment(child_name)])
+            let child_ctx =
+              field_common.make_child_ctx(
+                parent: ctx,
+                model: model,
+                path: child_path,
+                property: child_prop,
+                is_required: list.contains(resolved.required, child_name),
+              )
+            Some(render_child(child_ctx, model))
+          }
+          Error(_) -> None
+        }
       })
+    }
     None -> []
   }
 }

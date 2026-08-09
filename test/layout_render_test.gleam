@@ -109,3 +109,95 @@ pub fn read_only_root_ignores_layout_test() {
   with_layout |> string.contains("part=\"row\"") |> should.be_false
   with_layout |> should.equal(without_layout)
 }
+
+fn nested_object_schema() -> types.JsonSchema {
+  types.JsonSchema(..date_schema(), properties: [
+    #(
+      "start",
+      types.SchemaProperty(
+        ..types.empty_property(),
+        field_type: Some(types.ObjectType),
+        title: Some("Начало"),
+        properties: Some([
+          #("year", int_property("Год")),
+          #("month", int_property("Месяц")),
+          #("day", int_property("День")),
+        ]),
+      ),
+    ),
+  ])
+}
+
+fn render_nested_with(ui_json: String) -> String {
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let m = model.init(nested_object_schema())
+  view.view(model.FormModel(..m, ui_schema: ui)) |> element.to_string
+}
+
+pub fn nested_object_row_test() {
+  let html =
+    render_nested_with(
+      "{\"start\":{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\",\"day\"]}]}}",
+    )
+  html |> string.contains("part=\"row\"") |> should.be_true
+  html |> string.contains("data-path=\"start.year\"") |> should.be_true
+  html |> string.contains("data-path=\"start.month\"") |> should.be_true
+}
+
+pub fn nested_object_leftovers_render_test() {
+  let html =
+    render_nested_with(
+      "{\"start\":{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\"]}]}}",
+    )
+  html |> string.contains("data-path=\"start.month\"") |> should.be_true
+  html |> string.contains("data-path=\"start.day\"") |> should.be_true
+}
+
+fn array_schema() -> types.JsonSchema {
+  types.JsonSchema(..date_schema(), properties: [
+    #(
+      "events",
+      types.SchemaProperty(
+        ..types.empty_property(),
+        field_type: Some(types.ArrayType),
+        title: Some("События"),
+        items: Some(
+          types.SchemaProperty(
+            ..types.empty_property(),
+            field_type: Some(types.ObjectType),
+            properties: Some([
+              #("year", int_property("Год")),
+              #("month", int_property("Месяц")),
+            ]),
+          ),
+        ),
+      ),
+    ),
+  ])
+}
+
+pub fn array_row_layout_applies_to_every_row_test() {
+  let assert Ok(ui) =
+    ui_parser.parse(
+      "{\"events\":{\"items\":{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"year\",\"month\"]}]}}}",
+    )
+  let m = model.init(array_schema())
+  let with_rows =
+    model.FormModel(
+      ..m,
+      ui_schema: ui,
+      values: types.ObjectValue([
+        #(
+          "events",
+          types.ArrayValue([
+            types.ObjectValue([]),
+            types.ObjectValue([]),
+          ]),
+        ),
+      ]),
+    )
+  let html = view.view(with_rows) |> element.to_string
+  html |> string.contains("part=\"row\"") |> should.be_true
+  html |> string.contains("data-path=\"events.[0].year\"") |> should.be_true
+  html |> string.contains("data-path=\"events.[1].year\"") |> should.be_true
+}
