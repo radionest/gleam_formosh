@@ -186,8 +186,11 @@ are never carried by a layout node.
       duplicate `attribute.id` values (`field_common.gleam:199`) and duplicate
       radio `id`/`for` pairs. Detection ships with the coverage map in
       follow-on 3; until then, document it as author error
-- [x] Absent leaf skipped silently; a node whose children all resolve to
-      nothing renders nothing
+- [x] Absent leaf skipped silently; a node whose leaves are **all absent**
+      renders nothing. A leaf that is present but suppressed
+      (`ui:widget: "hidden"`, `readOnly` with `show_readonly_fields` off)
+      still counts as a child, so its node still renders — see
+      `docs/reference/ui-schema.md`
 - [x] Fields the layout does not place render after it, ordered by `ui:order`
       — nothing can disappear
 - [x] No `ui:layout` → the current linear render, byte-identical (back-compat)
