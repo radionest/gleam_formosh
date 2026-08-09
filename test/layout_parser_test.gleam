@@ -3,10 +3,12 @@
 // later (path addressing) stays non-breaking, and a non-array layout must
 // fail because object key order does not survive PostgreSQL JSONB.
 
+import formosh/schema/types
 import formosh/schema/ui_parser
 import formosh/schema/ui_schema.{GroupNode, LeafNode, RowNode}
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
 
 pub fn absent_layout_is_none_test() {
@@ -95,8 +97,10 @@ pub fn layout_on_items_template_test() {
 }
 
 pub fn dotted_leaf_is_rejected_test() {
-  ui_parser.parse("{\"ui:layout\":[\"address.city\"]}")
-  |> should.be_error
+  // The error must identify the offending leaf, not just reject generically.
+  let assert Error(types.UnexpectedValue(message)) =
+    ui_parser.parse("{\"ui:layout\":[\"address.city\"]}")
+  message |> string.contains("address.city") |> should.be_true
 }
 
 pub fn non_array_layout_is_rejected_test() {

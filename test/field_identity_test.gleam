@@ -7,6 +7,7 @@ import formosh/fields/field_dispatcher
 import formosh/form/model
 import formosh/form/path.{ArraySegment, PropertySegment}
 import formosh/schema/types
+import formosh/validation/error.{ValidationError}
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
@@ -97,4 +98,36 @@ pub fn hidden_field_emits_no_identity_test() {
     )
   let html = render_at([PropertySegment("secret")], hidden)
   html |> string.contains("data-name=") |> should.be_false
+}
+
+/// Task 1's spec scenario: a field with a validation error carries
+/// `data-error="true"` AND `data-name` AND `data-path` on the SAME wrapper —
+/// not merely all three strings appearing somewhere in the document. The
+/// wrapper is the outermost (and, for a plain scalar field, only) element
+/// `render_field_at_path` returns, so the first `>` in the output closes
+/// its own opening tag; slicing there isolates exactly its attribute run.
+pub fn field_wrapper_error_name_path_cooccur_test() {
+  let field_path = [PropertySegment("email")]
+  let m =
+    model.init(schema_with([#("email", string_property())]))
+    |> model.add_error_at_path(
+      field_path,
+      ValidationError(field: field_path, message: "bad", rule: "custom"),
+    )
+    |> model.mark_field_touched(field_path)
+  let ctx =
+    field_common.make_field_ctx(
+      model: m,
+      path: field_path,
+      property: string_property(),
+      is_required: False,
+      is_disabled: False,
+      is_readonly: False,
+    )
+  let html = field_dispatcher.render_field_at_path(ctx, m) |> element.to_string
+
+  let assert Ok(#(opening_tag, _)) = string.split_once(html, ">")
+  opening_tag |> string.contains("data-error=\"true\"") |> should.be_true
+  opening_tag |> string.contains("data-name=\"email\"") |> should.be_true
+  opening_tag |> string.contains("data-path=\"email\"") |> should.be_true
 }
