@@ -355,7 +355,7 @@ The widget is chosen automatically based on schema:
 | `string` + `maxLength > 100` | textarea |
 | `string` + `enum` (≤5 options) | radio buttons |
 | `string` + `enum` (>5 options) | select dropdown |
-| `string` + `oneOf` with const/title | radio buttons |
+| `string` + `oneOf` with const/title | radio buttons (≤5) or select (>5) |
 | `anyOf` (2+ non-null branches) | branch chooser (radio ≤5, select >5) + the active branch's own widget |
 | `anyOf` (one non-null branch + `null`, i.e. `Optional[X]`) | plain `X` widget — nullable, no required asterisk, empty submits `null` |
 | `string` + `format: "email"` | email input |
@@ -365,6 +365,7 @@ The widget is chosen automatically based on schema:
 | `string` + `format: "password"` or `ui:widget: "password"` | password input — masked; wins over the `maxLength > 100` textarea rule above regardless of route |
 | `string` + `format: "date-time"` | text input — deliberately not wired (see `ROADMAP.md`) |
 | `number` / `integer` | number input (with `step` from `multipleOf`) |
+| `number` / `integer` + `enum` or `oneOf` with const/title | radio buttons (≤5) or select (>5), storing the typed const |
 | `boolean` | Yes/No radio buttons |
 | `array` | dynamic list with add/remove controls |
 | `object` | nested fieldset |

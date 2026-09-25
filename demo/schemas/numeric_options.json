@@ -1,0 +1,48 @@
+{
+  "title": "Numeric options (#126)",
+  "type": "object",
+  "properties": {
+    "lesion_num": {
+      "type": "integer",
+      "title": "Очаг — integer oneOf, 2 options → radio",
+      "oneOf": [
+        { "const": 1, "title": "№1 — S7, срез 34" },
+        { "const": 2, "title": "№2 — S4a, срез 8" }
+      ]
+    },
+    "lesion_num_select": {
+      "type": "integer",
+      "title": "Очаг — same oneOf + ui:widget select",
+      "oneOf": [
+        { "const": 1, "title": "№1 — S7, срез 34" },
+        { "const": 2, "title": "№2 — S4a, срез 8" }
+      ]
+    },
+    "segment": {
+      "type": "integer",
+      "title": "Сегмент — integer oneOf, 8 options → select",
+      "oneOf": [
+        { "const": 1, "title": "S1 — хвостатая доля" },
+        { "const": 2, "title": "S2" },
+        { "const": 3, "title": "S3" },
+        { "const": 4, "title": "S4" },
+        { "const": 5, "title": "S5" },
+        { "const": 6, "title": "S6" },
+        { "const": 7, "title": "S7" },
+        { "const": 8, "title": "S8" }
+      ]
+    },
+    "size_mm": {
+      "type": "number",
+      "title": "Размер, мм — number enum → radio",
+      "enum": [5, 10, 15.5]
+    },
+    "schema_version": {
+      "type": "integer",
+      "title": "Schema version — bare const → number input",
+      "const": 2,
+      "default": 2
+    }
+  },
+  "required": ["lesion_num"]
+}

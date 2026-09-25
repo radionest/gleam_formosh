@@ -32,16 +32,18 @@ flowchart TD
     W -- "SwipeReviewWidget" --> SR["swipe-review"]
     W -- "CustomWidget / none" --> T{"field_type"}
     T -- "StringType" --> S["string field renderer<br/>(the only one that reads CustomWidget names)"]
-    T -- "NumberType / IntegerType" --> NUM["number input (step from multipleOf)"]
+    T -- "NumberType / IntegerType" --> NO{"enum_values / oneOf<br/>const+title options?"}
+    NO -- "yes" --> EN
+    NO -- "no" --> NUM["number input (step from multipleOf)"]
     T -- "BooleanType" --> B["Yes/No radio group"]
     T -- "ArrayType" --> A["add/remove list container"]
     T -- "ObjectType" --> O["nested fieldset"]
     T -- "none" --> E{"enum_values / one_of?"}
-    E -- "yes" --> EN["string enum (radio or select)"]
+    E -- "yes" --> EN["enum (radio or select)"]
     E -- "no" --> NONE["element.none()"]
 ```
 
-Four consequences of this order:
+Five consequences of this order:
 
 - A 2+-member `any_of` **wins over everything else**, including
   `ImageUploadWidget` / `SwipeReviewWidget` hints on the same node — the
@@ -50,11 +52,19 @@ Four consequences of this order:
 - `ImageUploadWidget` and `SwipeReviewWidget` overrides **always win** over
   the type-derived widget.
 - `CustomWidget` names do **not** short-circuit dispatch — they ride along
-  into the type-based renderer, and only the **string** renderer reads them
-  (`"textarea"`, `"select"`, `"radio"`, `"password"`).
+  into the type-based renderer. The **string** renderer reads all of
+  `"textarea"`, `"select"`, `"radio"`, `"password"`; the enum widget reads
+  `"select"` / `"radio"` on any field type, `oneOf` included.
   `ui:widget: "textarea"` on a number field is silently ignored.
 - If a property has no `type` but does have `enum` / `oneOf`, it still
-  renders as a string enum (the fallback branch is how typeless enums work).
+  renders as the enum widget, radio or select (the fallback branch is how
+  typeless enums work).
+- A `number` / `integer` field with `enum` or `oneOf` const+title options
+  renders the same radio/select enum widget; a bare `const` (one allowed
+  value, nothing to choose) keeps the number input. Every enum widget stores
+  the option's typed const (`1`, not `"1"`); picking the select's
+  placeholder removes the key from the values, so the field submits as
+  absent.
 
 ## String field rendering
 
@@ -65,7 +75,7 @@ and `maxLength` all compete. From `string_field.render` →
 ```mermaid
 flowchart TD
     S["string field"] --> OO{"oneOf with<br/>const+title options?"}
-    OO -- "yes" --> OOW["oneOf radio group (≤5)<br/>or oneOf select (>5)"]
+    OO -- "yes" --> OOW["oneOf radio group (≤5)<br/>or oneOf select (>5);<br/>ui:widget select / radio forces one"]
     OO -- "no" --> UW{"ui:widget?"}
     UW -- "textarea" --> TA["textarea"]
     UW -- "select" --> SEL["enum as select<br/>(forces dropdown even for ≤5)"]
@@ -169,8 +179,10 @@ single segment in place.
 
 ## Number fields
 
-A single number input. If `multipleOf` is set, it becomes the input `step`
-attribute (with the tolerant `1e-8` comparison applied during validation —
+A single number input — unless the field has `enum` or `oneOf` const+title
+options, which render the enum widget (see above). If `multipleOf` is set,
+it becomes the input `step` attribute (with the tolerant `1e-8` comparison
+applied during validation —
 see [Schema Keywords](schema-keywords.md#number-constraints)). `minimum` /
 `maximum` / `exclusiveMinimum` / `exclusiveMaximum` are enforced but do
 **not** become HTML attributes (validation runs in the update loop, not in

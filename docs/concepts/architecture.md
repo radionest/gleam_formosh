@@ -98,8 +98,8 @@ funnelled through one dispatcher:
 |--------|---------|
 | `field_dispatcher.gleam` | **Single entry point** for any field at any depth. Picks the widget and wraps it with error/touched/readonly state. |
 | `layout.gleam` | Arranges a container's own fields per its `ui:layout` (`Row`/`Group` nodes around leaves); called from `view.gleam` (root), `object_field.gleam` (nested objects), and `array_field.gleam` (array rows). |
-| `string_field.gleam` | Text, textarea, email, url, date, time, password, date-time (text), enum radios/select. |
-| `number_field.gleam` | Number input (with `step` from `multipleOf`). |
+| `string_field.gleam` | Text, textarea, email, url, date, time, password, date-time (text); the enum radios/select for every field type (string, number/integer with `enum`/`oneOf` options, typeless). |
+| `number_field.gleam` | Number input (with `step` from `multipleOf`) for numbers without `enum`/`oneOf` options. |
 | `boolean_field.gleam` | Yes/No radios / toggle. |
 | `array_field.gleam` | Dynamic list with add/remove/move controls. |
 | `array_collapse.gleam` | Pure collapse-completed logic for `array_field.gleam`: `ui:options` parsing, the completed predicate, summary-text assembly. No Lustre dependency, mirroring the `swipe_review` / `swipe_review_field` split. |

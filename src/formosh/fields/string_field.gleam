@@ -1,7 +1,7 @@
 // String field renderer
 
 import formosh/fields/field_common.{type FieldRenderCtx}
-import formosh/form/model.{type FormMsg, UpdateFieldPath}
+import formosh/form/model.{type FormMsg, ClearFieldPath, UpdateFieldPath}
 import formosh/form/path
 import formosh/schema/types
 import gleam/float
@@ -26,13 +26,8 @@ import lustre/event
 /// - Regular strings → text input with format-derived HTML type
 pub fn render(ctx: FieldRenderCtx) -> Element(FormMsg) {
   // Check oneOf first (has const+title options), then enum_values
-  let one_of_options = case ctx.property.one_of {
-    Some(schemas) -> extract_one_of_options(schemas)
-    None -> []
-  }
-
-  case one_of_options {
-    [_, ..] -> render_one_of_enum(ctx, one_of_options)
+  case one_of_options(ctx.property) {
+    [_, ..] -> render_enum(ctx)
     [] -> render_string_or_enum(ctx)
   }
 }
@@ -90,15 +85,11 @@ fn render_select_or_enum(
   force_select force_select: Bool,
 ) -> Element(FormMsg) {
   let current_value = field_common.extract_string_value(ctx.value)
-  let one_of_options = case ctx.property.one_of {
-    Some(schemas) -> extract_one_of_options(schemas)
-    None -> []
-  }
-  case one_of_options, ctx.property.enum_values {
-    [_, ..], _ ->
+  case one_of_options(ctx.property), ctx.property.enum_values {
+    [_, ..] as options, _ ->
       case force_select {
-        True -> render_one_of_select(ctx, one_of_options, current_value)
-        False -> render_one_of_radio_group(ctx, one_of_options, current_value)
+        True -> render_one_of_select(ctx, options, current_value)
+        False -> render_one_of_radio_group(ctx, options, current_value)
       }
     [], Some(enum_vals) ->
       case force_select {
@@ -193,19 +184,23 @@ fn render_textarea(ctx: FieldRenderCtx) -> Element(FormMsg) {
 /// Render an enum field as either radio buttons or a select dropdown.
 ///
 /// ## Selection Logic
+/// - `ui:widget: "select"` / `"radio"` force that widget
 /// - ≤ 5 options: Radio button group for easy scanning
 /// - > 5 options: Select dropdown to save space
 pub fn render_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
-  // Check oneOf first for const+title options
-  let one_of_options = case ctx.property.one_of {
-    Some(schemas) -> extract_one_of_options(schemas)
-    None -> []
+  case widget_name(ctx), one_of_options(ctx.property) {
+    Some("select"), _ -> render_select_or_enum(ctx, force_select: True)
+    Some("radio"), _ -> render_select_or_enum(ctx, force_select: False)
+    // Check oneOf first for const+title options
+    _, [_, ..] as options -> render_one_of_enum(ctx, options)
+    _, [] -> render_regular_enum(ctx)
   }
+}
 
-  case one_of_options {
-    [_, ..] -> render_one_of_enum(ctx, one_of_options)
-    [] -> render_regular_enum(ctx)
-  }
+/// True when the property carries a selectable option list — `enum` values
+/// or `oneOf` const+title members.
+pub fn has_options(property: types.SchemaProperty) -> Bool {
+  option.is_some(property.enum_values) || one_of_options(property) != []
 }
 
 /// Render a regular enum field (without oneOf).
@@ -256,10 +251,7 @@ fn render_radio_group(
               attribute.checked(str_val == current_value),
               attribute.required(ctx.is_required),
               attribute.disabled(effective_disabled),
-              event.on_click(UpdateFieldPath(
-                ctx.path,
-                types.StringValue(str_val),
-              )),
+              event.on_click(UpdateFieldPath(ctx.path, val)),
             ]),
             html.label([attribute.for(radio_id)], [
               html.text(str_val),
@@ -290,9 +282,7 @@ fn render_select(
         attribute.attribute("part", "select"),
         attribute.required(ctx.is_required),
         attribute.disabled(effective_disabled),
-        event.on_change(fn(val) {
-          UpdateFieldPath(ctx.path, types.StringValue(val))
-        }),
+        event.on_change(fn(raw) { select_msg(ctx.path, enum_vals, raw) }),
       ],
       [
         html.option([attribute.value("")], "Select an option..."),
@@ -401,26 +391,38 @@ fn get_string_constraints_attributes(
 /// Extract const+title option pairs from oneOf sub-schemas.
 ///
 /// Each sub-schema with a single const value (stored as enum_values with one item)
-/// produces a (value, label) pair. The label comes from the sub-schema's title,
+/// produces a (const, label) pair. The label comes from the sub-schema's title,
 /// falling back to the string representation of the const value.
-fn extract_one_of_options(
-  one_of: List(types.SchemaProperty),
-) -> List(#(String, String)) {
-  use schema <- list.filter_map(one_of)
+fn one_of_options(
+  property: types.SchemaProperty,
+) -> List(#(types.Value, String)) {
+  use schema <- list.filter_map(option.unwrap(property.one_of, []))
   use vals <- result.try(option.to_result(schema.enum_values, Nil))
   use const_val <- result.try(case vals {
     [val] -> Ok(val)
     _ -> Error(Nil)
   })
-  let value = value_to_string(const_val)
-  let label = option.unwrap(schema.title, value)
-  Ok(#(value, label))
+  Ok(#(const_val, option.unwrap(schema.title, value_to_string(const_val))))
+}
+
+/// Map a `<select>` value back to the option's typed const, so a numeric
+/// field stores `1`, not `"1"`. The placeholder matches no option and
+/// removes the key, as if the field was never answered.
+fn select_msg(
+  field_path: path.FieldPath,
+  options: List(types.Value),
+  raw: String,
+) -> FormMsg {
+  case list.find(options, fn(val) { value_to_string(val) == raw }) {
+    Ok(val) -> UpdateFieldPath(field_path, val)
+    Error(_) -> ClearFieldPath(field_path)
+  }
 }
 
 /// Render a oneOf field with const+title options as radio buttons or select.
 fn render_one_of_enum(
   ctx: FieldRenderCtx,
-  options: List(#(String, String)),
+  options: List(#(types.Value, String)),
 ) -> Element(FormMsg) {
   let current_value = field_common.extract_string_value(ctx.value)
 
@@ -433,7 +435,7 @@ fn render_one_of_enum(
 /// Render radio buttons for oneOf const+title options.
 fn render_one_of_radio_group(
   ctx: FieldRenderCtx,
-  options: List(#(String, String)),
+  options: List(#(types.Value, String)),
   current_value: String,
 ) -> Element(FormMsg) {
   let field_id = path.to_string(ctx.path)
@@ -446,7 +448,8 @@ fn render_one_of_radio_group(
         attribute.attribute("part", "radio-group"),
       ],
       list.map(options, fn(option) {
-        let #(value, label) = option
+        let #(const_val, label) = option
+        let value = value_to_string(const_val)
         let radio_id = field_id <> "_" <> value
 
         html.div(
@@ -463,7 +466,7 @@ fn render_one_of_radio_group(
               attribute.checked(value == current_value),
               attribute.required(ctx.is_required),
               attribute.disabled(effective_disabled),
-              event.on_click(UpdateFieldPath(ctx.path, types.StringValue(value))),
+              event.on_click(UpdateFieldPath(ctx.path, const_val)),
             ]),
             html.label([attribute.for(radio_id)], [
               html.text(label),
@@ -479,11 +482,12 @@ fn render_one_of_radio_group(
 /// Render a select dropdown for oneOf const+title options.
 fn render_one_of_select(
   ctx: FieldRenderCtx,
-  options: List(#(String, String)),
+  options: List(#(types.Value, String)),
   current_value: String,
 ) -> Element(FormMsg) {
   let field_id = path.to_string(ctx.path)
   let effective_disabled = ctx.is_disabled || ctx.is_readonly
+  let consts = list.map(options, fn(opt) { opt.0 })
 
   let select_elem =
     html.select(
@@ -494,14 +498,13 @@ fn render_one_of_select(
         attribute.attribute("part", "select"),
         attribute.required(ctx.is_required),
         attribute.disabled(effective_disabled),
-        event.on_change(fn(val) {
-          UpdateFieldPath(ctx.path, types.StringValue(val))
-        }),
+        event.on_change(fn(raw) { select_msg(ctx.path, consts, raw) }),
       ],
       [
         html.option([attribute.value("")], "Select an option..."),
         ..list.map(options, fn(option) {
-          let #(value, label) = option
+          let #(const_val, label) = option
+          let value = value_to_string(const_val)
           html.option(
             [
               attribute.value(value),
