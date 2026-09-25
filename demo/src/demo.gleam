@@ -66,6 +66,7 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
   // Browsers can't list directories — keep the catalogue here. Pair a
   // schema with a `<basename>.ui.json` to show UiSchema-driven rendering.
   let schemas = [
+    "numeric_options.json",
     "carcinomatosis_review.json",
     "carcinomatosis_radiology.json",
     "widgets_demo.json",
