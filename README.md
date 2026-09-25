@@ -355,7 +355,7 @@ The widget is chosen automatically based on schema:
 | `string` + `maxLength > 100` | textarea |
 | `string` + `enum` (≤5 options) | radio buttons |
 | `string` + `enum` (>5 options) | select dropdown |
-| `string` + `oneOf` with const/title | radio buttons |
+| `string` + `oneOf` with const/title | radio buttons (≤5) or select (>5) |
 | `anyOf` (2+ non-null branches) | branch chooser (radio ≤5, select >5) + the active branch's own widget |
 | `anyOf` (one non-null branch + `null`, i.e. `Optional[X]`) | plain `X` widget — nullable, no required asterisk, empty submits `null` |
 | `string` + `format: "email"` | email input |

@@ -56,7 +56,8 @@ Five consequences of this order:
   (`"textarea"`, `"select"`, `"radio"`, `"password"`).
   `ui:widget: "textarea"` on a number field is silently ignored.
 - If a property has no `type` but does have `enum` / `oneOf`, it still
-  renders as a string enum (the fallback branch is how typeless enums work).
+  renders as the enum widget, radio or select (the fallback branch is how
+  typeless enums work).
 - A `number` / `integer` field with `enum` or `oneOf` const+title options
   renders the same radio/select enum widget. Every enum widget stores the
   option's typed const (`1`, not `"1"`); picking the select's placeholder
