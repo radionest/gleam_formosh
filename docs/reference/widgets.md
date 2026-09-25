@@ -32,7 +32,9 @@ flowchart TD
     W -- "SwipeReviewWidget" --> SR["swipe-review"]
     W -- "CustomWidget / none" --> T{"field_type"}
     T -- "StringType" --> S["string field renderer<br/>(the only one that reads CustomWidget names)"]
-    T -- "NumberType / IntegerType" --> NUM["number input (step from multipleOf)"]
+    T -- "NumberType / IntegerType" --> NO{"enum_values / oneOf<br/>const+title options?"}
+    NO -- "yes" --> EN
+    NO -- "no" --> NUM["number input (step from multipleOf)"]
     T -- "BooleanType" --> B["Yes/No radio group"]
     T -- "ArrayType" --> A["add/remove list container"]
     T -- "ObjectType" --> O["nested fieldset"]
@@ -41,7 +43,7 @@ flowchart TD
     E -- "no" --> NONE["element.none()"]
 ```
 
-Four consequences of this order:
+Five consequences of this order:
 
 - A 2+-member `any_of` **wins over everything else**, including
   `ImageUploadWidget` / `SwipeReviewWidget` hints on the same node — the
@@ -55,6 +57,10 @@ Four consequences of this order:
   `ui:widget: "textarea"` on a number field is silently ignored.
 - If a property has no `type` but does have `enum` / `oneOf`, it still
   renders as a string enum (the fallback branch is how typeless enums work).
+- A `number` / `integer` field with `enum` or `oneOf` const+title options
+  renders the same radio/select enum widget. Every enum widget stores the
+  option's typed const (`1`, not `"1"`); picking the select's placeholder
+  clears the field to `null`.
 
 ## String field rendering
 

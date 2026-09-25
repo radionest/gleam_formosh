@@ -118,7 +118,10 @@ fn render_widget_by_type(
       case ctx.property.field_type {
         Some(types.StringType) -> string_field.render(ctx)
         Some(types.NumberType) | Some(types.IntegerType) ->
-          number_field.render(ctx)
+          case string_field.has_options(ctx.property) {
+            True -> string_field.render_enum(ctx)
+            False -> number_field.render(ctx)
+          }
         Some(types.BooleanType) -> boolean_field.render(ctx)
         Some(types.ArrayType) ->
           array_field.render_container(ctx, model, render_field_at_path)
