@@ -6,8 +6,9 @@
 // field-level wrapping (errors, touched, readonly markers).
 //
 // Selection priority: `widget` override (e.g. "image-upload") first, then
-// `field_type` (string/number/boolean/array/object), then enum/oneOf as
-// a fallback for properties without an explicit type.
+// `field_type` (string/number/boolean/array/object — a number with
+// enum/oneOf options renders the enum widget), then enum/oneOf as a
+// fallback for properties without an explicit type.
 
 import formosh/fields/array_field
 import formosh/fields/boolean_field
@@ -118,9 +119,12 @@ fn render_widget_by_type(
       case ctx.property.field_type {
         Some(types.StringType) -> string_field.render(ctx)
         Some(types.NumberType) | Some(types.IntegerType) ->
-          case string_field.has_options(ctx.property) {
-            True -> string_field.render_enum(ctx)
-            False -> number_field.render(ctx)
+          case
+            is_bare_const(ctx.property)
+            || !string_field.has_options(ctx.property)
+          {
+            True -> number_field.render(ctx)
+            False -> string_field.render_enum(ctx)
           }
         Some(types.BooleanType) -> boolean_field.render(ctx)
         Some(types.ArrayType) ->
@@ -128,11 +132,19 @@ fn render_widget_by_type(
         Some(types.ObjectType) ->
           object_field.render_container(ctx, model, render_field_at_path)
         _ ->
-          case ctx.property.enum_values, ctx.property.one_of {
-            Some(_), _ | _, Some(_) -> string_field.render_enum(ctx)
-            None, None -> element.none()
+          case string_field.has_options(ctx.property) {
+            True -> string_field.render_enum(ctx)
+            False -> element.none()
           }
       }
+  }
+}
+
+// A bare `const` parses to a one-value `enum` — nothing to choose between.
+fn is_bare_const(property: types.SchemaProperty) -> Bool {
+  case property.enum_values, property.one_of {
+    Some([_]), None -> True
+    _, _ -> False
   }
 }
 
