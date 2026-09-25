@@ -365,6 +365,7 @@ The widget is chosen automatically based on schema:
 | `string` + `format: "password"` or `ui:widget: "password"` | password input — masked; wins over the `maxLength > 100` textarea rule above regardless of route |
 | `string` + `format: "date-time"` | text input — deliberately not wired (see `ROADMAP.md`) |
 | `number` / `integer` | number input (with `step` from `multipleOf`) |
+| `number` / `integer` + `enum` or `oneOf` with const/title | radio buttons (≤5) or select (>5), storing the typed const |
 | `boolean` | Yes/No radio buttons |
 | `array` | dynamic list with add/remove controls |
 | `object` | nested fieldset |

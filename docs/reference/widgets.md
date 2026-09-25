@@ -39,7 +39,7 @@ flowchart TD
     T -- "ArrayType" --> A["add/remove list container"]
     T -- "ObjectType" --> O["nested fieldset"]
     T -- "none" --> E{"enum_values / one_of?"}
-    E -- "yes" --> EN["string enum (radio or select)"]
+    E -- "yes" --> EN["enum (radio or select)"]
     E -- "no" --> NONE["element.none()"]
 ```
 
@@ -175,8 +175,10 @@ single segment in place.
 
 ## Number fields
 
-A single number input. If `multipleOf` is set, it becomes the input `step`
-attribute (with the tolerant `1e-8` comparison applied during validation —
+A single number input — unless the field has `enum` or `oneOf` const+title
+options, which render the enum widget (see above). If `multipleOf` is set,
+it becomes the input `step` attribute (with the tolerant `1e-8` comparison
+applied during validation —
 see [Schema Keywords](schema-keywords.md#number-constraints)). `minimum` /
 `maximum` / `exclusiveMinimum` / `exclusiveMaximum` are enforced but do
 **not** become HTML attributes (validation runs in the update loop, not in
