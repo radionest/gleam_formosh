@@ -711,6 +711,7 @@ pub fn crossed_array_bounds_clamped_everywhere_test() {
       \"grid\": {\"type\": \"array\", \"items\": {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3}},
       \"via_ref\": {\"$ref\": \"#/$defs/Crossed\"},
       \"ref_sibling\": {\"$ref\": \"#/$defs/Free\", \"minItems\": 5, \"maxItems\": 3},
+      \"ref_crossed_plus_bound\": {\"$ref\": \"#/$defs/Crossed\", \"maxItems\": 1},
       \"union\": {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3, \"anyOf\": [
         {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3, \"items\": {\"type\": \"string\"}},
         {\"type\": \"array\", \"items\": {\"type\": \"integer\"}}
@@ -735,6 +736,7 @@ pub fn crossed_array_bounds_clamped_everywhere_test() {
     #("#/grid/items", 5, 5),
     #("#/via_ref", 5, 5),
     #("#/ref_sibling", 5, 5),
+    #("#/ref_crossed_plus_bound", 5, 5),
     #("#/union", 5, 5),
     #("#/union/anyOf/0", 5, 5),
     #("#/choice/oneOf/0", 5, 5),
