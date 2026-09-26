@@ -34,6 +34,7 @@ pub fn validate_field(
   is_required: Bool,
   effective_widget: Option(Widget),
 ) -> List(ValidationError) {
+  let value = normalize_multi_select_empty(property, value)
   // A nullable field (anyOf null member or a "null" type-array entry) can
   // always submit empty as `null` — an empty value is satisfied regardless
   // of `required`/type/constraints. Reuses the same emptiness predicate the
@@ -50,6 +51,22 @@ pub fn validate_field(
     Some(types.ImageUploadWidget) ->
       validate_image_upload(field_path, value, is_required)
     _ -> validate_standard_field(field_path, value, property, is_required)
+  }
+}
+
+/// A checkbox group (`types.is_multi_select`) stores its unanswered state
+/// as `ArrayValue([])`, not absence — unlike a row-editor array, where an
+/// empty array is a legitimate (if under-minItems) answer. Normalizing it
+/// to `None` up front makes every downstream check (nullable-skip,
+/// required, minItems/maxItems/uniqueItems) treat it exactly like the
+/// absent key, instead of re-deriving the same special case at each one.
+fn normalize_multi_select_empty(
+  property: SchemaProperty,
+  value: Option(Value),
+) -> Option(Value) {
+  case types.is_multi_select(property), value {
+    True, Some(ArrayValue([])) -> None
+    _, _ -> value
   }
 }
 
@@ -87,27 +104,18 @@ fn validate_image_upload(
 }
 
 /// Standard field validation (non-widget fields).
+///
+/// `value` has already been normalized by `validate_field` (a multi-select
+/// `ArrayValue([])` becomes `None`), so `required` sees it exactly like an
+/// absent key here.
 fn validate_standard_field(
   field_path: FieldPath,
   value: Option(Value),
   property: SchemaProperty,
   is_required: Bool,
 ) -> List(ValidationError) {
-  // A checkbox group (`types.is_multi_select`) stores an unanswered state as
-  // `ArrayValue([])`, not absence — unlike a row-editor array, where an
-  // empty array is a legitimate (if under-minItems) answer. Treat it as
-  // missing here so `required` catches both an unchecked initial `[]` and
-  // unchecking the last box (which already clears the key to `None`).
-  let required_value = case types.is_multi_select(property), value {
-    True, Some(ArrayValue([])) -> None
-    _, _ -> value
-  }
   let required_errors = case
-    field_requirements.check_required_value(
-      field_path,
-      required_value,
-      is_required,
-    )
+    field_requirements.check_required_value(field_path, value, is_required)
   {
     Ok(_) -> []
     Error(validation_error) -> [validation_error]
@@ -562,6 +570,10 @@ pub fn validate_nested(
   field_value: Option(Value),
   selected: List(#(FieldPath, Int)),
 ) -> List(ValidationError) {
+  // See `normalize_multi_select_empty`: a checkbox group's `[]` is the
+  // absent key, so `minItems`/`maxItems`/`uniqueItems` must not fire on it
+  // either — only a real (non-multi-select) empty array under-mins.
+  let field_value = normalize_multi_select_empty(field_prop, field_value)
   case field_prop.field_type, field_prop.items {
     Some(types.ArrayType), Some(item_subschema) -> {
       let av = option.unwrap(field_value, NullValue)

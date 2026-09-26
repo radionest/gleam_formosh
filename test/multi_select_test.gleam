@@ -311,6 +311,19 @@ pub fn min_items_does_not_top_up_checkbox_group_test() {
   model.can_submit(simulate.model(sim)) |> should.be_true
 }
 
+// An explicit `[]` (e.g. from `initial-values`), not just an absent key,
+// must also skip `minItems` on a non-required checkbox group — it's the
+// same "unanswered" state, not a real under-min array.
+pub fn min_items_does_not_fire_on_explicit_empty_array_test() {
+  let sim =
+    config_for(
+      "{\"type\":\"array\",\"uniqueItems\":true,\"minItems\":2,\"items\":{\"type\":\"string\",\"enum\":[\"a\",\"b\",\"c\"]}}",
+    )
+    |> with_n(ArrayValue([]))
+    |> start_config
+  rules_at_n(sim) |> should.equal([])
+}
+
 fn config_required(prop_json: String) {
   let assert Ok(schema) =
     parser.parse_schema(
@@ -393,6 +406,20 @@ pub fn required_group_initial_empty_array_is_unanswered_test() {
     |> start_config
   rules_at_n(sim) |> should.equal(["required"])
   model.can_submit(simulate.model(sim)) |> should.be_false
+}
+
+// A nullable checkbox group (Pydantic `Optional[set[Literal[...]]]`, which
+// parses as `anyOf: [array, null]`) satisfies `required` with an empty
+// value even though it's named in `required` — same rule as any other
+// nullable field, not something the multi-select `[]` normalization above
+// should override.
+pub fn required_nullable_group_initial_empty_array_is_satisfied_test() {
+  let sim =
+    config_required("{\"anyOf\":[" <> unique_enum <> ",{\"type\":\"null\"}]}")
+    |> with_n(ArrayValue([]))
+    |> start_config
+  rules_at_n(sim) |> should.equal([])
+  model.can_submit(simulate.model(sim)) |> should.be_true
 }
 
 pub fn initial_values_pre_check_boxes_test() {
