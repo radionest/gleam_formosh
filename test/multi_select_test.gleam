@@ -387,6 +387,17 @@ pub fn required_group_needs_at_least_one_test() {
   html_of(sim) |> string.contains("This field is required") |> should.be_true
 }
 
+// An initial `[]` (e.g. from `initial-values`) must count as unanswered for
+// a required checkbox group, same as unchecking the last box does.
+pub fn required_group_initial_empty_array_is_unanswered_test() {
+  let sim =
+    config_required(unique_enum)
+    |> with_n(ArrayValue([]))
+    |> start_config
+  rules_at_n(sim) |> should.equal(["required"])
+  model.can_submit(simulate.model(sim)) |> should.be_false
+}
+
 pub fn initial_values_pre_check_boxes_test() {
   let sim =
     config_for(unique_enum)

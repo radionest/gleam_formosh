@@ -93,8 +93,21 @@ fn validate_standard_field(
   property: SchemaProperty,
   is_required: Bool,
 ) -> List(ValidationError) {
+  // A checkbox group (`types.is_multi_select`) stores an unanswered state as
+  // `ArrayValue([])`, not absence — unlike a row-editor array, where an
+  // empty array is a legitimate (if under-minItems) answer. Treat it as
+  // missing here so `required` catches both an unchecked initial `[]` and
+  // unchecking the last box (which already clears the key to `None`).
+  let required_value = case types.is_multi_select(property), value {
+    True, Some(ArrayValue([])) -> None
+    _, _ -> value
+  }
   let required_errors = case
-    field_requirements.check_required_value(field_path, value, is_required)
+    field_requirements.check_required_value(
+      field_path,
+      required_value,
+      is_required,
+    )
   {
     Ok(_) -> []
     Error(validation_error) -> [validation_error]
