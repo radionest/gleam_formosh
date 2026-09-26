@@ -117,7 +117,7 @@ an HTML attribute on `<formosh-form>`):
 | `component.submit_url(String)` | `submit-url` | `with_submit_url` |
 | `component.submit_method(String)` | `submit-method` | method of HTTP submit |
 | `component.initial_values_string(String)` | `initial-values` | `with_initial_values` |
-| `component.show_readonly_fields(Bool)` | `show-readonly-fields` | `with_show_readonly_fields` |
+| `component.show_readonly_fields(Bool)` | `show-readonly-fields` | `with_show_readonly_fields` (defaults differ: component `True`, `FormConfig` `False`) |
 | `component.read_only(Bool)` | `read-only` | review mode |
 | `component.upload_base_url(String)` | `upload-base-url` | image upload base |
 | `component.ui_schema_string(String)` | `ui-schema` | `with_ui_schema_json` |

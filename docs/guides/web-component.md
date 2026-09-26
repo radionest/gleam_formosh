@@ -41,8 +41,10 @@ not always the same. `show-readonly-fields` defaults to `"true"`, so
 `readOnly` fields are shown, while a `FormConfig` starts with
 `show_readonly_fields` set to `False`. Set them as plain HTML attributes
 (string values) — Formosh parses them internally. A boolean attribute is
-true only for the exact string `"true"`. A bare `read-only` with no value,
-`"1"`, or `"TRUE"` all mean false.
+true only for the exact string `"true"`. A bare attribute with no value,
+`"1"`, or `"TRUE"` all mean false. This bites hardest on
+`show-readonly-fields`: a bare `show-readonly-fields`, or removing the
+attribute, hides `readOnly` fields instead of restoring the `"true"` default.
 
 | Attribute | Type | Default | Maps to |
 |-----------|------|---------|---------|

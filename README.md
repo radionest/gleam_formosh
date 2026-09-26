@@ -371,7 +371,7 @@ The widget is chosen automatically based on schema:
 | `array` | dynamic list with add/remove controls |
 | `array` + `uniqueItems` + scalar `enum`/`oneOf` items | checkbox group (one checkbox per option) |
 | `object` | nested fieldset |
-| `readOnly: true` | `<formosh-form>`: shown as readonly input by default, hidden with `show-readonly-fields="false"`. `FormConfig`: hidden by default, shown with `with_show_readonly_fields(True)` |
+| `readOnly: true` | `<formosh-form>`: shown as non-editable input by default, hidden with `show-readonly-fields="false"`. `FormConfig`: hidden by default, shown with `with_show_readonly_fields(True)` |
 | `object` + `ui:widget: "swipe-review"` | tap/swipe-based zone burndown |
 
 ## What's Implemented
@@ -442,7 +442,7 @@ The component runs inside an open Shadow DOM. There are three customization surf
    [part=field][data-readonly] { opacity: 0.6; }
    ```
 
-   Note the `[part=…]` form: `formosh-form::part(field)[data-error]` is dead CSS, because an attribute selector cannot follow a pseudo-element. These rules only work from a page stylesheet that is adopted into the shadow root (surface 3). An ordinary page `<style>` or `<link>` is adopted. A stylesheet inside an enclosing shadow root, or one added after the component connected, is not. A normal host `formosh-form::part(field)` rule still overrides these regardless of specificity (see **Cascade** below).
+   Note the `[part=…]` form: `formosh-form::part(field)[data-error]` is dead CSS, because an attribute selector cannot follow a pseudo-element. These rules only work from a page stylesheet that is adopted into the shadow root (surface 3). An ordinary page `<style>` or `<link>` is adopted. A `<style>` or `<link>` inside an enclosing shadow root, or a stylesheet added after the component connected, is not. A normal host `formosh-form::part(field)` rule still overrides these regardless of specificity (see **Cascade** below).
 
 3. **Parent stylesheets are auto-adopted** — Lustre clones the parent document's CSS into the shadow root, so plain class selectors still work:
 
