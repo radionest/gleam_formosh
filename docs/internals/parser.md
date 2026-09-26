@@ -49,7 +49,11 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
      bounds), "minItems": 5, "maxItems": 3}` normalizes to a fixed 5; with
      an effective `allOf` (not empty / `true`-only; a `{}` member counts)
      of its own or inherited from `Def`, it fails instead. Unmerged
-     string/number crossings stay raw.
+     string/number crossings stay raw. The subtree list is kept by hand,
+     like the walks in `resolver.resolve_nested_refs` and
+     `composer.do_flatten`: a new `SchemaProperty` subtree field must join
+     all three (and `item_bounds` in `test/parser_test.gleam`), or crossed
+     bounds inside it ship unclamped and can wedge the array (#63).
 6. Emit parsed schema or `ParseError`.
 
 **Cross-links**
