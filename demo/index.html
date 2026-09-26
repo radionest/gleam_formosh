@@ -536,9 +536,9 @@
 
         /* collapse-completed arrays — the toggle, the progress counter and
            the summary's own spans carry parts but no class, so they're
-           matched by [part=…] here. The fold itself is animated by the
-           library (inline styles on .array-item-body); everything below is
-           appearance only. */
+           matched by [part=…] here. The fold itself comes from the library's
+           formosh stylesheet layer (keyed on .array-item[data-collapsed]);
+           everything below is appearance only. */
         .array-collapse-header {
             display: flex;
             align-items: center;
