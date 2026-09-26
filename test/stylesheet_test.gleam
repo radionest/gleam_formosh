@@ -74,18 +74,43 @@ pub fn every_rule_sits_inside_the_formosh_layer_test() {
   first_top_level_close(css) |> should.equal(Ok(string.length(css) - 1))
 }
 
+/// The text before each `{`: a style rule's selector or an at-rule prelude.
+fn preludes(css: String) -> List(String) {
+  let pieces = string.split(css, "{")
+  pieces
+  |> list.take(list.length(pieces) - 1)
+  |> list.map(fn(piece) {
+    let assert Ok(after_last_block) = string.split(piece, "}") |> list.last
+    string.trim(after_last_block)
+  })
+}
+
 pub fn every_selector_is_scoped_to_the_form_test() {
   // A plain-Lustre `<style>` is a page stylesheet: an unscoped selector would
-  // style foreign elements that use the same part names. Each `{` opens a
-  // style rule or an at-rule block (`@layer`, `@media`), so every rule is
-  // scoped when the scoped prefixes number `{` minus `@` — a rule written
-  // without `:where(` at all counts too.
-  let css = stylesheet_text(render(False))
-  let rules = occurrences(css, "{") - occurrences(css, "@")
-  { rules > 0 } |> should.be_true
-  css
-  |> occurrences(":where(.formosh-container ")
-  |> should.equal(rules)
+  // style foreign elements that use the same part names. Each rule is checked
+  // on its own, and a selector list is refused outright, so an unscoped rule
+  // or an unscoped list member cannot hide behind a scoped one.
+  let selectors =
+    stylesheet_text(render(False))
+    |> preludes
+    |> list.filter(fn(prelude) { !string.starts_with(prelude, "@") })
+  { selectors != [] } |> should.be_true
+  list.each(selectors, fn(selector) {
+    selector
+    |> string.starts_with(":where(.formosh-container ")
+    |> should.be_true
+    selector |> string.contains(",") |> should.be_false
+  })
+}
+
+pub fn row_grid_is_pinned_test() {
+  // The browser checks can't tell `auto-fit` from `auto-fill`, or notice the
+  // `min(100%, …)` cap going, so the Row's arrangement is pinned here.
+  stylesheet_text(render(False))
+  |> string.contains(
+    "grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--formosh-row-min, 12rem)), 1fr));",
+  )
+  |> should.be_true
 }
 
 const layout_schema_json = "{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"},\"b\":{\"type\":\"string\"},\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"state\"],\"properties\":{\"state\":{\"type\":\"string\"}}}}}}"
