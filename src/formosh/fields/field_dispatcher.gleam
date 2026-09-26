@@ -62,10 +62,12 @@ pub fn render_field_at_path(
 fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   let is_touched = model.is_field_touched(model, ctx.path)
   let errors = model.get_errors_at_path(model, ctx.path)
-  // Array-length errors bypass the touched gate: add/remove gating makes
-  // them unreachable through the UI, so they only arise from externally
-  // injected values — where they are the only visible explanation for a
-  // blocked submit.
+  // Array-level errors (minItems/maxItems/uniqueItems) bypass the touched
+  // gate. Add/remove gating makes the length ones unreachable through the
+  // UI, so they only arise from externally injected values — where they are
+  // the only visible explanation for a blocked submit. A row-editor
+  // duplicate is typed into `n.[i]`, which never touches the array path
+  // itself, so a uniqueItems error would otherwise stay invisible.
   let visible_errors = case is_touched {
     True -> errors
     False -> list.filter(errors, error.is_array_length)

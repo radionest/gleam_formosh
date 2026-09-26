@@ -487,12 +487,13 @@ fn validate_resolved_props(
   }
 }
 
-/// Validate an array's length against its `minItems`/`maxItems` constraints.
+/// Validate an array against its `minItems`/`maxItems`/`uniqueItems`
+/// constraints.
 ///
 /// Mirrors JSON Schema semantics: the check only applies when the value
 /// actually is an array. Absent values are the `required` rule's territory.
 /// The error is keyed at the array's own path (the container node).
-fn validate_array_length(
+fn validate_array_constraints(
   field_path: FieldPath,
   constraints: Option(types.ArrayConstraints),
   value: Option(Value),
@@ -516,7 +517,16 @@ fn validate_array_length(
           }
         None -> []
       }
-      list.append(min_errors, max_errors)
+      // ponytail: structural `==` — `1` vs `1.0`, and objects differing only
+      // in key order, count as distinct (JSON Schema calls them equal).
+      // Normalize values before comparing if a row-editor schema hits it.
+      let unique_errors = case
+        c.unique_items && list.length(list.unique(items)) < count
+      {
+        True -> [error.from_failure(field_path, messages.UniqueItems)]
+        False -> []
+      }
+      list.flatten([min_errors, max_errors, unique_errors])
     }
     _, _ -> []
   }
@@ -533,12 +543,20 @@ pub fn validate_nested(
     Some(types.ArrayType), Some(item_subschema) -> {
       let av = option.unwrap(field_value, NullValue)
       list.append(
-        validate_array_length(prefix, field_prop.array_constraints, field_value),
+        validate_array_constraints(
+          prefix,
+          field_prop.array_constraints,
+          field_value,
+        ),
         validate_array_items(prefix, item_subschema, av, selected),
       )
     }
     Some(types.ArrayType), None ->
-      validate_array_length(prefix, field_prop.array_constraints, field_value)
+      validate_array_constraints(
+        prefix,
+        field_prop.array_constraints,
+        field_value,
+      )
     Some(types.ObjectType), _ ->
       case field_value {
         Some(ObjectValue(fields)) ->
