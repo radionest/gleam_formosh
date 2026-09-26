@@ -193,13 +193,16 @@ component.element([
 `minItems` / `maxItems` bound the row count: the form auto-creates rows (with
 item-field defaults applied) up to `minItems`, hides the remove button when
 shrinking would violate `minItems`, and hides the add button once `maxItems`
-is reached. Violations coming from externally supplied values are reported
-as validation errors on the array itself and are always visible (they skip
-the usual touched gate — button gating means they can never be caused by
-form interaction, so the message is the only explanation for a blocked
-submit). Duplicate elements under `uniqueItems` are likewise always visible
-— a duplicate is typed into a row field, which touches that row's own path,
-never the array path itself. A schema with `minItems > maxItems` (unsatisfiable) is normalized
+is reached. A `minItems` / `maxItems` violation from externally supplied
+values is reported as a validation error on the array itself and is always
+visible (they skip the usual touched gate — button gating means they can
+never be caused by form interaction, so the message is the only explanation
+for a blocked submit). A `uniqueItems` violation gets the same treatment for
+a different reason: the error is keyed at the array's own path, but editing
+a row only touches that row's own paths — and the Add button can itself
+introduce a duplicate, since two auto-created blank rows are structurally
+equal — so without the exception the message would be the only explanation
+for a submit that's silently blocked. A schema with `minItems > maxItems` (unsatisfiable) is normalized
 at parse time so `minItems` wins: the array renders as fixed-size at
 `minItems` rows.
 
@@ -370,6 +373,7 @@ The widget is chosen automatically based on schema:
 | `number` / `integer` + `enum` or `oneOf` with const/title | radio buttons (≤5) or select (>5), storing the typed const |
 | `boolean` | Yes/No radio buttons |
 | `array` | dynamic list with add/remove controls |
+| `array` + `uniqueItems` + scalar `enum`/`oneOf` items | checkbox group (one checkbox per option) |
 | `object` | nested fieldset |
 | `readOnly: true` | hidden by default; shown as readonly input with `with_show_readonly_fields(True)` |
 | `object` + `ui:widget: "swipe-review"` | tap/swipe-based zone burndown |

@@ -108,12 +108,16 @@ a wall of red on first paint.
 > to the model and nothing reads it — behaviour is always "errors after
 > touch". Tracked in `ROADMAP.md`.
 
-The one exception to the touch gate is **array-level violations**: an array
-that violates `minItems` / `maxItems` / `uniqueItems` (e.g. from externally
-supplied values, or duplicates typed into the row editor — which touch
-`n.[i]`, never the array path `n` itself) is always shown, because the
-gating buttons can't cause it and the message is the only explanation for a
-blocked submit. See the README "Arrays" section for the full rule.
+The one exception to the touch gate is **array-level violations**. A
+`minItems` / `maxItems` violation is always shown because the gating
+buttons can't cause it, so it only comes from externally supplied values,
+where the message is the only explanation for a blocked submit. A
+`uniqueItems` violation gets the same treatment for a different reason: the
+error is keyed at the array's own path, but editing a row only touches that
+row's own paths — and the Add button can itself introduce a duplicate,
+since two auto-created blank rows are structurally equal — so without the
+exception the message would be the only explanation for a submit that's
+silently blocked. See the README "Arrays" section for the full rule.
 
 ## Read-only fields
 

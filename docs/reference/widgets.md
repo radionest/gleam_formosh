@@ -243,8 +243,9 @@ renders as one checkbox per option instead of the row editor:
 - A stored value that is not one of the options (e.g. from
   `initial-values`) is dropped on the first click.
 - Without `uniqueItems` the same array keeps the row editor, since
-  duplicates are allowed there. No `ui:widget` override applies
-  (`"hidden"` still hides it).
+  duplicates are allowed there. No `ui:widget` value switches the
+  checkbox group to another enum widget (`"select"` / `"radio"`) or back
+  to the row editor; `"hidden"` still hides it.
 - Parts: `checkbox-list`, `checkbox-item` — see
   [Styling](../guides/styling.md).
 
