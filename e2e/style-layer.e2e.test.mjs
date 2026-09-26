@@ -90,8 +90,8 @@ async function mount({ schema, uiSchema, initialValues, width, readySelector }) 
       const form = document.getElementById("form");
       form.style.cssText = `display:block;width:${w}px`;
       form.setAttribute("ui-schema", u);
-      if (v) form.setAttribute("initial-values", v);
-      else form.removeAttribute("initial-values");
+      // "{}", not removeAttribute: formosh ignores the "" removal sends (#158).
+      form.setAttribute("initial-values", v ?? "{}");
       form.setAttribute("schema", s);
     },
     schema,
