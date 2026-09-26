@@ -1,5 +1,6 @@
 import formosh/schema/parser
 import formosh/schema/types
+import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
@@ -689,6 +690,91 @@ pub fn array_constraints_min_above_max_normalizes_test() {
       unique_items: False,
     )),
   )
+}
+
+pub fn crossed_array_bounds_clamped_everywhere_test() {
+  // No merge below rejects its crossing, so each one clamps to minItems —
+  // wherever the runtime reads it: nested, items, $ref'd, union branches,
+  // oneOf members, conditional branches.
+  let json =
+    "{
+    \"type\": \"object\",
+    \"$defs\": {
+      \"Crossed\": {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3},
+      \"Free\": {\"type\": \"array\"}
+    },
+    \"properties\": {
+      \"plain\": {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3},
+      \"nested\": {\"type\": \"object\", \"properties\": {
+        \"inner\": {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3}
+      }},
+      \"grid\": {\"type\": \"array\", \"items\": {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3}},
+      \"via_ref\": {\"$ref\": \"#/$defs/Crossed\"},
+      \"ref_sibling\": {\"$ref\": \"#/$defs/Free\", \"minItems\": 5, \"maxItems\": 3},
+      \"union\": {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3, \"anyOf\": [
+        {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3, \"items\": {\"type\": \"string\"}},
+        {\"type\": \"array\", \"items\": {\"type\": \"integer\"}}
+      ]},
+      \"choice\": {\"oneOf\": [{\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3}]}
+    },
+    \"if\": {\"properties\": {\"plain\": {\"const\": []}}},
+    \"then\": {\"properties\": {\"yes\": {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3}}},
+    \"else\": {\"properties\": {\"no\": {\"type\": \"array\", \"minItems\": 5, \"maxItems\": 3}}}
+  }"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  types.SchemaProperty(
+    ..types.empty_property(),
+    properties: Some(schema.properties),
+    conditionals: schema.conditionals,
+  )
+  |> item_bounds("#")
+  |> should.equal([
+    #("#/plain", 5, 5),
+    #("#/nested/inner", 5, 5),
+    #("#/grid/items", 5, 5),
+    #("#/via_ref", 5, 5),
+    #("#/ref_sibling", 5, 5),
+    #("#/union", 5, 5),
+    #("#/union/anyOf/0", 5, 5),
+    #("#/choice/oneOf/0", 5, 5),
+    #("#/then/yes", 5, 5),
+    #("#/else/no", 5, 5),
+  ])
+}
+
+/// Every `#(path, minItems, maxItems)` in a parsed tree. Walked here rather
+/// than by the parser, so a subtree its clamp pass skips shows up crossed.
+fn item_bounds(
+  prop: types.SchemaProperty,
+  path: String,
+) -> List(#(String, Int, Int)) {
+  let sub = fn(child, key) { item_bounds(child, path <> "/" <> key) }
+  let indexed = fn(members, key) {
+    option.unwrap(members, [])
+    |> list.index_map(fn(m, i) { sub(m, key <> "/" <> int.to_string(i)) })
+    |> list.flatten
+  }
+  let own = case prop.array_constraints {
+    Some(types.ArrayConstraints(min_items: Some(min), max_items: Some(max), ..)) -> [
+      #(path, min, max),
+    ]
+    _ -> []
+  }
+  list.flatten([
+    own,
+    list.flat_map(option.unwrap(prop.properties, []), fn(e) { sub(e.1, e.0) }),
+    option.map(prop.items, sub(_, "items")) |> option.unwrap([]),
+    indexed(prop.any_of, "anyOf"),
+    indexed(prop.one_of, "oneOf"),
+    list.flat_map(prop.conditionals, fn(rule) {
+      list.flatten([
+        sub(rule.if_schema, "if"),
+        option.map(rule.then_schema, sub(_, "then")) |> option.unwrap([]),
+        option.map(rule.else_schema, sub(_, "else")) |> option.unwrap([]),
+      ])
+    }),
+  ])
 }
 
 fn parsed_root_format(json: String) -> option.Option(types.StringFormat) {

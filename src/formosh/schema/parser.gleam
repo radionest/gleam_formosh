@@ -72,7 +72,38 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
   )
 
   use flattened <- result.try(composer.flatten_property(resolved))
-  Ok(to_json_schema(flattened, defs))
+  Ok(to_json_schema(clamp_crossed_array_bounds(flattened), defs))
+}
+
+/// #63: `minItems > maxItems` that no merge rejected is clamped so
+/// `minItems` wins — otherwise the reconcile pass tops the array up past
+/// `maxItems` and wedges the form (both buttons hidden, submit permanently
+/// blocked). The composer rejects crossings reaching an `allOf` merge; the
+/// `$ref` merge and the `anyOf` collapse only those that survive clamping
+/// each side. Runs on the flattened tree only: clamping earlier would hide a
+/// crossing from those checks (#148). Covers every subtree the runtime reads
+/// — union branches and `then`/`else` included; an `if` schema stays raw,
+/// since conditions only match on `enum`/`const`.
+fn clamp_crossed_array_bounds(prop: SchemaProperty) -> SchemaProperty {
+  let clamp_all = list.map(_, clamp_crossed_array_bounds)
+  SchemaProperty(
+    ..prop,
+    array_constraints: resolver.clamp_array_constraints(prop.array_constraints),
+    items: option.map(prop.items, clamp_crossed_array_bounds),
+    properties: option.map(
+      prop.properties,
+      list.map(_, fn(entry) { #(entry.0, clamp_crossed_array_bounds(entry.1)) }),
+    ),
+    any_of: option.map(prop.any_of, clamp_all),
+    one_of: option.map(prop.one_of, clamp_all),
+    conditionals: list.map(prop.conditionals, fn(rule) {
+      ConditionalRule(
+        ..rule,
+        then_schema: option.map(rule.then_schema, clamp_crossed_array_bounds),
+        else_schema: option.map(rule.else_schema, clamp_crossed_array_bounds),
+      )
+    }),
+  )
 }
 
 /// Decode the document root as a `SchemaProperty` plus its `$defs`.
@@ -86,7 +117,7 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
 fn root_decoder() -> Decoder(
   #(SchemaProperty, Option(Dict(String, SchemaProperty))),
 ) {
-  use root <- decode.then(full_property_decoder(all_of_member: False))
+  use root <- decode.then(full_property_decoder())
   use defs <- decode.optional_field(
     "$defs",
     None,
@@ -219,9 +250,7 @@ fn definitions_decoder() -> Decoder(Dict(String, SchemaProperty)) {
 /// This decoder handles both simple property definitions (just a type string)
 /// and complex property objects with constraints, metadata, and nested structures.
 fn property_decoder() -> Decoder(SchemaProperty) {
-  decode.one_of(full_property_decoder(all_of_member: False), [
-    type_shorthand_decoder(),
-  ])
+  decode.one_of(full_property_decoder(), [type_shorthand_decoder()])
 }
 
 /// Fallback for a bare type string (`"string"`) in place of a schema object.
@@ -239,9 +268,7 @@ fn type_shorthand_decoder() -> Decoder(SchemaProperty) {
 /// 
 /// This decoder extracts all the possible fields from a property definition
 /// including type, constraints, metadata, and nested schema information.
-fn full_property_decoder(
-  all_of_member all_of_member: Bool,
-) -> Decoder(SchemaProperty) {
+fn full_property_decoder() -> Decoder(SchemaProperty) {
   use dynamic_data <- decode.then(decode.dynamic)
   use field_type <- decode.optional_field(
     "type",
@@ -288,6 +315,7 @@ fn full_property_decoder(
   // Extract constraints from the dynamic data
   let string_constraints = extract_string_constraints(dynamic_data)
   let number_constraints = extract_number_constraints(dynamic_data)
+  let array_constraints = extract_array_constraints(dynamic_data)
 
   // Extract readOnly annotation
   let read_only = extract_read_only(dynamic_data)
@@ -315,18 +343,6 @@ fn full_property_decoder(
 
   // Extract allOf composition members — a malformed member fails the parse
   let all_of = extract_all_of(dynamic_data)
-
-  // #63's crossed-bounds normalization is lenient single-schema semantics;
-  // a composed node (an effective allOf, or itself a member) keeps its
-  // bounds raw so the composer rejects the unsatisfiable merge (#132).
-  let composed =
-    all_of_member
-    || case all_of {
-      Ok(Some([_, ..])) -> True
-      _ -> False
-    }
-  let array_constraints =
-    extract_array_constraints(dynamic_data, normalize: !composed)
 
   // Extract presentation hints from x- extensions
   let render_hints = extract_render_hints(dynamic_data)
@@ -440,7 +456,7 @@ fn extract_all_of(data: Dynamic) -> Result(Option(List(SchemaProperty)), Nil) {
 /// to `None` and dropped by `extract_all_of`; `false` (nothing validates)
 /// and non-schema values fail the decode.
 fn all_of_member_decoder() -> Decoder(Option(SchemaProperty)) {
-  decode.one_of(full_property_decoder(all_of_member: True) |> decode.map(Some), [
+  decode.one_of(full_property_decoder() |> decode.map(Some), [
     type_shorthand_decoder() |> decode.map(Some),
     decode.bool
       |> decode.then(fn(is_permissive) {
@@ -542,18 +558,13 @@ fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
 }
 
 /// Extract array validation constraints (minItems / maxItems / uniqueItems)
-/// from dynamic JSON data.
-///
-/// `normalize` clamps crossed `minItems > maxItems` to `minItems`; off for
-/// composed nodes, whose crossings the composer rejects instead.
+/// from dynamic JSON data. Crossed bounds stay raw here — see
+/// `clamp_crossed_array_bounds`.
 ///
 /// ## Returns
 /// - `Some(ArrayConstraints)` if any constraint was found
 /// - `None` if no keyword is present (`uniqueItems: false` counts as absent)
-fn extract_array_constraints(
-  data: Dynamic,
-  normalize normalize: Bool,
-) -> Option(ArrayConstraints) {
+fn extract_array_constraints(data: Dynamic) -> Option(ArrayConstraints) {
   let min_items =
     decode.run(data, decode.at(["minItems"], decode.int))
     |> option.from_result()
@@ -568,15 +579,6 @@ fn extract_array_constraints(
 
   case min_items, max_items, unique_items {
     None, None, False -> None
-    // minItems > maxItems is unsatisfiable; normalize so minItems wins —
-    // otherwise the reconcile pass tops the array up past maxItems and
-    // wedges the form (both buttons hidden, submit permanently blocked).
-    Some(min), Some(max), _ if normalize && min > max ->
-      Some(ArrayConstraints(
-        min_items: Some(min),
-        max_items: Some(min),
-        unique_items: unique_items,
-      ))
     _, _, _ ->
       Some(ArrayConstraints(
         min_items: min_items,

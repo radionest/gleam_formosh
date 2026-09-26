@@ -67,5 +67,6 @@ declared field order, which `view.gleam` relies on for rendering.
 ## Docs
 
 - Parse pipeline (`$ref`, `allOf`, normalization): `docs/internals/parser.md`
+- New `SchemaProperty` subtree field → extend the hand-kept walks listed in `docs/internals/parser.md` step 5
 - Keyword support matrix: `docs/reference/schema-keywords.md`
 - `ui:*` parsing and merge precedence: `docs/reference/ui-schema.md`

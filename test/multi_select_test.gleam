@@ -127,12 +127,46 @@ pub fn ref_sibling_crossing_bounds_is_unsatisfiable_test() {
   msg |> string.contains("maxItems") |> should.be_true
   // Names the referencing property ("#/n"), not just the $ref target.
   msg |> string.contains("#/n") |> should.be_true
+  // The merge created the crossing, so the $ref is named too.
+  msg |> string.contains("($ref #/$defs/Tags2)") |> should.be_true
 
   let assert Error(types.UnsatisfiableSchema(msg2)) =
     parser.parse_schema(
       "{\"type\":\"object\",\"$defs\":{\"Tags3\":{\"type\":\"array\",\"minItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags3\",\"maxItems\":1}}}",
     )
   msg2 |> string.contains("#/n") |> should.be_true
+}
+
+// A side crossed on its own is clamped first (#63), but a bound on the
+// other side can still cross the clamped value — that crossing is the
+// merge's doing and fails, same as on main before the clamp moved (#148).
+pub fn ref_merge_crossing_clamped_side_is_unsatisfiable_test() {
+  let assert Error(types.UnsatisfiableSchema(msg)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"D\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\",\"maxItems\":1}}}",
+    )
+  msg
+  |> should.equal(
+    "unsatisfiable schema at #/x ($ref #/$defs/D): minItems 5 > maxItems 1",
+  )
+
+  let assert Error(types.UnsatisfiableSchema(msg2)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"D\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\",\"minItems\":7}}}",
+    )
+  msg2
+  |> should.equal(
+    "unsatisfiable schema at #/x ($ref #/$defs/D): minItems 7 > maxItems 5",
+  )
+
+  let assert Error(types.UnsatisfiableSchema(msg3)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"D\":{\"type\":\"array\",\"maxItems\":2}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\",\"minItems\":5,\"maxItems\":3}}}",
+    )
+  msg3
+  |> should.equal(
+    "unsatisfiable schema at #/x ($ref #/$defs/D): minItems 5 > maxItems 2",
+  )
 }
 
 // The referencing-property breadcrumb accumulates through nesting, same as

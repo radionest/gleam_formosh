@@ -327,12 +327,13 @@ pub type ParseError {
 }
 ```
 
-`UnsatisfiableSchema` is returned when an `allOf` composition — or an
-`anyOf` single-survivor collapse whose type is disjoint from a
-parent-declared `type` — validates nothing (conflicting `type`s or crossed
-bounds), rather than silently producing a schema that rejects everything.
-It is also returned when `minItems`/`maxItems` beside a `$ref` cross the
-definition's bounds.
+`UnsatisfiableSchema` is returned when an `allOf` composition or an
+`anyOf` single-survivor collapse validates nothing (conflicting `type`s or
+crossed bounds), or when `minItems`/`maxItems` beside a `$ref` cross the
+definition's, rather than silently producing a schema that rejects
+everything. Which crossed `minItems`/`maxItems` fail and which are clamped
+to a fixed size is spelled out in
+[Array structure](schema-keywords.md#array-structure).
 
 ## Imports cheat-sheet
 

@@ -21,9 +21,10 @@ pub type ResolveError {
   CircularReference(String)
   /// Invalid reference format
   InvalidReference(String)
-  /// A `$ref` sibling's array bounds cross the definition's after merging
-  /// (e.g. sibling `minItems` > definition `maxItems`) — same conjunctive
-  /// semantics as `allOf` (`composer.check_array_constraints`).
+  /// A `$ref` sibling merge crosses array bounds even with each side's own
+  /// crossing clamped first (e.g. sibling `minItems` > definition
+  /// `maxItems`) — the same stricter-wins merge as `allOf`, judged on
+  /// #63-clamped sides (see `resolve_property_ref`).
   UnsatisfiableSchema(String)
 }
 
@@ -179,23 +180,18 @@ fn resolve_property_ref(
               // silently shipping a form that validates nothing. Names the
               // referencing property (`path`), not just the `$ref` target,
               // matching `composer.unsatisfiable`'s breadcrumb for `allOf`.
-              // Bounds crossed on the node alone (kept raw on a composed
-              // node, #132) are its own fault, so the `$ref` isn't named.
+              // Each side is judged on its #63-clamped bounds: a side crossed
+              // on its own isn't this merge's doing and passes on raw — to
+              // the composer's merge checks, or the post-composition clamp
+              // (#148) — unless the other side still crosses the clamp.
               let merged = merge_properties(resolved_local, resolved)
               case
-                array_constraints_crossed_reason(
-                  resolved_local.array_constraints,
-                ),
-                array_constraints_crossed_reason(merged.array_constraints)
+                array_constraints_crossed_reason(merge_array_constraints(
+                  clamp_array_constraints(resolved_local.array_constraints),
+                  clamp_array_constraints(resolved.array_constraints),
+                ))
               {
-                Some(reason), _ ->
-                  Error(UnsatisfiableSchema(
-                    "unsatisfiable schema at "
-                    <> path_string(path)
-                    <> ": "
-                    <> reason,
-                  ))
-                None, Some(reason) ->
+                Some(reason) ->
                   Error(UnsatisfiableSchema(
                     "unsatisfiable schema at "
                     <> path_string(path)
@@ -204,7 +200,7 @@ fn resolve_property_ref(
                     <> "): "
                     <> reason,
                   ))
-                None, None -> Ok(merged)
+                None -> Ok(merged)
               }
             }
             Error(_) -> Error(ReferenceNotFound(ref_path))
@@ -483,6 +479,23 @@ pub fn array_constraints_crossed_reason(
         <> int.to_string(max),
       )
     _ -> None
+  }
+}
+
+/// #63: crossed `minItems > maxItems` clamped so `minItems` wins (a fixed
+/// size); anything else is returned unchanged. Shared by the `$ref` merge
+/// check above, `composer`'s `anyOf` collapse and the parser's
+/// post-composition clamp pass.
+pub fn clamp_array_constraints(
+  c: option.Option(types.ArrayConstraints),
+) -> option.Option(types.ArrayConstraints) {
+  case c {
+    Some(
+      types.ArrayConstraints(min_items: Some(min), max_items: Some(max), ..) as a,
+    )
+      if min > max
+    -> Some(types.ArrayConstraints(..a, max_items: Some(min)))
+    _ -> c
   }
 }
 
