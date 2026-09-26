@@ -512,7 +512,7 @@ pub fn stale_non_option_value_does_not_count_toward_max_items_test() {
   |> should.equal(Some(ArrayValue([StringValue("a")])))
 }
 
-// Review Focus 5 — review mode shows titles for the selected consts only.
+// Review mode shows titles for the selected consts only.
 pub fn review_mode_lists_selected_titles_test() {
   let m =
     config_for(unique_int_one_of)
@@ -523,4 +523,17 @@ pub fn review_mode_lists_selected_titles_test() {
   out |> string.contains("Two") |> should.be_true
   out |> string.contains("One") |> should.be_false
   out |> string.contains("Three") |> should.be_false
+}
+
+// A checkbox-group value with multiple selections renders as one
+// comma-joined row, not one numbered row per selection.
+pub fn review_mode_joins_multiple_selections_on_one_row_test() {
+  let m =
+    config_for(unique_int_one_of)
+    |> with_n(ArrayValue([IntegerValue(2), IntegerValue(3)]))
+    |> formosh.init_model
+  let out =
+    view.view(model.FormModel(..m, read_only: True)) |> element.to_string
+  out |> string.contains("Two, Three") |> should.be_true
+  out |> string.contains("#1") |> should.be_false
 }

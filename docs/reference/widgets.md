@@ -254,6 +254,9 @@ renders as one checkbox per option instead of the row editor:
   to the row editor; `"hidden"` still hides it.
 - Parts: `checkbox-list`, `checkbox-item` — see
   [Styling](../guides/styling.md).
+- In [review mode](../guides/web-component.md#read-only-review-mode), the
+  selected options' labels render as one comma-joined row (`"Two, Three"`),
+  not one numbered row per selection.
 
 ### Collapsing completed rows
 
