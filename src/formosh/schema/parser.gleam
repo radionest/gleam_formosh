@@ -526,6 +526,11 @@ fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
 /// Extract array validation constraints (minItems / maxItems / uniqueItems)
 /// from dynamic JSON data.
 ///
+/// Crossed bounds are clamped per schema object, before any merge, on purpose:
+/// every merge then runs one check on normalized inputs. Clamping by which
+/// merges a crossing meets needs provenance the tree doesn't carry (#132,
+/// #156). See docs/reference/schema-keywords.md#array-structure.
+///
 /// ## Returns
 /// - `Some(ArrayConstraints)` if any constraint was found
 /// - `None` if no keyword is present (`uniqueItems: false` counts as absent)
