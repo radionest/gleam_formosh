@@ -693,7 +693,7 @@ pub fn array_constraints_min_above_max_normalizes_test() {
 }
 
 pub fn crossed_array_bounds_clamped_everywhere_test() {
-  // No crossing below meets a merge, so each one clamps to minItems —
+  // No merge below rejects its crossing, so each one clamps to minItems —
   // wherever the runtime reads it: nested, items, $ref'd, union branches,
   // oneOf members, conditional branches.
   let json =

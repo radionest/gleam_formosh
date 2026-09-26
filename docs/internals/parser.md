@@ -38,8 +38,9 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
    single-survivor `anyOf` collapses into its node through the same merge.
 5. Normalize unsatisfiable constraints:
    - conflicting `type` / crossed bounds reaching a step-4 merge (even
-     bounds a side authored crossed on its own), or created by a `$ref`
-     sibling merge (step 3) → `UnsatisfiableSchema` error.
+     bounds a side authored crossed on its own), or a `minItems`/`maxItems`
+     crossing created by a `$ref` sibling merge (step 3) →
+     `UnsatisfiableSchema` error.
    - `minItems > maxItems` that never reached one → `minItems` wins, fixed
      size (`parser.clamp_crossed_array_bounds`, #63). Runs once on the
      flattened tree (properties, `items`, `anyOf` branches, `oneOf`

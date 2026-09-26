@@ -228,8 +228,8 @@ pub fn parse_crossed_array_bounds_is_error_test() {
 }
 
 pub fn parse_authored_crossed_array_bounds_with_member_is_error_test() {
-  // #132: the decoder's #63 normalization must not pre-clamp a composed
-  // node's own crossed bounds before the composer checks them.
+  // #132: the #63 clamp must not run before the composer checks a composed
+  // node's own crossed bounds.
   let json =
     "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\", \"minItems\": 5, \"maxItems\": 3, \"allOf\": [ { \"title\": \"t\" } ] } } }"
   let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
