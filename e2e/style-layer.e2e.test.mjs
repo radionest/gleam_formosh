@@ -121,9 +121,11 @@ async function rowMetrics() {
   });
 }
 
-// Lustre adopts page stylesheets when a component connects, so a rule added
-// after #form connected never reaches it. Inject `css`, mount a fresh form,
-// wait up to 5s for its Row's first column to become `expected`, clean up,
+// Lustre copies page stylesheets once, right after a component is created
+// (if it is in the document by then), so a rule added after #form was created
+// never reaches it. Inject `css`, mount a fresh form — created and appended in
+// one task, so the copy sees it — wait up to 5s for its Row's first column to
+// become `expected`, clean up,
 // and return what the column resolved to — the caller's assertion reports a
 // mismatch with the real value.
 async function firstColumnWithPageCss(css, expected) {
