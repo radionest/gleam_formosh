@@ -5,7 +5,11 @@
 import formosh/form/model
 import formosh/form/view
 import formosh/schema/parser
+import formosh/schema/types
+import formosh/schema/ui_parser
+import gleam/dict
 import gleam/list
+import gleam/option.{None}
 import gleam/string
 import gleeunit/should
 import lustre/element
@@ -68,4 +72,33 @@ pub fn every_rule_sits_inside_the_formosh_layer_test() {
   // The layer's block is the only top-level block: it closes on the last
   // character, so no rule can follow it unlayered.
   first_top_level_close(css) |> should.equal(Ok(string.length(css) - 1))
+}
+
+const layout_schema_json = "{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"},\"b\":{\"type\":\"string\"},\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"state\"],\"properties\":{\"state\":{\"type\":\"string\"}}}}}}"
+
+const layout_ui_json = "{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"a\",\"b\"]}],\"zones\":{\"ui:options\":{\"collapseCompleted\":true}}}"
+
+pub fn layout_and_collapse_render_no_inline_style_test() {
+  let assert Ok(schema) = parser.parse_schema(layout_schema_json)
+  let assert Ok(ui) = ui_parser.parse(layout_ui_json)
+  let m = model.init_with_full_config(schema, None, False, dict.new(), ui)
+  // Row 0 complete (folds), row 1 missing its required `state` (open).
+  let values =
+    types.ObjectValue([
+      #(
+        "zones",
+        types.ArrayValue([
+          types.ObjectValue([#("state", types.StringValue("done"))]),
+          types.ObjectValue([]),
+        ]),
+      ),
+    ])
+  let html =
+    model.FormModel(..m, values: values) |> view.view |> element.to_string
+  // Presence guards: the Row and both fold states really rendered, so the
+  // absence check below is not vacuous.
+  html |> string.contains("part=\"row\"") |> should.be_true
+  html |> string.contains("data-collapsed=\"true\"") |> should.be_true
+  html |> occurrences("part=\"array-item-body\"") |> should.equal(2)
+  html |> string.contains(" style=\"") |> should.be_false
 }

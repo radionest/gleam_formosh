@@ -3,7 +3,7 @@ import formosh/fields/swipe_review_field
 import formosh/form/model.{UpdateFieldPath}
 import formosh/form/path.{PropertySegment}
 import formosh/form/update
-import formosh/form/widget_msg.{AnswerZone, ExitRight}
+import formosh/form/widget_msg.{AnswerZone, DragMove, DragStart, ExitRight}
 import formosh/schema/parser
 import formosh/schema/properties
 import formosh/schema/types
@@ -164,4 +164,27 @@ pub fn last_exiting_card_defers_review_summary_test() {
   // The only zone is still flying off — the review summary must wait for it.
   html |> string.contains("Все зоны просмотрены") |> should.be_false
   html |> string.contains("Zone A") |> should.be_true
+}
+
+pub fn dragged_row_keeps_its_inline_offset_test() {
+  // The swipe widget is the one place formosh still writes inline styles:
+  // the drag offset changes every frame (spec style-layer, "Inline styles
+  // carry only runtime state").
+  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let m = model.init_with_full_config(schema, None, False, dict.new(), ui)
+  let path_a = [
+    PropertySegment("zones"),
+    PropertySegment("r"),
+    PropertySegment("a"),
+  ]
+  let #(m1, _) =
+    update.update(
+      m,
+      model.swipe_msg(DragStart(path_a, 100.0, "positive", "negative", 80.0)),
+    )
+  let #(m2, _) = update.update(m1, model.swipe_msg(DragMove(142.0)))
+  render_model(schema, m2)
+  |> string.contains("translateX(42.0px)")
+  |> should.be_true
 }
