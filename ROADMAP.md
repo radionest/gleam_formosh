@@ -34,8 +34,8 @@ do"):
   `formosh.FormModel` do not compile — Gleam cannot re-export constructors.
   Consider wrapper functions (`formosh.string_value(...)`) for ergonomics.
 - [ ] **Configurable CSS class prefix** — claimed in the README but never
-  implemented (claim removed). Decide: implement or drop for good (partially
-  covered by the Theming pack).
+  implemented (claim removed). Decide: implement or drop for good (decide in
+  the Styling system's hook-contract step).
 - [ ] **`format: "date-time"` renders as plain text.** `date` / `time` /
   `password` are wired in `format_decoder` (`parser.gleam`), but
   `date-time` is deliberately left as `CustomFormat`: RFC 3339 requires a
@@ -425,19 +425,38 @@ typeahead demo searching a city out of a 10k-record list via
 
 ---
 
-## Theming pack (Tailwind)
+## Styling system
 
-**Goal.** "Looks good out of the box" without writing CSS from scratch.
+**Goal.** A convenient styling contract without utility classes. The
+ui-schema says *what* (structure and intent — never lengths, colours or
+classes); CSS says *how*, through tokens and stable hooks; and no formosh
+default ever needs `!important` to override. Replaces the planned Tailwind
+theming pack.
 
-**Scope:** M. **Breaking:** no.
+**Scope:** L, in four independently shippable steps. **Breaking:** step 3
+(hook renames, behind a deprecation window).
 
-- [ ] Separate hex package `formosh_theme_tailwind` (keep CSS out of core)
-- [ ] Ready-made CSS (or a Tailwind preset) covering every `::part()` name
-- [ ] Docs: "connect a theme in 3 lines"
-- [ ] Later: Bootstrap / DaisyUI packs (community-driven)
+1. [x] **Foundation** — formosh's defaults (`Row` grid, array fold) move
+   from inline styles into a `<style>` inside `@layer formosh`, the
+   component's lowest layer; tokens `--formosh-row-gap`, `--formosh-row-min`,
+   `--formosh-collapse-duration`; a documented order of use (tokens →
+   `::part()` → adopted selectors).
+2. [ ] **Intents** — `ui:label: false` (#135); a `Row` that sizes its
+   columns to their content (#134), instead of lengths in the ui-schema; a
+   container label on the same line as its fields; the object container as
+   an accessible group.
+3. [ ] **Hook contract** — a `part` on every element, containers included;
+   state as part tokens (`::part(field invalid)`), replacing the
+   `[part][data-*]` detour; one naming rule for parts and classes, behind a
+   deprecation window; named hooks from the ui-schema as the escape hatch
+   for project CSS.
+4. [ ] **Token theme** — an opt-in theme built on `--formosh-*` tokens; the
+   demo is its first consumer. Whether it is on by default is decided here.
 
-**Acceptance:** one `import` + one `<link>` — the form looks
-production-ready with no manual CSS.
+**Acceptance:** the anamnesis event row
+`Начало [дд][мм][гггг] – Окончание [дд][мм][гггг]` renders on one line from
+the ui-schema alone (step 2); a consumer's project CSS needs no
+`!important` against formosh (step 4).
 
 ---
 
