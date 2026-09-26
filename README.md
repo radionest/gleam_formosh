@@ -193,16 +193,18 @@ component.element([
 `minItems` / `maxItems` bound the row count: the form auto-creates rows (with
 item-field defaults applied) up to `minItems`, hides the remove button when
 shrinking would violate `minItems`, and hides the add button once `maxItems`
-is reached. A `minItems` / `maxItems` violation from externally supplied
-values is reported as a validation error on the array itself and is always
-visible (they skip the usual touched gate — button gating means they can
-never be caused by form interaction, so the message is the only explanation
-for a blocked submit). A `uniqueItems` violation gets the same treatment for
-a different reason: the error is keyed at the array's own path, but editing
-a row only touches that row's own paths — and the Add button can itself
-introduce a duplicate, since two auto-created blank rows are structurally
-equal — so without the exception the message would be the only explanation
-for a submit that's silently blocked. A schema with `minItems > maxItems` (unsatisfiable) is normalized
+is reached. A `minItems` / `maxItems` violation is always visible: in the
+row editor the Add/Remove buttons can't cause it, so it only comes from
+externally supplied values, where the message is the only explanation for
+a blocked submit — a checkbox group has no such gating, so an
+under-`minItems` selection there is ordinary use and needs the same bypass
+to be shown. A `uniqueItems` violation gets the same treatment for a
+different reason: the error is keyed at the array's own path, and editing
+a row only ever touches that row's own paths, never the array path itself
+— so without the exception the message would be the only explanation for
+a submit that's silently blocked. Blank rows (null, empty string, empty
+object) are never compared as duplicates, so two Add clicks alone never
+trip it. A schema with `minItems > maxItems` (unsatisfiable) is normalized
 at parse time so `minItems` wins: the array renders as fixed-size at
 `minItems` rows.
 
@@ -453,7 +455,7 @@ The component runs inside an open Shadow DOM. There are three customization surf
    .formosh-error { color: red; }
    ```
 
-Part names available (most elements carry one; a few carry two — see **Compound parts** below): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `row`, `group`, `group-label`, `group-body` (the last four appear only where a `ui:layout` actually places a `Row` or `Group` node; tune the row gap with the `--formosh-row-gap` custom property), `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `array-field`, `array-items`, `array-item`, `array-item-fields`, `array-item-header`, `array-add`, `union`, `union-radio`, `union-select`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`. Collapse-completed arrays (`ui:options.collapseCompleted`) add: `array-collapse-header`, `array-toggle`, `array-progress`, `array-item-summary`, `array-item-summary-value`, `array-item-summary-sep`, `array-item-body` (the folding wrapper — carries the fold animation as inline styles; retime it with `--formosh-collapse-duration`).
+Part names available (most elements carry one; a few carry two — see **Compound parts** below): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `row`, `group`, `group-label`, `group-body` (the last four appear only where a `ui:layout` actually places a `Row` or `Group` node; tune the row gap with the `--formosh-row-gap` custom property), `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `checkbox-list`, `checkbox-item`, `array-field`, `array-items`, `array-item`, `array-item-fields`, `array-item-header`, `array-add`, `union`, `union-radio`, `union-select`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`. Collapse-completed arrays (`ui:options.collapseCompleted`) add: `array-collapse-header`, `array-toggle`, `array-progress`, `array-item-summary`, `array-item-summary-value`, `array-item-summary-sep`, `array-item-body` (the folding wrapper — carries the fold animation as inline styles; retime it with `--formosh-collapse-duration`).
 
 Notes:
 

@@ -109,15 +109,18 @@ a wall of red on first paint.
 > touch". Tracked in `ROADMAP.md`.
 
 The one exception to the touch gate is **array-level violations**. A
-`minItems` / `maxItems` violation is always shown because the gating
-buttons can't cause it, so it only comes from externally supplied values,
-where the message is the only explanation for a blocked submit. A
+`minItems` / `maxItems` violation is always shown: in the row editor the
+Add/Remove buttons can't cause it, so it only comes from externally
+supplied values, where the message is the only explanation for a blocked
+submit; a checkbox group has no such gating, so an under-`minItems`
+selection there is ordinary use and needs the same bypass to be shown. A
 `uniqueItems` violation gets the same treatment for a different reason: the
-error is keyed at the array's own path, but editing a row only touches that
-row's own paths — and the Add button can itself introduce a duplicate,
-since two auto-created blank rows are structurally equal — so without the
+error is keyed at the array's own path, and editing a row only ever touches
+that row's own paths, never the array path itself — so without the
 exception the message would be the only explanation for a submit that's
-silently blocked. See the README "Arrays" section for the full rule.
+silently blocked. Blank rows (null, empty string, empty object) are never
+compared as duplicates, so an untouched Add/Add sequence never trips it.
+See the README "Arrays" section for the full rule.
 
 ## Read-only fields
 

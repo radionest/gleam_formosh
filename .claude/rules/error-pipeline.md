@@ -18,10 +18,12 @@ model.errors : Dict(String, List(ValidationError))
 model.touched_fields : List(FieldPath)
    │   gate: errors stay hidden until the field is touched.
    │   exception: array-level errors (minItems/maxItems/uniqueItems)
-   │   always render — button gating (minItems/maxItems) or the fact
-   │   that a duplicate is touched at the row path, never the array
-   │   path itself (uniqueItems), keeps them unreachable via the
-   │   array field's own touch, so the message is the only
+   │   always render. In the row editor, Add/Remove button gating means
+   │   minItems/maxItems can't come from form interaction there — but a
+   │   checkbox group has no such gating, so an under-minItems selection
+   │   is ordinary use and needs the same bypass. A uniqueItems duplicate
+   │   is touched at the row path, never the array path itself (blank
+   │   rows never count as duplicates), so the message is the only
    │   explanation for a blocked submit (error.is_array_length).
    │   set by model.mark_field_touched/2 — called from update.gleam on
    │   field change/blur and on swipe-review answer commits.
@@ -52,6 +54,6 @@ field_common.render_field_errors(errors: List(ValidationError))
 
 ## Docs
 
-- Error-visibility semantics (touch gate, array-length exception):
+- Error-visibility semantics (touch gate, array-level exception):
   `docs/guides/configuration.md`
 - What is validated vs parse-only: `docs/reference/schema-keywords.md`
