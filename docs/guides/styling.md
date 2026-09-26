@@ -41,7 +41,9 @@ attributes and classes work everywhere.
 > **Plain Lustre app (no web component)?** Skip section 1 — without the
 > shadow root there are no `::part()` hooks. The `data-*` state attributes
 > (section 2) still work everywhere: they are plain HTML attributes, so
-> combine them with class selectors (`.formosh-field[data-error]`).
+> combine them with class selectors (`.formosh-field[data-error]`). If
+> your CSS declares cascade layers, declare `formosh` first — see
+> [Plain Lustre app](#plain-lustre-app-no-shadow-root).
 
 ## 1. `::part()` selectors — preferred
 
@@ -125,7 +127,7 @@ order](#cascade-order)).
 
 | Custom property | Default | Controls |
 |---|---|---|
-| `--formosh-row-gap` | `1rem` | Gap between a `Row`'s columns |
+| `--formosh-row-gap` | `1rem` | Gap between a `Row`'s cells, across columns and between wrapped lines |
 | `--formosh-row-min` | `12rem` | Narrowest a `Row` column gets before the `Row` drops to fewer columns |
 | `--formosh-collapse-duration` | `180ms` | Duration of a collapsing array row's fold |
 
@@ -216,7 +218,9 @@ yet reachable through `ui:widget` — see `ROADMAP.md`.)
 ### `array-item-body` — the fold
 
 `array-item-body` wraps `array-item-fields` and is what actually folds. The
-fold comes from the `formosh` layer ([Cascade order](#cascade-order)):
+fold comes from the `formosh` layer ([Cascade order](#cascade-order));
+shown here without the layer block and the `:where(.formosh-container …)`
+wrapper each selector sits in, which keeps its specificity at zero:
 
 ```css
 [part~=array-item-body] {
@@ -251,9 +255,10 @@ override them only to replace the fold. Four consequences:
   3px focus ring shows this.)
 - **Any rule you write overrides the fold's defaults** — a host
   `::part(array-item-body)` rule or an adopted `.array-item-body` rule
-  alike, no `!important`. Retime it with `--formosh-collapse-duration`;
-  under `prefers-reduced-motion: reduce` formosh already drops the duration
-  to `0s`:
+  alike, no `!important`. Under `prefers-reduced-motion: reduce` formosh
+  drops the fold's duration to `0s`; retime it through the token rather
+  than a `transition` rule of your own, which would outrank that
+  reduced-motion rule too:
 
 ```css
 formosh-form { --formosh-collapse-duration: 300ms; }
@@ -342,22 +347,26 @@ From strongest to weakest, for normal (non-`!important`) declarations:
    context, and per CSS Scoping ("Shadow Cascading") the outer context wins
    regardless of specificity — a host `::part(input)` rule beats every rule
    inside the component, inline styles included.
-2. **Inline styles** — only the swipe widget's drag offset and fly-off (two
-   sites in `fields/swipe_review_field.gleam`). The widget's own logic
-   depends on them: the fly-off's `transition` fires the `transitionend`
-   that removes the answered row.
-3. **Adopted rules** — your page stylesheets, cloned into the shadow root,
-   unlayered or in your own layers. Specificity and order decide between
-   them as usual.
+2. **Inline styles** — only the swipe widget's drag offset and fly-off
+   (two sites in `fields/swipe_review_field.gleam`). The widget's own
+   logic depends on them: the fly-off's `transition` fires the
+   `transitionend` that removes the answered row. A rule that overrides
+   it — a host `::part(swipe-row)` rule, or an `!important` one such as a
+   reduced-motion reset setting `transition: none` or a `0s` duration —
+   must leave a non-zero `transform` or `opacity` transition, or the
+   answered row never leaves.
+3. **Adopted rules** — your page stylesheets, copied into the shadow root,
+   unlayered or in your own layers. Layer order, specificity and source
+   order decide between them as usual.
 4. **The `formosh` layer** — formosh's own defaults (`Row` grid, array
-   fold). The `<style>` holding it is the first stylesheet in the shadow
-   tree, so `formosh` is declared before any adopted layer and loses to
-   everything above, whatever the specificity; its selectors sit inside
-   `:where()` and carry none.
+   fold). The `<style>` holding it precedes every adopted stylesheet in
+   the shadow tree, so `formosh` is declared before any adopted layer and
+   loses to everything above, whatever the specificity; its selectors sit
+   inside `:where()` and carry none.
 
-For `!important` declarations the order inverts, as CSS specifies — an
-adopted `!important` beats a host `::part()` one. formosh never uses
-`!important`, and overriding one of its defaults never needs it:
+For `!important` declarations the context and layer order invert, as CSS
+specifies — an adopted `!important` beats a host `::part()` one. formosh
+never uses `!important`, and overriding one of its defaults never needs it:
 
 ```css
 /* both beat the layer's transition on array-item-body */
@@ -365,14 +374,20 @@ formosh-form::part(array-item-body) { transition: none; }
 .array-item-body { transition-timing-function: linear; }
 ```
 
-- **The container's first child is the `<style>`.** A rule like
-  `[part=container] > :first-child` matches it, not the header.
+- **The container's first child is the `<style>`.** Selectors count it
+  even though it renders nothing: `[part=container] > :first-child`
+  matches it rather than the header, sibling patterns such as `> * + *`
+  and `:nth-child()` count it, and a rule that sets `display` on every
+  child of the container reveals its text.
 - **Stylesheets Lustre cannot copy.** Lustre copies each page sheet's
   rules into the shadow root. It cannot read a cross-origin sheet served
   without CORS, and a constructed copy rejects `@import`, so for such a
   `<link>` it clones the element itself into the shadow root, ahead of
   formosh's `<style>`. Layers the sheet declares are ordered before
-  `formosh` and lose to it; its unlayered rules still win.
+  `formosh` and lose to it; its unlayered rules still win. A page
+  `<style>` Lustre cannot copy (one using `@import`) is cloned without its
+  contents, so none of its rules reach the component — load such CSS
+  through a `<link>`.
 
 ### No descendant combinator inside `::part()`
 
