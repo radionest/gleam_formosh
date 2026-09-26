@@ -49,13 +49,14 @@ validation. Change the schema; the form follows.
 - **Not a backend.** Submission is pluggable: HTTP POST/PUT, a custom
   handler, or "none" (you read the values yourself). Formosh does not store
   anything.
-- **Not a styling system.** The component ships with essentially no
-  default CSS. Its only defaults are the ones a feature cannot work
-  without — a `ui:layout` `Row`'s grid and a collapsing array row's fold —
-  and they sit in the lowest-priority `@layer formosh`, so any rule you
-  write overrides them without `!important`; the swipe widget's drag
-  transforms stay inline. Bring your own via tokens, `::part()`, `data-*`
-  attributes, or adopted parent stylesheets — see
+- **Not a styling system.** The component ships with essentially no default
+  CSS. Its only defaults are the ones a feature cannot work without — a
+  `ui:layout` `Row`'s grid and a collapsing array row's fold — and they sit
+  in `@layer formosh`, the lowest-priority layer inside `<formosh-form>`,
+  so any rule you write overrides them without `!important` (in a plain
+  Lustre app, declare `@layer formosh` first in your CSS); the swipe
+  widget's drag transforms stay inline. Bring your own via tokens,
+  `::part()`, `data-*` attributes, or adopted parent stylesheets — see
   [Styling](../guides/styling.md).
 
 ## Alpha status

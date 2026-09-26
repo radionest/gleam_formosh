@@ -126,20 +126,25 @@ the complete signatures live in [Public API](../reference/api.md).
 
 ## 5. Style it
 
-Formosh ships with **essentially no default CSS** — its few structural
-defaults sit in a layer any rule of yours overrides — see
-[Styling](../guides/styling.md#order-of-use). The component renders inside an
-open Shadow DOM with `::part()` hooks for every styled element — the fastest
-way to a usable form:
+Formosh ships with **essentially no default CSS**: its few structural
+defaults sit in a cascade layer named `formosh` that your rules override
+without `!important`. Mounted with `lustre.start` as above, the form renders
+straight into your page (no shadow root), so style it with plain class
+selectors:
 
 ```css
-formosh-form { display: block; max-width: 32rem; }
-formosh-form::part(label) { font-weight: 600; }
-formosh-form::part(submit){ background: #08a; color: white; padding: .5rem 1rem; }
-formosh-form::part(error) { color: #d33; font-size: .85rem; }
+.formosh-container { max-width: 32rem; }
+.formosh-label { font-weight: 600; }
+.formosh-submit { background: #08a; color: white; padding: .5rem 1rem; }
+.formosh-error { color: #d33; font-size: .85rem; }
 ```
 
-See [Styling](styling.md) for the full part catalog and cascade rules.
+If your CSS declares its own cascade layers, put `@layer formosh, …;` first
+so formosh's defaults stay below them — see
+[Styling](styling.md#plain-lustre-app-no-shadow-root). As a `<formosh-form>`
+web component the form lives in a shadow root and exposes `::part()` hooks
+instead; [Styling](styling.md) covers both modes, the full part catalog and
+the cascade rules.
 
 ## Common gotchas
 
