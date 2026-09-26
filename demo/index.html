@@ -369,10 +369,10 @@
         }
         formosh-form::part(description) { color: var(--muted); font-size: 0.92rem; }
 
-        /* ui:layout — `row` is self-styling (inline grid, see layout.gleam),
-           but `group` ships as bare wrappers: without this, group-body's
-           fields sit flush together under a group-label with no styling
-           at all. */
+        /* ui:layout — `row` is self-styling (grid from the library's formosh
+           stylesheet layer), but `group` ships as bare wrappers: without
+           this, group-body's fields sit flush together under a group-label
+           with no styling at all. */
         formosh-form::part(group-label) {
             font-family: var(--font-mono);
             font-size: 0.72rem;
