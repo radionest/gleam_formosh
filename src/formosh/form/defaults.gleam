@@ -324,9 +324,11 @@ fn ensure_array(
   current: option.Option(Value),
   selected: List(#(FieldPath, Int)),
 ) -> option.Option(Value) {
-  case property.items {
-    option.None -> option.None
-    option.Some(item_schema) -> {
+  case types.is_multi_select(property), property.items {
+    // Checkbox groups are never topped up: a filler row is `null`, not one
+    // of the options. Validation reports an under-`minItems` selection.
+    True, _ | _, option.None -> option.None
+    False, option.Some(item_schema) -> {
       let existing = case current {
         option.Some(ArrayValue(items)) -> items
         _ -> []

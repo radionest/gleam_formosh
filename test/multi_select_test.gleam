@@ -4,7 +4,7 @@
 
 import formosh
 import formosh/form/model
-import formosh/form/path.{PropertySegment}
+import formosh/form/path.{PropertySegment, get_at_path}
 import formosh/form/update
 import formosh/form/view
 import formosh/schema/parser
@@ -131,5 +131,59 @@ pub fn distinct_items_pass_unique_items_test() {
     |> with_n(ArrayValue([StringValue("a"), StringValue("b")]))
     |> start_config
   rules_at_n(sim) |> should.equal([])
+  model.can_submit(simulate.model(sim)) |> should.be_true
+}
+
+const unique_int_one_of = "{\"type\":\"array\",\"uniqueItems\":true,\"items\":{\"type\":\"integer\",\"oneOf\":[{\"const\":1,\"title\":\"One\"},{\"const\":2,\"title\":\"Two\"},{\"const\":3,\"title\":\"Three\"}]}}"
+
+fn start(prop_json: String) {
+  start_config(config_for(prop_json))
+}
+
+fn value_of(sim) {
+  formosh.get_values(simulate.model(sim))
+  |> get_at_path([PropertySegment("n")])
+}
+
+pub fn is_multi_select_accepts_option_items_test() {
+  array_prop(unique_enum) |> types.is_multi_select |> should.be_true
+  array_prop(unique_int_one_of) |> types.is_multi_select |> should.be_true
+}
+
+pub fn is_multi_select_rejects_non_option_arrays_test() {
+  // Duplicates allowed — keep the row editor.
+  array_prop(
+    "{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"a\",\"b\"]}}",
+  )
+  |> types.is_multi_select
+  |> should.be_false
+  // No options at all.
+  array_prop(unique_strings) |> types.is_multi_select |> should.be_false
+  // Bare `const` is a one-value enum — nothing to choose.
+  array_prop(
+    "{\"type\":\"array\",\"uniqueItems\":true,\"items\":{\"type\":\"string\",\"const\":\"a\"}}",
+  )
+  |> types.is_multi_select
+  |> should.be_false
+  // oneOf without const members is not an option list.
+  array_prop(
+    "{\"type\":\"array\",\"uniqueItems\":true,\"items\":{\"type\":\"integer\",\"oneOf\":[{\"minimum\":0},{\"maximum\":-10}]}}",
+  )
+  |> types.is_multi_select
+  |> should.be_false
+  // Object items are not scalar.
+  array_prop(
+    "{\"type\":\"array\",\"uniqueItems\":true,\"items\":{\"type\":\"object\",\"enum\":[{\"a\":1},{\"a\":2}]}}",
+  )
+  |> types.is_multi_select
+  |> should.be_false
+}
+
+pub fn min_items_does_not_top_up_checkbox_group_test() {
+  let sim =
+    start(
+      "{\"type\":\"array\",\"uniqueItems\":true,\"minItems\":1,\"items\":{\"type\":\"string\",\"enum\":[\"a\",\"b\"]}}",
+    )
+  value_of(sim) |> should.equal(None)
   model.can_submit(simulate.model(sim)) |> should.be_true
 }

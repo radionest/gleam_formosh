@@ -2,7 +2,8 @@
 
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
-import gleam/option.{type Option, None}
+import gleam/list
+import gleam/option.{type Option, None, Some}
 
 /// Unified value type for both schema definitions and form values.
 /// 
@@ -349,6 +350,34 @@ pub fn empty_hints() -> RenderHints {
     removable: None,
     orderable: None,
   )
+}
+
+/// True for an array that renders as a checkbox group: `uniqueItems: true`
+/// with scalar `items` carrying options — `oneOf` const members, or an
+/// `enum` of 2+ values (a bare `const` parses to a one-value `enum`:
+/// nothing to choose). Lives here so `form/defaults` (which skips the
+/// `minItems` top-up) and the field dispatcher share one definition.
+pub fn is_multi_select(property: SchemaProperty) -> Bool {
+  case property.field_type, property.array_constraints, property.items {
+    Some(ArrayType), Some(ArrayConstraints(unique_items: True, ..)), Some(item) -> {
+      let scalar =
+        item.field_type != Some(ArrayType)
+        && item.field_type != Some(ObjectType)
+      let has_const_member =
+        list.any(option.unwrap(item.one_of, []), fn(member) {
+          case member.enum_values {
+            Some([_]) -> True
+            _ -> False
+          }
+        })
+      let has_enum_choice = case item.enum_values {
+        Some([_, _, ..]) -> True
+        _ -> False
+      }
+      scalar && { has_const_member || has_enum_choice }
+    }
+    _, _, _ -> False
+  }
 }
 
 /// Errors that can occur during JSON Schema or UiSchema parsing.
