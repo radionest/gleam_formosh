@@ -171,6 +171,16 @@ pub fn anyof_single_survivor_member_crossed_array_bounds_is_error_test() {
   msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
 }
 
+pub fn anyof_single_survivor_merge_crossing_string_bounds_is_error_test() {
+  // #150: neither side is crossed alone — the collapse merge creates it.
+  let schema_json =
+    "{\"type\":\"object\",\"properties\":{\"s\":{\"type\":\"string\",\"minLength\":5,\"anyOf\":[{\"maxLength\":3},{\"type\":\"null\"}]}}}"
+  let assert Error(types.UnsatisfiableSchema(msg)) =
+    parser.parse_schema(schema_json)
+  msg
+  |> should.equal("unsatisfiable schema at #/s: minLength 5 > maxLength 3")
+}
+
 pub fn anyof_multi_member_survives_nullable_false_test() {
   let schema_json =
     "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"}]}}}"
