@@ -219,7 +219,7 @@ array of **nodes**:
 | Node | JSON shape | Renders as |
 |------|-----------|------------|
 | Leaf | a bare string naming a field | the field itself, unchanged |
-| `Row` | `{ "type": "Row", "elements": [...] }` | `part="row"`, an inline CSS grid |
+| `Row` | `{ "type": "Row", "elements": [...] }` | `part="row"`, a CSS grid from formosh's stylesheet |
 | `Group` | `{ "type": "Group", "label": "...", "elements": [...] }` | `part="group"` wrapping an optional `part="group-label"` and a `part="group-body"` |
 
 ```json
@@ -304,11 +304,12 @@ A few rules govern how a layout resolves:
   array-row children always render in schema order. Laying out the review
   summary isn't supported today — a known limitation, not a bug.
 
-`Row`'s default grid is `repeat(auto-fit, minmax(min(100%,12rem), 1fr))`,
+`Row`'s default grid is `repeat(auto-fit, minmax(min(100%, var(--formosh-row-min, 12rem)), 1fr))`,
 which collapses to fewer columns on narrow viewports with no media query
-needed. Tune the gap with the `--formosh-row-gap` custom property (default
-`1rem`), or override `grid-template-columns` outright via
-`formosh-form::part(row)` — see
+needed. Tune the minimum column width with `--formosh-row-min` (default
+`12rem`) and the gap with `--formosh-row-gap` (default `1rem`), or override
+`grid-template-columns` outright — from `formosh-form::part(row)` or any
+adopted rule, no `!important` needed — see
 [Styling](../guides/styling.md#overriding-the-uilayout-grid) for the full
 recipe, including targeting one field by name.
 
