@@ -218,7 +218,10 @@ pub fn render_checkboxes(ctx: FieldRenderCtx) -> Element(FormMsg) {
   }
   let at_max = case ctx.property.array_constraints {
     Some(types.ArrayConstraints(max_items: Some(max), ..)) ->
-      list.length(selected) >= max
+      list.count(options, fn(o) {
+        list.contains(selected, value_to_string(o.0))
+      })
+      >= max
     _ -> False
   }
   let effective_disabled = ctx.is_disabled || ctx.is_readonly

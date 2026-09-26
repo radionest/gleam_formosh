@@ -364,6 +364,20 @@ pub fn stale_non_option_value_drops_on_first_click_test() {
   |> should.equal(Some(ArrayValue([StringValue("a")])))
 }
 
+pub fn stale_non_option_value_does_not_count_toward_max_items_test() {
+  let sim =
+    config_for(
+      "{\"type\":\"array\",\"uniqueItems\":true,\"maxItems\":1,\"items\":{\"type\":\"string\",\"enum\":[\"a\",\"b\",\"c\"]}}",
+    )
+    |> with_n(ArrayValue([StringValue("zzz")]))
+    |> start_config
+  find(sim, "n_a") |> string.contains("disabled") |> should.be_false
+  sim
+  |> click("n_a")
+  |> value_of
+  |> should.equal(Some(ArrayValue([StringValue("a")])))
+}
+
 // Review Focus 5 — review mode shows titles for the selected consts only.
 pub fn review_mode_lists_selected_titles_test() {
   let m =
