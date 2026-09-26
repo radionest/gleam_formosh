@@ -20,10 +20,13 @@ model.touched_fields : List(FieldPath)
    │   exception: array-level errors (minItems/maxItems/uniqueItems)
    │   always render. In the row editor, Add/Remove button gating means
    │   minItems/maxItems can't come from form interaction there — but a
-   │   checkbox group has no such gating, so an under-minItems selection
-   │   is ordinary use and needs the same bypass. A uniqueItems duplicate
-   │   is touched at the row path, never the array path itself (blank
-   │   rows never count as duplicates), so the message is the only
+   │   checkbox group has no such gating; every click touches the array's
+   │   own path directly, so its own under-minItems state already shows
+   │   through the normal touch gate — the bypass matters there too, but
+   │   only for externally injected values, same as the row editor. A
+   │   uniqueItems duplicate is touched at the row path, never the array
+   │   path itself (blank rows are never compared, though rows filled from
+   │   schema defaults still compare equal), so the message is the only
    │   explanation for a blocked submit (error.is_array_length).
    │   set by model.mark_field_touched/2 — called from update.gleam on
    │   field change/blur and on swipe-review answer commits.

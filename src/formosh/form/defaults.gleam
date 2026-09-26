@@ -260,6 +260,9 @@ pub fn new_array_item(item_schema: SchemaProperty) -> Value {
 /// rows — it only appends `new_array_item` rows, and creates the array
 /// value itself when a `minItems > 0` array has no value yet. Same root
 /// invariant as `apply_schema_defaults`: the form root is one ObjectValue.
+/// Checkbox-group arrays (`types.is_multi_select`) are skipped entirely: a
+/// filler row would be `null`, not one of the options, so an
+/// under-`minItems` selection is left for validation to report instead.
 ///
 /// `selected` carries the active union branch per field path (design D4,
 /// openspec/changes/add-anyof-union-support) — threaded down so a row whose

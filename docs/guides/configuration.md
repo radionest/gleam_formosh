@@ -112,14 +112,17 @@ The one exception to the touch gate is **array-level violations**. A
 `minItems` / `maxItems` violation is always shown: in the row editor the
 Add/Remove buttons can't cause it, so it only comes from externally
 supplied values, where the message is the only explanation for a blocked
-submit; a checkbox group has no such gating, so an under-`minItems`
-selection there is ordinary use and needs the same bypass to be shown. A
+submit. A checkbox group has no such gating, but every click touches the
+array's own path directly, so an under-`minItems` checkbox selection
+already surfaces through the normal touch gate — the bypass matters there
+too, but only for externally supplied values, same as the row editor. A
 `uniqueItems` violation gets the same treatment for a different reason: the
 error is keyed at the array's own path, and editing a row only ever touches
 that row's own paths, never the array path itself — so without the
 exception the message would be the only explanation for a submit that's
-silently blocked. Blank rows (null, empty string, empty object) are never
-compared as duplicates, so an untouched Add/Add sequence never trips it.
+silently blocked. Blank rows are never compared as duplicates, so an
+untouched Add/Add sequence never trips it — except rows filled from schema
+defaults, which still compare equal.
 See the README "Arrays" section for the full rule.
 
 ## Read-only fields

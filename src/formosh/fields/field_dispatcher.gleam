@@ -67,12 +67,17 @@ fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   // gate. In the row editor, add/remove gating makes the length ones
   // unreachable through the UI, so there they only arise from externally
   // injected values — where they are the only visible explanation for a
-  // blocked submit. A checkbox group has no such gating: an under-minItems
-  // selection comes from ordinary use and needs the same bypass to be shown.
-  // A row-editor duplicate is typed into `n.[i]`, which never touches the
-  // array path itself, so a uniqueItems error would otherwise stay
-  // invisible — blank rows never count as duplicates, so this path only
-  // fires for genuine ones.
+  // blocked submit. A checkbox group has no such gating, but every click
+  // sends UpdateFieldPath/ClearFieldPath at the array path itself, marking
+  // that exact path touched — so an under-minItems checkbox selection
+  // already surfaces through the normal touched branch above; the bypass
+  // only matters there for externally injected values (e.g. initial values
+  // below minItems), same as the row editor. A row-editor duplicate is
+  // typed into `n.[i]`/`n.[i].field`, which never touches the array path
+  // itself, so a uniqueItems error would otherwise stay invisible — blank
+  // rows are never compared, so this path only fires for genuine
+  // duplicates (rows filled from schema defaults are a known exception:
+  // they still compare equal).
   let visible_errors = case is_touched {
     True -> errors
     False -> list.filter(errors, error.is_array_length)

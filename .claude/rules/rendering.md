@@ -15,7 +15,10 @@ When creating or modifying field renderers, follow these business logic rules:
 - Boolean fields render as Yes/No radio buttons
 - Format-specific inputs: email, date, time, url, password use
   corresponding HTML input types (password also via `ui:widget: "password"`)
-- Arrays render as dynamic list with add/remove controls
+- Arrays render as dynamic list with add/remove controls — except a
+  `uniqueItems: true` array whose scalar `items` carry options
+  (`types.is_multi_select`), which renders as a checkbox group
+  (`string_field.render_checkboxes`) instead
 - Objects render as nested fieldset with proper indentation
 - Numbers with `multipleOf` set the step attribute
 - Fields with `description` get help text below the input
