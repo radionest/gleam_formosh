@@ -187,6 +187,8 @@ pub fn dragged_row_keeps_its_inline_offset_test() {
   let #(m2, _) = update.update(m1, model.swipe_msg(DragMove(142.0)))
   let html = render_model(schema, m2)
   html |> string.contains("translateX(42.0px)") |> should.be_true
+  // Zone b's row rendered too, so the count below is not vacuous.
+  string.split(html, "part=\"swipe-row\"") |> list.length |> should.equal(3)
   // Zone b is idle: only the dragged row may carry a `style` attribute.
   string.split(html, " style=\"") |> list.length |> should.equal(2)
 }
