@@ -8,8 +8,8 @@ import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, ClearFieldPath, CustomSubmit,
   FileUploadError, FileUploading, FormSubmit, FormSubmitted, HttpSubmit,
   MoveArrayItemPath, NoSubmit, RemoveArrayItemPath, ResetForm,
-  SelectUnionBranchPath, SubmissionError, SubmissionSuccess, UpdateFieldPath,
-  ValidateForm, WidgetEvent, image_msg,
+  SelectUnionBranchPath, SubmissionError, SubmissionSuccess, ToggleOptionPath,
+  UpdateFieldPath, ValidateForm, WidgetEvent, image_msg,
 }
 import formosh/form/path
 import formosh/form/union_resolver
@@ -19,6 +19,7 @@ import formosh/form/widget_msg.{
   ImageRequested, ImageStarted, ImageUpload, SwipeReview,
   ToggleCollapseCompleted, ToggleHideAnswered, ToggleRowExpanded,
 }
+import formosh/schema/conditional_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type Value}
 import formosh/schema/ui_resolver
@@ -118,6 +119,25 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
         )
       let validated_model = validate_all_fields(new_model)
       #(validated_model, effect.none())
+    }
+
+    // Resolved against the current values, not the view that dispatched it:
+    // two clicks inside one render frame share a stale view (#137). Stored
+    // values that are not options drop out; an empty selection removes the key.
+    ToggleOptionPath(field_path, options, clicked) -> {
+      let selected = case model.get_value_at_path(model, field_path) {
+        Some(types.ArrayValue(values)) -> values
+        _ -> []
+      }
+      let next =
+        list.filter(options, fn(option) {
+          list.any(selected, conditional_resolver.compare_values(_, option))
+          != { option == clicked }
+        })
+      case next {
+        [] -> update(model, ClearFieldPath(field_path))
+        _ -> update(model, UpdateFieldPath(field_path, types.ArrayValue(next)))
+      }
     }
 
     SelectUnionBranchPath(field_path, index) ->

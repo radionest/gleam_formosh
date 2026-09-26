@@ -145,6 +145,9 @@ pub type FormMsg {
   // Path-based operations (simplified approach)
   UpdateFieldPath(path: FieldPath, value: Value)
   ClearFieldPath(path: FieldPath)
+  // Flip `value` in the checkbox-group array at `path`; `options` fixes the
+  // schema order.
+  ToggleOptionPath(path: FieldPath, options: List(Value), value: Value)
   AddArrayItemPath(path: FieldPath)
   RemoveArrayItemPath(path: FieldPath, index: Int)
   MoveArrayItemPath(path: FieldPath, from_index: Int, to_index: Int)

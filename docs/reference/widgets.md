@@ -247,7 +247,9 @@ renders as one checkbox per option instead of the row editor:
 - No rows are auto-created for `minItems`; an under-`minItems` selection is
   reported as an error instead.
 - A stored value that is not one of the options (e.g. from
-  `initial-values`) is dropped on the first click.
+  `initial-values`) is dropped on the first click. Stored values match
+  options by the same typed equality `enum` validation uses, so a seeded
+  `2.0` checks the integer option `2`.
 - Labels are the `oneOf` member `title`, else the value's string form.
 - Row-editor hints (`ui:addable`, `ui:removable`, `ui:orderable`,
   `ui:options.collapseCompleted`) have no effect on a checkbox group.

@@ -1,7 +1,9 @@
 // String field renderer
 
 import formosh/fields/field_common.{type FieldRenderCtx}
-import formosh/form/model.{type FormMsg, ClearFieldPath, UpdateFieldPath}
+import formosh/form/model.{
+  type FormMsg, ClearFieldPath, ToggleOptionPath, UpdateFieldPath,
+}
 import formosh/form/path
 import formosh/schema/conditional_resolver
 import formosh/schema/types
@@ -212,16 +214,18 @@ pub fn render_checkboxes(ctx: FieldRenderCtx) -> Element(FormMsg) {
     Some(item) -> option_list(item)
     None -> []
   }
-  let selected = case ctx.value {
-    Some(types.ArrayValue(values)) -> list.map(values, value_to_string)
-    _ -> []
+  let consts = list.map(options, fn(opt) { opt.0 })
+  // Same typed equality `update.ToggleOptionPath` uses to flip a box.
+  let is_selected = fn(val) {
+    case ctx.value {
+      Some(types.ArrayValue(values)) ->
+        list.any(values, conditional_resolver.compare_values(_, val))
+      _ -> False
+    }
   }
   let at_max = case ctx.property.array_constraints {
     Some(types.ArrayConstraints(max_items: Some(max), ..)) ->
-      list.count(options, fn(o) {
-        list.contains(selected, value_to_string(o.0))
-      })
-      >= max
+      list.count(consts, is_selected) >= max
     _ -> False
   }
   let effective_disabled = ctx.is_disabled || ctx.is_readonly
@@ -236,7 +240,7 @@ pub fn render_checkboxes(ctx: FieldRenderCtx) -> Element(FormMsg) {
         let #(const_val, label) = option
         let value = value_to_string(const_val)
         let box_id = field_id <> "_" <> value
-        let checked = list.contains(selected, value)
+        let checked = is_selected(const_val)
 
         html.div(
           [
@@ -252,7 +256,7 @@ pub fn render_checkboxes(ctx: FieldRenderCtx) -> Element(FormMsg) {
               attribute.value(value),
               attribute.checked(checked),
               attribute.disabled(effective_disabled || { at_max && !checked }),
-              event.on_click(toggle_msg(ctx.path, options, selected, value)),
+              event.on_click(ToggleOptionPath(ctx.path, consts, const_val)),
             ]),
             html.label([attribute.for(box_id)], [html.text(label)]),
           ],
@@ -270,28 +274,6 @@ fn option_list(property: types.SchemaProperty) -> List(#(types.Value, String)) {
     [], Some(values) ->
       list.map(values, fn(val) { #(val, value_to_string(val)) })
     [], None -> []
-  }
-}
-
-/// The selection after flipping `clicked`, in schema order — stored values
-/// that are not options drop out. An empty selection removes the key.
-fn toggle_msg(
-  field_path: path.FieldPath,
-  options: List(#(types.Value, String)),
-  selected: List(String),
-  clicked: String,
-) -> FormMsg {
-  let next =
-    list.filter_map(options, fn(option) {
-      let value = value_to_string(option.0)
-      case list.contains(selected, value) != { value == clicked } {
-        True -> Ok(option.0)
-        False -> Error(Nil)
-      }
-    })
-  case next {
-    [] -> ClearFieldPath(field_path)
-    _ -> UpdateFieldPath(field_path, types.ArrayValue(next))
   }
 }
 

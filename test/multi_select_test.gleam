@@ -404,6 +404,24 @@ pub fn selection_follows_schema_order_with_typed_consts_test() {
   |> should.equal(Some(ArrayValue([IntegerValue(1), IntegerValue(3)])))
 }
 
+// Lustre re-renders once per animation frame, so two clicks inside one frame
+// both fire handlers from the same stale view (#137). A view frozen at the
+// initial render reproduces that: the second click must not drop the first.
+pub fn two_clicks_from_one_stale_view_keep_both_test() {
+  let initial = formosh.init_model(config_for(unique_enum))
+  let stale_view = view.view(initial)
+  simulate.application(
+    init: fn(_) { #(initial, effect.none()) },
+    update: update.update,
+    view: fn(_) { stale_view },
+  )
+  |> simulate.start(Nil)
+  |> click("n_a")
+  |> click("n_b")
+  |> value_of
+  |> should.equal(Some(ArrayValue([StringValue("a"), StringValue("b")])))
+}
+
 pub fn unchecking_last_box_removes_value_test() {
   start(unique_enum)
   |> click("n_a")
@@ -455,6 +473,17 @@ pub fn initial_values_pre_check_boxes_test() {
     |> start_config
   find(sim, "n_b") |> string.contains("checked") |> should.be_true
   find(sim, "n_a") |> string.contains("checked") |> should.be_false
+}
+
+// Render and toggle share `enum`'s typed equality: a seeded `2.0` checks the
+// integer option `2`, and clicking it unchecks it.
+pub fn seeded_float_matches_integer_option_test() {
+  let sim =
+    config_for(unique_int_one_of)
+    |> with_n(ArrayValue([types.NumberValue(2.0)]))
+    |> start_config
+  find(sim, "n_2") |> string.contains("checked") |> should.be_true
+  sim |> click("n_2") |> value_of |> should.equal(None)
 }
 
 pub fn max_items_disables_only_unchecked_boxes_test() {
