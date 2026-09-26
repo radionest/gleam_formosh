@@ -76,12 +76,16 @@ pub fn every_rule_sits_inside_the_formosh_layer_test() {
 
 pub fn every_selector_is_scoped_to_the_form_test() {
   // A plain-Lustre `<style>` is a page stylesheet: an unscoped selector would
-  // style foreign elements that use the same part names.
+  // style foreign elements that use the same part names. Each `{` opens a
+  // style rule or an at-rule block (`@layer`, `@media`), so every rule is
+  // scoped when the scoped prefixes number `{` minus `@` — a rule written
+  // without `:where(` at all counts too.
   let css = stylesheet_text(render(False))
-  { occurrences(css, ":where(") > 0 } |> should.be_true
+  let rules = occurrences(css, "{") - occurrences(css, "@")
+  { rules > 0 } |> should.be_true
   css
   |> occurrences(":where(.formosh-container ")
-  |> should.equal(occurrences(css, ":where("))
+  |> should.equal(rules)
 }
 
 const layout_schema_json = "{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"},\"b\":{\"type\":\"string\"},\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"state\"],\"properties\":{\"state\":{\"type\":\"string\"}}}}}}"
