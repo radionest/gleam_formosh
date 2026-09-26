@@ -121,9 +121,11 @@ a `label`.
 
 **Inputs (by widget):**
 `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`,
-`boolean`, `checkbox-wrapper`, `checkbox-group` (the single boolean
-checkbox), `checkbox-list`, `checkbox-item` (the multi-select checkbox
-group — one `checkbox-item` per option).
+`boolean`, `checkbox-wrapper`, `checkbox-group`, `checkbox-list`,
+`checkbox-item` (the multi-select checkbox group — one `checkbox-item` per
+option). (`checkbox-wrapper` and `checkbox-group` are assigned only by a
+single-checkbox renderer that is not yet reachable — booleans always render
+as a Yes/No radio group.)
 
 **Arrays:**
 `array-field` (outer container), `array-items` (the row list), `array-item`

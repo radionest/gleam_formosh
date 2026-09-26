@@ -41,7 +41,7 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | `title` | ✅ | Used as the field label; overridable via `ui:title`. |
 | `description` | ✅ | Used as field help text; overridable via `ui:description` / `ui:help`. |
 | `default` | ✅ | Parsed and applied during initial value hydration (`form/defaults.gleam`). |
-| `readOnly` | ✅ | Field hidden by default; shown as disabled input with `with_show_readonly_fields(True)`. |
+| `readOnly` | ✅ | Shown as disabled input by default in `<formosh-form>` (hide with `show-readonly-fields="false"`); hidden by default via `FormConfig`, shown with `with_show_readonly_fields(True)`. |
 
 ## Object structure
 

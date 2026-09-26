@@ -371,7 +371,7 @@ The widget is chosen automatically based on schema:
 | `array` | dynamic list with add/remove controls |
 | `array` + `uniqueItems` + scalar `enum`/`oneOf` items | checkbox group (one checkbox per option) |
 | `object` | nested fieldset |
-| `readOnly: true` | hidden by default; shown as readonly input with `with_show_readonly_fields(True)` |
+| `readOnly: true` | `<formosh-form>`: shown as readonly input by default, hidden with `show-readonly-fields="false"`. `FormConfig`: hidden by default, shown with `with_show_readonly_fields(True)` |
 | `object` + `ui:widget: "swipe-review"` | tap/swipe-based zone burndown |
 
 ## What's Implemented
@@ -438,9 +438,11 @@ The component runs inside an open Shadow DOM. There are three customization surf
 2. **`data-*` attributes for state** — error and readonly states on the field wrapper:
 
    ```css
-   formosh-form::part(field)[data-error]    { border-color: red; }
-   formosh-form::part(field)[data-readonly] { opacity: 0.6; }
+   [part=field][data-error]    { border-color: red; }
+   [part=field][data-readonly] { opacity: 0.6; }
    ```
+
+   Note the `[part=…]` form: `formosh-form::part(field)[data-error]` is dead CSS, because an attribute selector cannot follow a pseudo-element. These rules only work from a page stylesheet that is adopted into the shadow root (surface 3). An ordinary page `<style>` or `<link>` is adopted. A stylesheet inside an enclosing shadow root, or one added after the component connected, is not.
 
 3. **Parent stylesheets are auto-adopted** — Lustre clones the parent document's CSS into the shadow root, so plain class selectors still work:
 
@@ -449,11 +451,11 @@ The component runs inside an open Shadow DOM. There are three customization surf
    .formosh-error { color: red; }
    ```
 
-Part names available (most elements carry one; a few carry two — see **Compound parts** below): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `row`, `group`, `group-label`, `group-body` (the last four appear only where a `ui:layout` actually places a `Row` or `Group` node; tune the row gap with the `--formosh-row-gap` custom property), `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `checkbox-list`, `checkbox-item`, `array-field`, `array-items`, `array-item`, `array-item-fields`, `array-item-header`, `array-add`, `union`, `union-radio`, `union-select`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`. Collapse-completed arrays (`ui:options.collapseCompleted`) add: `array-collapse-header`, `array-toggle`, `array-progress`, `array-item-summary`, `array-item-summary-value`, `array-item-summary-sep`, `array-item-body` (the folding wrapper — carries the fold animation as inline styles; retime it with `--formosh-collapse-duration`).
+Part names available (most elements carry one; a few carry two — see **Compound parts** below): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `row`, `group`, `group-label`, `group-body` (the last four appear only where a `ui:layout` actually places a `Row` or `Group` node; tune the row gap with the `--formosh-row-gap` custom property), `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group` (these two sit in a checkbox renderer that is not yet reachable — booleans always render as radios), `checkbox-list`, `checkbox-item`, `array-field`, `array-items`, `array-item`, `array-item-fields`, `array-item-header`, `array-add`, `union`, `union-radio`, `union-select`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`. Collapse-completed arrays (`ui:options.collapseCompleted`) add: `array-collapse-header`, `array-toggle`, `array-progress`, `array-item-summary`, `array-item-summary-value`, `array-item-summary-sep`, `array-item-body` (the folding wrapper — carries the fold animation as inline styles; retime it with `--formosh-collapse-duration`).
 
 Notes:
 
-- **Cascade**: adopted parent stylesheets and host-level `::part()` rules cascade by normal CSS specificity. To override a `.formosh-*` class rule, give your `::part()` selector higher specificity or use a more specific compound condition (`::part(input):not(:disabled)`).
+- **Cascade**: host-document `::part()` rules and adopted stylesheets live in different cascade contexts, and specificity does not decide between them. For normal declarations the outer context wins, so a host `::part(input)` rule beats any adopted `.formosh-input` rule. For `!important` declarations the order inverts, and an adopted `!important` rule beats a host `::part()` one. Specificity only breaks ties within one context. See [Cascade order](docs/guides/styling.md#cascade-order).
 - **Compound parts**: elements that carry two part tokens (e.g. `part="radio-group boolean"`) are reachable through either token. `::part()` does not support descendant combinators — so `radio-item` inside a boolean group cannot be addressed differently from one inside an enum group through Shadow Parts alone.
 
 Essentially no default styles are included — bring your own CSS. The

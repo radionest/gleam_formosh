@@ -36,19 +36,24 @@ that, every `<formosh-form>` on the page is a live form.
 
 ## Attributes
 
-Attributes map one-to-one to the `FormConfig` builders. Set them as plain
-HTML attributes (string values) — Formosh parses them internally.
+Most attributes correspond to a `FormConfig` builder, but the defaults are
+not always the same. `show-readonly-fields` defaults to `"true"`, so
+`readOnly` fields are shown, while a `FormConfig` starts with
+`show_readonly_fields` set to `False`. Set them as plain HTML attributes
+(string values) — Formosh parses them internally. A boolean attribute is
+true only for the exact string `"true"`. A bare `read-only` with no value,
+`"1"`, or `"TRUE"` all mean false.
 
-| Attribute | Type | Maps to |
-|-----------|------|---------|
-| `schema` | JSON string | The JSON Schema. **Required** — the form stays in "Waiting for schema…" until it's set. |
-| `submit-url` | string | `with_submit_url` |
-| `submit-method` | string (`"POST"`, `"PUT"`, …) | bundled with `submit-url` |
-| `initial-values` | JSON string (object) | `with_initial_values` |
-| `show-readonly-fields` | `"true"` / `"false"` | `with_show_readonly_fields` |
-| `read-only` | `"true"` / `"false"` | Review mode — render the whole form as a static summary |
-| `upload-base-url` | string | Base URL for the image-upload widget (`POST {url}`, `DELETE {url}/{filename}`) |
-| `ui-schema` | JSON string | `with_ui_schema_json` — full format in [UiSchema](../reference/ui-schema.md) |
+| Attribute | Type | Default | Maps to |
+|-----------|------|---------|---------|
+| `schema` | JSON string | unset | The JSON Schema. **Required** — the form stays in "Waiting for schema…" until it's set. |
+| `submit-url` | string | unset | `with_submit_url` |
+| `submit-method` | string (`"POST"`, `"PUT"`, …) | `"POST"` | bundled with `submit-url` |
+| `initial-values` | JSON string (object) | `{}` | `with_initial_values` |
+| `show-readonly-fields` | `"true"` / `"false"` | `"true"` | `with_show_readonly_fields` (whose `FormConfig` default is `False`) |
+| `read-only` | `"true"` / `"false"` | `"false"` | Review mode — render the whole form as a static summary |
+| `upload-base-url` | string | unset | Base URL for the image-upload widget (`POST {url}`, `DELETE {url}/{filename}`) |
+| `ui-schema` | JSON string | `{}` | `with_ui_schema_json` — full format in [UiSchema](../reference/ui-schema.md) |
 
 > **No headers attribute.** Custom HTTP headers cannot be set through the
 > web component — they are only available via the Gleam builder
