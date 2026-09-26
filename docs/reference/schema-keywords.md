@@ -50,7 +50,7 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | `properties` | ✅ | Order-preserving (stored as `List`, never `Dict`). |
 | `required` | ✅ | Required-field validation; controls the `*` indicator and submit gating. |
 | `$defs` / `definitions` | ✅ | Stored on the root; referenced via `$ref`. |
-| `$ref` (`#/$defs/...`, `#/definitions/...`) | ✅ | JSON-Pointer resolved by `schema/resolver.gleam`; **circular refs are detected and rejected**. Array keywords beside a `$ref` merge per keyword with the definition's, stricter-wins — same rule `allOf` uses (below): `minItems` is the higher floor, `maxItems` is the lower ceiling, `uniqueItems` is true if either side sets it. A merge that crosses bounds (sibling `minItems` > definition `maxItems`, or vice versa) fails parsing with `UnsatisfiableSchema`, same as a crossed `allOf` merge. String/number constraints beside a `$ref` still replace the definition's wholesale. |
+| `$ref` (`#/$defs/...`, `#/definitions/...`) | ✅ | JSON-Pointer resolved by `schema/resolver.gleam`; **circular refs are detected and rejected**. Array keywords beside a `$ref` merge per keyword with the definition's, stricter-wins — same rule `allOf` uses (below): `minItems` is the higher floor, `maxItems` is the lower ceiling, `uniqueItems` is true if either side sets it. A merge that crosses the normalized bounds fails parsing with `UnsatisfiableSchema` (see **Bounds normalization**). String/number constraints beside a `$ref` still replace the definition's wholesale. |
 | `additionalProperties` | ❌ | Not parsed. |
 | `patternProperties` | ❌ | Not parsed. |
 | `minProperties` / `maxProperties` | ❌ | Not parsed. |
@@ -68,17 +68,22 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | `uniqueItems` | ✅ | Duplicate elements → `uniqueItems` error at the array path (structural equality: `1` ≠ `1.0`; objects differing only in key order also count as distinct). Blank elements are ignored by the check — recursively: `null`, an empty string, and any array/object whose members are all themselves blank (e.g. `[]`, `{}`, `{"a":""}`, `{"tags":[null]}`). With scalar option `items` it switches the array to the [checkbox group](widgets.md#checkbox-group-multi-select). Across `allOf` members, and beside a `$ref`, it combines with OR. |
 | `contains` / `minContains` / `maxContains` | ❌ | Not parsed. |
 
-**Bounds normalization.** A schema with `minItems > maxItems`
-(unsatisfiable) is normalized at parse time so `minItems` wins — the array
-renders as fixed-size at `minItems` rows. This leniency covers a standalone
-node only: crossed bounds on a node with a non-empty `allOf` (`true` members
-don't count, `{}` members do; authored on the node itself or inside one
-member), a `$ref` sibling's bound crossing the
-definition's, and crossed bounds from `allOf` members all fail parsing
-instead, with `UnsatisfiableSchema` (see `allOf` below). Array-level
-violations
-(`minItems` / `maxItems` / `uniqueItems`) are always shown (they bypass the
-field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
+**Bounds normalization.** `minItems > maxItems` is unsatisfiable. Formosh
+normalizes it within each schema object at parse time, before any `$ref`,
+`allOf` or `anyOf` merge, so `minItems` wins and the array renders as
+fixed-size at `minItems` rows — otherwise the `minItems` top-up would wedge
+the form. Every schema object is normalized on its own: a property, `items`,
+an `allOf` or `anyOf` member, a `$defs` entry, an `if`/`then`/`else` branch.
+Merges then combine the normalized bounds stricter-wins, and only a merge
+that crosses them fails parsing with `UnsatisfiableSchema` — e.g.
+`allOf: [{"minItems": 5}, {"maxItems": 3}]`, or a `$ref` sibling
+`maxItems: 1` beside a definition normalized to 5. String and number bounds
+are not normalized: an `allOf` or single-survivor `anyOf` merge that combines
+a crossed pair fails; anywhere else, including beside a `$ref` (which
+replaces them wholesale), the crossing parses as written. Arrays differ on
+purpose, because of the top-up. Array-level violations (`minItems` /
+`maxItems` / `uniqueItems`) are always shown (they bypass the field-touched
+gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 
 ## String constraints
 
@@ -116,10 +121,10 @@ field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 
 | Keyword | Status | Notes |
 |---------|--------|-------|
-| `allOf` | ✅ | Deep-merged into the parent node at parse time by `schema/composer.gleam`: properties, required (union), bounds (stricter-wins), `uniqueItems` (OR), conditionals (appended). Scalar keywords (`title`, `default`, `enum`, `oneOf`, `pattern`, `format`, `multipleOf`) take the **later** member's value wholesale — enum/oneOf are overridden, not intersected. Conflicting types or crossed bounds in the merged result fail parsing with `UnsatisfiableSchema`. |
+| `allOf` | ✅ | Deep-merged into the parent node at parse time by `schema/composer.gleam`: properties, required (union), bounds (stricter-wins), `uniqueItems` (OR), conditionals (appended). Scalar keywords (`title`, `default`, `enum`, `oneOf`, `pattern`, `format`, `multipleOf`) take the **later** member's value wholesale — enum/oneOf are overridden, not intersected. Conflicting types or crossed bounds in the merged result fail parsing with `UnsatisfiableSchema`. Array bounds crossed within one schema object are normalized first (see **Bounds normalization**). |
 | `oneOf` (with `const` + `title` options) | ✅ | Renders as a radio group (≤5) or select (>5) of named constant options — on `string`, `number`, `integer`, and typeless fields. Stores the typed `const`. |
 | `oneOf` (schema variants) | 🟡 | Parsed and stored, but not processed as polymorphic dispatch. |
-| `anyOf` | ✅ | Parsed, `$ref`-resolved inside members, and normalized at parse time (`schema/composer.gleam`): null members collapse into a `nullable` flag — an empty nullable field validates as satisfied and submits `null` (see [Web Component](../guides/web-component.md#nullable-fields)); a single surviving non-null member merges into the node itself (`Optional[X]` renders as a plain `X` field); 2+ surviving members stay in `any_of` and render as a runtime branch chooser (radio ≤5 branches / select >5, `ui:widget` override — see [Widget Selection](widgets.md)). Member extraction is lenient (malformed members dropped); a parent `type` disjoint from every surviving member is a `ParseError`. A **bare** `anyOf` directly as an array's `items` schema (no object wrapper) does not render a chooser. |
+| `anyOf` | ✅ | Parsed, `$ref`-resolved inside members, and normalized at parse time (`schema/composer.gleam`): null members collapse into a `nullable` flag — an empty nullable field validates as satisfied and submits `null` (see [Web Component](../guides/web-component.md#nullable-fields)); a single surviving non-null member merges into the node itself (`Optional[X]` renders as a plain `X` field); 2+ surviving members stay in `any_of` and render as a runtime branch chooser (radio ≤5 branches / select >5, `ui:widget` override — see [Widget Selection](widgets.md)). Member extraction is lenient (malformed members dropped); a parent `type` disjoint from every surviving member is a `ParseError`. The single survivor merges like an `allOf` member, so bounds crossed by that merge fail too (e.g. `minLength: 5` on the node, `maxLength: 3` in the survivor). A **bare** `anyOf` directly as an array's `items` schema (no object wrapper) does not render a chooser. |
 | `not` | ❌ | Not parsed. |
 
 **`allOf` round-trip caveat.** `allOf` inside a `$defs` entry does not

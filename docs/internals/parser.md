@@ -28,22 +28,22 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
      (`resolver.merge_array_constraints`, shared with the `allOf` merge
      below); `all_of`/`conditionals` concatenate; `read_only`/`nullable`
      OR-merge; `addable`/`removable` AND-merge. A crossed `array_constraints`
-     result (sibling `minItems` > definition `maxItems`, or vice versa) is a
-     `ParseError` (`resolver.array_constraints_crossed_reason`), same as a
-     crossed `allOf`.
+     result (both sides already normalized, step 5) is a `ParseError`
+     (`resolver.array_constraints_crossed_reason`), same as a crossed
+     `allOf`.
 4. Compose `allOf`: deep-merge member schemas (properties, required, bounds,
    `$ref` mixins); lift member conditionals to the parent.
 5. Normalize unsatisfiable constraints:
-   - `minItems > maxItems` authored directly on a standalone node — its own
-     bounds, evaluated at decode, before any `$ref` merge — → `minItems`
-     wins, fixed size. E.g. `{"$ref": "#/$defs/Def" (no bounds),
-     "minItems": 5, "maxItems": 3}` normalizes to a fixed 5 regardless of
-     the `$ref`. A composed node — one carrying an effective `allOf` (not
-     empty / `true`-only; a `{}` member counts), or an inline `allOf`
-     member itself — skips this:
-     its crossed bounds stay raw and fail the merge below.
-   - conflicting `type` / crossed bounds arising from a merge (`allOf`
-     composition or a `$ref` sibling merge) → `UnsatisfiableSchema` error.
+   - `minItems > maxItems` authored directly on one node — its own bounds,
+     evaluated before any `$ref`/`allOf` merge — → `minItems` wins, fixed
+     size. E.g. `{"$ref": "#/$defs/Def" (no bounds), "minItems": 5,
+     "maxItems": 3}` normalizes to a fixed 5 regardless of the `$ref`; this
+     runs whether or not the node also carries a `$ref` or sits under
+     `allOf`, and is independent of step 3's merge (canonical rule:
+     [Array structure](../reference/schema-keywords.md#array-structure)).
+   - conflicting `type` / crossed bounds arising from an `allOf` composition
+     or a single-survivor `anyOf` collapse, and crossed `minItems`/`maxItems`
+     arising from a `$ref` sibling merge → `UnsatisfiableSchema` error.
 6. Emit parsed schema or `ParseError`.
 
 **Cross-links**
