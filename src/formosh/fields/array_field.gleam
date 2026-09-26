@@ -291,19 +291,15 @@ fn render_array_item(
 /// directions and for the automatic fold a row does the moment it becomes
 /// completed.
 ///
-/// Styles are inline for the same reason `swipe_review_field` puts its
-/// fly-off transition inline: the library ships no stylesheet, and without
-/// them a collapsed row would simply show its fields. Appearance stays with
-/// the caller — this is only the folding mechanism. Being inline does not
-/// make them hard to override: element-attached styles sort below context,
-/// so a host-document `::part(array-item-body)` rule beats them as a normal
-/// declaration. `!important` is only needed from an adopted stylesheet —
-/// which is how the standard `prefers-reduced-motion` reset switches the
-/// fold off — and the duration also reads
-/// `--formosh-collapse-duration`.
+/// The fold itself — the `1fr`↔`0fr` track, `overflow: hidden`, the
+/// transition, and the fields' `min-height: 0` — comes from the library
+/// stylesheet (`internal/stylesheet.gleam`), keyed on the row's
+/// `data-collapsed`, so any consumer rule overrides it without
+/// `!important`. This function only emits the wrapper and marks a
+/// collapsed body `inert`.
 ///
 /// An array with no collapsing configured renders exactly as it did before
-/// the feature existed: the bare fields container, no wrapper, no styles.
+/// the feature existed: the bare fields container, no wrapper.
 fn render_item_body(
   ctx: FieldRenderCtx,
   item_schema: SchemaProperty,
@@ -325,22 +321,7 @@ fn render_item_body(
 
   html.div(
     list.flatten([
-      [
-        class("array-item-body"),
-        attribute.attribute("part", "array-item-body"),
-        attribute.styles([
-          #("display", "grid"),
-          #("grid-template-rows", case is_collapsed {
-            True -> "0fr"
-            False -> "1fr"
-          }),
-          #("overflow", "hidden"),
-          #(
-            "transition",
-            "grid-template-rows var(--formosh-collapse-duration, 180ms) ease",
-          ),
-        ]),
-      ],
+      [class("array-item-body"), attribute.attribute("part", "array-item-body")],
       // Keeps the folded fields out of the tab order and off assistive
       // tech — they stay in the DOM so the fold has something to animate,
       // but a collapsed row must not be reachable as if it were open.
@@ -349,16 +330,7 @@ fn render_item_body(
         False -> []
       },
     ]),
-    [
-      html.div(
-        // A grid item's automatic minimum size would hold the `0fr` track
-        // open at its content height. Zeroing it here rather than clipping
-        // (`overflow: hidden`, which the wrapper does) leaves the part the
-        // caller actually styles free of a visual side effect.
-        list.append(fields_attrs, [attribute.styles([#("min-height", "0")])]),
-        children,
-      ),
-    ],
+    [html.div(fields_attrs, children)],
   )
 }
 

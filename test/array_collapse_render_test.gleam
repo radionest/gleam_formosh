@@ -5,6 +5,7 @@ import formosh/form/path.{ArraySegment, PropertySegment}
 import formosh/form/update
 import formosh/form/view
 import formosh/form/widget_msg.{ToggleCollapseCompleted, ToggleRowExpanded}
+import formosh/internal/stylesheet
 import formosh/schema/parser
 import formosh/schema/properties
 import formosh/schema/types
@@ -57,17 +58,17 @@ fn occurrences(html: String, needle: String) -> Int {
   list.length(string.split(html, needle)) - 1
 }
 
-/// A folded row keeps its fields in the DOM: the body wrapper holds them at
-/// a zero-height grid track and marks them `inert`, so the fold has an
-/// element to animate. "This row is collapsed" is therefore a claim about
-/// the wrapper's state, not about the fields being gone — these two count
-/// how many rows are in each state.
+/// A folded row keeps its fields in the DOM: the row carries
+/// `data-collapsed`, which the library stylesheet turns into a zero-height
+/// track, and its body is `inert`. "This row is collapsed" is therefore a
+/// claim about the row's state, not about the fields being gone — these two
+/// count how many rows are in each state.
 fn folded_rows(html: String) -> Int {
-  occurrences(html, "grid-template-rows:0fr")
+  occurrences(html, "data-collapsed=\"true\"")
 }
 
 fn open_rows(html: String) -> Int {
-  occurrences(html, "grid-template-rows:1fr")
+  occurrences(html, "part=\"array-item-body\"") - folded_rows(html)
 }
 
 fn render(m: model.FormModel) -> String {
@@ -162,12 +163,11 @@ pub fn option_absent_renders_exactly_as_before_test() {
   // `data-collapsed` is presence-only (fix round 1, item 1) — it must never
   // appear at all when collapsing isn't even available.
   plain |> string.contains("data-collapsed") |> should.be_false
-  // Nor may the folding wrapper and its inline styles appear: an array with
-  // nothing to fold renders the bare fields container it always did, with
-  // no `style` attribute of any kind anywhere in the array's own chrome.
+  // Nor may the folding wrapper appear: an array with nothing to fold
+  // renders the bare fields container it always did, with no `style`
+  // attribute of any kind anywhere in the array's own chrome.
   plain |> string.contains("array-item-body") |> should.be_false
-  plain |> string.contains("grid-template-rows") |> should.be_false
-  plain |> string.contains("min-height") |> should.be_false
+  plain |> string.contains("style=") |> should.be_false
   plain |> string.contains("inert") |> should.be_false
   // Both rows fully rendered, structurally intact: fields, per-row header,
   // and the container's own add/remove controls all present.
@@ -438,13 +438,24 @@ pub fn folding_wrapper_renders_for_every_row_not_just_collapsed_ones_test() {
   expanded |> folded_rows |> should.equal(0)
 }
 
-pub fn folding_wrapper_leaves_its_duration_overridable_test() {
-  // The transition is inline (the library ships no stylesheet), so an
-  // adopted stylesheet cannot simply restate it. Duration goes through a
-  // custom property instead, which a host page can set without `!important`.
-  render(init(ui_json))
+pub fn folding_elements_carry_no_inline_style_test() {
+  // One collapsed and one open row: both states render the wrapper, and
+  // neither may carry a `style` attribute — the fold comes from the library
+  // stylesheet, keyed on the row's `data-collapsed`.
+  let html = render(init(ui_json))
+  html |> folded_rows |> should.equal(1)
+  html |> open_rows |> should.equal(1)
+  html |> string.contains("style=") |> should.be_false
+}
+
+pub fn fold_transition_reads_the_duration_token_test() {
+  // The fold lives in the library stylesheet's `formosh` layer, so any
+  // consumer rule overrides it without `!important`; the duration still
+  // goes through a token so it can be retuned without restating the rule.
+  stylesheet.element()
+  |> element.to_string
   |> string.contains(
-    "transition:grid-template-rows var(--formosh-collapse-duration, 180ms) ease",
+    "transition: grid-template-rows var(--formosh-collapse-duration, 180ms) ease;",
   )
   |> should.be_true
 }
