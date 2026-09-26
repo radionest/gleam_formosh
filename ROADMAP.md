@@ -26,7 +26,10 @@ do"):
 - [ ] **Wire `ui:widget: "toggle"`.** `boolean_field.render_as_toggle` (and
   the `toggle`, `toggle-wrapper`, `toggle-slider`, `toggle-text` parts plus
   `data-state`) exist, but the dispatcher always renders radios. Hook it up
-  in the dispatcher; systematically solved by the Widget Registry.
+  in the dispatcher; systematically solved by the Widget Registry. When
+  wiring it (and the likewise-unused `render_as_checkbox`), dispatch intent
+  instead of the render-computed `!current_value` — two clicks in one frame
+  would otherwise flip once (see `.claude/rules/rendering.md`, #137).
 - [ ] **No re-exports from the root module.** `formosh.StringValue` /
   `formosh.FormModel` do not compile — Gleam cannot re-export constructors.
   Consider wrapper functions (`formosh.string_value(...)`) for ergonomics.

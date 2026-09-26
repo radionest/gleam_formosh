@@ -437,6 +437,32 @@ pub fn get_value_at_path(
   }
 }
 
+/// The checkbox-group (`types.is_multi_select`) options `stored` holds, in
+/// schema order, matched by `enum`'s typed equality — stored values that are
+/// not options drop out. Shared by the renderer and `update` so the checked
+/// state and the toggle can't disagree.
+pub fn selected_options(
+  options: List(Value),
+  stored: Option(Value),
+) -> List(Value) {
+  case stored {
+    option.Some(types.ArrayValue(values)) ->
+      list.filter(options, fn(opt) {
+        list.any(values, conditional_resolver.compare_values(_, opt))
+      })
+    _ -> []
+  }
+}
+
+/// True when `selected` already fills the array's `maxItems`.
+pub fn at_max_items(property: SchemaProperty, selected: List(Value)) -> Bool {
+  case property.array_constraints {
+    option.Some(types.ArrayConstraints(max_items: option.Some(max), ..)) ->
+      list.length(selected) >= max
+    _ -> False
+  }
+}
+
 /// Check if a field at any depth is required by the current resolved schema.
 ///
 /// Traverses `model.resolved_schema` along `field_path`, reading the

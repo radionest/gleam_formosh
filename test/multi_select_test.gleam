@@ -6,6 +6,7 @@ import formosh/form/model
 import formosh/form/path.{ArraySegment, PropertySegment, get_at_path}
 import formosh/form/update
 import formosh/form/view
+import formosh/form/widget_msg
 import formosh/schema/parser
 import formosh/schema/serializer
 import formosh/schema/types.{
@@ -404,6 +405,71 @@ pub fn selection_follows_schema_order_with_typed_consts_test() {
   |> should.equal(Some(ArrayValue([IntegerValue(1), IntegerValue(3)])))
 }
 
+// Lustre re-renders once per animation frame, so two clicks inside one frame
+// both fire handlers from the same stale view (#137). A view frozen at the
+// initial render reproduces that.
+fn start_frozen(prop_json: String) {
+  let initial = formosh.init_model(config_for(prop_json))
+  let stale_view = view.view(initial)
+  simulate.application(
+    init: fn(_) { #(initial, effect.none()) },
+    update: update.update,
+    view: fn(_) { stale_view },
+  )
+  |> simulate.start(Nil)
+}
+
+pub fn two_clicks_from_one_stale_view_keep_both_test() {
+  start_frozen(unique_enum)
+  |> click("n_a")
+  |> click("n_b")
+  |> value_of
+  |> should.equal(Some(ArrayValue([StringValue("a"), StringValue("b")])))
+}
+
+// The stale view predates the maxItems disabling too, so update enforces it.
+pub fn two_clicks_from_one_stale_view_respect_max_items_test() {
+  start_frozen(
+    "{\"type\":\"array\",\"uniqueItems\":true,\"maxItems\":1,\"items\":{\"type\":\"string\",\"enum\":[\"a\",\"b\",\"c\"]}}",
+  )
+  |> click("n_a")
+  |> click("n_b")
+  |> value_of
+  |> should.equal(Some(ArrayValue([StringValue("a")])))
+}
+
+// Inside an array row the cap comes from the row-resolved property lookup.
+pub fn stale_view_respects_max_items_inside_array_row_test() {
+  let tags = [PropertySegment("n"), ArraySegment(0), PropertySegment("tags")]
+  start_frozen(
+    "{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"properties\":{\"tags\":{\"type\":\"array\",\"uniqueItems\":true,\"maxItems\":1,\"items\":{\"type\":\"string\",\"enum\":[\"a\",\"b\",\"c\"]}}}}}",
+  )
+  |> click("n.[0].tags_a")
+  |> click("n.[0].tags_b")
+  |> simulate.model
+  |> formosh.get_values
+  |> get_at_path(tags)
+  |> should.equal(Some(ArrayValue([StringValue("a")])))
+}
+
+fn toggle(m, value: types.Value) {
+  update.update(
+    m,
+    model.array_msg(widget_msg.ToggleOption([PropertySegment("n")], value)),
+  ).0
+}
+
+// The message is public: a headless caller's `2.0` flips option `2`, and a
+// value that is not an option changes nothing.
+pub fn headless_toggle_matches_options_by_typed_equality_test() {
+  let m = formosh.init_model(config_for(unique_int_one_of))
+  toggle(m, types.NumberValue(2.0))
+  |> formosh.get_values
+  |> get_at_path([PropertySegment("n")])
+  |> should.equal(Some(ArrayValue([IntegerValue(2)])))
+  toggle(m, IntegerValue(9)) |> should.equal(m)
+}
+
 pub fn unchecking_last_box_removes_value_test() {
   start(unique_enum)
   |> click("n_a")
@@ -455,6 +521,17 @@ pub fn initial_values_pre_check_boxes_test() {
     |> start_config
   find(sim, "n_b") |> string.contains("checked") |> should.be_true
   find(sim, "n_a") |> string.contains("checked") |> should.be_false
+}
+
+// Render and toggle share `enum`'s typed equality: a seeded `2.0` checks the
+// integer option `2`, and clicking it unchecks it.
+pub fn seeded_float_matches_integer_option_test() {
+  let sim =
+    config_for(unique_int_one_of)
+    |> with_n(ArrayValue([types.NumberValue(2.0)]))
+    |> start_config
+  find(sim, "n_2") |> string.contains("checked") |> should.be_true
+  sim |> click("n_2") |> value_of |> should.equal(None)
 }
 
 pub fn max_items_disables_only_unchecked_boxes_test() {

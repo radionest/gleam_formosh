@@ -380,6 +380,23 @@ pub fn is_multi_select(property: SchemaProperty) -> Bool {
   }
 }
 
+/// An option-list node's choices as `#(value, title)`, in schema order: its
+/// `oneOf` const members, else its `enum` values (untitled).
+pub fn options(property: SchemaProperty) -> List(#(Value, Option(String))) {
+  let consts =
+    list.filter_map(option.unwrap(property.one_of, []), fn(member) {
+      case member.enum_values {
+        Some([val]) -> Ok(#(val, member.title))
+        _ -> Error(Nil)
+      }
+    })
+  case consts, property.enum_values {
+    [_, ..], _ -> consts
+    [], Some(values) -> list.map(values, fn(val) { #(val, None) })
+    [], None -> []
+  }
+}
+
 /// Errors that can occur during JSON Schema or UiSchema parsing.
 ///
 /// These errors provide specific information about what went wrong

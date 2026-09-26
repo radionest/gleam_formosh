@@ -3,6 +3,7 @@
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{type FormMsg, ClearFieldPath, UpdateFieldPath}
 import formosh/form/path
+import formosh/form/widget_msg
 import formosh/schema/conditional_resolver
 import formosh/schema/types
 import gleam/float
@@ -209,21 +210,12 @@ pub fn has_options(property: types.SchemaProperty) -> Bool {
 pub fn render_checkboxes(ctx: FieldRenderCtx) -> Element(FormMsg) {
   let field_id = path.to_string(ctx.path)
   let options = case ctx.property.items {
-    Some(item) -> option_list(item)
+    Some(item) -> types.options(item)
     None -> []
   }
-  let selected = case ctx.value {
-    Some(types.ArrayValue(values)) -> list.map(values, value_to_string)
-    _ -> []
-  }
-  let at_max = case ctx.property.array_constraints {
-    Some(types.ArrayConstraints(max_items: Some(max), ..)) ->
-      list.count(options, fn(o) {
-        list.contains(selected, value_to_string(o.0))
-      })
-      >= max
-    _ -> False
-  }
+  let selected =
+    model.selected_options(list.map(options, fn(opt) { opt.0 }), ctx.value)
+  let at_max = model.at_max_items(ctx.property, selected)
   let effective_disabled = ctx.is_disabled || ctx.is_readonly
 
   let checkbox_list =
@@ -232,11 +224,11 @@ pub fn render_checkboxes(ctx: FieldRenderCtx) -> Element(FormMsg) {
         attribute.class("formosh-checkbox-list"),
         attribute.attribute("part", "checkbox-list"),
       ],
-      list.map(options, fn(option) {
-        let #(const_val, label) = option
+      list.map(options, fn(opt) {
+        let #(const_val, title) = opt
         let value = value_to_string(const_val)
         let box_id = field_id <> "_" <> value
-        let checked = list.contains(selected, value)
+        let checked = list.contains(selected, const_val)
 
         html.div(
           [
@@ -252,47 +244,19 @@ pub fn render_checkboxes(ctx: FieldRenderCtx) -> Element(FormMsg) {
               attribute.value(value),
               attribute.checked(checked),
               attribute.disabled(effective_disabled || { at_max && !checked }),
-              event.on_click(toggle_msg(ctx.path, options, selected, value)),
+              event.on_click(
+                model.array_msg(widget_msg.ToggleOption(ctx.path, const_val)),
+              ),
             ]),
-            html.label([attribute.for(box_id)], [html.text(label)]),
+            html.label([attribute.for(box_id)], [
+              html.text(option.unwrap(title, value)),
+            ]),
           ],
         )
       }),
     )
 
   field_common.field_wrapper(ctx, checkbox_list)
-}
-
-/// `oneOf` const+title options, else `enum` values labelled by themselves.
-fn option_list(property: types.SchemaProperty) -> List(#(types.Value, String)) {
-  case one_of_options(property), property.enum_values {
-    [_, ..] as options, _ -> options
-    [], Some(values) ->
-      list.map(values, fn(val) { #(val, value_to_string(val)) })
-    [], None -> []
-  }
-}
-
-/// The selection after flipping `clicked`, in schema order — stored values
-/// that are not options drop out. An empty selection removes the key.
-fn toggle_msg(
-  field_path: path.FieldPath,
-  options: List(#(types.Value, String)),
-  selected: List(String),
-  clicked: String,
-) -> FormMsg {
-  let next =
-    list.filter_map(options, fn(option) {
-      let value = value_to_string(option.0)
-      case list.contains(selected, value) != { value == clicked } {
-        True -> Ok(option.0)
-        False -> Error(Nil)
-      }
-    })
-  case next {
-    [] -> ClearFieldPath(field_path)
-    _ -> UpdateFieldPath(field_path, types.ArrayValue(next))
-  }
 }
 
 /// Render a regular enum field (without oneOf).

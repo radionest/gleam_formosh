@@ -17,8 +17,9 @@ import formosh/form/widget_msg.{
   AnswerZone, ArrayField, DragCancel, DragEnd, DragMove, DragStart, ExitDone,
   ExitLeft, ExitRight, FillRemaining, ImageCompleted, ImageFailed, ImageRemoved,
   ImageRequested, ImageStarted, ImageUpload, SwipeReview,
-  ToggleCollapseCompleted, ToggleHideAnswered, ToggleRowExpanded,
+  ToggleCollapseCompleted, ToggleHideAnswered, ToggleOption, ToggleRowExpanded,
 }
+import formosh/schema/conditional_resolver
 import formosh/schema/properties
 import formosh/schema/types.{type Value}
 import formosh/schema/ui_resolver
@@ -48,17 +49,6 @@ import rsvp
 /// 
 /// ## Returns
 /// A tuple containing the new model state and any effects to execute
-/// 
-/// ## Supported Messages
-/// - `UpdateFieldPath(path, value)`: Update field value at specific path
-/// - `AddArrayItemPath(path)`: Add new item to array at path
-/// - `RemoveArrayItemPath(path, index)`: Remove array item at index
-/// - `FormSubmit`: Validate and submit the form
-/// - `FormSubmitted(result)`: Handle submission result (internal)
-/// - `SubmissionSuccess(message)`: Submission succeeded (internal)
-/// - `SubmissionError(message)`: Submission failed (internal)
-/// - `ValidateForm`: Validate entire form
-/// - `ResetForm`: Reset form to initial state
 pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
   case msg {
     // Path-based handlers — work directly against the single Value tree.
@@ -511,8 +501,10 @@ fn handle_swipe_review_event(
   }
 }
 
-/// Collapse view state only: no revalidation, no `resolved_schema` recompute,
-/// no `ensure_min_items` — these messages never touch `values`.
+/// The collapse toggles are view state only: no revalidation, no
+/// `resolved_schema` recompute, no `ensure_min_items` — they never touch
+/// `values`. `ToggleOption` does, so it forwards to `UpdateFieldPath` /
+/// `ClearFieldPath`, which run all of that.
 fn handle_array_field_event(
   model: FormModel,
   event: widget_msg.ArrayFieldEvent,
@@ -562,6 +554,46 @@ fn handle_array_field_event(
           effect.none(),
         )
       }
+
+    // Resolved against the current values and schema, not the view that
+    // dispatched it: two clicks inside one render frame share a stale view
+    // (#137) — which also predates any maxItems disabling, so the cap is
+    // re-checked here. A value that is not an option is ignored.
+    ToggleOption(field_path, clicked) -> {
+      let property = model.find_resolved_property_at_path(model, field_path)
+      let options = case property {
+        Ok(types.SchemaProperty(items: Some(item), ..)) ->
+          list.map(types.options(item), fn(opt) { opt.0 })
+        _ -> []
+      }
+      let selected =
+        model.selected_options(
+          options,
+          model.get_value_at_path(model, field_path),
+        )
+      case
+        property,
+        list.find(options, conditional_resolver.compare_values(_, clicked))
+      {
+        Ok(prop), Ok(target) -> {
+          let checking = !list.contains(selected, target)
+          use <- bool.guard(checking && model.at_max_items(prop, selected), #(
+            model,
+            effect.none(),
+          ))
+          let next =
+            list.filter(options, fn(opt) {
+              list.contains(selected, opt) != { opt == target }
+            })
+          case next {
+            [] -> update(model, ClearFieldPath(field_path))
+            _ ->
+              update(model, UpdateFieldPath(field_path, types.ArrayValue(next)))
+          }
+        }
+        _, _ -> #(model, effect.none())
+      }
+    }
   }
 }
 

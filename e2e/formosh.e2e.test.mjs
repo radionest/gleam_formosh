@@ -498,6 +498,37 @@ test("completing a row folds the body node it already had", async () => {
   });
 });
 
+// Lustre runs `update` synchronously but re-renders on requestAnimationFrame,
+// so two scripted clicks in one task both fire handlers from the same render
+// (#137). The toggle must resolve against the model, not that stale render.
+test("two checkbox clicks in one frame keep both choices", async () => {
+  const schema = JSON.stringify({
+    type: "object",
+    properties: {
+      tags: {
+        type: "array",
+        uniqueItems: true,
+        items: { type: "string", enum: ["a", "b", "c"] },
+      },
+    },
+  });
+  await page.evaluate((s) => {
+    window.__reset();
+    window.__setSchema(s);
+  }, schema);
+  await lastEvent("formosh-ready");
+  await page.waitForFunction(() =>
+    document.querySelector("formosh-form").shadowRoot.getElementById("tags_b"),
+  );
+  await page.evaluate(() => {
+    const root = document.querySelector("formosh-form").shadowRoot;
+    root.getElementById("tags_a").click();
+    root.getElementById("tags_b").click();
+  });
+  const change = await lastEvent("formosh-change", 2);
+  assert.deepEqual(change.detail.values.tags, ["a", "b"]);
+});
+
 // Formosh inputs are fully controlled (field_common.input_attributes sets
 // both `value` and `on_input`), so every keystroke round-trips through the
 // model and back into the element. A native date/time control fires `input`
