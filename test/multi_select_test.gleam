@@ -127,6 +127,8 @@ pub fn ref_sibling_crossing_bounds_is_unsatisfiable_test() {
   msg |> string.contains("maxItems") |> should.be_true
   // Names the referencing property ("#/n"), not just the $ref target.
   msg |> string.contains("#/n") |> should.be_true
+  // The merge created the crossing, so the $ref is named too.
+  msg |> string.contains("($ref #/$defs/Tags2)") |> should.be_true
 
   let assert Error(types.UnsatisfiableSchema(msg2)) =
     parser.parse_schema(

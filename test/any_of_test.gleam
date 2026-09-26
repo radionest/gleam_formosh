@@ -152,6 +152,25 @@ pub fn anyof_disjoint_parent_type_is_error_test() {
   msg |> string.contains("string") |> should.be_true()
 }
 
+// #148: a single survivor merges into the node, so crossed array bounds on
+// either side reach the merge raw and fail like string bounds do.
+
+pub fn anyof_single_survivor_node_crossed_array_bounds_is_error_test() {
+  let schema_json =
+    "{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3,\"anyOf\":[{\"type\":\"array\"},{\"type\":\"null\"}]}}}"
+  let assert Error(types.UnsatisfiableSchema(msg)) =
+    parser.parse_schema(schema_json)
+  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+}
+
+pub fn anyof_single_survivor_member_crossed_array_bounds_is_error_test() {
+  let schema_json =
+    "{\"type\":\"object\",\"properties\":{\"x\":{\"anyOf\":[{\"type\":\"array\",\"minItems\":5,\"maxItems\":3},{\"type\":\"null\"}]}}}"
+  let assert Error(types.UnsatisfiableSchema(msg)) =
+    parser.parse_schema(schema_json)
+  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+}
+
 pub fn anyof_multi_member_survives_nullable_false_test() {
   let schema_json =
     "{\"type\":\"object\",\"properties\":{\"value\":{\"anyOf\":[{\"type\":\"integer\"},{\"type\":\"string\"}]}}}"

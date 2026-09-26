@@ -268,6 +268,69 @@ pub fn parse_true_only_allof_normalizes_crossed_array_bounds_test() {
   )
 }
 
+// #148: crossings that only meet their merge counterpart after decoding
+// must still reach the composer raw, same as string bounds.
+
+pub fn parse_member_crossed_array_bounds_meet_parent_property_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\" } }, \"allOf\": [ { \"properties\": { \"x\": { \"type\": \"array\", \"minItems\": 5, \"maxItems\": 3 } } } ] }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+}
+
+pub fn parse_member_crossed_items_bounds_meet_parent_items_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\", \"items\": { \"type\": \"array\" }, \"allOf\": [ { \"items\": { \"type\": \"array\", \"minItems\": 5, \"maxItems\": 3 } } ] } } }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg
+  |> should.equal("unsatisfiable schema at #/x/items: minItems 5 > maxItems 3")
+}
+
+pub fn parse_two_members_crossed_array_bounds_same_property_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"allOf\": [ { \"properties\": { \"x\": { \"type\": \"array\", \"minItems\": 5, \"maxItems\": 3 } } }, { \"properties\": { \"x\": { \"type\": \"array\" } } } ] }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+}
+
+pub fn parse_crossed_def_as_member_is_error_test() {
+  // The definition alone is standalone, but as a member it merges — and the
+  // crossing is the definition's, not the $ref merge's, so no `($ref …)`.
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"D\": { \"type\": \"array\", \"minItems\": 5, \"maxItems\": 3 } }, \"properties\": { \"x\": { \"type\": \"array\", \"allOf\": [ { \"$ref\": \"#/$defs/D\" } ] } } }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+}
+
+pub fn parse_allof_inherited_through_ref_crossed_array_bounds_is_error_test() {
+  // `x` has no allOf of its own; the definition's arrives with the $ref.
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"A\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"allOf\": [ { \"title\": \"t\" } ] } }, \"properties\": { \"x\": { \"$ref\": \"#/$defs/A\", \"minItems\": 5, \"maxItems\": 3 } } }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+}
+
+pub fn parse_member_only_crossed_bounds_stay_lenient_test() {
+  // No counterpart on the parent, so no merge: array bounds clamp (#63),
+  // string bounds stay raw.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"y\": { \"type\": \"string\" } }, \"allOf\": [ { \"properties\": { \"x\": { \"type\": \"array\", \"minItems\": 5, \"maxItems\": 3 }, \"s\": { \"type\": \"string\", \"minLength\": 5, \"maxLength\": 3 } } } ] }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(x) = properties.get(schema.properties, "x")
+  x.array_constraints
+  |> should.equal(
+    Some(ArrayConstraints(
+      min_items: Some(5),
+      max_items: Some(5),
+      unique_items: False,
+    )),
+  )
+  let assert Some(s) = properties.get(schema.properties, "s")
+  let assert Some(sc) = s.string_constraints
+  sc.min_length |> should.equal(Some(5))
+  sc.max_length |> should.equal(Some(3))
+}
+
 pub fn parse_crossed_string_bounds_is_error_test() {
   let json =
     "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"allOf\": [ { \"minLength\": 5 }, { \"maxLength\": 3 } ] } } }"
