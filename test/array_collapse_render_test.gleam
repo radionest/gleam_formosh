@@ -449,8 +449,7 @@ pub fn folding_elements_carry_no_inline_style_test() {
 }
 
 pub fn fold_transition_reads_the_duration_token_test() {
-  // The fold lives in the library stylesheet's `formosh` layer, so any
-  // consumer rule overrides it without `!important`; the duration still
+  // The fold lives in the library stylesheet's `formosh` layer; the duration
   // goes through a token so it can be retuned without restating the rule.
   stylesheet.element()
   |> element.to_string

@@ -294,9 +294,9 @@ fn render_array_item(
 /// The fold itself — the `1fr`↔`0fr` track, `overflow: hidden`, the
 /// transition, and the fields' `min-height: 0` — comes from the library
 /// stylesheet (`internal/stylesheet.gleam`), keyed on the row's
-/// `data-collapsed`, so any consumer rule overrides it without
-/// `!important`. This function only emits the wrapper and marks a
-/// collapsed body `inert`.
+/// `data-collapsed`, so consumer CSS overrides it without `!important`
+/// (that module's doc says where that holds). This function only emits the
+/// wrapper and marks a collapsed body `inert`.
 ///
 /// An array with no collapsing configured renders exactly as it did before
 /// the feature existed: the bare fields container, no wrapper.
