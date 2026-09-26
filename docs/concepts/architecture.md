@@ -81,7 +81,7 @@ architectural fact about the schema layer — see
 |--------|----------------|
 | `model.gleam` | The `FormModel` record, `FormMsg` variants, `SubmitConfig`, and the `init_*` constructors. The single source of truth for form state. |
 | `update.gleam` | Pure `update(model, msg) -> #(model, effect)`. Field edits, array add/remove/move, touch tracking, submit flow. |
-| `view.gleam` | Pure `view(model) -> Element(msg)`. Delegates per-field rendering to `fields/field_dispatcher`, arranging top-level fields via `fields/layout.arrange` when a `ui:layout` is set. |
+| `view.gleam` | Pure `view(model) -> Element(msg)`. Renders the library stylesheet (`internal/stylesheet.gleam`, `@layer formosh`) as the container's first child, delegates per-field rendering to `fields/field_dispatcher`, and arranges top-level fields via `fields/layout.arrange` when a `ui:layout` is set. |
 | `visibility.gleam` | Computes the set of hidden paths (hidden widgets, suppressed readonly). Drives the submit gate. |
 | `union_resolver.gleam` | Resolves which `anyOf` member is "active" for a field path (`FormModel.selected_branches`, inferred from the value when unset) and materializes it into the node, so every walker (render, validate, visibility, defaults) sees a single effective schema. |
 | `path.gleam` | `FieldPath` — `PropertySegment` / `ArraySegment` lists for addressing any value in the tree. |
