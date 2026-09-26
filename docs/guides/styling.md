@@ -88,10 +88,10 @@ works instead because parent stylesheets are auto-adopted into the shadow root
 this simply works. Adoption is still the dependency it rests on, and does not
 reach a `<style>` or `<link>` inside an *enclosing* shadow root (that root's
 constructed `adoptedStyleSheets` are inherited), or a stylesheet added to the
-document after the component adopted at connect time. One further trap: because
-adopted sheets count as inner context, a *normal* host `::part(field)`
-declaration beats `[part=field][data-error]` regardless of specificity
-(§ Cascade order).
+document after the component made its one-time copy (§3). One further trap:
+because adopted sheets count as inner context, a *normal* host
+`::part(field)` declaration beats `[part=field][data-error]` regardless of
+specificity (§ Cascade order).
 
 `data-collapsed` is presence-only: it appears (value `"true"`) only on a
 row that is actually collapsed, and is absent — not `"false"` — on every
@@ -117,6 +117,15 @@ selectors against the internal `formosh-*` classes also apply:
 .formosh-input { padding: 0.5rem; }
 .formosh-error { color: red; }
 ```
+
+Lustre makes that copy once, right after the element is created: it waits
+for page stylesheets that are still loading, copies them only if the element
+is in the document by then, and does not copy again when the element
+connects. So a stylesheet added to the page later never reaches the
+component, and an element created in script but attached only after an
+`await`, or in a later task, can miss the copy entirely. Put your
+stylesheets in the page first, and attach a scripted `<formosh-form>` in the
+same task that creates it.
 
 Adopted rules sit inside the component's own cascade context: they beat
 formosh's `formosh`-layer defaults whatever their specificity, and lose to
