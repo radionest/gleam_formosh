@@ -178,7 +178,30 @@ fn normalize_any_of(
           )
         [single] -> {
           let bare = SchemaProperty(..node, any_of: None, nullable: nullable)
-          merge_pair(single, bare, path)
+          // `Optional[X]` parity with `type: [X, "null"]`: each side's own
+          // crossed array bounds are clamped for the check (#63), so only a
+          // crossing the collapse itself creates fails; the raw bounds pass
+          // on to any enclosing merge and the post-composition clamp.
+          let clamped = fn(p: SchemaProperty) {
+            SchemaProperty(
+              ..p,
+              array_constraints: resolver.clamp_array_constraints(
+                p.array_constraints,
+              ),
+            )
+          }
+          use merged <- result.map(merge_pair(
+            clamped(single),
+            clamped(bare),
+            path,
+          ))
+          SchemaProperty(
+            ..merged,
+            array_constraints: resolver.merge_array_constraints(
+              single.array_constraints,
+              bare.array_constraints,
+            ),
+          )
         }
         many ->
           Ok(SchemaProperty(..node, any_of: Some(many), nullable: nullable))

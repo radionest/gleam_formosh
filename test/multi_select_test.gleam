@@ -137,6 +137,38 @@ pub fn ref_sibling_crossing_bounds_is_unsatisfiable_test() {
   msg2 |> string.contains("#/n") |> should.be_true
 }
 
+// A side crossed on its own is clamped first (#63), but a bound on the
+// other side can still cross the clamped value — that crossing is the
+// merge's doing and fails, same as on main before the clamp moved (#148).
+pub fn ref_merge_crossing_clamped_side_is_unsatisfiable_test() {
+  let assert Error(types.UnsatisfiableSchema(msg)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"D\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\",\"maxItems\":1}}}",
+    )
+  msg
+  |> should.equal(
+    "unsatisfiable schema at #/x ($ref #/$defs/D): minItems 5 > maxItems 1",
+  )
+
+  let assert Error(types.UnsatisfiableSchema(msg2)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"D\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\",\"minItems\":7}}}",
+    )
+  msg2
+  |> should.equal(
+    "unsatisfiable schema at #/x ($ref #/$defs/D): minItems 7 > maxItems 5",
+  )
+
+  let assert Error(types.UnsatisfiableSchema(msg3)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"D\":{\"type\":\"array\",\"maxItems\":2}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\",\"minItems\":5,\"maxItems\":3}}}",
+    )
+  msg3
+  |> should.equal(
+    "unsatisfiable schema at #/x ($ref #/$defs/D): minItems 5 > maxItems 2",
+  )
+}
+
 // The referencing-property breadcrumb accumulates through nesting, same as
 // composer's `allOf` breadcrumb (`#/outer/n`), not just the immediate key.
 pub fn ref_sibling_crossing_bounds_names_nested_property_test() {

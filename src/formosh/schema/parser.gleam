@@ -75,25 +75,20 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
   Ok(to_json_schema(clamp_crossed_array_bounds(flattened), defs))
 }
 
-/// #63: `minItems > maxItems` that no merge rejected (the composer rejects
-/// every crossing that reaches it, the `$ref` merge only those it creates)
-/// is clamped so `minItems` wins — otherwise the reconcile pass tops the
-/// array up past `maxItems` and wedges the form (both buttons hidden, submit
-/// permanently blocked). Runs on the flattened tree only: clamping earlier
-/// would hide a crossing from the merge checks (#148). Covers every subtree
-/// the runtime reads — union branches and conditional branches included.
+/// #63: `minItems > maxItems` that no merge rejected is clamped so
+/// `minItems` wins — otherwise the reconcile pass tops the array up past
+/// `maxItems` and wedges the form (both buttons hidden, submit permanently
+/// blocked). The composer rejects crossings reaching an `allOf` merge; the
+/// `$ref` merge and the `anyOf` collapse only those that survive clamping
+/// each side. Runs on the flattened tree only: clamping earlier would hide a
+/// crossing from those checks (#148). Covers every subtree the runtime reads
+/// — union branches and `then`/`else` included; an `if` schema stays raw,
+/// since conditions only match on `enum`/`const`.
 fn clamp_crossed_array_bounds(prop: SchemaProperty) -> SchemaProperty {
   let clamp_all = list.map(_, clamp_crossed_array_bounds)
   SchemaProperty(
     ..prop,
-    array_constraints: case prop.array_constraints {
-      Some(
-        ArrayConstraints(min_items: Some(min), max_items: Some(max), ..) as c,
-      )
-        if min > max
-      -> Some(ArrayConstraints(..c, max_items: Some(min)))
-      c -> c
-    },
+    array_constraints: resolver.clamp_array_constraints(prop.array_constraints),
     items: option.map(prop.items, clamp_crossed_array_bounds),
     properties: option.map(
       prop.properties,
@@ -103,7 +98,7 @@ fn clamp_crossed_array_bounds(prop: SchemaProperty) -> SchemaProperty {
     one_of: option.map(prop.one_of, clamp_all),
     conditionals: list.map(prop.conditionals, fn(rule) {
       ConditionalRule(
-        if_schema: clamp_crossed_array_bounds(rule.if_schema),
+        ..rule,
         then_schema: option.map(rule.then_schema, clamp_crossed_array_bounds),
         else_schema: option.map(rule.else_schema, clamp_crossed_array_bounds),
       )

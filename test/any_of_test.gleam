@@ -152,20 +152,40 @@ pub fn anyof_disjoint_parent_type_is_error_test() {
   msg |> string.contains("string") |> should.be_true()
 }
 
-// #148: a single survivor merges into the node, so crossed array bounds on
-// either side reach the merge raw and fail like string bounds do.
+// A single survivor is `Optional[X]`: array bounds crossed on one side clamp
+// (#63) exactly as under `type: [X, "null"]`, while a crossing the collapse
+// itself creates fails like any merge. String/number bounds stay strict.
 
-pub fn anyof_single_survivor_node_crossed_array_bounds_is_error_test() {
-  let schema_json =
-    "{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3,\"anyOf\":[{\"type\":\"array\"},{\"type\":\"null\"}]}}}"
-  let assert Error(types.UnsatisfiableSchema(msg)) =
-    parser.parse_schema(schema_json)
-  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+pub fn anyof_single_survivor_crossed_array_bounds_clamp_like_type_array_test() {
+  let bounds = fn(json) {
+    let assert Ok(schema) = parser.parse_schema(json)
+    let assert Ok(#(_, x)) = list.first(schema.properties)
+    x.array_constraints
+  }
+  let clamped =
+    option.Some(types.ArrayConstraints(
+      min_items: option.Some(5),
+      max_items: option.Some(5),
+      unique_items: False,
+    ))
+  // Crossed on the node, crossed in the survivor, and the type-array form.
+  bounds(
+    "{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3,\"anyOf\":[{\"type\":\"array\"},{\"type\":\"null\"}]}}}",
+  )
+  |> should.equal(clamped)
+  bounds(
+    "{\"type\":\"object\",\"properties\":{\"x\":{\"anyOf\":[{\"type\":\"array\",\"minItems\":5,\"maxItems\":3},{\"type\":\"null\"}]}}}",
+  )
+  |> should.equal(clamped)
+  bounds(
+    "{\"type\":\"object\",\"properties\":{\"x\":{\"type\":[\"array\",\"null\"],\"minItems\":5,\"maxItems\":3}}}",
+  )
+  |> should.equal(clamped)
 }
 
-pub fn anyof_single_survivor_member_crossed_array_bounds_is_error_test() {
+pub fn anyof_single_survivor_merge_crossing_array_bounds_is_error_test() {
   let schema_json =
-    "{\"type\":\"object\",\"properties\":{\"x\":{\"anyOf\":[{\"type\":\"array\",\"minItems\":5,\"maxItems\":3},{\"type\":\"null\"}]}}}"
+    "{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"array\",\"minItems\":5,\"anyOf\":[{\"maxItems\":3},{\"type\":\"null\"}]}}}"
   let assert Error(types.UnsatisfiableSchema(msg)) =
     parser.parse_schema(schema_json)
   msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
