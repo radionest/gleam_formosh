@@ -22,10 +22,15 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
 2. Build `JsonSchema` node tree (typed).
 3. Resolve `$ref` against `$defs` / `definitions` (JSON Pointer).
    - Cycle detection → reject circular refs.
+   - Keywords beside the `$ref` win over the definition's; `array_constraints`
+     merge per keyword (`resolver.merge_array_constraints`), with crossed
+     bounds normalized min-wins.
 4. Compose `allOf`: deep-merge member schemas (properties, required, bounds,
    `$ref` mixins); lift member conditionals to the parent.
 5. Normalize unsatisfiable constraints:
-   - `minItems > maxItems` → `minItems` wins, fixed size.
+   - `minItems > maxItems` → `minItems` wins, fixed size — per node at parse,
+     and again after a `$ref` sibling merge; `composer.check_array_constraints`
+     (strict `ParseError`) only runs for a non-empty `allOf`.
    - conflicting `type` / crossed bounds → `UnsatisfiableSchema` error.
 6. Emit parsed schema or `ParseError`.
 

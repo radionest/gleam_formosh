@@ -50,7 +50,7 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | `properties` | ✅ | Order-preserving (stored as `List`, never `Dict`). |
 | `required` | ✅ | Required-field validation; controls the `*` indicator and submit gating. |
 | `$defs` / `definitions` | ✅ | Stored on the root; referenced via `$ref`. |
-| `$ref` (`#/$defs/...`, `#/definitions/...`) | ✅ | JSON-Pointer resolved by `schema/resolver.gleam`; **circular refs are detected and rejected**. |
+| `$ref` (`#/$defs/...`, `#/definitions/...`) | ✅ | JSON-Pointer resolved by `schema/resolver.gleam`; **circular refs are detected and rejected**. Array keywords beside a `$ref` merge per keyword with the definition's: `minItems` / `maxItems` each come from the sibling when set, else the definition; `uniqueItems` is true if either side sets it. String/number constraints beside a `$ref` still replace the definition's wholesale. |
 | `additionalProperties` | ❌ | Not parsed. |
 | `patternProperties` | ❌ | Not parsed. |
 | `minProperties` / `maxProperties` | ❌ | Not parsed. |
@@ -70,7 +70,11 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 
 **Bounds normalization.** A schema with `minItems > maxItems`
 (unsatisfiable) is normalized at parse time so `minItems` wins — the array
-renders as fixed-size at `minItems` rows. Array-level violations
+renders as fixed-size at `minItems` rows. The same min-wins rule applies
+when a `$ref` sibling's bound crosses the definition's (sibling
+`minItems: 5` over a definition's `maxItems: 3` → fixed at 5 rows); crossed
+bounds from `allOf` members fail parsing instead (see `allOf` below).
+Array-level violations
 (`minItems` / `maxItems` / `uniqueItems`) are always shown (they bypass the
 field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 

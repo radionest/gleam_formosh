@@ -124,6 +124,8 @@ called a "JSON Schema form generator" without disclaimers.
   per draft 2020-12 §6.3.3)
 - [x] `minItems` / `maxItems` — length validation plus add/remove button
   gating
+- [x] `uniqueItems` — validated on every array (blank rows ignored);
+  option-list arrays render as a checkbox group
 - [x] `multipleOf` — tolerant comparison (1e-8), also drives the `step`
   attribute
 - [x] `enum` value validation

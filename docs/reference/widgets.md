@@ -207,10 +207,11 @@ and UiSchema flags:
 | **Remove** | `removable` (default true) **and** above `minItems` (if set) |
 | **Move up/down** | `orderable` (default true) **and** more than one row |
 
-Rows auto-create up to `minItems` (checkbox groups excepted, below) (with item-field defaults applied). Array
-items can themselves be objects or arrays — nesting to any depth — so the
-container recurses through the same dispatcher. (Collapsing completed rows,
-below, is narrower: only object-shaped rows ever qualify.)
+Rows auto-create up to `minItems` (with item-field defaults applied; not
+for checkbox groups, below). Array items can themselves be objects or
+arrays — nesting to any depth — so the container recurses through the
+same dispatcher. (Collapsing completed rows, below, is narrower: only
+object-shaped rows ever qualify.)
 
 ### Checkbox group (multi-select)
 
@@ -237,11 +238,15 @@ renders as one checkbox per option instead of the row editor:
 - Unchecking the last box **removes the key**, like the select placeholder —
   so `required` means "pick at least one". `minItems` / `maxItems` apply
   once something is picked.
-- Once `maxItems` options are checked, the remaining boxes are disabled.
+- Once `maxItems` options are checked, the remaining boxes are disabled
+  (stored values that aren't options don't count).
 - No rows are auto-created for `minItems`; an under-`minItems` selection is
   reported as an error instead.
 - A stored value that is not one of the options (e.g. from
   `initial-values`) is dropped on the first click.
+- Labels are the `oneOf` member `title`, else the value's string form.
+- Row-editor hints (`ui:addable`, `ui:removable`, `ui:orderable`,
+  `ui:options.collapseCompleted`) have no effect on a checkbox group.
 - Without `uniqueItems` the same array keeps the row editor, since
   duplicates are allowed there. No `ui:widget` value switches the
   checkbox group to another enum widget (`"select"` / `"radio"`) or back
@@ -463,6 +468,7 @@ own dispatch from there.
 | String sub-decision (oneOf / enum / textarea / input) | `src/formosh/fields/string_field.gleam` |
 | HTML `type` from `format` | `string_field.get_input_type` |
 | Array container + add/remove gating | `src/formosh/fields/array_field.gleam` |
+| Checkbox group (`uniqueItems` option arrays) | `string_field.render_checkboxes`; trigger `types.is_multi_select` |
 | Collapse-completed logic (options, predicate, summaries) | `src/formosh/fields/array_collapse.gleam` |
 | Object fieldset | `src/formosh/fields/object_field.gleam` |
 | Union chooser (`anyOf`, 2+ branches) | `src/formosh/fields/union_field.gleam` |

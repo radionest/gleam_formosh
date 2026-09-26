@@ -23,7 +23,7 @@ description: "Msg handling and state transitions: field edits, add/remove array 
   4. return new model + any effects
 - Touch gating: errors hidden until a field is touched; array-level
   violations (`minItems`/`maxItems`/`uniqueItems`) are the exception
-  (always visible — see README "Arrays").
+  (always visible — see [Error visibility](../guides/configuration.md#error-visibility)).
 - Submit flow: gather values → run validator → invoke configured handler
   (HTTP / custom / none) → surface success/error state.
 
