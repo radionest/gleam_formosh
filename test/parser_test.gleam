@@ -694,43 +694,42 @@ pub fn array_constraints_min_above_max_normalizes_test() {
 pub fn crossed_array_bounds_normalize_per_schema_object_test() {
   // Crossed minItems > maxItems is clamped within each schema object at
   // decode, before any $ref/allOf/anyOf merge — by design, see
-  // docs/reference/schema-keywords.md#array-structure. Letters are rows of
-  // the acceptance table in the #149 revert.
+  // docs/reference/schema-keywords.md#array-structure.
   let rows = [
     #(
-      "B",
+      "on a node with allOf",
       "\"properties\":{\"x\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3,\"allOf\":[{\"title\":\"t\"}]}}",
     ),
     #(
-      "C",
+      "in a property of an allOf member",
       "\"properties\":{\"x\":{\"type\":\"array\"}},\"allOf\":[{\"properties\":{\"x\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}}}]",
     ),
     #(
-      "E",
+      "in a $defs entry behind $ref",
       "\"$defs\":{\"D\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\"}}",
     ),
     #(
-      "H",
+      "in the anyOf survivor",
       "\"properties\":{\"x\":{\"anyOf\":[{\"type\":\"array\",\"minItems\":5,\"maxItems\":3},{\"type\":\"null\"}]}}",
     ),
     #(
-      "M",
+      "in an allOf member",
       "\"properties\":{\"x\":{\"type\":\"array\",\"allOf\":[{\"minItems\":5,\"maxItems\":3}]}}",
     ),
     #(
-      "N",
+      "on a $ref node with allOf",
       "\"$defs\":{\"D\":{\"type\":\"array\"}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\",\"minItems\":5,\"maxItems\":3,\"allOf\":[{\"title\":\"t\"}]}}",
     ),
     #(
-      "Q",
+      "on a $ref node whose def has allOf",
       "\"$defs\":{\"A\":{\"type\":\"array\",\"allOf\":[{\"title\":\"t\"}]}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/A\",\"minItems\":5,\"maxItems\":3}}",
     ),
     #(
-      "W",
+      "in a $defs entry used as an allOf member",
       "\"$defs\":{\"D\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},\"properties\":{\"x\":{\"type\":\"array\",\"allOf\":[{\"$ref\":\"#/$defs/D\"}]}}",
     ),
     #(
-      "X",
+      "on a type [array, null] node",
       "\"properties\":{\"x\":{\"type\":[\"array\",\"null\"],\"minItems\":5,\"maxItems\":3}}",
     ),
   ]
@@ -744,14 +743,14 @@ pub fn crossed_array_bounds_normalize_per_schema_object_test() {
     let #(label, fragment) = row
     let assert Ok(schema) =
       parser.parse_schema("{\"type\":\"object\"," <> fragment <> "}")
-      as { "row " <> label <> " failed to parse" }
+      as { "crossed bounds " <> label <> " failed to parse" }
     let assert Ok(x) = list.key_find(schema.properties, "x")
     #(label, x.array_constraints) |> should.equal(#(label, clamped))
   })
 }
 
 pub fn crossed_array_bounds_in_any_of_member_items_normalize_test() {
-  // Row I: the survivor's `items` is a schema object of its own, clamped
+  // The survivor's `items` is a schema object of its own, clamped
   // at decode before the anyOf collapse merges it into `x.items`.
   let assert Ok(schema) =
     parser.parse_schema(
@@ -770,7 +769,7 @@ pub fn crossed_array_bounds_in_any_of_member_items_normalize_test() {
 }
 
 pub fn crossed_array_bounds_in_then_branch_normalize_test() {
-  // Row P: an if/then/else branch is a schema object of its own.
+  // An if/then/else branch is a schema object of its own.
   let assert Ok(schema) =
     parser.parse_schema(
       "{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"}},\"if\":{\"properties\":{\"a\":{\"const\":\"y\"}}},\"then\":{\"properties\":{\"arr\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}}}}",

@@ -135,9 +135,9 @@ pub fn ref_sibling_crossing_bounds_is_unsatisfiable_test() {
   msg2 |> string.contains("#/n") |> should.be_true
 }
 
-// Row F: the definition's own crossed bounds are clamped to 5/5 before the
-// `$ref` merge; a sibling `maxItems: 1` then crosses the clamped floor, so
-// the merge fails.
+// The definition's own crossed bounds are clamped to 5/5 before the `$ref`
+// merge; a sibling `maxItems: 1` then crosses the clamped floor, so the
+// merge fails.
 pub fn ref_sibling_crossing_normalized_definition_is_unsatisfiable_test() {
   let assert Error(types.UnsatisfiableSchema(_)) =
     parser.parse_schema(
