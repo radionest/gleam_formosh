@@ -160,6 +160,22 @@ pub fn readonly_view_renders_integer_oneof_label_test() {
   html |> string.contains("Second") |> should.be_true
 }
 
+pub fn readonly_view_renders_integer_oneof_label_for_float_value_test() {
+  // A seeded `2.0` equals the integer const `2` (#128).
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"grade\": { \"type\": \"integer\", \"title\": \"Grade\", \"oneOf\": [ { \"const\": 1, \"title\": \"First\" }, { \"const\": 2, \"title\": \"Second\" } ] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let html =
+    FormModel(
+      ..model.init(schema),
+      values: types.ObjectValue([#("grade", types.NumberValue(2.0))]),
+      read_only: True,
+    )
+    |> view.view
+    |> element.to_string
+  html |> string.contains("Second") |> should.be_true
+}
+
 pub fn readonly_table_falls_back_to_groups_for_conditional_items_test() {
   // Item-level conditionals can't be a fixed-column table; the array falls back
   // to per-row groups, which resolve the then-branch field for each row.

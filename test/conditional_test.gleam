@@ -1918,3 +1918,31 @@ pub fn nested_object_conditional_else_branch_test() {
   |> properties.has_key("wallet_id")
   |> should.be_false()
 }
+
+/// Regression (#128): a number input yields NumberValue(1.0), which must
+/// satisfy an integer `const: 1` in the `if` condition.
+pub fn integer_const_matches_equal_float_value_test() {
+  let schema_json =
+    "{
+      \"type\": \"object\",
+      \"properties\": {\"n\": {\"type\": \"number\"}},
+      \"if\": {\"properties\": {\"n\": {\"const\": 1}}},
+      \"then\": {\"properties\": {\"extra\": {\"type\": \"string\"}}}
+    }"
+  let assert Ok(parsed) = parser.parse_schema(schema_json)
+  let resolved =
+    conditional_resolver.resolve_conditional_schema(
+      parsed,
+      ObjectValue([#("n", types.NumberValue(1.0))]),
+    )
+  resolved.properties |> properties.has_key("extra") |> should.be_true()
+}
+
+pub fn compare_values_integer_and_float_both_orders_test() {
+  conditional_resolver.compare_values(IntegerValue(2), types.NumberValue(2.0))
+  |> should.be_true()
+  conditional_resolver.compare_values(types.NumberValue(2.0), IntegerValue(2))
+  |> should.be_true()
+  conditional_resolver.compare_values(IntegerValue(2), types.NumberValue(2.5))
+  |> should.be_false()
+}

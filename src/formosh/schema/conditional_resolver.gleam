@@ -9,6 +9,7 @@ import formosh/schema/types.{
   ArrayType, BooleanValue, IntegerValue, JsonSchema, NullValue, NumberValue,
   ObjectType, ObjectValue, SchemaProperty, StringValue,
 }
+import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 
@@ -250,6 +251,8 @@ pub fn compare_values(val1: Value, val2: Value) -> Bool {
     StringValue(s1), StringValue(s2) -> s1 == s2
     NumberValue(n1), NumberValue(n2) -> n1 == n2
     IntegerValue(i1), IntegerValue(i2) -> i1 == i2
+    IntegerValue(i), NumberValue(n) | NumberValue(n), IntegerValue(i) ->
+      int.to_float(i) == n
     BooleanValue(b1), BooleanValue(b2) -> b1 == b2
     NullValue, NullValue -> True
     _, _ -> False

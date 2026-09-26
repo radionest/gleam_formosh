@@ -60,6 +60,9 @@ The tree mirrors the schema. Three rules:
 3. **Every other key** is a child property name and recurses into another
    UiSchema node.
 
+Keys starting with `$` (`$schema`, `$id`, `$comment`, …) are ignored at any depth,
+so a data field whose name starts with `$` can't be configured through the UiSchema.
+
 ```jsonc
 {
   "ui:order": ["name", "email", "age"],   // root-level field order
@@ -116,7 +119,7 @@ default (or `x-*` extension where applicable)".
 
 | Key | Type | Effect |
 |-----|------|--------|
-| `ui:order` | string[] | Reorders children of this object. Fields not listed keep their schema order after the listed ones. Use `"*"` as a wildcard to mean "the rest, in schema order". |
+| `ui:order` | string[] | Reorders children of this object. Fields not listed keep their schema order after the listed ones. A key listed twice renders once, at its first position (unlike `ui:layout`). Use `"*"` as a wildcard to mean "the rest, in schema order". |
 | `ui:layout` | array | Arranges children into `Row`/`Group` nodes instead of a flat list; unplaced fields still render after it, in `ui:order`. See [Layout with `ui:layout`](#layout-with-uilayout) below. |
 
 ### Array controls
@@ -290,7 +293,8 @@ A few rules govern how a layout resolves:
   detects or rejects it: the two copies get duplicate `id` attributes and,
   for a radio-backed field, duplicate `id`/`for` pairs, which is invalid
   HTML. Treat it as author error to avoid, not a constraint the parser
-  validates today.
+  validates today. (`ui:order`, by contrast, keeps only the first
+  occurrence of a duplicated key.)
 - **Review mode (`read-only="true"`) ignores `ui:layout`.** The review
   summary renders in plain `ui:order` order, with or without a layout —
   except inside array rows, where `ui:order` is dropped too. Both review
@@ -386,8 +390,7 @@ required fields.
 
 What that collapsed row actually *shows* turns on `show_readonly_fields`,
 since `zone_id` and `label` are both `readOnly`. In the demo they appear
-because `<formosh-form>` defaults that flag **on** — the page's own
-`show-readonly-fields="true"` only restates the default. Build the same
+because `<formosh-form>` defaults that flag **on**. Build the same
 form through `FormConfig`, where the flag defaults to `False`, and both
 fields are suppressed from the summary along with everything else the
 expanded row hides, leaving the row number as the only thing left to

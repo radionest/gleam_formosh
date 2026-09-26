@@ -2,9 +2,10 @@
 ///
 /// Accepts react-jsonschema-form-style JSON: `ui:*` keys carry settings for
 /// the current node, `items` is a reserved key for the array-element
-/// template, every other key is a child property name. Errors surface as
-/// `types.ParseError` (the same type used by the JSON Schema parser) so
-/// callers can handle both kinds of input uniformly.
+/// template, `$`-prefixed keys are ignored, every other key is a child
+/// property name. Errors surface as `types.ParseError` (the same type used
+/// by the JSON Schema parser) so callers can handle both kinds of input
+/// uniformly.
 import formosh/ffi/dynamic_object
 import formosh/schema/parser
 import formosh/schema/types.{
@@ -58,8 +59,8 @@ fn parse_ui_schema(dyn: Dynamic) -> Result(UiSchema, ParseError) {
       let order = extract_order(entries)
       use layout <- result.try(extract_layout(entries))
       // Root has no `items` template (form root is always an object), so
-      // every non-`ui:*` key — including a property literally named
-      // "items" — is treated as a top-level child.
+      // every non-`ui:*`, non-`$` key — including a property literally
+      // named "items" — is treated as a top-level child.
       use children <- result.try(parse_children(entries, as_root: True))
       Ok(UiSchema(properties: children, order: order, layout: layout))
     }
@@ -120,7 +121,9 @@ fn parse_children(
 ) -> Result(List(#(String, UiProperty)), ParseError) {
   list.filter(entries, fn(entry) {
     let key = entry.0
-    !is_ui_key(key) && { as_root || key != "items" }
+    !is_ui_key(key)
+    && !string.starts_with(key, "$")
+    && { as_root || key != "items" }
   })
   |> list.try_map(fn(entry) {
     let #(name, dyn) = entry

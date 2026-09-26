@@ -112,7 +112,8 @@ pub fn merge_with(
 /// `#(String, _)` entries — primarily `PropertyList`, but also UiSchema
 /// children and arbitrary test fixtures. Keys listed in `order` come first
 /// in the given sequence; everything else follows in its original position.
-/// Unknown keys in `order` (not present in `entries`) are silently dropped.
+/// Unknown keys in `order` (not present in `entries`) are silently dropped,
+/// and a key listed twice keeps only its first position.
 /// Returns the input unchanged when `order` is `None`.
 pub fn apply_order(
   entries: List(#(String, a)),
@@ -122,7 +123,8 @@ pub fn apply_order(
     None -> entries
     Some(ordered_keys) -> {
       let ordered =
-        list.filter_map(ordered_keys, fn(key) {
+        list.unique(ordered_keys)
+        |> list.filter_map(fn(key) {
           list.key_find(entries, key)
           |> result.map(fn(value) { #(key, value) })
         })
