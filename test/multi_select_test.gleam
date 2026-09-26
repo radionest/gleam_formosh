@@ -182,6 +182,21 @@ pub fn blank_rows_are_not_duplicates_test() {
   rules_at_n(min_items_sim) |> should.equal([])
 }
 
+// An object-row array whose item schema has a nested array with
+// `minItems: 1` reconciles every new row to a value with that nested array
+// topped up (not `ObjectValue([])`) — the blank filter must still see the
+// whole row as blank, recursively, not just the flat empty-object case.
+pub fn nested_min_items_rows_are_not_duplicates_test() {
+  let sim =
+    start(
+      "{\"type\":\"array\",\"uniqueItems\":true,\"items\":{\"type\":\"object\",\"properties\":{\"tags\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"string\"}}}}}",
+    )
+    |> simulate.message(model.AddArrayItemPath([PropertySegment("n")]))
+    |> simulate.message(model.AddArrayItemPath([PropertySegment("n")]))
+  rules_at_n(sim) |> should.equal([])
+  html_of(sim) |> string.contains("Items must be unique") |> should.be_false
+}
+
 // A row-editor array: a real duplicate typed into `n.[i]`/`n.[j]` — which
 // never touches the array path `n` itself — must still surface the error
 // (D6's real scenario).

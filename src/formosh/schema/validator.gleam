@@ -520,14 +520,13 @@ fn validate_array_constraints(
       // ponytail: structural `==` — `1` vs `1.0`, and objects differing only
       // in key order, count as distinct (JSON Schema calls them equal).
       // Normalize values before comparing if a row-editor schema hits it.
-      // Blank rows (null, "", {}) are not answers — two Add clicks produce
-      // structurally-equal blank rows that must never count as duplicates.
-      // Remaining gap: object rows whose fields are all defaulted (e.g.
-      // `[{"a":"d"},{"a":"d"}]`) still compare equal on a second Add.
-      let non_blank_items =
-        list.filter(items, fn(v) {
-          !field_requirements.is_empty_value(Some(v)) && v != ObjectValue([])
-        })
+      // Blank rows are not compared — two Add clicks (directly, or via a
+      // nested `minItems` reconcile that fills a row with its own blank
+      // sub-rows) produce structurally-equal blank rows that must never
+      // count as duplicates. Remaining gap: rows filled from schema
+      // defaults (a scalar item `default`, or defaulted object fields)
+      // still compare equal on a second Add.
+      let non_blank_items = list.filter(items, fn(v) { !is_blank(v) })
       let unique_errors = case
         c.unique_items
         && list.length(list.unique(non_blank_items))
@@ -539,6 +538,21 @@ fn validate_array_constraints(
       list.flatten([min_errors, max_errors, unique_errors])
     }
     _, _ -> []
+  }
+}
+
+/// Recursively blank: `null`/`""`, an object whose every field is blank,
+/// or an array whose every item is blank. Covers rows reconciled by a
+/// nested `minItems` top-up (e.g. `{"tags": [null]}`), not just the flat
+/// `null` / `""` / `{}` cases `field_requirements.is_empty_value` alone
+/// catches — used only to exclude blank array rows from the `uniqueItems`
+/// duplicate count above.
+fn is_blank(value: Value) -> Bool {
+  case value {
+    NullValue | StringValue("") -> True
+    ObjectValue(fields) -> list.all(fields, fn(f) { is_blank(f.1) })
+    ArrayValue(items) -> list.all(items, is_blank)
+    _ -> False
   }
 }
 
