@@ -123,7 +123,8 @@ fn do_flatten(
   case option.unwrap(prop.all_of, []) {
     // No effective members (absent, `[]`, or all `true` no-ops): pure no-op.
     // The node's own keywords are not a composition — they keep lenient
-    // single-schema semantics and skip the satisfiability checks.
+    // single-schema semantics and skip the satisfiability checks, unless a
+    // single-survivor `anyOf` merges into them below.
     [] -> normalize_any_of(flattened, path)
     members -> {
       use flat_members <- result.try(list.try_map(members, do_flatten(_, path)))

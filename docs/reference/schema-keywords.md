@@ -74,13 +74,15 @@ parsing with `UnsatisfiableSchema` (see `allOf` / `anyOf` below). That is an
 `allOf` merge (`true` members don't count, `{}` members do; one inherited
 through `$ref` counts too) whether the crossing is the node's own, a
 member's, a `$defs` definition's used as a member, or sits in a property or
-`items` that meets its counterpart; a single-survivor `anyOf` collapse; or a
-`$ref` sibling's bound crossing the definition's. A crossing that never
-reaches a merge — a standalone node, a plain `$ref` to a crossed definition,
-a property only one member declares, a 2+-branch `anyOf`, a conditional
-branch — is normalized after composition so `minItems` wins: the array
-renders as fixed-size at `minItems` rows. (Unmerged string/number crossings
-stay raw.) Array-level violations
+`items` that meets its counterpart; or a single-survivor `anyOf` collapse.
+A `$ref` merge is narrower: it fails only on a crossing it creates (a
+sibling's bound crossing the definition's) and passes bounds already crossed
+on either side through. A crossing that no merge rejects — a standalone
+node, a `$ref` whose definition or siblings are crossed on their own (even
+if the other side adds a bound), a property only one member declares, a
+2+-branch `anyOf`, a conditional branch — is normalized after composition so
+`minItems` wins: the array renders as fixed-size at `minItems` rows.
+(Unmerged string/number crossings stay raw.) Array-level violations
 (`minItems` / `maxItems` / `uniqueItems`) are always shown (they bypass the
 field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 

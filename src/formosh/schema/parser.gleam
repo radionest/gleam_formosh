@@ -75,13 +75,13 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
   Ok(to_json_schema(clamp_crossed_array_bounds(flattened), defs))
 }
 
-/// #63: `minItems > maxItems` that never met a merge (the resolver and
-/// composer reject the ones that do) is clamped so `minItems` wins —
-/// otherwise the reconcile pass tops the array up past `maxItems` and wedges
-/// the form (both buttons hidden, submit permanently blocked). Runs on the
-/// flattened tree only: clamping earlier would hide a crossing from the
-/// merge checks (#148). Covers every subtree the runtime reads — union
-/// branches and conditional branches included.
+/// #63: `minItems > maxItems` that no merge rejected (the composer rejects
+/// every crossing that reaches it, the `$ref` merge only those it creates)
+/// is clamped so `minItems` wins — otherwise the reconcile pass tops the
+/// array up past `maxItems` and wedges the form (both buttons hidden, submit
+/// permanently blocked). Runs on the flattened tree only: clamping earlier
+/// would hide a crossing from the merge checks (#148). Covers every subtree
+/// the runtime reads — union branches and conditional branches included.
 fn clamp_crossed_array_bounds(prop: SchemaProperty) -> SchemaProperty {
   let clamp_all = list.map(_, clamp_crossed_array_bounds)
   SchemaProperty(

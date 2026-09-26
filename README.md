@@ -196,7 +196,7 @@ shrinking would violate `minItems`, and hides the add button once `maxItems`
 is reached. Array-level violations (`minItems` / `maxItems` /
 `uniqueItems`) are always visible — they skip the touched gate; see
 [Error visibility](docs/guides/configuration.md#error-visibility) for why.
-`minItems > maxItems` (unsatisfiable) that never meets a merge is
+`minItems > maxItems` (unsatisfiable) that no merge rejects is
 normalized at parse time so `minItems` wins: the array renders as
 fixed-size at `minItems` rows. Crossed bounds that reach an `allOf` merge
 (`true` members don't count) or a single-survivor `anyOf` collapse fail

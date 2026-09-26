@@ -21,9 +21,10 @@ pub type ResolveError {
   CircularReference(String)
   /// Invalid reference format
   InvalidReference(String)
-  /// A `$ref` sibling's array bounds cross the definition's after merging
-  /// (e.g. sibling `minItems` > definition `maxItems`) — same conjunctive
-  /// semantics as `allOf` (`composer.check_array_constraints`).
+  /// A `$ref` sibling merge creates an array-bounds crossing neither side
+  /// had on its own (e.g. sibling `minItems` > definition `maxItems`) — the
+  /// same stricter-wins merge as `allOf`, but a side already crossed alone
+  /// passes through (see `resolve_property_ref`).
   UnsatisfiableSchema(String)
 }
 
