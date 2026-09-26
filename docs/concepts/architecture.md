@@ -87,7 +87,7 @@ architectural fact about the schema layer — see
 | `path.gleam` | `FieldPath` — `PropertySegment` / `ArraySegment` lists for addressing any value in the tree. |
 | `defaults.gleam` | Default-value hydration, `ensure_min_items` for arrays. |
 | `json_utils.gleam` | `Value` ↔ `json.Json` conversions. |
-| `widget_msg.gleam` | Widget-specific message types (swipe-review, image upload, array collapse/expand). |
+| `widget_msg.gleam` | Widget-specific message types (swipe-review, image upload, array collapse/expand, checkbox-group toggle). |
 
 ### Widgets — `src/formosh/fields/`
 

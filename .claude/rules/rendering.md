@@ -24,7 +24,7 @@ When creating or modifying field renderers, follow these business logic rules:
   re-renders on requestAnimationFrame, so two events in one frame dispatch
   from the same stale view (#137). Derive the new state in `update` from
   `model.values`, and re-check any bound the view enforces by disabling
-  (e.g. `maxItems`) there too — see `ToggleOptionPath`
+  (e.g. `maxItems`) there too — see `widget_msg.ToggleOption`
 - Objects render as nested fieldset with proper indentation
 - Numbers with `multipleOf` set the step attribute
 - Fields with `description` get help text below the input

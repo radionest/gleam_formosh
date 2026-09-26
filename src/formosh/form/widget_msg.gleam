@@ -2,6 +2,7 @@
 // `FormMsg.WidgetEvent` so the core message type doesn't grow per widget.
 
 import formosh/form/path.{type FieldPath}
+import formosh/schema/types.{type Value}
 
 pub type WidgetMsg {
   ImageUpload(ImageUploadEvent)
@@ -14,6 +15,8 @@ pub type ArrayFieldEvent {
   ToggleCollapseCompleted(array_path: FieldPath)
   /// Open or close one completed row.
   ToggleRowExpanded(row_path: FieldPath)
+  /// Flip `value` in the checkbox group (`types.is_multi_select`) at `path`.
+  ToggleOption(path: FieldPath, value: Value)
 }
 
 pub type ImageUploadEvent {

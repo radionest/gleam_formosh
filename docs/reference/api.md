@@ -267,11 +267,12 @@ pub type FormConfig {
 variants: `NoSubmit`, `HttpSubmit(url, method, headers)`,
 `CustomSubmit(handler)`.
 
-> **Breaking change.** `FormMsg` (also in `formosh/form/model`) gained a
-> `ToggleOptionPath(path, options, value)` variant — the checkbox-group
-> toggle, resolved in `update` against the current value. An exhaustive
-> `case` over `FormMsg` without a `_ ->` catch-all stops compiling on
-> upgrade; add an arm for it (or a catch-all).
+> **Breaking change.** `ArrayFieldEvent` (in `formosh/form/widget_msg`,
+> reached via `FormMsg.WidgetEvent`) gained a `ToggleOption(path, value)`
+> variant — the checkbox-group toggle, resolved in `update` against the
+> current value and the schema's options. `FormMsg` itself is unchanged;
+> only an exhaustive `case` over `ArrayFieldEvent` without a `_ ->`
+> catch-all stops compiling on upgrade.
 
 ### `UiSchema` and `UiProperty`
 

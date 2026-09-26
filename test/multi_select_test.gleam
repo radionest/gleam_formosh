@@ -6,6 +6,7 @@ import formosh/form/model
 import formosh/form/path.{ArraySegment, PropertySegment, get_at_path}
 import formosh/form/update
 import formosh/form/view
+import formosh/form/widget_msg
 import formosh/schema/parser
 import formosh/schema/serializer
 import formosh/schema/types.{
@@ -437,22 +438,36 @@ pub fn two_clicks_from_one_stale_view_respect_max_items_test() {
   |> should.equal(Some(ArrayValue([StringValue("a")])))
 }
 
-// `ToggleOptionPath` is public: a headless caller's `2.0` flips option `2`.
-pub fn toggle_matches_clicked_value_by_typed_equality_test() {
-  let n = [PropertySegment("n")]
+// Inside an array row the cap comes from the row-resolved property lookup.
+pub fn stale_view_respects_max_items_inside_array_row_test() {
+  let tags = [PropertySegment("n"), ArraySegment(0), PropertySegment("tags")]
+  start_frozen(
+    "{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"properties\":{\"tags\":{\"type\":\"array\",\"uniqueItems\":true,\"maxItems\":1,\"items\":{\"type\":\"string\",\"enum\":[\"a\",\"b\",\"c\"]}}}}}",
+  )
+  |> click("n.[0].tags_a")
+  |> click("n.[0].tags_b")
+  |> simulate.model
+  |> formosh.get_values
+  |> get_at_path(tags)
+  |> should.equal(Some(ArrayValue([StringValue("a")])))
+}
+
+fn toggle(m, value: types.Value) {
+  update.update(
+    m,
+    model.array_msg(widget_msg.ToggleOption([PropertySegment("n")], value)),
+  ).0
+}
+
+// The message is public: a headless caller's `2.0` flips option `2`, and a
+// value that is not an option changes nothing.
+pub fn headless_toggle_matches_options_by_typed_equality_test() {
   let m = formosh.init_model(config_for(unique_int_one_of))
-  let #(m, _) =
-    update.update(
-      m,
-      model.ToggleOptionPath(
-        n,
-        [IntegerValue(1), IntegerValue(2)],
-        types.NumberValue(2.0),
-      ),
-    )
-  formosh.get_values(m)
-  |> get_at_path(n)
+  toggle(m, types.NumberValue(2.0))
+  |> formosh.get_values
+  |> get_at_path([PropertySegment("n")])
   |> should.equal(Some(ArrayValue([IntegerValue(2)])))
+  toggle(m, IntegerValue(9)) |> should.equal(m)
 }
 
 pub fn unchecking_last_box_removes_value_test() {
