@@ -6,7 +6,7 @@ No version pinning — what matters is priority and dependency order, not
 release numbers. Sizes are rough estimates for solo development:
 S < 1 week, M ≈ 1–2 weeks, L ≈ 2–4 weeks, XL > 1 month.
 
-Checkboxes reflect the state as of August 2026 (v0.8.7).
+Checkboxes reflect the state as of August 2026.
 
 ---
 

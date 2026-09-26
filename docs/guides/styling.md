@@ -70,7 +70,8 @@ time and the style silently never applies. The `[part=…][data-…]` form above
 works instead because parent stylesheets are auto-adopted into the shadow root
 (§3) — an ordinary page `<style>` or `<link>` is adopted, so in the usual case
 this simply works. Adoption is still the dependency it rests on, and does not
-reach a stylesheet inside an *enclosing* shadow root, or one added to the
+reach a `<style>` or `<link>` inside an *enclosing* shadow root (that root's
+constructed `adoptedStyleSheets` are inherited), or a stylesheet added to the
 document after the component adopted at connect time. One further trap: because
 adopted sheets count as inner context, a *normal* host `::part(field)`
 declaration beats `[part=field][data-error]` regardless of specificity
@@ -121,9 +122,11 @@ a `label`.
 
 **Inputs (by widget):**
 `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`,
-`boolean`, `checkbox-wrapper`, `checkbox-group` (the single boolean
-checkbox), `checkbox-list`, `checkbox-item` (the multi-select checkbox
-group — one `checkbox-item` per option).
+`boolean`, `checkbox-wrapper`, `checkbox-group`, `checkbox-list`,
+`checkbox-item` (the multi-select checkbox group — one `checkbox-item` per
+option). (`checkbox-wrapper` and `checkbox-group` are assigned only by a
+single-checkbox renderer that is not yet reachable — booleans always render
+as a Yes/No radio group.)
 
 **Arrays:**
 `array-field` (outer container), `array-items` (the row list), `array-item`

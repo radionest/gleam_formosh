@@ -156,7 +156,7 @@ pub type SchemaProperty {
     // selector. None everywhere else.
     any_of: Option(List(SchemaProperty)),
     // allOf composition members. Populated by the parser, $ref-resolved by
-    // the resolver, merged into this node and cleared by composer.flatten —
+    // the resolver, merged into this node and cleared by composer.flatten_property —
     // always None after parse_schema returns. Exception: $defs entries stay
     // raw source material (like their unresolved $refs) and may retain it.
     all_of: Option(List(SchemaProperty)),
