@@ -64,21 +64,7 @@ fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   let is_touched = model.is_field_touched(model, ctx.path)
   let errors = model.get_errors_at_path(model, ctx.path)
   // Array-level errors (minItems/maxItems/uniqueItems) bypass the touched
-  // gate. In the row editor, add/remove gating makes the length ones
-  // unreachable through the UI, so there they only arise from externally
-  // injected values — where they are the only visible explanation for a
-  // blocked submit. A checkbox group has no minItems gating (unlike
-  // maxItems, which disables the unchecked boxes at the cap); every click
-  // sends UpdateFieldPath/ClearFieldPath at the array path itself, marking
-  // that exact path touched — so an under-minItems checkbox selection
-  // already surfaces through the normal touched branch above; the bypass
-  // only matters there for externally injected values (e.g. initial values
-  // below minItems), same as the row editor. A row-editor duplicate is
-  // typed into `n.[i]`/`n.[i].field`, which never touches the array path
-  // itself, so a uniqueItems error would otherwise stay invisible — blank
-  // rows are never compared, so this path only fires for genuine
-  // duplicates (rows filled from schema defaults are a known exception:
-  // they still compare equal).
+  // gate — see docs/guides/configuration.md#error-visibility for why.
   let visible_errors = case is_touched {
     True -> errors
     False -> list.filter(errors, error.is_array_level)

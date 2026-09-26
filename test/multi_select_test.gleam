@@ -1,6 +1,5 @@
 // Arrays with `uniqueItems: true` whose items carry options render as a
-// checkbox group storing the typed consts (openspec change
-// add-multi-select-checkboxes).
+// checkbox group storing the typed consts.
 
 import formosh
 import formosh/form/model
@@ -186,8 +185,7 @@ fn rules_at_n(sim) -> List(String) {
 
 // Duplicates injected via initial values (not row edits) — the array path
 // itself is untouched, so the error must still show.
-// `typed_row_duplicate_is_visible_test` below covers the row-edit path
-// (D6's real scenario).
+// `typed_row_duplicate_is_visible_test` below covers the row-edit path.
 pub fn duplicate_items_fail_unique_items_test() {
   let sim =
     config_for(unique_strings)
@@ -232,8 +230,7 @@ pub fn nested_min_items_rows_are_not_duplicates_test() {
 }
 
 // A row-editor array: a real duplicate typed into `n.[i]`/`n.[j]` — which
-// never touches the array path `n` itself — must still surface the error
-// (D6's real scenario).
+// never touches the array path `n` itself — must still surface the error.
 pub fn typed_row_duplicate_is_visible_test() {
   let sim =
     start(unique_strings)
@@ -455,7 +452,8 @@ pub fn under_min_selection_reports_min_items_test() {
   |> should.be_true
 }
 
-// Review Focus 1 — Pydantic `Optional[set[Literal[...]]]`.
+// A nullable checkbox-group array (e.g. Pydantic `Optional[set[Literal[...]]]`,
+// which parses as `anyOf: [array, null]`) still renders as checkboxes.
 pub fn nullable_any_of_array_renders_checkboxes_test() {
   start("{\"anyOf\":[" <> unique_enum <> ",{\"type\":\"null\"}]}")
   |> html_of
@@ -463,7 +461,8 @@ pub fn nullable_any_of_array_renders_checkboxes_test() {
   |> should.equal(3)
 }
 
-// Review Focus 2 — Pydantic `set[SomeEnum]` puts the enum behind `$ref`.
+// Options behind a `$ref` (e.g. Pydantic `set[SomeEnum]`) still render as
+// checkboxes.
 pub fn ref_items_render_checkboxes_test() {
   let assert Ok(schema) =
     parser.parse_schema(
@@ -476,7 +475,8 @@ pub fn ref_items_render_checkboxes_test() {
   |> should.equal(2)
 }
 
-// Review Focus 3 — ids and writes follow the nested path.
+// A checkbox group nested inside an object writes to its own nested path,
+// and its checkbox ids follow that path too.
 pub fn nested_group_writes_its_own_path_test() {
   let sim =
     start(
@@ -488,7 +488,7 @@ pub fn nested_group_writes_its_own_path_test() {
   |> should.equal(Some(ArrayValue([StringValue("b")])))
 }
 
-// Review Focus 4 — options define the domain; a stored non-option drops out.
+// Options define the domain; a stored non-option drops out.
 pub fn stale_non_option_value_drops_on_first_click_test() {
   config_for(unique_enum)
   |> with_n(ArrayValue([StringValue("zzz")]))
