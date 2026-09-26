@@ -74,6 +74,16 @@ pub fn every_rule_sits_inside_the_formosh_layer_test() {
   first_top_level_close(css) |> should.equal(Ok(string.length(css) - 1))
 }
 
+pub fn every_selector_is_scoped_to_the_form_test() {
+  // A plain-Lustre `<style>` is a page stylesheet: an unscoped selector would
+  // style foreign elements that use the same part names.
+  let css = stylesheet_text(render(False))
+  { occurrences(css, ":where(") > 0 } |> should.be_true
+  css
+  |> occurrences(":where(.formosh-container ")
+  |> should.equal(occurrences(css, ":where("))
+}
+
 const layout_schema_json = "{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"},\"b\":{\"type\":\"string\"},\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"state\"],\"properties\":{\"state\":{\"type\":\"string\"}}}}}}"
 
 const layout_ui_json = "{\"ui:layout\":[{\"type\":\"Row\",\"elements\":[\"a\",\"b\"]}],\"zones\":{\"ui:options\":{\"collapseCompleted\":true}}}"
