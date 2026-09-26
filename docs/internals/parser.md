@@ -39,7 +39,8 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
      wins, fixed size. E.g. `{"$ref": "#/$defs/Def" (no bounds),
      "minItems": 5, "maxItems": 3}` normalizes to a fixed 5 regardless of
      the `$ref`. A composed node — one carrying an effective `allOf` (not
-     empty / `true`-only), or an inline `allOf` member itself — skips this:
+     empty / `true`-only; a `{}` member counts), or an inline `allOf`
+     member itself — skips this:
      its crossed bounds stay raw and fail the merge below.
    - conflicting `type` / crossed bounds arising from a merge (`allOf`
      composition or a `$ref` sibling merge) → `UnsatisfiableSchema` error.
