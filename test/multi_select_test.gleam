@@ -98,6 +98,43 @@ pub fn ref_sibling_merges_array_constraints_field_by_field_test() {
   )
 }
 
+// A merged $ref + sibling pair can cross bounds even when neither side
+// alone is unsatisfiable (referencing minItems > referenced maxItems, or
+// vice versa) — the per-field merge above must apply the same min-wins
+// normalization the parser applies per node (parser.extract_array_constraints),
+// otherwise ensure_min_items tops the array up past maxItems and wedges
+// the form (Add/Remove hidden, maxItems error bypasses the touch gate,
+// submit permanently blocked).
+pub fn ref_sibling_crossing_bounds_normalizes_min_wins_test() {
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"Tags2\":{\"type\":\"array\",\"maxItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags2\",\"minItems\":5}}}",
+    )
+  let assert Ok(prop) = list.key_find(schema.properties, "n")
+  prop.array_constraints
+  |> should.equal(
+    Some(ArrayConstraints(
+      min_items: Some(5),
+      max_items: Some(5),
+      unique_items: False,
+    )),
+  )
+
+  let assert Ok(schema2) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"Tags3\":{\"type\":\"array\",\"minItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags3\",\"maxItems\":1}}}",
+    )
+  let assert Ok(prop2) = list.key_find(schema2.properties, "n")
+  prop2.array_constraints
+  |> should.equal(
+    Some(ArrayConstraints(
+      min_items: Some(3),
+      max_items: Some(3),
+      unique_items: False,
+    )),
+  )
+}
+
 pub fn serializer_emits_unique_items_test() {
   let assert Ok(schema) = parser.parse_schema(obj(unique_enum))
   serializer.schema_to_json(schema)

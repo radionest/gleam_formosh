@@ -364,12 +364,25 @@ fn merge_array_constraints(
     None, None -> None
     Some(r), None -> Some(r)
     None, Some(r) -> Some(r)
-    Some(r), Some(d) ->
+    Some(r), Some(d) -> {
+      let min_items = option.or(r.min_items, d.min_items)
+      let max_items = option.or(r.max_items, d.max_items)
+      // Per-field merging can cross bounds even when neither side alone is
+      // unsatisfiable (referencing minItems > referenced maxItems, or vice
+      // versa) — apply the same min-wins normalization as the parser
+      // (parser.extract_array_constraints) so a crossed pair doesn't wedge
+      // the form (ensure_min_items tops up past maxItems, Add/Remove
+      // hidden, submit permanently blocked).
+      let max_items = case min_items, max_items {
+        Some(min), Some(max) if min > max -> Some(min)
+        _, _ -> max_items
+      }
       Some(types.ArrayConstraints(
-        min_items: option.or(r.min_items, d.min_items),
-        max_items: option.or(r.max_items, d.max_items),
+        min_items: min_items,
+        max_items: max_items,
         unique_items: r.unique_items || d.unique_items,
       ))
+    }
   }
 }
 
