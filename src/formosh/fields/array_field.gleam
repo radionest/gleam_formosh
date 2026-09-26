@@ -286,10 +286,10 @@ fn render_array_item(
 ///
 /// The wrapper is rendered for *every* row of such an array, collapsed or
 /// not: an element that only appears once the row is already collapsed has
-/// nothing to animate from. Because it persists, the single value that
-/// changes between renders (`grid-template-rows`) transitions, in both
-/// directions and for the automatic fold a row does the moment it becomes
-/// completed.
+/// nothing to animate from. Because it persists, its computed
+/// `grid-template-rows` — switched by the row's `data-collapsed` —
+/// transitions, in both directions and for the automatic fold a row does
+/// the moment it becomes completed.
 ///
 /// The fold itself — the `1fr`↔`0fr` track, `overflow: hidden`, the
 /// transition, and the fields' `min-height: 0` — comes from the library
