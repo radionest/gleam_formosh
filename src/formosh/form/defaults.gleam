@@ -261,8 +261,10 @@ pub fn new_array_item(item_schema: SchemaProperty) -> Value {
 /// value itself when a `minItems > 0` array has no value yet. Same root
 /// invariant as `apply_schema_defaults`: the form root is one ObjectValue.
 /// Checkbox-group arrays (`types.is_multi_select`) are skipped entirely: a
-/// filler row would be `null`, not one of the options, so an
-/// under-`minItems` selection is left for validation to report instead.
+/// filler row is not a user's choice — `null` isn't an option, and an
+/// item-`default` filler would repeat the same value (a duplicate row
+/// under `uniqueItems`) — so an under-`minItems` selection is left for
+/// validation to report instead.
 ///
 /// `selected` carries the active union branch per field path (design D4,
 /// openspec/changes/add-anyof-union-support) — threaded down so a row whose
@@ -328,8 +330,10 @@ fn ensure_array(
   selected: List(#(FieldPath, Int)),
 ) -> option.Option(Value) {
   case types.is_multi_select(property), property.items {
-    // Checkbox groups are never topped up: a filler row is `null`, not one
-    // of the options. Validation reports an under-`minItems` selection.
+    // Checkbox groups are never topped up: a filler row is not a user's
+    // choice — `null` isn't an option, and a defaulted filler would repeat
+    // the same value (a duplicate row under `uniqueItems`). Validation
+    // reports an under-`minItems` selection instead.
     True, _ | _, option.None -> option.None
     False, option.Some(item_schema) -> {
       let existing = case current {

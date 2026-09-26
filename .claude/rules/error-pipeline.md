@@ -20,10 +20,11 @@ model.touched_fields : List(FieldPath)
    │   exception: array-level errors (minItems/maxItems/uniqueItems)
    │   always render. In the row editor, Add/Remove button gating means
    │   minItems/maxItems can't come from form interaction there — but a
-   │   checkbox group has no such gating; every click touches the array's
-   │   own path directly, so its own under-minItems state already shows
-   │   through the normal touch gate — the bypass matters there too, but
-   │   only for externally injected values, same as the row editor. A
+   │   checkbox group has no minItems gating (unlike maxItems, which
+   │   disables the unchecked boxes at the cap); every click touches the
+   │   array's own path directly, so its own under-minItems state already
+   │   shows through the normal touch gate — the bypass matters there too,
+   │   but only for externally injected values, same as the row editor. A
    │   uniqueItems duplicate is touched at the row path, never the array
    │   path itself (blank rows are never compared, though rows filled from
    │   schema defaults still compare equal), so the message is the only

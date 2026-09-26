@@ -541,12 +541,14 @@ fn validate_array_constraints(
   }
 }
 
-/// Recursively blank: `null`/`""`, an object whose every field is blank,
-/// or an array whose every item is blank. Covers rows reconciled by a
-/// nested `minItems` top-up (e.g. `{"tags": [null]}`), not just the flat
-/// `null` / `""` / `{}` cases `field_requirements.is_empty_value` alone
-/// catches — used only to exclude blank array rows from the `uniqueItems`
-/// duplicate count above.
+/// Recursively blank: `null`/`""`, an object whose every field is blank
+/// (an empty object counts, vacuously), or an array whose every item is
+/// blank (an empty array counts too). Covers rows reconciled by a nested
+/// `minItems` top-up (e.g. `{"tags": [null]}`) that `field_requirements.
+/// is_empty_value` can't see on its own — that helper only matches
+/// `None`/`NullValue`/`StringValue("")`, not `{}` or a nested blank. Used
+/// only to exclude blank array rows from the `uniqueItems` duplicate count
+/// above.
 fn is_blank(value: Value) -> Bool {
   case value {
     NullValue | StringValue("") -> True

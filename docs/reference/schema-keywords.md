@@ -65,7 +65,7 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | `minItems` | ✅ | Length validation + auto-creates rows up to `minItems` (not for checkbox groups); hides Remove when shrinking would violate it. |
 | `maxItems` | ✅ | Length validation + hides Add once reached. |
 | `prefixItems` (tuple validation) | ❌ | Not parsed. |
-| `uniqueItems` | ✅ | Duplicate elements → `uniqueItems` error at the array path (structural equality: `1` ≠ `1.0`; objects differing only in key order also count as distinct). Blank elements (`null`, empty string, empty object) are ignored by the check. With scalar option `items` it switches the array to the [checkbox group](widgets.md#checkbox-group-multi-select). Across `allOf` members it combines with OR. |
+| `uniqueItems` | ✅ | Duplicate elements → `uniqueItems` error at the array path (structural equality: `1` ≠ `1.0`; objects differing only in key order also count as distinct). Blank elements are ignored by the check — recursively: `null`, an empty string, and any array/object whose members are all themselves blank (e.g. `[]`, `{}`, `{"a":""}`, `{"tags":[null]}`). With scalar option `items` it switches the array to the [checkbox group](widgets.md#checkbox-group-multi-select). Across `allOf` members it combines with OR. |
 | `contains` / `minContains` / `maxContains` | ❌ | Not parsed. |
 
 **Bounds normalization.** A schema with `minItems > maxItems`

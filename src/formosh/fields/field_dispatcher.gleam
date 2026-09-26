@@ -67,7 +67,8 @@ fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   // gate. In the row editor, add/remove gating makes the length ones
   // unreachable through the UI, so there they only arise from externally
   // injected values — where they are the only visible explanation for a
-  // blocked submit. A checkbox group has no such gating, but every click
+  // blocked submit. A checkbox group has no minItems gating (unlike
+  // maxItems, which disables the unchecked boxes at the cap); every click
   // sends UpdateFieldPath/ClearFieldPath at the array path itself, marking
   // that exact path touched — so an under-minItems checkbox selection
   // already surfaces through the normal touched branch above; the bypass
