@@ -70,8 +70,10 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 
 **Bounds normalization.** A schema with `minItems > maxItems`
 (unsatisfiable) is normalized at parse time so `minItems` wins — the array
-renders as fixed-size at `minItems` rows. A `$ref` sibling's bound crossing
-the definition's, or crossed bounds from `allOf` members, both fail parsing
+renders as fixed-size at `minItems` rows. This leniency covers a standalone
+node only: crossed bounds on a node with a non-empty `allOf` (authored on the
+node itself or inside one member), a `$ref` sibling's bound crossing the
+definition's, and crossed bounds from `allOf` members all fail parsing
 instead, with `UnsatisfiableSchema` (see `allOf` below). Array-level
 violations
 (`minItems` / `maxItems` / `uniqueItems`) are always shown (they bypass the
