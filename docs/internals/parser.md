@@ -22,12 +22,15 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
 2. Build `JsonSchema` node tree (typed).
 3. Resolve `$ref` against `$defs` / `definitions` (JSON Pointer).
    - Cycle detection → reject circular refs.
-   - Keywords beside the `$ref` win over the definition's, **except**
-     `array_constraints`, which merge per keyword, stricter-wins instead
+   - Keywords beside the `$ref` win over the definition's, with several
+     per-field exceptions (`resolver.merge_properties`): `array_constraints`
+     merges per keyword, stricter-wins instead
      (`resolver.merge_array_constraints`, shared with the `allOf` merge
-     below). A crossed result (sibling `minItems` > definition `maxItems`,
-     or vice versa) is a `ParseError`
-     (`resolver.array_constraints_crossed_reason`), same as a crossed `allOf`.
+     below); `all_of`/`conditionals` concatenate; `read_only`/`nullable`
+     OR-merge; `addable`/`removable` AND-merge. A crossed `array_constraints`
+     result (sibling `minItems` > definition `maxItems`, or vice versa) is a
+     `ParseError` (`resolver.array_constraints_crossed_reason`), same as a
+     crossed `allOf`.
 4. Compose `allOf`: deep-merge member schemas (properties, required, bounds,
    `$ref` mixins); lift member conditionals to the parent.
 5. Normalize unsatisfiable constraints:

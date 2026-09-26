@@ -367,9 +367,13 @@ fn append_all_of(
 
 /// Merge two properties, with the referencing property taking precedence.
 ///
-/// This allows local overrides of referenced definitions. `array_constraints`
-/// is the one exception: it doesn't take either side wholesale but merges
-/// per keyword, stricter-wins (`merge_array_constraints` below).
+/// This allows local overrides of referenced definitions. Several fields
+/// are exceptions to that per-field "referencing wins" default:
+/// `array_constraints` doesn't take either side wholesale but merges per
+/// keyword, stricter-wins (`merge_array_constraints` below); `all_of` and
+/// `conditionals` concatenate (both sides' members apply); `read_only` and
+/// `nullable` OR-merge (either side sets it); `addable` and `removable`
+/// AND-merge (most restrictive wins).
 fn merge_properties(
   referencing: SchemaProperty,
   referenced: SchemaProperty,
