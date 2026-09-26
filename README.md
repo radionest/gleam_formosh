@@ -428,9 +428,15 @@ The widget is chosen automatically based on schema:
 
 ## Styling
 
-The component runs inside an open Shadow DOM. There are three customization surfaces:
+The component runs inside an open Shadow DOM. Reach for these in order:
 
-1. **`::part()` selectors** — every styled element exposes a `part` name (the class suffix without `formosh-`). Style from outside:
+1. **Tokens** — `--formosh-*` custom properties inherit across the shadow boundary:
+
+   ```css
+   formosh-form { --formosh-row-gap: 0.75rem; --formosh-row-min: 8rem; }
+   ```
+
+2. **`::part()` selectors** — every styled element exposes a `part` name (the class suffix without `formosh-`). Style from outside:
 
    ```css
    formosh-form::part(input)         { border: 1px solid #d33; }
@@ -439,33 +445,24 @@ The component runs inside an open Shadow DOM. There are three customization surf
    formosh-form::part(submit)        { background: #08a; color: white; }
    ```
 
-2. **`data-*` attributes for state** — error and readonly states on the field wrapper:
-
-   ```css
-   [part=field][data-error]    { border-color: red; }
-   [part=field][data-readonly] { opacity: 0.6; }
-   ```
-
-   Note the `[part=…]` form: `formosh-form::part(field)[data-error]` is dead CSS, because an attribute selector cannot follow a pseudo-element. These rules only work from a page stylesheet that is adopted into the shadow root (surface 3). An ordinary page `<style>` or `<link>` is adopted. A `<style>` or `<link>` inside an enclosing shadow root, or a stylesheet added after the component connected, is not. A normal host `formosh-form::part(field)` rule still overrides these regardless of specificity (see **Cascade** below).
-
-3. **Parent stylesheets are auto-adopted** — Lustre clones the parent document's CSS into the shadow root, so plain class selectors still work:
+3. **Adopted selectors** — Lustre clones the parent document's CSS into the shadow root when the component connects, so plain class and `[part=…]` selectors apply inside, field state included:
 
    ```css
    .formosh-input { padding: 0.5rem; }
-   .formosh-error { color: red; }
+   [part="field"][data-error]    { border-color: red; }
+   [part="field"][data-readonly] { opacity: 0.6; }
    ```
 
-Part names available (most elements carry one; a few carry two — see **Compound parts** below): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `row`, `group`, `group-label`, `group-body` (the last four appear only where a `ui:layout` actually places a `Row` or `Group` node; tune the row gap with the `--formosh-row-gap` custom property), `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group` (these two sit in a checkbox renderer that is not yet reachable — booleans always render as radios), `checkbox-list`, `checkbox-item`, `array-field`, `array-items`, `array-item`, `array-item-fields`, `array-item-header`, `array-add`, `union`, `union-radio`, `union-select`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`. Collapse-completed arrays (`ui:options.collapseCompleted`) add: `array-collapse-header`, `array-toggle`, `array-progress`, `array-item-summary`, `array-item-summary-value`, `array-item-summary-sep`, `array-item-body` (the folding wrapper — carries the fold animation as inline styles; retime it with `--formosh-collapse-duration`).
+   Write state as `[part=…][data-…]`: `formosh-form::part(field)[data-error]` is invalid CSS — an attribute selector cannot follow a pseudo-element — and is silently dropped. The `[part=…]` form only reaches the component from a stylesheet the page already has when the component connects: an ordinary page `<style>` or `<link>` is adopted, a `<style>` or `<link>` inside an enclosing shadow root is not.
+
+Part names available (most elements carry one; a few carry two — see **Compound parts** below): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `row`, `group`, `group-label`, `group-body` (the last four appear only where a `ui:layout` actually places a `Row` or `Group` node; tune the row gap with the `--formosh-row-gap` custom property), `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group` (these two sit in a checkbox renderer that is not yet reachable — booleans always render as radios), `checkbox-list`, `checkbox-item`, `array-field`, `array-items`, `array-item`, `array-item-fields`, `array-item-header`, `array-add`, `union`, `union-radio`, `union-select`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`. Collapse-completed arrays (`ui:options.collapseCompleted`) add: `array-collapse-header`, `array-toggle`, `array-progress`, `array-item-summary`, `array-item-summary-value`, `array-item-summary-sep`, `array-item-body` (the folding wrapper; retime its fold with `--formosh-collapse-duration`).
 
 Notes:
 
-- **Cascade**: host-document `::part()` rules and adopted stylesheets live in different cascade contexts, and specificity does not decide between them. For normal declarations the outer context wins, so a host `::part(input)` rule beats any adopted `.formosh-input` rule. For `!important` declarations the order inverts, and an adopted `!important` rule beats a host `::part()` one. Specificity only breaks ties within one context. See [Cascade order](docs/guides/styling.md#cascade-order).
+- **Cascade**: a normal host `::part()` rule beats every normal rule inside the component, whatever its specificity (for `!important` the order inverts: an adopted `!important` rule beats a host `::part()` one); your adopted rules beat formosh's own defaults, which sit in the lowest-priority `@layer formosh` — nothing you write needs `!important` to override them. Full order: [Cascade order](docs/guides/styling.md#cascade-order).
 - **Compound parts**: elements that carry two part tokens (e.g. `part="radio-group boolean"`) are reachable through either token. `::part()` does not support descendant combinators — so `radio-item` inside a boolean group cannot be addressed differently from one inside an enum group through Shadow Parts alone.
 
-Essentially no default styles are included — bring your own CSS. The
-exceptions are a few narrow inline styles that opt-in features cannot work
-without (a `ui:layout` `Row`'s grid, a collapsing array row's fold, the
-swipe widget's drag transforms); `docs/guides/styling.md` lists them.
+formosh ships no look of its own. Its only defaults are the ones features cannot work without — a `ui:layout` `Row`'s grid and a collapsing array row's fold — plus the swipe widget's inline drag transforms; `docs/guides/styling.md` lists them.
 
 ## Development
 
