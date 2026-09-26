@@ -338,6 +338,7 @@ test("the stylesheet node survives a re-render", async () => {
       (e) => e.name === "formosh-change" && e.detail?.values?.a === "x",
     ),
   );
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(r)));
   const probe = await page.evaluate(
     () =>
       document
