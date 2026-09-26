@@ -33,13 +33,6 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 
-/// Default inline arrangement for a `Row`.
-///
-/// `auto-fit` + `minmax` collapses to fewer columns on narrow viewports
-/// without a media query — inline styles cannot express one. Any
-/// `::part(row)` rule from the host wins over this.
-const row_style = "display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));gap:var(--formosh-row-gap,1rem)"
-
 /// Arrange `entries` according to `layout`.
 ///
 /// With `None`, every entry renders in the order supplied. With `Some(nodes)`,
@@ -148,11 +141,7 @@ fn render_node(
 
 fn row_element(children: List(Element(msg))) -> Element(msg) {
   html.div(
-    [
-      attribute.class("formosh-row"),
-      attribute.attribute("part", "row"),
-      attribute.attribute("style", row_style),
-    ],
+    [attribute.class("formosh-row"), attribute.attribute("part", "row")],
     children,
   )
 }
