@@ -144,6 +144,19 @@ pub fn ref_sibling_crossing_bounds_names_nested_property_test() {
   msg |> string.contains("#/outer/n") |> should.be_true
 }
 
+// Resolving `x`'s `$ref` inlines the definition's own content (including
+// its nested property "n") into `x`'s subtree — a crossed-bounds error
+// inside that nested property must be named relative to the referencing
+// site ("#/x/n"), not "#/n" (which would misattribute it to an unrelated
+// top-level "n", or just look rootless).
+pub fn ref_sibling_crossing_bounds_names_property_inside_referenced_definition_test() {
+  let assert Error(types.UnsatisfiableSchema(msg)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"Inner\":{\"type\":\"array\",\"maxItems\":3,\"items\":{\"type\":\"string\"}},\"Def\":{\"type\":\"object\",\"properties\":{\"n\":{\"$ref\":\"#/$defs/Inner\",\"minItems\":5}}}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/Def\"}}}",
+    )
+  msg |> string.contains("#/x/n") |> should.be_true
+}
+
 pub fn serializer_emits_unique_items_test() {
   let assert Ok(schema) = parser.parse_schema(obj(unique_enum))
   serializer.schema_to_json(schema)

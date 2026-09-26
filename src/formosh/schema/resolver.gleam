@@ -145,19 +145,21 @@ fn resolve_property_ref(
           case dict.get(context, definition_name) {
             Ok(referenced_property) -> {
               // Recursively resolve any references in the referenced
-              // property. It isn't reachable from the schema root by the
-              // same property path (it lives under `$defs`), so this
-              // doesn't extend `path` — an unsatisfiable error inside the
-              // definition itself would name only its own subtree.
+              // property, threading the *current* `path` through (not a
+              // fresh `[]`): resolving `$ref` inlines the definition's
+              // content into this node's own subtree, so an unsatisfiable
+              // error inside the definition's own nested structure (e.g. a
+              // property "n" of a definition referenced from "x") must
+              // name it relative to the referencing site — "#/x/n" — not
+              // "#/n", which would misattribute it to an unrelated
+              // top-level "n" (or just look rootless).
               let new_visited = [ref_path, ..visited]
-              use resolved <- result.try(
-                resolve_property_ref(
-                  referenced_property,
-                  context,
-                  new_visited,
-                  [],
-                ),
-              )
+              use resolved <- result.try(resolve_property_ref(
+                referenced_property,
+                context,
+                new_visited,
+                path,
+              ))
 
               // Resolve refs nested in the referencing node's own subtree
               // (items, properties, allOf members, conditionals) before the
