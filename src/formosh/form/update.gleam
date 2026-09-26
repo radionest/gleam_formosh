@@ -122,17 +122,35 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     }
 
     // Resolved against the current values, not the view that dispatched it:
-    // two clicks inside one render frame share a stale view (#137). Stored
-    // values that are not options drop out; an empty selection removes the key.
+    // two clicks inside one render frame share a stale view (#137) — which
+    // also predates any maxItems disabling, so the cap is re-checked here.
+    // Stored values that are not options drop out; an empty selection
+    // removes the key.
     ToggleOptionPath(field_path, options, clicked) -> {
       let selected = case model.get_value_at_path(model, field_path) {
         Some(types.ArrayValue(values)) -> values
         _ -> []
       }
+      let is_selected = fn(option) {
+        list.any(selected, conditional_resolver.compare_values(_, option))
+      }
+      let at_max = case
+        model.find_resolved_property_at_path(model, field_path)
+      {
+        Ok(types.SchemaProperty(
+          array_constraints: Some(types.ArrayConstraints(
+            max_items: Some(max),
+            ..,
+          )),
+          ..,
+        )) -> list.count(options, is_selected) >= max
+        _ -> False
+      }
+      use <- bool.guard(at_max && !is_selected(clicked), #(model, effect.none()))
       let next =
         list.filter(options, fn(option) {
-          list.any(selected, conditional_resolver.compare_values(_, option))
-          != { option == clicked }
+          is_selected(option)
+          != conditional_resolver.compare_values(option, clicked)
         })
       case next {
         [] -> update(model, ClearFieldPath(field_path))

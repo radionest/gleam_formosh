@@ -215,7 +215,7 @@ pub fn render_checkboxes(ctx: FieldRenderCtx) -> Element(FormMsg) {
     None -> []
   }
   let consts = list.map(options, fn(opt) { opt.0 })
-  // Same typed equality `update.ToggleOptionPath` uses to flip a box.
+  // Same typed equality and maxItems count `update.ToggleOptionPath` uses.
   let is_selected = fn(val) {
     case ctx.value {
       Some(types.ArrayValue(values)) ->

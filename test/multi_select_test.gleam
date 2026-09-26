@@ -406,9 +406,9 @@ pub fn selection_follows_schema_order_with_typed_consts_test() {
 
 // Lustre re-renders once per animation frame, so two clicks inside one frame
 // both fire handlers from the same stale view (#137). A view frozen at the
-// initial render reproduces that: the second click must not drop the first.
-pub fn two_clicks_from_one_stale_view_keep_both_test() {
-  let initial = formosh.init_model(config_for(unique_enum))
+// initial render reproduces that.
+fn start_frozen(prop_json: String) {
+  let initial = formosh.init_model(config_for(prop_json))
   let stale_view = view.view(initial)
   simulate.application(
     init: fn(_) { #(initial, effect.none()) },
@@ -416,10 +416,43 @@ pub fn two_clicks_from_one_stale_view_keep_both_test() {
     view: fn(_) { stale_view },
   )
   |> simulate.start(Nil)
+}
+
+pub fn two_clicks_from_one_stale_view_keep_both_test() {
+  start_frozen(unique_enum)
   |> click("n_a")
   |> click("n_b")
   |> value_of
   |> should.equal(Some(ArrayValue([StringValue("a"), StringValue("b")])))
+}
+
+// The stale view predates the maxItems disabling too, so update enforces it.
+pub fn two_clicks_from_one_stale_view_respect_max_items_test() {
+  start_frozen(
+    "{\"type\":\"array\",\"uniqueItems\":true,\"maxItems\":1,\"items\":{\"type\":\"string\",\"enum\":[\"a\",\"b\",\"c\"]}}",
+  )
+  |> click("n_a")
+  |> click("n_b")
+  |> value_of
+  |> should.equal(Some(ArrayValue([StringValue("a")])))
+}
+
+// `ToggleOptionPath` is public: a headless caller's `2.0` flips option `2`.
+pub fn toggle_matches_clicked_value_by_typed_equality_test() {
+  let n = [PropertySegment("n")]
+  let m = formosh.init_model(config_for(unique_int_one_of))
+  let #(m, _) =
+    update.update(
+      m,
+      model.ToggleOptionPath(
+        n,
+        [IntegerValue(1), IntegerValue(2)],
+        types.NumberValue(2.0),
+      ),
+    )
+  formosh.get_values(m)
+  |> get_at_path(n)
+  |> should.equal(Some(ArrayValue([IntegerValue(2)])))
 }
 
 pub fn unchecking_last_box_removes_value_test() {
