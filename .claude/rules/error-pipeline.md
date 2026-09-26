@@ -48,7 +48,7 @@ field_common.render_field_errors(errors: List(ValidationError))
 - The touched-gate lives in `field_dispatcher.gleam`, not in
   `field_common.render_field_errors`. The latter is a pure formatter that
   trusts its caller. Never call it with an unfiltered error list — gate on
-  `model.is_field_touched(field_path)` (the dispatcher's length-error
+  `model.is_field_touched(field_path)` (the dispatcher's array-level
   bypass is the one sanctioned exception), otherwise errors leak on
   untouched fields.
 - Add/clear errors via `model.{add_error_at_path, clear_errors_at_path}`,
