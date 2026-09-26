@@ -158,7 +158,8 @@ are `Value` variants (`StringValue`, `NumberValue`, `IntegerValue`,
 `BooleanValue`, `ObjectValue`, `ArrayValue`, `NullValue`) from
 `formosh/schema/types`. Initial values flow through the
 same default-hydration pipeline as schema `default` values, so arrays are
-topped up to `minItems` and conditionals are resolved against them.
+topped up to `minItems` (except checkbox groups) and conditionals are resolved
+against them.
 
 ## UiSchema (presentation hints)
 

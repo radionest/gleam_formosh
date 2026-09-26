@@ -242,7 +242,7 @@ Also supports multiple conditionals via `allOf`:
 
 Conditionals compose with array constraints: declare a whole array inside `then`
 with `minItems` to make it appear — pre-populated with its first default-hydrated
-row — only once the condition is met. See
+row (a checkbox group appears empty instead) — only once the condition is met. See
 [`demo/schemas/carcinomatosis_radiology.json`](demo/schemas/carcinomatosis_radiology.json)
 for a worked example (`lesions` appears per-zone when `affected` is true).
 `$ref` is resolved inside `if`/`then`/`else` branches, so conditional branches

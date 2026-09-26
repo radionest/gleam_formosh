@@ -30,7 +30,8 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
 5. Normalize unsatisfiable constraints:
    - `minItems > maxItems` → `minItems` wins, fixed size — per node at parse,
      and again after a `$ref` sibling merge; `composer.check_array_constraints`
-     (strict `ParseError`) only runs for a non-empty `allOf`.
+     (strict `ParseError`) only runs in `merge_pair` (a non-empty `allOf`, or
+     an `anyOf` collapsing to a single non-null member).
    - conflicting `type` / crossed bounds → `UnsatisfiableSchema` error.
 6. Emit parsed schema or `ParseError`.
 
