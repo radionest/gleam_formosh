@@ -7,8 +7,9 @@ import formosh/schema/types.{
   type ConditionalRule, type JsonSchema, type SchemaProperty,
 }
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 
@@ -20,6 +21,21 @@ pub type ResolveError {
   CircularReference(String)
   /// Invalid reference format
   InvalidReference(String)
+  /// A `$ref` sibling's array bounds cross the definition's after merging
+  /// (e.g. sibling `minItems` > definition `maxItems`) — same conjunctive
+  /// semantics as `allOf` (`composer.check_array_constraints`).
+  UnsatisfiableSchema(String)
+}
+
+/// Format an accumulated (head-first) property path as a JSON-pointer-ish
+/// breadcrumb for error messages, e.g. `["n"]` -> "#/n". Shared with
+/// `composer.unsatisfiable`, which uses the same format for `allOf` crossed
+/// bounds, so both merge sites' errors read alike.
+pub fn path_string(path: List(String)) -> String {
+  case path {
+    [] -> "#"
+    segments -> "#/" <> string.join(list.reverse(segments), "/")
+  }
 }
 
 /// Resolve all $ref references in a JSON Schema
@@ -43,19 +59,22 @@ pub fn resolve_refs(schema: JsonSchema) -> Result(JsonSchema, ResolveError) {
 
   // Resolve references in top-level properties
   use resolved_properties <- result.try(
-    resolve_properties_refs(schema.properties, context, []),
+    resolve_properties_refs(schema.properties, context, [], []),
   )
 
   // Resolve references inside top-level conditional rules (allOf / if / then / else)
   use resolved_conditionals <- result.try(
-    list.try_map(schema.conditionals, resolve_conditional_rule(_, context, [])),
+    list.try_map(
+      schema.conditionals,
+      resolve_conditional_rule(_, context, [], []),
+    ),
   )
 
   // Resolve references inside root-level allOf members
   use resolved_all_of <- result.try(
     try_optional(
       schema.all_of,
-      list.try_map(_, resolve_property_ref(_, context, [])),
+      list.try_map(_, resolve_property_ref(_, context, [], [])),
     ),
   )
 
@@ -78,33 +97,42 @@ pub fn resolve_property(
   property: SchemaProperty,
   defs: option.Option(Dict(String, SchemaProperty)),
 ) -> Result(SchemaProperty, ResolveError) {
-  resolve_property_ref(property, option.unwrap(defs, dict.new()), [])
+  resolve_property_ref(property, option.unwrap(defs, dict.new()), [], [])
 }
 
-/// Resolve references in an ordered list of properties, preserving key order.
+/// Resolve references in an ordered list of properties, preserving key
+/// order. `path` accumulates head-first (see `path_string`) so a crossed
+/// `$ref` sibling merge inside one of these properties can name the
+/// referencing property, not just the `$ref` target.
 fn resolve_properties_refs(
   properties: List(#(String, SchemaProperty)),
   context: Dict(String, SchemaProperty),
   visited: List(String),
+  path: List(String),
 ) -> Result(List(#(String, SchemaProperty)), ResolveError) {
   properties
   |> list.try_map(fn(entry) {
     let #(key, prop) = entry
-    use resolved_prop <- result.try(resolve_property_ref(prop, context, visited))
+    use resolved_prop <- result.try(
+      resolve_property_ref(prop, context, visited, [key, ..path]),
+    )
     Ok(#(key, resolved_prop))
   })
 }
 
-/// Resolve a single property that might contain a $ref
+/// Resolve a single property that might contain a $ref. `path` is the
+/// accumulated (head-first) property path down to this node, used only to
+/// name the referencing site in a crossed-bounds error (see `path_string`).
 fn resolve_property_ref(
   property: SchemaProperty,
   context: Dict(String, SchemaProperty),
   visited: List(String),
+  path: List(String),
 ) -> Result(SchemaProperty, ResolveError) {
   case property.ref {
     None -> {
       // No reference, but might have nested properties or items to resolve
-      resolve_nested_refs(property, context, visited)
+      resolve_nested_refs(property, context, visited, path)
     }
     Some(ref_path) -> {
       // Check for circular reference
@@ -116,12 +144,21 @@ fn resolve_property_ref(
 
           case dict.get(context, definition_name) {
             Ok(referenced_property) -> {
-              // Recursively resolve any references in the referenced property
+              // Recursively resolve any references in the referenced
+              // property, threading the *current* `path` through (not a
+              // fresh `[]`): resolving `$ref` inlines the definition's
+              // content into this node's own subtree, so an unsatisfiable
+              // error inside the definition's own nested structure (e.g. a
+              // property "n" of a definition referenced from "x") must
+              // name it relative to the referencing site — "#/x/n" — not
+              // "#/n", which would misattribute it to an unrelated
+              // top-level "n" (or just look rootless).
               let new_visited = [ref_path, ..visited]
               use resolved <- result.try(resolve_property_ref(
                 referenced_property,
                 context,
                 new_visited,
+                path,
               ))
 
               // Resolve refs nested in the referencing node's own subtree
@@ -133,10 +170,28 @@ fn resolve_property_ref(
                 property,
                 context,
                 visited,
+                path,
               ))
 
-              // Merge the resolved property with any local overrides
-              Ok(merge_properties(resolved_local, resolved))
+              // Merge the resolved property with any local overrides, then
+              // reject a merge that crosses array bounds (a sibling
+              // `minItems`/`maxItems` against the definition's) instead of
+              // silently shipping a form that validates nothing. Names the
+              // referencing property (`path`), not just the `$ref` target,
+              // matching `composer.unsatisfiable`'s breadcrumb for `allOf`.
+              let merged = merge_properties(resolved_local, resolved)
+              case array_constraints_crossed_reason(merged.array_constraints) {
+                Some(reason) ->
+                  Error(UnsatisfiableSchema(
+                    "unsatisfiable schema at "
+                    <> path_string(path)
+                    <> " ($ref "
+                    <> ref_path
+                    <> "): "
+                    <> reason,
+                  ))
+                None -> Ok(merged)
+              }
             }
             Error(_) -> Error(ReferenceNotFound(ref_path))
           }
@@ -157,35 +212,44 @@ pub fn try_optional(
   }
 }
 
-/// Resolve references in nested properties and items
+/// Resolve references in nested properties and items. `path` extends with
+/// `"items"` for the array-item template (matching `composer.merge_pair`'s
+/// breadcrumb convention) and is passed through unchanged for one_of/any_of/
+/// all_of members and conditionals — those don't currently need per-member
+/// breadcrumb precision, only the direct-property and array-item cases do.
 fn resolve_nested_refs(
   property: SchemaProperty,
   context: Dict(String, SchemaProperty),
   visited: List(String),
+  path: List(String),
 ) -> Result(SchemaProperty, ResolveError) {
   use resolved_properties <- result.try(
     try_optional(property.properties, resolve_properties_refs(
       _,
       context,
       visited,
+      path,
     )),
   )
 
   use resolved_items <- result.try(
-    try_optional(property.items, resolve_property_ref(_, context, visited)),
+    try_optional(
+      property.items,
+      resolve_property_ref(_, context, visited, ["items", ..path]),
+    ),
   )
 
   use resolved_one_of <- result.try(
     try_optional(
       property.one_of,
-      list.try_map(_, resolve_property_ref(_, context, visited)),
+      list.try_map(_, resolve_property_ref(_, context, visited, path)),
     ),
   )
 
   use resolved_any_of <- result.try(
     try_optional(
       property.any_of,
-      list.try_map(_, resolve_property_ref(_, context, visited)),
+      list.try_map(_, resolve_property_ref(_, context, visited, path)),
     ),
   )
 
@@ -194,13 +258,14 @@ fn resolve_nested_refs(
       _,
       context,
       visited,
+      path,
     )),
   )
 
   use resolved_all_of <- result.try(
     try_optional(
       property.all_of,
-      list.try_map(_, resolve_property_ref(_, context, visited)),
+      list.try_map(_, resolve_property_ref(_, context, visited, path)),
     ),
   )
 
@@ -227,8 +292,9 @@ fn resolve_conditional_rule(
   rule: ConditionalRule,
   context: Dict(String, SchemaProperty),
   visited: List(String),
+  path: List(String),
 ) -> Result(ConditionalRule, ResolveError) {
-  let resolve_one = resolve_property_ref(_, context, visited)
+  let resolve_one = resolve_property_ref(_, context, visited, path)
   use if_resolved <- result.try(resolve_one(rule.if_schema))
   use then_resolved <- result.try(try_optional(rule.then_schema, resolve_one))
   use else_resolved <- result.try(try_optional(rule.else_schema, resolve_one))
@@ -299,9 +365,15 @@ fn append_all_of(
   }
 }
 
-/// Merge two properties, with the referencing property taking precedence
+/// Merge two properties, with the referencing property taking precedence.
 ///
-/// This allows local overrides of referenced definitions
+/// This allows local overrides of referenced definitions. Several fields
+/// are exceptions to that per-field "referencing wins" default:
+/// `array_constraints` doesn't take either side wholesale but merges per
+/// keyword, stricter-wins (`merge_array_constraints` below); `all_of` and
+/// `conditionals` concatenate (both sides' members apply); `read_only` and
+/// `nullable` OR-merge (either side sets it); `addable` and `removable`
+/// AND-merge (most restrictive wins).
 fn merge_properties(
   referencing: SchemaProperty,
   referenced: SchemaProperty,
@@ -326,7 +398,7 @@ fn merge_properties(
       referencing.number_constraints,
       referenced.number_constraints,
     ),
-    array_constraints: option.or(
+    array_constraints: merge_array_constraints(
       referencing.array_constraints,
       referenced.array_constraints,
     ),
@@ -348,6 +420,56 @@ fn merge_properties(
     ),
     conditionals: list.append(referencing.conditionals, referenced.conditionals),
   )
+}
+
+/// Merge two `ArrayConstraints` field by field, stricter-wins — the same
+/// conjunctive rule `composer`'s `allOf` merge applies: `min_items` is the
+/// higher floor, `max_items` is the lower ceiling, `unique_items` is true if
+/// either side sets it. Shared by both merge sites (`$ref` sibling here,
+/// `allOf` member in `composer.merge_pair`) so they agree on one rule.
+/// A merge that crosses bounds is not rejected here — see
+/// `array_constraints_crossed_reason`, checked separately by each caller.
+pub fn merge_array_constraints(
+  a: option.Option(types.ArrayConstraints),
+  b: option.Option(types.ArrayConstraints),
+) -> option.Option(types.ArrayConstraints) {
+  case a, b {
+    None, None -> None
+    Some(x), None -> Some(x)
+    None, Some(x) -> Some(x)
+    Some(x), Some(y) ->
+      Some(types.ArrayConstraints(
+        min_items: case x.min_items, y.min_items {
+          Some(m1), Some(m2) -> Some(int.max(m1, m2))
+          m1, m2 -> option.or(m2, m1)
+        },
+        max_items: case x.max_items, y.max_items {
+          Some(m1), Some(m2) -> Some(int.min(m1, m2))
+          m1, m2 -> option.or(m2, m1)
+        },
+        unique_items: x.unique_items || y.unique_items,
+      ))
+  }
+}
+
+/// `Some(reason)` when a merged `ArrayConstraints` pair validates nothing
+/// (`min_items > max_items`), else `None`. Shared by the `$ref` merge above
+/// and `composer.check_array_constraints` (`allOf` members).
+pub fn array_constraints_crossed_reason(
+  c: option.Option(types.ArrayConstraints),
+) -> Option(String) {
+  case c {
+    Some(types.ArrayConstraints(min_items: Some(min), max_items: Some(max), ..))
+      if min > max
+    ->
+      Some(
+        "minItems "
+        <> int.to_string(min)
+        <> " > maxItems "
+        <> int.to_string(max),
+      )
+    _ -> None
+  }
 }
 
 /// Merge two `RenderHints`, with the referencing side winning per-field —

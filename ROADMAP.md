@@ -124,6 +124,10 @@ called a "JSON Schema form generator" without disclaimers.
   per draft 2020-12 §6.3.3)
 - [x] `minItems` / `maxItems` — length validation plus add/remove button
   gating
+- [x] `uniqueItems` — validated on every array (blank rows ignored);
+  option-list arrays render as a checkbox group. Breaking for Gleam
+  consumers: `ArrayConstraints` gained `unique_items` (see
+  `docs/reference/api.md`)
 - [x] `multipleOf` — tolerant comparison (1e-8), also drives the `step`
   attribute
 - [x] `enum` value validation
@@ -255,7 +259,7 @@ hide an invalid field behind a closed door.
 - [ ] Reuse the `cross_validator` merge path, including its existing
       unknown-path drop and schema-errors-take-precedence rules
 - [ ] **Touched-gate hazard:** `field_dispatcher.render_visible` hides errors
-      on untouched fields, with `error.is_array_length` as the only sanctioned
+      on untouched fields, with `error.is_array_level` as the only sanctioned
       bypass. `with_validator` is additionally skipped entirely while
       `touched_fields` is empty. Injected errors need an auto-touch of their
       paths or their own bypass predicate, or they will be invisible

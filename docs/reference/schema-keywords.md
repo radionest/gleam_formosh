@@ -50,7 +50,7 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | `properties` | ✅ | Order-preserving (stored as `List`, never `Dict`). |
 | `required` | ✅ | Required-field validation; controls the `*` indicator and submit gating. |
 | `$defs` / `definitions` | ✅ | Stored on the root; referenced via `$ref`. |
-| `$ref` (`#/$defs/...`, `#/definitions/...`) | ✅ | JSON-Pointer resolved by `schema/resolver.gleam`; **circular refs are detected and rejected**. |
+| `$ref` (`#/$defs/...`, `#/definitions/...`) | ✅ | JSON-Pointer resolved by `schema/resolver.gleam`; **circular refs are detected and rejected**. Array keywords beside a `$ref` merge per keyword with the definition's, stricter-wins — same rule `allOf` uses (below): `minItems` is the higher floor, `maxItems` is the lower ceiling, `uniqueItems` is true if either side sets it. A merge that crosses bounds (sibling `minItems` > definition `maxItems`, or vice versa) fails parsing with `UnsatisfiableSchema`, same as a crossed `allOf` merge. String/number constraints beside a `$ref` still replace the definition's wholesale. |
 | `additionalProperties` | ❌ | Not parsed. |
 | `patternProperties` | ❌ | Not parsed. |
 | `minProperties` / `maxProperties` | ❌ | Not parsed. |
@@ -62,16 +62,19 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | Keyword | Status | Notes |
 |---------|--------|-------|
 | `items` | ✅ | Object and array `items` nest to any depth, including arrays inside array items. |
-| `minItems` | ✅ | Length validation + auto-creates rows up to `minItems`; hides Remove when shrinking would violate it. |
+| `minItems` | ✅ | Length validation + auto-creates rows up to `minItems` (not for checkbox groups); hides Remove when shrinking would violate it. |
 | `maxItems` | ✅ | Length validation + hides Add once reached. |
 | `prefixItems` (tuple validation) | ❌ | Not parsed. |
-| `uniqueItems` | ❌ | Not parsed. |
+| `uniqueItems` | ✅ | Duplicate elements → `uniqueItems` error at the array path (structural equality: `1` ≠ `1.0`; objects differing only in key order also count as distinct). Blank elements are ignored by the check — recursively: `null`, an empty string, and any array/object whose members are all themselves blank (e.g. `[]`, `{}`, `{"a":""}`, `{"tags":[null]}`). With scalar option `items` it switches the array to the [checkbox group](widgets.md#checkbox-group-multi-select). Across `allOf` members, and beside a `$ref`, it combines with OR. |
 | `contains` / `minContains` / `maxContains` | ❌ | Not parsed. |
 
 **Bounds normalization.** A schema with `minItems > maxItems`
 (unsatisfiable) is normalized at parse time so `minItems` wins — the array
-renders as fixed-size at `minItems` rows. Array-length violations coming
-from externally supplied values are always shown (they bypass the
+renders as fixed-size at `minItems` rows. A `$ref` sibling's bound crossing
+the definition's, or crossed bounds from `allOf` members, both fail parsing
+instead, with `UnsatisfiableSchema` (see `allOf` below). Array-level
+violations
+(`minItems` / `maxItems` / `uniqueItems`) are always shown (they bypass the
 field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 
 ## String constraints
@@ -110,7 +113,7 @@ field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 
 | Keyword | Status | Notes |
 |---------|--------|-------|
-| `allOf` | ✅ | Deep-merged into the parent node at parse time by `schema/composer.gleam`: properties, required (union), bounds (stricter-wins), conditionals (appended). Scalar keywords (`title`, `default`, `enum`, `oneOf`, `pattern`, `format`, `multipleOf`) take the **later** member's value wholesale — enum/oneOf are overridden, not intersected. Conflicting types or crossed bounds in the merged result fail parsing with `UnsatisfiableSchema`. |
+| `allOf` | ✅ | Deep-merged into the parent node at parse time by `schema/composer.gleam`: properties, required (union), bounds (stricter-wins), `uniqueItems` (OR), conditionals (appended). Scalar keywords (`title`, `default`, `enum`, `oneOf`, `pattern`, `format`, `multipleOf`) take the **later** member's value wholesale — enum/oneOf are overridden, not intersected. Conflicting types or crossed bounds in the merged result fail parsing with `UnsatisfiableSchema`. |
 | `oneOf` (with `const` + `title` options) | ✅ | Renders as a radio group (≤5) or select (>5) of named constant options — on `string`, `number`, `integer`, and typeless fields. Stores the typed `const`. |
 | `oneOf` (schema variants) | 🟡 | Parsed and stored, but not processed as polymorphic dispatch. |
 | `anyOf` | ✅ | Parsed, `$ref`-resolved inside members, and normalized at parse time (`schema/composer.gleam`): null members collapse into a `nullable` flag — an empty nullable field validates as satisfied and submits `null` (see [Web Component](../guides/web-component.md#nullable-fields)); a single surviving non-null member merges into the node itself (`Optional[X]` renders as a plain `X` field); 2+ surviving members stay in `any_of` and render as a runtime branch chooser (radio ≤5 branches / select >5, `ui:widget` override — see [Widget Selection](widgets.md)). Member extraction is lenient (malformed members dropped); a parent `type` disjoint from every surviving member is a `ParseError`. A **bare** `anyOf` directly as an array's `items` schema (no object wrapper) does not render a chooser. |

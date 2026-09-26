@@ -26,7 +26,7 @@ description: "How if/then/else conditionals are resolved on every field change t
   definitions from `$defs`.
 - Composing with array constraints: an array declared inside `then` with
   `minItems` appears pre-populated with its first default-hydrated row
-  once the condition is met (see `demo/schemas/carcinomatosis_radiology.json`).
+  (a checkbox group appears empty) once the condition is met (see `demo/schemas/carcinomatosis_radiology.json`).
 
 **Cross-links**
 

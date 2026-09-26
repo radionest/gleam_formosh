@@ -2,7 +2,8 @@
 
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
-import gleam/option.{type Option, None}
+import gleam/list
+import gleam/option.{type Option, None, Some}
 
 /// Unified value type for both schema definitions and form values.
 /// 
@@ -79,10 +80,15 @@ pub type NumberConstraints {
 /// Validation constraints for array fields.
 ///
 /// These constraints correspond to JSON Schema array validation rules
-/// (`minItems` / `maxItems`) and drive length validation, add/remove
-/// button gating, and auto-created rows.
+/// (`minItems` / `maxItems` / `uniqueItems`) and drive length and
+/// uniqueness validation, add/remove button gating, auto-created rows, and
+/// the checkbox-group widget (`is_multi_select`).
 pub type ArrayConstraints {
-  ArrayConstraints(min_items: Option(Int), max_items: Option(Int))
+  ArrayConstraints(
+    min_items: Option(Int),
+    max_items: Option(Int),
+    unique_items: Bool,
+  )
 }
 
 /// Upload configuration from x- extension fields.
@@ -159,7 +165,7 @@ pub type SchemaProperty {
     // Type-specific constraints
     string_constraints: Option(StringConstraints),
     number_constraints: Option(NumberConstraints),
-    // Array length constraints (minItems / maxItems)
+    // Array constraints (minItems / maxItems / uniqueItems)
     array_constraints: Option(ArrayConstraints),
     // For array types
     items: Option(SchemaProperty),
@@ -344,6 +350,34 @@ pub fn empty_hints() -> RenderHints {
     removable: None,
     orderable: None,
   )
+}
+
+/// True for an array that renders as a checkbox group: `uniqueItems: true`
+/// with scalar `items` carrying options — `oneOf` const members, or an
+/// `enum` of 2+ values (a bare `const` parses to a one-value `enum`:
+/// nothing to choose). Lives here so `form/defaults` (which skips the
+/// `minItems` top-up) and the field dispatcher share one definition.
+pub fn is_multi_select(property: SchemaProperty) -> Bool {
+  case property.field_type, property.array_constraints, property.items {
+    Some(ArrayType), Some(ArrayConstraints(unique_items: True, ..)), Some(item) -> {
+      let scalar =
+        item.field_type != Some(ArrayType)
+        && item.field_type != Some(ObjectType)
+      let has_const_member =
+        list.any(option.unwrap(item.one_of, []), fn(member) {
+          case member.enum_values {
+            Some([_]) -> True
+            _ -> False
+          }
+        })
+      let has_enum_choice = case item.enum_values {
+        Some([_, _, ..]) -> True
+        _ -> False
+      }
+      scalar && { has_const_member || has_enum_choice }
+    }
+    _, _, _ -> False
+  }
 }
 
 /// Errors that can occur during JSON Schema or UiSchema parsing.

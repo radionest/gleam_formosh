@@ -915,6 +915,7 @@ pub fn serialize_array_constraints_test() {
             array_constraints: Some(types.ArrayConstraints(
               min_items: Some(1),
               max_items: Some(5),
+              unique_items: False,
             )),
             items: Some(
               SchemaProperty(..empty_property(), field_type: Some(StringType)),

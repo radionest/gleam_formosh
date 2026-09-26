@@ -22,11 +22,26 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
 2. Build `JsonSchema` node tree (typed).
 3. Resolve `$ref` against `$defs` / `definitions` (JSON Pointer).
    - Cycle detection → reject circular refs.
+   - Keywords beside the `$ref` win over the definition's, with several
+     per-field exceptions (`resolver.merge_properties`): `array_constraints`
+     merges per keyword, stricter-wins instead
+     (`resolver.merge_array_constraints`, shared with the `allOf` merge
+     below); `all_of`/`conditionals` concatenate; `read_only`/`nullable`
+     OR-merge; `addable`/`removable` AND-merge. A crossed `array_constraints`
+     result (sibling `minItems` > definition `maxItems`, or vice versa) is a
+     `ParseError` (`resolver.array_constraints_crossed_reason`), same as a
+     crossed `allOf`.
 4. Compose `allOf`: deep-merge member schemas (properties, required, bounds,
    `$ref` mixins); lift member conditionals to the parent.
 5. Normalize unsatisfiable constraints:
-   - `minItems > maxItems` → `minItems` wins, fixed size.
-   - conflicting `type` / crossed bounds → `UnsatisfiableSchema` error.
+   - `minItems > maxItems` authored directly on one node — its own bounds,
+     evaluated before any `$ref`/`allOf` merge — → `minItems` wins, fixed
+     size. E.g. `{"$ref": "#/$defs/Def" (no bounds), "minItems": 5,
+     "maxItems": 3}` normalizes to a fixed 5 regardless of the `$ref`; this
+     runs whether or not the node also carries a `$ref` or sits under
+     `allOf`, and is independent of step 3's merge.
+   - conflicting `type` / crossed bounds arising from a merge (`allOf`
+     composition or a `$ref` sibling merge) → `UnsatisfiableSchema` error.
 6. Emit parsed schema or `ParseError`.
 
 **Cross-links**

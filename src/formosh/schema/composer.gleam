@@ -17,29 +17,19 @@ import formosh/schema/properties
 import formosh/schema/resolver
 import formosh/schema/types.{
   type ConditionalRule, type FieldType, type ParseError, type SchemaProperty,
-  ArrayConstraints, ArrayType, BooleanType, ConditionalRule, IntegerType,
-  NullType, NumberConstraints, NumberType, ObjectType, SchemaProperty,
-  StringConstraints, StringType, UnsatisfiableSchema,
+  ArrayType, BooleanType, ConditionalRule, IntegerType, NullType,
+  NumberConstraints, NumberType, ObjectType, SchemaProperty, StringConstraints,
+  StringType, UnsatisfiableSchema,
 }
 import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import gleam/string
-
-/// Format the descent path (accumulated head-first) as a JSON-pointer-ish
-/// breadcrumb for error messages.
-fn path_string(path: List(String)) -> String {
-  case path {
-    [] -> "#"
-    segments -> "#/" <> string.join(list.reverse(segments), "/")
-  }
-}
 
 fn unsatisfiable(path: List(String), reason: String) -> ParseError {
   UnsatisfiableSchema(
-    "unsatisfiable schema at " <> path_string(path) <> ": " <> reason,
+    "unsatisfiable schema at " <> resolver.path_string(path) <> ": " <> reason,
   )
 }
 
@@ -244,7 +234,10 @@ fn merge_pair(
     |> check_number_constraints(path),
   )
   use array_constraints <- result.try(
-    merge_array_constraints(base.array_constraints, overlay.array_constraints)
+    resolver.merge_array_constraints(
+      base.array_constraints,
+      overlay.array_constraints,
+    )
     |> check_array_constraints(path),
   )
   use items <- result.try(case base.items, overlay.items {
@@ -421,37 +414,17 @@ fn check_number_constraints(
   }
 }
 
-fn merge_array_constraints(
-  base: Option(types.ArrayConstraints),
-  overlay: Option(types.ArrayConstraints),
-) -> Option(types.ArrayConstraints) {
-  case base, overlay {
-    Some(b), Some(o) ->
-      Some(ArrayConstraints(
-        min_items: combine(b.min_items, o.min_items, int.max),
-        max_items: combine(b.max_items, o.max_items, int.min),
-      ))
-    b, o -> option.or(o, b)
-  }
-}
-
 /// Reject a merged array constraint pair that validates nothing (minItems
-/// > maxItems) instead of silently shipping an unsatisfiable form.
+/// > maxItems) instead of silently shipping an unsatisfiable form. The merge
+/// itself lives in `resolver.merge_array_constraints`, shared with the
+/// `$ref` sibling merge; this wraps `resolver.array_constraints_crossed_reason`
+/// into a `ParseError` with this call site's path breadcrumb.
 fn check_array_constraints(
   c: Option(types.ArrayConstraints),
   path: List(String),
 ) -> Result(Option(types.ArrayConstraints), ParseError) {
-  case c {
-    Some(ArrayConstraints(min_items: Some(min), max_items: Some(max)))
-      if min > max
-    ->
-      Error(unsatisfiable(
-        path,
-        "minItems "
-          <> int.to_string(min)
-          <> " > maxItems "
-          <> int.to_string(max),
-      ))
-    _ -> Ok(c)
+  case resolver.array_constraints_crossed_reason(c) {
+    Some(reason) -> Error(unsatisfiable(path, reason))
+    None -> Ok(c)
   }
 }

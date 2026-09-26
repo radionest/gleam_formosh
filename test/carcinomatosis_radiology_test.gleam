@@ -47,7 +47,11 @@ pub fn lesions_revealed_by_condition_test() {
     list.find(resolved_props, fn(entry) { entry.0 == "lesions" })
   lesions.array_constraints
   |> should.equal(
-    Some(types.ArrayConstraints(min_items: Some(1), max_items: None)),
+    Some(types.ArrayConstraints(
+      min_items: Some(1),
+      max_items: None,
+      unique_items: False,
+    )),
   )
   let assert Some(lesion) = lesions.items
   lesion.field_type |> should.equal(Some(types.ObjectType))

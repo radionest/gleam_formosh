@@ -23,6 +23,7 @@ pub type ValidationFailure {
   PatternMismatch
   MinItems(min: Int)
   MaxItems(max: Int)
+  UniqueItems
 }
 
 /// Render the message text for a validation failure.
@@ -47,6 +48,7 @@ pub fn format(failure: ValidationFailure) -> String {
     PatternMismatch -> "Does not match the required format"
     MinItems(min) -> "At least " <> int.to_string(min) <> " item(s) required"
     MaxItems(max) -> "At most " <> int.to_string(max) <> " item(s) allowed"
+    UniqueItems -> "Items must be unique"
   }
 }
 
@@ -71,5 +73,6 @@ pub fn rule_of(failure: ValidationFailure) -> String {
     PatternMismatch -> "pattern"
     MinItems(_) -> "minItems"
     MaxItems(_) -> "maxItems"
+    UniqueItems -> "uniqueItems"
   }
 }

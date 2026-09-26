@@ -25,6 +25,7 @@ import gleam/bool
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -146,16 +147,43 @@ fn render_array(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
     Some(types.ArrayValue(xs)) -> xs
     _ -> []
   }
-  let body = case items, ctx.property.items {
-    [], _ -> [render_value_only(value_display.dash)]
-    _, Some(item_schema) ->
+  let body = case
+    items,
+    ctx.property.items,
+    types.is_multi_select(ctx.property)
+  {
+    [], _, _ -> [render_value_only(value_display.dash)]
+    _, Some(item_schema), True -> [
+      render_value_only(checkbox_group_summary(ctx, model, item_schema, items)),
+    ]
+    _, Some(item_schema), False ->
       case scalar_object_columns(ctx, model, item_schema) {
         Some(columns) -> [render_table(columns, items)]
         None -> render_groups(ctx, model, item_schema, items)
       }
-    _, None -> [render_value_only(value_display.dash)]
+    _, None, _ -> [render_value_only(value_display.dash)]
   }
   group(label_for(ctx), body)
+}
+
+/// A checkbox-group (`types.is_multi_select`) value as a single comma-joined
+/// row of the selected options' labels, instead of one numbered row per
+/// selection (`render_groups`) — the value is a set, not a list of records.
+fn checkbox_group_summary(
+  ctx: FieldRenderCtx,
+  model: FormModel,
+  item_schema: SchemaProperty,
+  items: List(Value),
+) -> String {
+  list.index_map(items, fn(item, index) {
+    let item_path = list.append(ctx.path, [ArraySegment(index)])
+    value_display.display_value(
+      item_schema,
+      ui_resolver.resolve_hints(model.ui_schema, item_path, item_schema),
+      Some(item),
+    )
+  })
+  |> string.join(", ")
 }
 
 /// `Some(columns)` when array items are objects whose every visible property

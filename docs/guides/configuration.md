@@ -108,11 +108,22 @@ a wall of red on first paint.
 > to the model and nothing reads it — behaviour is always "errors after
 > touch". Tracked in `ROADMAP.md`.
 
-The one exception to the touch gate is **array-length violations**: an array
-that violates `minItems` / `maxItems` (e.g. from externally supplied values)
-is always shown, because the gating buttons can't cause it and the message
-is the only explanation for a blocked submit. See the README "Arrays"
-section for the full rule.
+The one exception to the touch gate is **array-level violations**. A
+`minItems` / `maxItems` violation is always shown: in the row editor the
+Add/Remove buttons can't cause it, so it only comes from externally
+supplied values, where the message is the only explanation for a blocked
+submit. A checkbox group has no `minItems` gating (`maxItems` disables the
+unchecked boxes at the cap), but every click touches the array's own path,
+so an under-`minItems` selection already shows through the normal touch
+gate; there too the bypass only matters for externally supplied values.
+A `uniqueItems` violation gets the same treatment for a different reason:
+the error is keyed at the array's own path, and editing a row only ever
+touches that row's own paths, never the array path itself
+— so without the exception the error would stay hidden while still
+blocking submit. Blank rows are never compared as duplicates, so an
+untouched Add/Add sequence never trips it — except rows filled from schema
+defaults, which still compare equal.
+See [Widget Selection](../reference/widgets.md#checkbox-group-multi-select) for the checkbox group.
 
 ## Read-only fields
 
@@ -147,7 +158,8 @@ are `Value` variants (`StringValue`, `NumberValue`, `IntegerValue`,
 `BooleanValue`, `ObjectValue`, `ArrayValue`, `NullValue`) from
 `formosh/schema/types`. Initial values flow through the
 same default-hydration pipeline as schema `default` values, so arrays are
-topped up to `minItems` and conditionals are resolved against them.
+topped up to `minItems` (except checkbox groups) and conditionals are resolved
+against them.
 
 ## UiSchema (presentation hints)
 

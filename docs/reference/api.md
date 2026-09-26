@@ -233,6 +233,13 @@ field. Full field lists on the `SchemaProperty` and `JsonSchema` types in
 - `JsonSchema` adds the root-level `defs` (`$defs` / `definitions`),
   root `conditionals`, and root `all_of` (always `None` after parsing).
 
+> **Breaking change.** `ArrayConstraints` gained a `unique_items: Bool`
+> field, and Gleam requires every field in a record constructor or pattern
+> match unless you use a `..` spread — so any code that builds or matches
+> it without naming `unique_items` stops compiling on upgrade. Add
+> `unique_items: False` (or the real value) at each call site, or switch to
+> a `..` spread over an existing value.
+
 You normally don't construct these by hand — you parse them from JSON and
 mutate via the builder. But if you want to synthesize a schema
 programmatically, `types.empty_property()` and `types.empty_hints()` give

@@ -193,13 +193,14 @@ component.element([
 `minItems` / `maxItems` bound the row count: the form auto-creates rows (with
 item-field defaults applied) up to `minItems`, hides the remove button when
 shrinking would violate `minItems`, and hides the add button once `maxItems`
-is reached. Violations coming from externally supplied values are reported
-as validation errors on the array itself and are always visible (they skip
-the usual touched gate — button gating means they can never be caused by
-form interaction, so the message is the only explanation for a blocked
-submit). A schema with `minItems > maxItems` (unsatisfiable) is normalized
-at parse time so `minItems` wins: the array renders as fixed-size at
-`minItems` rows.
+is reached. Array-level violations (`minItems` / `maxItems` /
+`uniqueItems`) are always visible — they skip the touched gate; see
+[Error visibility](docs/guides/configuration.md#error-visibility) for why.
+A schema with `minItems > maxItems` (unsatisfiable) is normalized at parse
+time so `minItems` wins: the array renders as fixed-size at `minItems`
+rows. An option-list array with `uniqueItems: true` renders as a
+[checkbox group](docs/reference/widgets.md#checkbox-group-multi-select)
+instead — no rows, no `minItems` top-up.
 
 ### Conditional fields (if/then/else)
 
@@ -243,7 +244,7 @@ Also supports multiple conditionals via `allOf`:
 
 Conditionals compose with array constraints: declare a whole array inside `then`
 with `minItems` to make it appear — pre-populated with its first default-hydrated
-row — only once the condition is met. See
+row (a checkbox group appears empty instead) — only once the condition is met. See
 [`demo/schemas/carcinomatosis_radiology.json`](demo/schemas/carcinomatosis_radiology.json)
 for a worked example (`lesions` appears per-zone when `affected` is true).
 `$ref` is resolved inside `if`/`then`/`else` branches, so conditional branches
@@ -368,6 +369,7 @@ The widget is chosen automatically based on schema:
 | `number` / `integer` + `enum` or `oneOf` with const/title | radio buttons (≤5) or select (>5), storing the typed const |
 | `boolean` | Yes/No radio buttons |
 | `array` | dynamic list with add/remove controls |
+| `array` + `uniqueItems` + scalar `enum`/`oneOf` items | checkbox group (one checkbox per option) |
 | `object` | nested fieldset |
 | `readOnly: true` | hidden by default; shown as readonly input with `with_show_readonly_fields(True)` |
 | `object` + `ui:widget: "swipe-review"` | tap/swipe-based zone burndown |
@@ -384,14 +386,14 @@ The widget is chosen automatically based on schema:
 - **Conditional:** `if`/`then`/`else` — fully dynamic, re-evaluated on every field change
 - **String constraints:** `minLength`, `maxLength`, `format` (date, email, password, url/uri, time, date-time, uuid)
 - **Number constraints:** `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
-- **Array constraints:** `minItems`, `maxItems` — length validation, add/remove button gating, and auto-created rows up to `minItems`
+- **Array constraints:** `minItems`, `maxItems` — length validation, add/remove button gating, and auto-created rows up to `minItems`; `uniqueItems` — validated (option-list arrays render as a checkbox group instead of the row editor)
 
 ### Validation
 
 - Required field checks
 - String length bounds (minLength, maxLength)
 - Number bounds (min, max, exclusive, multipleOf)
-- Array length bounds (minItems, maxItems)
+- Array length bounds (minItems, maxItems) and uniqueItems (duplicate elements)
 - Basic format validation: email (checks `@` and `.`), url (checks `http(s)://` prefix)
 
 ### Other
@@ -447,7 +449,7 @@ The component runs inside an open Shadow DOM. There are three customization surf
    .formosh-error { color: red; }
    ```
 
-Part names available (most elements carry one; a few carry two — see **Compound parts** below): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `row`, `group`, `group-label`, `group-body` (the last four appear only where a `ui:layout` actually places a `Row` or `Group` node; tune the row gap with the `--formosh-row-gap` custom property), `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `array-field`, `array-items`, `array-item`, `array-item-fields`, `array-item-header`, `array-add`, `union`, `union-radio`, `union-select`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`. Collapse-completed arrays (`ui:options.collapseCompleted`) add: `array-collapse-header`, `array-toggle`, `array-progress`, `array-item-summary`, `array-item-summary-value`, `array-item-summary-sep`, `array-item-body` (the folding wrapper — carries the fold animation as inline styles; retime it with `--formosh-collapse-duration`).
+Part names available (most elements carry one; a few carry two — see **Compound parts** below): `container`, `header`, `title`, `description`, `form`, `footer`, `submit`, `reset`, `success`, `error-message`, `loading`, `row`, `group`, `group-label`, `group-body` (the last four appear only where a `ui:layout` actually places a `Row` or `Group` node; tune the row gap with the `--formosh-row-gap` custom property), `field`, `field-wrapper`, `label`, `required`, `help`, `errors`, `error`, `input`, `number`, `textarea`, `select`, `radio-group`, `radio-item`, `boolean`, `checkbox-wrapper`, `checkbox-group`, `checkbox-list`, `checkbox-item`, `array-field`, `array-items`, `array-item`, `array-item-fields`, `array-item-header`, `array-add`, `union`, `union-radio`, `union-select`, `image-upload`, `image-grid`, `image-card`, `image-preview`, `image-add`, `image-remove`, `image-uploading`, `image-spinner`, `image-error`, `image-error-text`. Read-only (review) mode adds: `readonly-field`, `readonly-label`, `readonly-value`, `readonly-group`, `readonly-group-label`, `readonly-group-body`, `readonly-table`, `readonly-th`, `readonly-td`. Swipe-review widget adds: `swipe-review`, `swipe-sheet`, `swipe-regions`, `swipe-region-group`, `swipe-region`, `swipe-zones`, `swipe-row`, `swipe-zone-title`, `swipe-choices`, `swipe-choice`, `swipe-progress`, `swipe-controls`, `swipe-toggle`, `swipe-undo`, `swipe-fill`, `swipe-review-summary`, `swipe-review-title`, `swipe-review-list`, `swipe-review-row`, `swipe-review-zone`, `swipe-review-answer`. Collapse-completed arrays (`ui:options.collapseCompleted`) add: `array-collapse-header`, `array-toggle`, `array-progress`, `array-item-summary`, `array-item-summary-value`, `array-item-summary-sep`, `array-item-body` (the folding wrapper — carries the fold animation as inline styles; retime it with `--formosh-collapse-duration`).
 
 Notes:
 

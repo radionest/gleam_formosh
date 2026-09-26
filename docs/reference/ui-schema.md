@@ -92,7 +92,7 @@ default (or `x-*` extension where applicable)".
 
 | Key | Type | Effect |
 |-----|------|--------|
-| `ui:widget` | string | Override the auto-selected widget. Recognized: `"image-upload"`, `"hidden"`, `"swipe-review"`, plus the string-field hints `"textarea"`, `"select"`, `"radio"`, `"password"`. `"select"` / `"radio"` also apply to any enum or `oneOf` const+title field (number/integer and typeless included) and to an `anyOf` union chooser on the same path — same ≤5-radio / >5-select contract as a string `enum`, see [Union chooser](widgets.md#union-chooser-anyof-2-branches). Anything else becomes a `CustomWidget(raw)` that custom renderers can dispatch on. See [Widget Selection](widgets.md). |
+| `ui:widget` | string | Override the auto-selected widget. Recognized: `"image-upload"`, `"hidden"`, `"swipe-review"`, plus the string-field hints `"textarea"`, `"select"`, `"radio"`, `"password"`. `"select"` / `"radio"` also apply to any enum or `oneOf` const+title field (number/integer and typeless included), but not a `uniqueItems` [checkbox group](widgets.md#checkbox-group-multi-select), and to an `anyOf` union chooser on the same path — same ≤5-radio / >5-select contract as a string `enum`, see [Union chooser](widgets.md#union-chooser-anyof-2-branches). Anything else becomes a `CustomWidget(raw)` that custom renderers can dispatch on. See [Widget Selection](widgets.md). |
 | `ui:options` | object | Free-form bag of widget-specific settings, passed through to the renderer as a `Dict(String, Value)`. E.g. `swipe-review` reads `swipeRight` / `swipeLeft` / `button` / `hideAnsweredLabel` from here; an array reads `collapseCompleted` / `collapseCompletedLabel` / `summaryFields` to collapse completed rows — see [Collapse completed array rows](#collapse-completed-array-rows) below. |
 
 ### Labels and help
@@ -129,6 +129,8 @@ default (or `x-*` extension where applicable)".
 
 `x-addable` / `x-removable` on the schema node are a deprecated fallback
 with the same meaning; UiSchema wins on collision.
+
+None of these apply to a [checkbox group](widgets.md#checkbox-group-multi-select) — it has no rows.
 
 ### Collapse completed array rows
 
@@ -373,7 +375,10 @@ an array (`"Очаги: 2"` only appears because the author asked for it).
 
 A row collapses once `affected` is set to `false` — `false` still counts
 as a filled field (only an absent, null, empty-string, empty-array, or
-empty-object value doesn't), and with `affected` false the schema requires
+empty-object value doesn't — nor does an array/object whose members are
+themselves all blank, e.g. `{"tags":[null]}` or a nested `{"street":""}`;
+`field_requirements.is_blank_value` is the shared recursive check), and
+with `affected` false the schema requires
 no `lesions` at all, so there's nothing left that could fail. Setting
 `affected` to `true` reopens the row, because the lesion the schema then
 auto-creates (`minItems: 1`) starts out unfilled and fails its own

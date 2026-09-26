@@ -203,6 +203,98 @@ pub fn has_options(property: types.SchemaProperty) -> Bool {
   option.is_some(property.enum_values) || one_of_options(property) != []
 }
 
+/// Render an option-list array (`types.is_multi_select`) as one checkbox
+/// per option. The value is the checked options' typed consts in schema
+/// order; unchecking the last box removes the key, as if never answered.
+pub fn render_checkboxes(ctx: FieldRenderCtx) -> Element(FormMsg) {
+  let field_id = path.to_string(ctx.path)
+  let options = case ctx.property.items {
+    Some(item) -> option_list(item)
+    None -> []
+  }
+  let selected = case ctx.value {
+    Some(types.ArrayValue(values)) -> list.map(values, value_to_string)
+    _ -> []
+  }
+  let at_max = case ctx.property.array_constraints {
+    Some(types.ArrayConstraints(max_items: Some(max), ..)) ->
+      list.count(options, fn(o) {
+        list.contains(selected, value_to_string(o.0))
+      })
+      >= max
+    _ -> False
+  }
+  let effective_disabled = ctx.is_disabled || ctx.is_readonly
+
+  let checkbox_list =
+    html.div(
+      [
+        attribute.class("formosh-checkbox-list"),
+        attribute.attribute("part", "checkbox-list"),
+      ],
+      list.map(options, fn(option) {
+        let #(const_val, label) = option
+        let value = value_to_string(const_val)
+        let box_id = field_id <> "_" <> value
+        let checked = list.contains(selected, value)
+
+        html.div(
+          [
+            attribute.class("formosh-checkbox-item"),
+            attribute.attribute("part", "checkbox-item"),
+          ],
+          [
+            // No `required`: on a checkbox it means "this box must be checked".
+            html.input([
+              attribute.type_("checkbox"),
+              attribute.id(box_id),
+              attribute.name(field_id),
+              attribute.value(value),
+              attribute.checked(checked),
+              attribute.disabled(effective_disabled || { at_max && !checked }),
+              event.on_click(toggle_msg(ctx.path, options, selected, value)),
+            ]),
+            html.label([attribute.for(box_id)], [html.text(label)]),
+          ],
+        )
+      }),
+    )
+
+  field_common.field_wrapper(ctx, checkbox_list)
+}
+
+/// `oneOf` const+title options, else `enum` values labelled by themselves.
+fn option_list(property: types.SchemaProperty) -> List(#(types.Value, String)) {
+  case one_of_options(property), property.enum_values {
+    [_, ..] as options, _ -> options
+    [], Some(values) ->
+      list.map(values, fn(val) { #(val, value_to_string(val)) })
+    [], None -> []
+  }
+}
+
+/// The selection after flipping `clicked`, in schema order — stored values
+/// that are not options drop out. An empty selection removes the key.
+fn toggle_msg(
+  field_path: path.FieldPath,
+  options: List(#(types.Value, String)),
+  selected: List(String),
+  clicked: String,
+) -> FormMsg {
+  let next =
+    list.filter_map(options, fn(option) {
+      let value = value_to_string(option.0)
+      case list.contains(selected, value) != { value == clicked } {
+        True -> Ok(option.0)
+        False -> Error(Nil)
+      }
+    })
+  case next {
+    [] -> ClearFieldPath(field_path)
+    _ -> UpdateFieldPath(field_path, types.ArrayValue(next))
+  }
+}
+
 /// Render a regular enum field (without oneOf).
 fn render_regular_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
   case ctx.property.enum_values {

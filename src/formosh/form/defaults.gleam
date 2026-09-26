@@ -260,6 +260,11 @@ pub fn new_array_item(item_schema: SchemaProperty) -> Value {
 /// rows — it only appends `new_array_item` rows, and creates the array
 /// value itself when a `minItems > 0` array has no value yet. Same root
 /// invariant as `apply_schema_defaults`: the form root is one ObjectValue.
+/// Checkbox-group arrays (`types.is_multi_select`) are skipped entirely: a
+/// filler row is not a user's choice — `null` isn't an option, and an
+/// item-`default` filler would repeat the same value (a duplicate row
+/// under `uniqueItems`) — so an under-`minItems` selection is left for
+/// validation to report instead.
 ///
 /// `selected` carries the active union branch per field path (design D4,
 /// openspec/changes/add-anyof-union-support) — threaded down so a row whose
@@ -324,9 +329,13 @@ fn ensure_array(
   current: option.Option(Value),
   selected: List(#(FieldPath, Int)),
 ) -> option.Option(Value) {
-  case property.items {
-    option.None -> option.None
-    option.Some(item_schema) -> {
+  case types.is_multi_select(property), property.items {
+    // Checkbox groups are never topped up: a filler row is not a user's
+    // choice — `null` isn't an option, and a defaulted filler would repeat
+    // the same value (a duplicate row under `uniqueItems`). Validation
+    // reports an under-`minItems` selection instead.
+    True, _ | _, option.None -> option.None
+    False, option.Some(item_schema) -> {
       let existing = case current {
         option.Some(ArrayValue(items)) -> items
         _ -> []
@@ -429,9 +438,20 @@ pub fn inject_nullable_nulls(
   ObjectValue(inject_fields(properties, [], fields, selected))
 }
 
+/// Outcome of `inject_property` for one field: leave the existing entry (if
+/// any) untouched, overwrite it with a new value, or remove the key
+/// entirely. `Remove` exists only for a checkbox group's `[]` (see
+/// `inject_property`) — every other case is `Keep`/`Replace`, matching the
+/// plain-Option shape this replaced.
+type FieldInjection {
+  Keep
+  Replace(Value)
+  Remove
+}
+
 // Fold the declared properties over the current fields — same shape as
 // `ensure_fields`: undeclared keys pass through untouched, keys are only
-// (re)written when `inject_property` produces a value.
+// (re)written or removed when `inject_property` says so.
 fn inject_fields(
   properties: List(#(String, SchemaProperty)),
   parent_path: FieldPath,
@@ -443,8 +463,9 @@ fn inject_fields(
     let current = option.from_result(list.key_find(acc, name))
     let field_path = list.append(parent_path, [PropertySegment(name)])
     case inject_property(property, field_path, current, selected) {
-      option.Some(new_value) -> list.key_set(acc, name, new_value)
-      option.None -> acc
+      Keep -> acc
+      Replace(new_value) -> list.key_set(acc, name, new_value)
+      Remove -> list.filter(acc, fn(entry) { entry.0 != name })
     }
   })
 }
@@ -452,36 +473,54 @@ fn inject_fields(
 // A nullable field whose value is absent/empty is written as NullValue
 // outright — this check fires before the type dispatch below, so a nullable
 // object/array with no value at all submits `null` rather than being
-// recursed into. Otherwise: object and array fields recurse to find
-// nullable fields at depth; every other case is None (leave the key alone),
-// covering both "non-nullable and empty" (stays absent) and "nullable and
-// already holds a real value" (stays as-is).
+// recursed into. A checkbox group (`types.is_multi_select`) stores its
+// unanswered state as `ArrayValue([])`, not absence (see
+// `validator.normalize_multi_select_empty`, the same rule at validation
+// time) — folded into the same nullable check here, so a nullable group's
+// `[]` submits `null` through this one path rather than a second copy of
+// the NullValue branch. A non-nullable group's `[]` has no such slot to
+// submit as (there's no schema-satisfying "unanswered" scalar), so it's
+// dropped instead: `Remove`. Otherwise: object and array fields recurse to
+// find nullable fields at depth; every other case is `Keep` (leave the key
+// alone), covering both "non-nullable and empty" (stays absent) and
+// "nullable and already holds a real value" (stays as-is).
 fn inject_property(
   property: SchemaProperty,
   field_path: FieldPath,
   current: option.Option(Value),
   selected: List(#(FieldPath, Int)),
-) -> option.Option(Value) {
-  case property.nullable && field_requirements.is_empty_value(current) {
-    True -> option.Some(NullValue)
+) -> FieldInjection {
+  let multi_select_empty = case types.is_multi_select(property), current {
+    True, option.Some(ArrayValue([])) -> True
+    _, _ -> False
+  }
+  case
+    property.nullable
+    && { multi_select_empty || field_requirements.is_empty_value(current) }
+  {
+    True -> Replace(NullValue)
     False ->
-      case property.field_type {
-        option.Some(ObjectType) ->
-          case current, property.properties {
-            option.Some(ObjectValue(fields)), option.Some(sub_props) ->
-              option.Some(
-                ObjectValue(inject_fields(
-                  sub_props,
-                  field_path,
-                  fields,
-                  selected,
-                )),
-              )
-            _, _ -> option.None
+      case multi_select_empty {
+        True -> Remove
+        False ->
+          case property.field_type {
+            option.Some(ObjectType) ->
+              case current, property.properties {
+                option.Some(ObjectValue(fields)), option.Some(sub_props) ->
+                  Replace(
+                    ObjectValue(inject_fields(
+                      sub_props,
+                      field_path,
+                      fields,
+                      selected,
+                    )),
+                  )
+                _, _ -> Keep
+              }
+            option.Some(ArrayType) ->
+              inject_array(property, field_path, current, selected)
+            _ -> Keep
           }
-        option.Some(ArrayType) ->
-          inject_array(property, field_path, current, selected)
-        _ -> option.None
       }
   }
 }
@@ -491,10 +530,10 @@ fn inject_array(
   field_path: FieldPath,
   current: option.Option(Value),
   selected: List(#(FieldPath, Int)),
-) -> option.Option(Value) {
+) -> FieldInjection {
   case property.items, current {
     option.Some(item_schema), option.Some(ArrayValue(items)) ->
-      option.Some(
+      Replace(
         ArrayValue(
           list.index_map(items, fn(item, idx) {
             inject_row(
@@ -506,7 +545,7 @@ fn inject_array(
           }),
         ),
       )
-    _, _ -> option.None
+    _, _ -> Keep
   }
 }
 

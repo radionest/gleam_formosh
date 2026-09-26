@@ -3,7 +3,9 @@
 // and validating required field values, eliminating code duplication across the codebase.
 
 import formosh/form/path.{type FieldPath}
-import formosh/schema/types.{type JsonSchema, type Value, NullValue, StringValue}
+import formosh/schema/types.{
+  type JsonSchema, type Value, ArrayValue, NullValue, ObjectValue, StringValue,
+}
 import formosh/validation/error.{type ValidationError}
 import formosh/validation/messages
 import gleam/list
@@ -92,6 +94,20 @@ pub fn is_empty_value(value: Option(Value)) -> Bool {
   case value {
     None | Some(NullValue) -> True
     Some(StringValue("")) -> True
+    _ -> False
+  }
+}
+
+/// Recursively blank: `null`/`""`, an object whose every field is blank (an
+/// empty object counts, vacuously), or an array whose every item is blank
+/// (an empty array counts too). Wider than `is_empty_value` above, which
+/// only sees `None`/`NullValue`/`StringValue("")` — this one also catches a
+/// nested blank row (e.g. `{"tags": [null]}` from a `minItems` top-up).
+pub fn is_blank_value(value: Value) -> Bool {
+  case value {
+    NullValue | StringValue("") -> True
+    ObjectValue(fields) -> list.all(fields, fn(f) { is_blank_value(f.1) })
+    ArrayValue(items) -> list.all(items, is_blank_value)
     _ -> False
   }
 }

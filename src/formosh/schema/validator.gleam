@@ -34,6 +34,7 @@ pub fn validate_field(
   is_required: Bool,
   effective_widget: Option(Widget),
 ) -> List(ValidationError) {
+  let value = normalize_multi_select_empty(property, value)
   // A nullable field (anyOf null member or a "null" type-array entry) can
   // always submit empty as `null` — an empty value is satisfied regardless
   // of `required`/type/constraints. Reuses the same emptiness predicate the
@@ -50,6 +51,22 @@ pub fn validate_field(
     Some(types.ImageUploadWidget) ->
       validate_image_upload(field_path, value, is_required)
     _ -> validate_standard_field(field_path, value, property, is_required)
+  }
+}
+
+/// A checkbox group (`types.is_multi_select`) stores its unanswered state
+/// as `ArrayValue([])`, not absence — unlike a row-editor array, where an
+/// empty array is a legitimate (if under-minItems) answer. Normalizing it
+/// to `None` up front makes every downstream check (nullable-skip,
+/// required, minItems/maxItems/uniqueItems) treat it exactly like the
+/// absent key, instead of re-deriving the same special case at each one.
+fn normalize_multi_select_empty(
+  property: SchemaProperty,
+  value: Option(Value),
+) -> Option(Value) {
+  case types.is_multi_select(property), value {
+    True, Some(ArrayValue([])) -> None
+    _, _ -> value
   }
 }
 
@@ -87,6 +104,10 @@ fn validate_image_upload(
 }
 
 /// Standard field validation (non-widget fields).
+///
+/// `value` has already been normalized by `validate_field` (a multi-select
+/// `ArrayValue([])` becomes `None`), so `required` sees it exactly like an
+/// absent key here.
 fn validate_standard_field(
   field_path: FieldPath,
   value: Option(Value),
@@ -487,12 +508,13 @@ fn validate_resolved_props(
   }
 }
 
-/// Validate an array's length against its `minItems`/`maxItems` constraints.
+/// Validate an array against its `minItems`/`maxItems`/`uniqueItems`
+/// constraints.
 ///
 /// Mirrors JSON Schema semantics: the check only applies when the value
 /// actually is an array. Absent values are the `required` rule's territory.
 /// The error is keyed at the array's own path (the container node).
-fn validate_array_length(
+fn validate_array_constraints(
   field_path: FieldPath,
   constraints: Option(types.ArrayConstraints),
   value: Option(Value),
@@ -516,7 +538,26 @@ fn validate_array_length(
           }
         None -> []
       }
-      list.append(min_errors, max_errors)
+      // ponytail: structural `==` — `1` vs `1.0`, and objects differing only
+      // in key order, count as distinct (JSON Schema calls them equal).
+      // Normalize values before comparing if a row-editor schema hits it.
+      // Blank rows are not compared — two Add clicks (directly, or via a
+      // nested `minItems` reconcile that fills a row with its own blank
+      // sub-rows) produce structurally-equal blank rows that must never
+      // count as duplicates. Remaining gap: rows filled from schema
+      // defaults (a scalar item `default`, or defaulted object fields)
+      // still compare equal on a second Add.
+      let non_blank_items =
+        list.filter(items, fn(v) { !field_requirements.is_blank_value(v) })
+      let unique_errors = case
+        c.unique_items
+        && list.length(list.unique(non_blank_items))
+        < list.length(non_blank_items)
+      {
+        True -> [error.from_failure(field_path, messages.UniqueItems)]
+        False -> []
+      }
+      list.flatten([min_errors, max_errors, unique_errors])
     }
     _, _ -> []
   }
@@ -529,16 +570,28 @@ pub fn validate_nested(
   field_value: Option(Value),
   selected: List(#(FieldPath, Int)),
 ) -> List(ValidationError) {
+  // See `normalize_multi_select_empty`: a checkbox group's `[]` is the
+  // absent key, so `minItems`/`maxItems`/`uniqueItems` must not fire on it
+  // either — only a real (non-multi-select) empty array under-mins.
+  let field_value = normalize_multi_select_empty(field_prop, field_value)
   case field_prop.field_type, field_prop.items {
     Some(types.ArrayType), Some(item_subschema) -> {
       let av = option.unwrap(field_value, NullValue)
       list.append(
-        validate_array_length(prefix, field_prop.array_constraints, field_value),
+        validate_array_constraints(
+          prefix,
+          field_prop.array_constraints,
+          field_value,
+        ),
         validate_array_items(prefix, item_subschema, av, selected),
       )
     }
     Some(types.ArrayType), None ->
-      validate_array_length(prefix, field_prop.array_constraints, field_value)
+      validate_array_constraints(
+        prefix,
+        field_prop.array_constraints,
+        field_value,
+      )
     Some(types.ObjectType), _ ->
       case field_value {
         Some(ObjectValue(fields)) ->

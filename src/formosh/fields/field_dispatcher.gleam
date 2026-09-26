@@ -7,7 +7,8 @@
 //
 // Selection priority: `widget` override (e.g. "image-upload") first, then
 // `field_type` (string/number/boolean/array/object — a number with
-// enum/oneOf options renders the enum widget), then enum/oneOf as a
+// enum/oneOf options renders the enum widget, an option-list array with
+// uniqueItems the checkbox group), then enum/oneOf as a
 // fallback for properties without an explicit type.
 
 import formosh/fields/array_field
@@ -62,13 +63,11 @@ pub fn render_field_at_path(
 fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   let is_touched = model.is_field_touched(model, ctx.path)
   let errors = model.get_errors_at_path(model, ctx.path)
-  // Array-length errors bypass the touched gate: add/remove gating makes
-  // them unreachable through the UI, so they only arise from externally
-  // injected values — where they are the only visible explanation for a
-  // blocked submit.
+  // Array-level errors (minItems/maxItems/uniqueItems) bypass the touched
+  // gate — see docs/guides/configuration.md#error-visibility for why.
   let visible_errors = case is_touched {
     True -> errors
-    False -> list.filter(errors, error.is_array_length)
+    False -> list.filter(errors, error.is_array_level)
   }
 
   let field_element = render_widget(ctx, model)
@@ -128,7 +127,11 @@ fn render_widget_by_type(
           }
         Some(types.BooleanType) -> boolean_field.render(ctx)
         Some(types.ArrayType) ->
-          array_field.render_container(ctx, model, render_field_at_path)
+          case types.is_multi_select(ctx.property) {
+            True -> string_field.render_checkboxes(ctx)
+            False ->
+              array_field.render_container(ctx, model, render_field_at_path)
+          }
         Some(types.ObjectType) ->
           object_field.render_container(ctx, model, render_field_at_path)
         _ ->

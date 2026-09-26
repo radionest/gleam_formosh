@@ -17,16 +17,14 @@ model.errors : Dict(String, List(ValidationError))
    ▼
 model.touched_fields : List(FieldPath)
    │   gate: errors stay hidden until the field is touched.
-   │   exception: array-length errors (minItems/maxItems) always render —
-   │   add/remove button gating makes them unreachable via the UI, so they
-   │   only come from externally injected values, where the message is the
-   │   only explanation for a blocked submit (error.is_array_length).
+   │   exception: array-level errors (minItems/maxItems/uniqueItems) always
+   │   render — see docs/guides/configuration.md#error-visibility for why.
    │   set by model.mark_field_touched/2 — called from update.gleam on
    │   field change/blur and on swipe-review answer commits.
    ▼
 field_dispatcher.gleam : applies the gate
    │   touched fields render all their errors; untouched fields render
-   │   only those passing `error.is_array_length` (see render_visible)
+   │   only those passing `error.is_array_level` (see render_visible)
    ▼
 field_common.render_field_errors(errors: List(ValidationError))
    pure formatter — receives a pre-filtered error list, no gating logic
@@ -40,7 +38,7 @@ field_common.render_field_errors(errors: List(ValidationError))
 - The touched-gate lives in `field_dispatcher.gleam`, not in
   `field_common.render_field_errors`. The latter is a pure formatter that
   trusts its caller. Never call it with an unfiltered error list — gate on
-  `model.is_field_touched(field_path)` (the dispatcher's length-error
+  `model.is_field_touched(field_path)` (the dispatcher's array-level
   bypass is the one sanctioned exception), otherwise errors leak on
   untouched fields.
 - Add/clear errors via `model.{add_error_at_path, clear_errors_at_path}`,
@@ -50,6 +48,6 @@ field_common.render_field_errors(errors: List(ValidationError))
 
 ## Docs
 
-- Error-visibility semantics (touch gate, array-length exception):
+- Error-visibility semantics (touch gate, array-level exception):
   `docs/guides/configuration.md`
 - What is validated vs parse-only: `docs/reference/schema-keywords.md`

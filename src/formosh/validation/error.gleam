@@ -31,8 +31,11 @@ pub fn from_failure(
   )
 }
 
-/// True for array-length errors (`minItems`/`maxItems`). The rule strings
-/// mirror `messages.rule_of` by construction.
-pub fn is_array_length(error: ValidationError) -> Bool {
-  error.rule == "minItems" || error.rule == "maxItems"
+/// True for array-level constraint errors (`minItems`/`maxItems`/
+/// `uniqueItems`), keyed at the array's own path. The rule strings mirror
+/// `messages.rule_of` by construction.
+pub fn is_array_level(error: ValidationError) -> Bool {
+  error.rule == "minItems"
+  || error.rule == "maxItems"
+  || error.rule == "uniqueItems"
 }

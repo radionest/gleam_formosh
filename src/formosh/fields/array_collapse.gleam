@@ -103,17 +103,8 @@ pub fn is_completed(
 fn has_any_value(item: Value) -> Bool {
   case item {
     types.ObjectValue(fields) ->
-      list.any(fields, fn(pair) { !is_blank(pair.1) })
+      list.any(fields, fn(pair) { !field_requirements.is_blank_value(pair.1) })
     _ -> False
-  }
-}
-
-/// The library's own emptiness rule (None / null / empty string), widened to
-/// empty containers — a row holding only `[]` is not "filled in".
-fn is_blank(value: Value) -> Bool {
-  case value {
-    types.ArrayValue([]) | types.ObjectValue([]) -> True
-    other -> field_requirements.is_empty_value(option.Some(other))
   }
 }
 

@@ -36,7 +36,9 @@ flowchart TD
     NO -- "yes" --> EN
     NO -- "no" --> NUM["number input (step from multipleOf)"]
     T -- "BooleanType" --> B["Yes/No radio group"]
-    T -- "ArrayType" --> A["add/remove list container"]
+    T -- "ArrayType" --> AU{"uniqueItems + scalar items<br/>with enum / oneOf options?"}
+    AU -- "yes" --> CB["checkbox group"]
+    AU -- "no" --> A["add/remove list container"]
     T -- "ObjectType" --> O["nested fieldset"]
     T -- "none" --> E{"enum_values / one_of?"}
     E -- "yes" --> EN["enum (radio or select)"]
@@ -205,10 +207,59 @@ and UiSchema flags:
 | **Remove** | `removable` (default true) **and** above `minItems` (if set) |
 | **Move up/down** | `orderable` (default true) **and** more than one row |
 
-Rows auto-create up to `minItems` (with item-field defaults applied). Array
-items can themselves be objects or arrays — nesting to any depth — so the
-container recurses through the same dispatcher. (Collapsing completed rows,
-below, is narrower: only object-shaped rows ever qualify.)
+Rows auto-create up to `minItems` (with item-field defaults applied; not
+for checkbox groups, below). Array items can themselves be objects or
+arrays — nesting to any depth — so the container recurses through the
+same dispatcher. (Collapsing completed rows, below, is narrower: only
+object-shaped rows ever qualify.)
+
+### Checkbox group (multi-select)
+
+An array with `uniqueItems: true` whose `items` is a scalar schema with
+options — `oneOf` const+title members, or an `enum` of two or more values —
+renders as one checkbox per option instead of the row editor:
+
+```json
+{
+  "type": "array",
+  "uniqueItems": true,
+  "items": {
+    "type": "integer",
+    "oneOf": [
+      { "const": 1, "title": "Liver" },
+      { "const": 2, "title": "Lung" }
+    ]
+  }
+}
+```
+
+- The value is the checked options' typed consts in **schema order**, not
+  click order (`[1, 2]`, never `["1", "2"]`).
+- Unchecking the last box **removes the key**, like the select placeholder —
+  so `required` means "pick at least one". An initial `[]` (e.g. from
+  `initial-values`) counts as unanswered too, same as the removed key — for
+  both validation and the submitted payload: a non-nullable group's `[]` is
+  dropped from the payload, a nullable group's submits `null`, same as any
+  other absent/empty field. `minItems` / `maxItems` apply once something is
+  picked.
+- Once `maxItems` options are checked, the remaining boxes are disabled
+  (stored values that aren't options don't count).
+- No rows are auto-created for `minItems`; an under-`minItems` selection is
+  reported as an error instead.
+- A stored value that is not one of the options (e.g. from
+  `initial-values`) is dropped on the first click.
+- Labels are the `oneOf` member `title`, else the value's string form.
+- Row-editor hints (`ui:addable`, `ui:removable`, `ui:orderable`,
+  `ui:options.collapseCompleted`) have no effect on a checkbox group.
+- Without `uniqueItems` the same array keeps the row editor, since
+  duplicates are allowed there. No `ui:widget` value switches the
+  checkbox group to another enum widget (`"select"` / `"radio"`) or back
+  to the row editor; `"hidden"` still hides it.
+- Parts: `checkbox-list`, `checkbox-item` — see
+  [Styling](../guides/styling.md).
+- In [review mode](../guides/web-component.md#read-only-review-mode), the
+  selected options' labels render as one comma-joined row (`"Two, Three"`),
+  not one numbered row per selection.
 
 ### Collapsing completed rows
 
@@ -424,6 +475,7 @@ own dispatch from there.
 | String sub-decision (oneOf / enum / textarea / input) | `src/formosh/fields/string_field.gleam` |
 | HTML `type` from `format` | `string_field.get_input_type` |
 | Array container + add/remove gating | `src/formosh/fields/array_field.gleam` |
+| Checkbox group (`uniqueItems` option arrays) | `string_field.render_checkboxes`; trigger `types.is_multi_select` |
 | Collapse-completed logic (options, predicate, summaries) | `src/formosh/fields/array_collapse.gleam` |
 | Object fieldset | `src/formosh/fields/object_field.gleam` |
 | Union chooser (`anyOf`, 2+ branches) | `src/formosh/fields/union_field.gleam` |

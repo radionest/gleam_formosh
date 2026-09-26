@@ -375,6 +375,17 @@ fn add_array_constraint_fields(
   fields
   |> add_optional_json_field("minItems", constraints.min_items, json.int)
   |> add_optional_json_field("maxItems", constraints.max_items, json.int)
+  |> add_unique_items(constraints.unique_items)
+}
+
+fn add_unique_items(
+  fields: List(#(String, json.Json)),
+  unique_items: Bool,
+) -> List(#(String, json.Json)) {
+  case unique_items {
+    True -> add_fields(fields, [#("uniqueItems", json.bool(True))])
+    False -> fields
+  }
 }
 
 /// Convert a Widget variant back to its `x-widget` JSON Schema string.

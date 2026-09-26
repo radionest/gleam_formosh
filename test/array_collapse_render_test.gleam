@@ -297,7 +297,7 @@ pub fn array_length_error_stays_visible_while_rows_collapse_test() {
   // One completed row against minItems: 2 — the row collapses, but the
   // array-level minItems error is filed at the array's own path, entirely
   // outside any row's scope, and must keep rendering. It also bypasses the
-  // touched gate (error.is_array_length), so no explicit touch is needed.
+  // touched gate (error.is_array_level), so no explicit touch is needed.
   let assert Ok(schema) = parser.parse_schema(min_items_schema_json)
   let assert Ok(ui_schema) = ui_parser.parse(ui_json)
   let m0 =
