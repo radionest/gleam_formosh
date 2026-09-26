@@ -9,6 +9,7 @@ import formosh/schema/properties
 import formosh/schema/types
 import formosh/schema/ui_parser
 import gleam/dict
+import gleam/list
 import gleam/option.{None}
 import gleam/string
 import gleeunit/should
@@ -170,7 +171,7 @@ pub fn dragged_row_keeps_its_inline_offset_test() {
   // The swipe widget is the one place formosh still writes inline styles:
   // the drag offset changes every frame (spec style-layer, "Inline styles
   // carry only runtime state").
-  let assert Ok(schema) = parser.parse_schema(schema_json)
+  let assert Ok(schema) = parser.parse_schema(schema2_json)
   let assert Ok(ui) = ui_parser.parse(ui_json)
   let m = model.init_with_full_config(schema, None, False, dict.new(), ui)
   let path_a = [
@@ -184,7 +185,8 @@ pub fn dragged_row_keeps_its_inline_offset_test() {
       model.swipe_msg(DragStart(path_a, 100.0, "positive", "negative", 80.0)),
     )
   let #(m2, _) = update.update(m1, model.swipe_msg(DragMove(142.0)))
-  render_model(schema, m2)
-  |> string.contains("translateX(42.0px)")
-  |> should.be_true
+  let html = render_model(schema, m2)
+  html |> string.contains("translateX(42.0px)") |> should.be_true
+  // Zone b is idle: only the dragged row may carry a `style` attribute.
+  string.split(html, " style=\"") |> list.length |> should.equal(2)
 }
