@@ -1,28 +1,41 @@
 ---
 type: guide
 title: "Styling"
-description: "Customize Formosh appearance: ::part() selectors, data-state attributes, and auto-adopted parent stylesheets."
+description: "Customize Formosh appearance: --formosh-* tokens, ::part() selectors, data-* state attributes, and auto-adopted parent stylesheets."
 ---
 
 # Styling
 
 Formosh renders inside an **open Shadow DOM** when used as the
-`<formosh-form>` web component. There are essentially no default styles —
-the form arrives unstyled and you bring your own CSS — with a few narrow
-exceptions, because their inline style *is* their meaning: a `ui:layout`
-`Row` carries its own grid ([Overriding the `ui:layout`
-grid](#overriding-the-uilayout-grid)), a collapsing array row carries its
-own fold transition ([`array-item-body` — the
-fold](#array-item-body--the-fold)), and the swipe widget carries its
-per-frame drag and fly-off transforms. Each is opt-in, and the full list
-lives in [Cascade order](#cascade-order). A `Row` that didn't lay out
-horizontally out of the box would be broken, not merely unstyled, so the
-horizontal arrangement ships and an override only replaces it — the same
-reasoning holds for the fold.
+`<formosh-form>` web component. The form arrives essentially unstyled — you
+bring your own CSS. The only defaults it ships are the ones a feature cannot
+work without: a `ui:layout` `Row`'s grid ([Overriding the `ui:layout`
+grid](#overriding-the-uilayout-grid)) and a collapsing array row's fold
+([`array-item-body` — the fold](#array-item-body--the-fold)). They live in a
+`<style>` element — the first child of `part="container"` — inside a cascade
+layer named `formosh`, the lowest-priority layer in the component, so **any
+rule you write overrides them without `!important`**, whatever its
+specificity ([Cascade order](#cascade-order)). The one exception is the swipe
+widget's per-frame drag and fly-off transforms: they stay inline, because the
+widget's own logic depends on them.
 
-There are three surfaces for customization, in increasing order of
-specificity. The first two only apply in web-component mode (Shadow DOM);
-the third applies everywhere.
+## Order of use
+
+Reach for the surfaces in this order:
+
+1. **Tokens** — `--formosh-*` custom properties ([Tokens](#tokens)). Set them
+   on `formosh-form` or any ancestor; custom properties inherit across the
+   shadow boundary, so no selector has to reach inside.
+2. **Host `::part()` rules** ([§1](#1-part-selectors--preferred)) — one
+   element's look and its interactive states (`:hover`, `:focus-visible`,
+   `:disabled`, `:checked`).
+3. **Adopted selectors** ([§2](#2-data--attributes-for-state),
+   [§3](#3-parent-stylesheets-are-auto-adopted)) — `[part=…][data-…]` and
+   `.formosh-*` rules, for anything that needs context `::part()` cannot
+   express (`:has()`, descendants, `:last-child`).
+
+`::part()` only exists in web-component mode (Shadow DOM); tokens, `data-*`
+attributes and classes work everywhere.
 
 > **Plain Lustre app (no web component)?** Skip section 1 — without the
 > shadow root there are no `::part()` hooks. The `data-*` state attributes
@@ -44,7 +57,7 @@ formosh-form::part(error)  { color: #d33; font-size: .85rem; }
 formosh-form::part(submit) { background: #08a; color: white; }
 ```
 
-`::part()` is the recommended surface because it's the contract: the part
+`::part()` is the recommended selector surface because it's the contract: the part
 names are stable even if the internal class names or DOM structure change.
 
 ## 2. `data-*` attributes for state
@@ -102,8 +115,26 @@ selectors against the internal `formosh-*` classes also apply:
 .formosh-error { color: red; }
 ```
 
-This is the lowest-specificity surface. Use it for broad resets, then reach
-for `::part()` for anything more specific.
+Adopted rules sit inside the component's own cascade context: they beat
+formosh's `formosh`-layer defaults whatever their specificity, and lose to
+any host `::part()` rule for normal declarations ([Cascade
+order](#cascade-order)).
+
+## Tokens
+
+| Custom property | Default | Controls |
+|---|---|---|
+| `--formosh-row-gap` | `1rem` | Gap between a `Row`'s columns |
+| `--formosh-row-min` | `12rem` | Narrowest a `Row` column gets before the `Row` drops to fewer columns |
+| `--formosh-collapse-duration` | `180ms` | Duration of a collapsing array row's fold |
+
+```css
+formosh-form { --formosh-row-min: 8rem; --formosh-collapse-duration: 250ms; }
+```
+
+The defaults live in `var()` fallbacks, so a value set on the host or any
+ancestor wins. Names follow `--formosh-<feature>-<property>`. formosh does
+not register them with `@property` — engines ignore it inside shadow roots.
 
 ## Full part-name catalog
 
@@ -183,19 +214,23 @@ yet reachable through `ui:widget` — see `ROADMAP.md`.)
 
 ### `array-item-body` — the fold
 
-`array-item-body` wraps `array-item-fields` and is what actually folds.
-Like the `ui:layout` `Row` grid and the swipe widget's transforms, these are
-inline because the fold has to work with no stylesheet at all — it cannot be
-left to CSS ([full list](#cascade-order)):
+`array-item-body` wraps `array-item-fields` and is what actually folds. The
+fold comes from the `formosh` layer ([Cascade order](#cascade-order)):
 
 ```css
-display: grid;
-grid-template-rows: 1fr;   /* 0fr while the row is collapsed */
-overflow: hidden;
-transition: grid-template-rows var(--formosh-collapse-duration, 180ms) ease;
+[part~=array-item-body] {
+  display: grid;
+  grid-template-rows: 1fr;
+  overflow: hidden;
+  transition: grid-template-rows var(--formosh-collapse-duration, 180ms) ease;
+}
+[part~=array-item][data-collapsed] > [part~=array-item-body] { grid-template-rows: 0fr; }
+[part~=array-item-body] > [part~=array-item-fields] { min-height: 0; }
 ```
 
-Four consequences:
+The fold depends on exactly these declarations — `display`,
+`grid-template-rows` and `overflow` on the body, `min-height` on the fields;
+override them only to replace the fold. Four consequences:
 
 - **It renders for every row of a collapse-enabled array**, collapsed or
   not — a wrapper that only appeared once the row was shut would have
@@ -203,9 +238,9 @@ Four consequences:
   at all, and render exactly as they did before the feature existed.
 - **A collapsed row keeps its fields in the DOM**, folded to zero height and
   marked `inert`, so they stay out of the tab order and off assistive tech.
-  (`array-item-fields` itself picks up an inline `min-height: 0` inside such
-  an array — a grid item's automatic minimum size would otherwise hold the
-  `0fr` track open at its content height.)
+  (`min-height: 0` on `array-item-fields` matters: a grid item's automatic
+  minimum size would otherwise hold the `0fr` track open at its content
+  height.)
 - **`overflow: hidden` applies in both states**, so it clips whatever
   overflows a row's fields even while the row is open — a focus ring or
   `box-shadow` drawn outside the input's border box is cut off unless
@@ -213,18 +248,14 @@ Four consequences:
   `array-item-fields` enough padding to contain the ring rather than trying
   to switch `overflow` off, which would break the fold. (The demo's own
   3px focus ring shows this.)
-- **Inline styles outrank adopted stylesheets, but not host `::part()`
-  rules.** A host `::part(array-item-body)` rule overrides them with no
-  `!important`; from an adopted stylesheet you need `!important`, which is
-  how the usual reduced-motion reset switches the fold off. Set the
-  duration through `--formosh-collapse-duration` on the host:
+- **Any rule you write overrides the fold's defaults** — a host
+  `::part(array-item-body)` rule or an adopted `.array-item-body` rule
+  alike, no `!important`. Retime it with `--formosh-collapse-duration`;
+  under `prefers-reduced-motion: reduce` formosh already drops the duration
+  to `0s`:
 
 ```css
 formosh-form { --formosh-collapse-duration: 300ms; }
-
-@media (prefers-reduced-motion: reduce) {
-  * { transition-duration: 0.001ms !important; }
-}
 ```
 
 Appearance of the collapse controls is yours. A starting point matching the
@@ -257,34 +288,39 @@ demo (`demo/index.html`) — note the `[part=…]` form for `array-toggle`,
 `row` and `group` exist only where a container's `ui:layout` places a `Row`
 or `Group` node — a form with no `ui:layout` never emits them (see
 [Layout with `ui:layout`](../reference/ui-schema.md#layout-with-uilayout)).
-Override the grid, tune its gap, and target one field by its stable name:
+Override the grid, tune it through its tokens, and target one field by its
+stable name:
 
 ```css
 formosh-form::part(row) { grid-template-columns: 2fr 1fr; }
-formosh-form { --formosh-row-gap: 0.75rem; }
+formosh-form { --formosh-row-gap: 0.75rem; --formosh-row-min: 8rem; }
 [part="field"][data-name="length_mm"] { grid-column: span 2; }
-[part="row"] [part="field"] { min-width: 0; }
 ```
 
-`::part(row)` and the `--formosh-row-gap` custom property both reach the
-component from the host document, the same as any other `::part()`
-override (§1). The `[part="field"][data-name=…]` rule is the same
-`[part=…][data-…]` form from [§2](#2-data--attributes-for-state), not a
+The default arrangement is `repeat(auto-fit, minmax(min(100%,
+var(--formosh-row-min, 12rem)), 1fr))` with `gap: var(--formosh-row-gap,
+1rem)`: columns never narrower than `--formosh-row-min`, dropping to fewer
+columns as the row narrows, with no media query. `::part(row)` and the
+tokens reach the component from the host document, the same as any other
+`::part()` override (§1). The `[part="field"][data-name=…]` rule is the
+same `[part=…][data-…]` form from [§2](#2-data--attributes-for-state), not a
 pseudo-element chain, so it depends on parent-stylesheet adoption (§3) the
-same way. The [cascade order](#cascade-order) trap applies here too: a
-plain host `::part(field)` declaration beats `[part=field][data-name=…]`
+same way. The [cascade order](#cascade-order) trap applies here too: a plain
+host `::part(field)` declaration beats `[part=field][data-name=…]`
 regardless of specificity, same as it beats `[part=field][data-error]`.
 
-Grid items default to `min-width: auto`, so without the rule above, a
-`part="field"` holding a `<select>`, a long unbroken word, or a
-default-width `<input>` overflows its track instead of shrinking to fit —
-a container can't set `min-width` on its own items, so the library ships
-nothing for this and page CSS has to supply it, the same way the demo
-does (`demo/index.html`).
+Every direct child of a `Row` gets `min-width: 0` from the `formosh` layer.
+The default tracks never need it — their minimum is a length, so a cell
+never grows past its track — but an override with `fr` or `auto` tracks
+(`2fr 1fr` above) gives each cell a content-based minimum, and without the
+rule a wide `<select>` would stretch its cell past the row and push its
+neighbours out. The rule keeps the cells in the row; the control inside can
+still overflow its own cell, so constrain it (`max-inline-size: 100%`) if
+its content can be wide.
 
-**`Row` and `Group` are not symmetric.** A `Row` writes its own inline
-`display:grid` (with `--formosh-row-gap`) precisely so it works with zero
-page CSS — the override above only needs to *replace* that default. A
+**`Row` and `Group` are not symmetric.** A `Row` gets its `display: grid`
+from the `formosh` layer precisely so it works with zero page CSS — the
+override above only needs to *replace* that default. A
 `Group` emits bare `group` / `group-label` / `group-body` wrappers with no
 styling of their own, so without page CSS its fields render flush against
 each other under an unstyled label. A minimal rule to make one readable:
@@ -298,35 +334,42 @@ formosh-form::part(group-body) { display: flex; flex-direction: column; gap: 12p
 
 ### Cascade order
 
-Host-document `::part()` rules and adopted (cloned-in) stylesheets live in
-different cascade contexts, and per CSS Scoping ("Shadow Cascading") the
-**outer context wins for normal declarations regardless of specificity** —
-a host `::part(input)` rule beats any adopted `.formosh-input` rule. For
-`!important` declarations the order inverts: an adopted `!important` rule
-beats a host `::part()` one. Specificity only breaks ties between rules in
-the *same* context (two adopted rules, or two host rules).
+From strongest to weakest, for normal (non-`!important`) declarations:
 
-The library also writes a handful of **inline** styles itself, and this is
-the authoritative list — three opt-in features, five call sites: the
-`ui:layout` `Row` grid (`fields/layout.gleam`), the array fold
-([`array-item-body`](#array-item-body--the-fold), two sites in
-`fields/array_field.gleam`), and the swipe widget's drag/fly-off transforms
-(two sites in `fields/swipe_review_field.gleam`). These do **not** form a
-tier above the
-two contexts. Element-attached styles are sorted *below* context in the
-cascade, and they belong to the shadow tree, so the same rule above still
-decides: a host-document `::part()` rule overrides them as a normal
-declaration, no `!important` needed.
+1. **Host-document `::part()` rules.** They live in the outer cascade
+   context, and per CSS Scoping ("Shadow Cascading") the outer context wins
+   regardless of specificity — a host `::part(input)` rule beats every rule
+   inside the component, inline styles included.
+2. **Inline styles** — only the swipe widget's drag offset and fly-off (two
+   sites in `fields/swipe_review_field.gleam`). The widget's own logic
+   depends on them: the fly-off's `transition` fires the `transitionend`
+   that removes the answered row.
+3. **Adopted rules** — your page stylesheets, cloned into the shadow root,
+   unlayered or in your own layers. Specificity and order decide between
+   them as usual.
+4. **The `formosh` layer** — formosh's own defaults (`Row` grid, array
+   fold). The `<style>` holding it is the first stylesheet in the shadow
+   tree, so `formosh` is declared before any adopted layer and loses to
+   everything above, whatever the specificity; its selectors sit inside
+   `:where()` and carry none.
+
+For `!important` declarations the order inverts, as CSS specifies — an
+adopted `!important` beats a host `::part()` one. formosh never uses
+`!important`, and overriding one of its defaults never needs it:
 
 ```css
-/* wins over the inline transition on array-item-body */
+/* both beat the layer's transition on array-item-body */
 formosh-form::part(array-item-body) { transition: none; }
+.array-item-body { transition-timing-function: linear; }
 ```
 
-An adopted `.array-item-body` rule does not — that is inner context, same
-tree as the inline style, and there element-attached wins. Reach for
-`!important` only from an adopted stylesheet, or set the fold's duration
-through the `--formosh-collapse-duration` custom property it reads.
+- **The container's first child is the `<style>`.** A rule like
+  `[part=container] > :first-child` matches it, not the header.
+- **Cross-origin stylesheets.** Lustre cannot read the rules of a
+  cross-origin sheet served without CORS, so it clones the `<link>` itself
+  into the shadow root, ahead of formosh's `<style>`. Layers such a sheet
+  declares are ordered before `formosh` and lose to it; its unlayered rules
+  still win.
 
 ### No descendant combinator inside `::part()`
 
@@ -360,9 +403,17 @@ attributes still work:
 .formosh-field[data-error] { border-color: red; }
 ```
 
+The `formosh` layer lands in your document where the form mounts, so it is
+ordered after any layer your stylesheets declared before it — and would beat
+those layers. Put formosh first, in the first rule of your CSS:
+
+```css
+@layer formosh, base, components;
+```
+
 ## Reference
 
 The part names are assigned in the field renderers under
 `src/formosh/fields/` and the form scaffold in `src/formosh/form/view.gleam`
 — search for `attribute.attribute("part", …)` to see every assignment in
-context.
+context. formosh's own stylesheet is `src/formosh/internal/stylesheet.gleam`.
