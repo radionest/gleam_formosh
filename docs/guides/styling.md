@@ -249,10 +249,12 @@ override them only to replace the fold. Four consequences:
 - **`overflow: hidden` applies in both states**, so it clips whatever
   overflows a row's fields even while the row is open — a focus ring or
   `box-shadow` drawn outside the input's border box is cut off unless
-  something inside the wrapper reserves room for it. Give
-  `array-item-fields` enough padding to contain the ring rather than trying
-  to switch `overflow` off, which would break the fold. (The demo's own
-  3px focus ring shows this.)
+  something inside the wrapper reserves room for it. Pad the `field` parts
+  inside `array-item-fields` (or draw the ring inset) rather than
+  `array-item-fields` itself — its own padding counts toward the folded
+  track's minimum, so a collapsed row would stay twice that padding tall —
+  and don't switch `overflow` off, which would break the fold. (The demo's
+  own 3px focus ring shows the clipping.)
 - **Any rule you write overrides the fold's defaults** — a host
   `::part(array-item-body)` rule or an adopted `.array-item-body` rule
   alike, no `!important`. Under `prefers-reduced-motion: reduce` formosh
@@ -353,8 +355,9 @@ From strongest to weakest, for normal (non-`!important`) declarations:
    `transitionend` that removes the answered row. A rule that overrides
    it — a host `::part(swipe-row)` rule, or an `!important` one such as a
    reduced-motion reset setting `transition: none` or a `0s` duration —
-   must leave a non-zero `transform` or `opacity` transition, or the
-   answered row never leaves.
+   must leave a non-zero `opacity` transition — the one property every
+   exit animates, since the middle choice's fade leaves `transform` as it
+   is — or the answered row never leaves.
 3. **Adopted rules** — your page stylesheets, copied into the shadow root,
    unlayered or in your own layers. Layer order, specificity and source
    order decide between them as usual.
