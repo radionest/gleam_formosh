@@ -15,8 +15,8 @@ grid](#overriding-the-uilayout-grid)) and a collapsing array row's fold
 `<style>` element — the first child of `part="container"` — inside a cascade
 layer named `formosh`, the lowest-priority layer in the component, so **any
 rule you write overrides them without `!important`**, whatever its
-specificity ([Cascade order](#cascade-order)). The one exception is the swipe
-widget's per-frame drag and fly-off transforms: they stay inline, because the
+specificity (edge cases aside: see [Cascade order](#cascade-order)). The swipe
+widget's per-frame drag and fly-off transforms stay inline, because the
 widget's own logic depends on them.
 
 ## Order of use
@@ -264,7 +264,7 @@ override them only to replace the fold. Four consequences:
   track's minimum, so a collapsed row would stay twice that padding tall —
   and don't switch `overflow` off, which would break the fold. (The demo's
   own 3px focus ring shows the clipping.)
-- **Any rule you write overrides the fold's defaults** — a host
+- **Host and adopted rules override the fold's defaults** — a host
   `::part(array-item-body)` rule or an adopted `.array-item-body` rule
   alike, no `!important`. Under `prefers-reduced-motion: reduce` formosh
   drops the fold's duration to `0s`; retime it through the token rather

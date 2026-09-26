@@ -53,8 +53,8 @@ validation. Change the schema; the form follows.
   CSS. Its only defaults are the ones a feature cannot work without — a
   `ui:layout` `Row`'s grid and a collapsing array row's fold — and they sit
   in `@layer formosh`, the lowest-priority layer inside `<formosh-form>`,
-  so any rule you write overrides them without `!important` (in a plain
-  Lustre app, declare `@layer formosh` first in your CSS); the swipe
+  so any rule you write overrides them without `!important` (barring edge
+  cases — in a plain Lustre app, declare `@layer formosh` first); the swipe
   widget's drag transforms stay inline. Bring your own via tokens,
   `::part()`, `data-*` attributes, or adopted parent stylesheets — see
   [Styling](../guides/styling.md).

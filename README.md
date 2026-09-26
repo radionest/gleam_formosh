@@ -459,7 +459,7 @@ Part names available (most elements carry one; a few carry two — see **Compoun
 
 Notes:
 
-- **Cascade**: a normal host `::part()` rule beats every normal rule inside the component, whatever its specificity (for `!important` the order inverts: an adopted `!important` rule beats a host `::part()` one); your adopted rules beat formosh's own defaults, which sit in the lowest-priority `@layer formosh` — nothing you write needs `!important` to override them. Full order: [Cascade order](docs/guides/styling.md#cascade-order).
+- **Cascade**: a normal host `::part()` rule beats every normal rule inside the component, whatever its specificity (for `!important` the order inverts: an adopted `!important` rule beats a host `::part()` one); your adopted rules beat formosh's own defaults, which sit in the lowest-priority `@layer formosh` — nothing you write needs `!important` to override them (edge cases aside). Full order: [Cascade order](docs/guides/styling.md#cascade-order).
 - **Plain Lustre app** (`lustre.start`, as in the Quick Start): there is no shadow root, so `::part()` does not apply — use class and `[part=…][data-…]` selectors, set tokens on any ancestor (`:root`, the mount point), and declare `@layer formosh, …;` first in your CSS, or formosh's defaults outrank the layers your stylesheets declare ahead of the form in the document. See `docs/guides/styling.md#plain-lustre-app-no-shadow-root`.
 - **Compound parts**: elements that carry two part tokens (e.g. `part="radio-group boolean"`) are reachable through either token. `::part()` does not support descendant combinators — so `radio-item` inside a boolean group cannot be addressed differently from one inside an enum group through Shadow Parts alone.
 
