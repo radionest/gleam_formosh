@@ -198,7 +198,9 @@ is reached. Array-level violations (`minItems` / `maxItems` /
 [Error visibility](docs/guides/configuration.md#error-visibility) for why.
 A schema with `minItems > maxItems` (unsatisfiable) is normalized at parse
 time so `minItems` wins: the array renders as fixed-size at `minItems`
-rows.
+rows. An option-list array with `uniqueItems: true` renders as a
+[checkbox group](docs/reference/widgets.md#checkbox-group-multi-select)
+instead — no rows, no `minItems` top-up.
 
 ### Conditional fields (if/then/else)
 

@@ -31,7 +31,7 @@ validation. Change the schema; the form follows.
 - **A Lustre MVU application** that renders the schema as an interactive
   form, with one widget family per JSON type and automatic widget selection.
 - **Validation** wired to the schema keywords — required fields, string
-  length bounds, number bounds, array length bounds, and basic format
+  length bounds, number bounds, array length bounds and `uniqueItems`, and basic format
   checks (email, url).
 - **Conditional fields** (`if`/`then`/`else`) that appear and disappear as
   the user edits the form.
