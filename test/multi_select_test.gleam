@@ -4,7 +4,7 @@
 
 import formosh
 import formosh/form/model
-import formosh/form/path.{PropertySegment, get_at_path}
+import formosh/form/path.{ArraySegment, PropertySegment, get_at_path}
 import formosh/form/update
 import formosh/form/view
 import formosh/schema/parser
@@ -116,8 +116,10 @@ fn rules_at_n(sim) -> List(String) {
   |> list.map(fn(e) { e.rule })
 }
 
-// A row-editor array: duplicates arrive through row edits, which touch
-// `n.[i]` and never `n` — so the error must show with the array untouched.
+// Duplicates injected via initial values (not row edits) — the array path
+// itself is untouched, so the error must still show.
+// `typed_row_duplicate_is_visible_test` below covers the row-edit path
+// (D6's real scenario).
 pub fn duplicate_items_fail_unique_items_test() {
   let sim =
     config_for(unique_strings)
@@ -125,6 +127,44 @@ pub fn duplicate_items_fail_unique_items_test() {
     |> start_config
   rules_at_n(sim) |> should.equal(["uniqueItems"])
   model.can_submit(simulate.model(sim)) |> should.be_false
+  html_of(sim) |> string.contains("Items must be unique") |> should.be_true
+}
+
+// Blank rows (from Add clicks, or minItems top-up) are not answers and must
+// never count as duplicates.
+pub fn blank_rows_are_not_duplicates_test() {
+  let sim =
+    start(unique_strings)
+    |> simulate.message(model.AddArrayItemPath([PropertySegment("n")]))
+    |> simulate.message(model.AddArrayItemPath([PropertySegment("n")]))
+  rules_at_n(sim) |> should.equal([])
+  html_of(sim) |> string.contains("Items must be unique") |> should.be_false
+
+  // First-load case: minItems top-up also produces blank rows.
+  let min_items_sim =
+    start(
+      "{\"type\":\"array\",\"uniqueItems\":true,\"minItems\":2,\"items\":{\"type\":\"string\"}}",
+    )
+  rules_at_n(min_items_sim) |> should.equal([])
+}
+
+// A row-editor array: a real duplicate typed into `n.[i]`/`n.[j]` — which
+// never touches the array path `n` itself — must still surface the error
+// (D6's real scenario).
+pub fn typed_row_duplicate_is_visible_test() {
+  let sim =
+    start(unique_strings)
+    |> simulate.message(model.AddArrayItemPath([PropertySegment("n")]))
+    |> simulate.message(model.AddArrayItemPath([PropertySegment("n")]))
+    |> simulate.message(model.UpdateFieldPath(
+      [PropertySegment("n"), ArraySegment(0)],
+      StringValue("x"),
+    ))
+    |> simulate.message(model.UpdateFieldPath(
+      [PropertySegment("n"), ArraySegment(1)],
+      StringValue("x"),
+    ))
+  rules_at_n(sim) |> should.equal(["uniqueItems"])
   html_of(sim) |> string.contains("Items must be unique") |> should.be_true
 }
 

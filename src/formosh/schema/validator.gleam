@@ -520,8 +520,18 @@ fn validate_array_constraints(
       // ponytail: structural `==` — `1` vs `1.0`, and objects differing only
       // in key order, count as distinct (JSON Schema calls them equal).
       // Normalize values before comparing if a row-editor schema hits it.
+      // Blank rows (null, "", {}) are not answers — two Add clicks produce
+      // structurally-equal blank rows that must never count as duplicates.
+      // Remaining gap: object rows whose fields are all defaulted (e.g.
+      // `[{"a":"d"},{"a":"d"}]`) still compare equal on a second Add.
+      let non_blank_items =
+        list.filter(items, fn(v) {
+          !field_requirements.is_empty_value(Some(v)) && v != ObjectValue([])
+        })
       let unique_errors = case
-        c.unique_items && list.length(list.unique(items)) < count
+        c.unique_items
+        && list.length(list.unique(non_blank_items))
+        < list.length(non_blank_items)
       {
         True -> [error.from_failure(field_path, messages.UniqueItems)]
         False -> []
