@@ -28,11 +28,12 @@ Reach for the surfaces in this order:
    shadow boundary, so no selector has to reach inside.
 2. **Host `::part()` rules** ([§1](#1-part-selectors--preferred)) — one
    element's look and its interactive states (`:hover`, `:focus-visible`,
-   `:disabled`, `:checked`).
+   `:disabled`).
 3. **Adopted selectors** ([§2](#2-data--attributes-for-state),
    [§3](#3-parent-stylesheets-are-auto-adopted)) — `[part=…][data-…]` and
    `.formosh-*` rules, for anything that needs context `::part()` cannot
-   express (`:has()`, descendants, `:last-child`).
+   express (`:has()` — e.g. a checked choice,
+   `[part=radio-item]:has(input:checked)` — descendants, `:last-child`).
 
 `::part()` only exists in web-component mode (Shadow DOM); tokens, `data-*`
 attributes and classes work everywhere.
@@ -299,8 +300,9 @@ formosh-form { --formosh-row-gap: 0.75rem; --formosh-row-min: 8rem; }
 
 The default arrangement is `repeat(auto-fit, minmax(min(100%,
 var(--formosh-row-min, 12rem)), 1fr))` with `gap: var(--formosh-row-gap,
-1rem)`: columns never narrower than `--formosh-row-min`, dropping to fewer
-columns as the row narrows, with no media query. `::part(row)` and the
+1rem)`: columns never narrower than `--formosh-row-min` (or than the row
+itself, when the row is narrower), dropping to fewer columns as the row
+narrows, with no media query. `::part(row)` and the
 tokens reach the component from the host document, the same as any other
 `::part()` override (§1). The `[part="field"][data-name=…]` rule is the
 same `[part=…][data-…]` form from [§2](#2-data--attributes-for-state), not a
@@ -365,11 +367,12 @@ formosh-form::part(array-item-body) { transition: none; }
 
 - **The container's first child is the `<style>`.** A rule like
   `[part=container] > :first-child` matches it, not the header.
-- **Cross-origin stylesheets.** Lustre cannot read the rules of a
-  cross-origin sheet served without CORS, so it clones the `<link>` itself
-  into the shadow root, ahead of formosh's `<style>`. Layers such a sheet
-  declares are ordered before `formosh` and lose to it; its unlayered rules
-  still win.
+- **Stylesheets Lustre cannot copy.** Lustre copies each page sheet's
+  rules into the shadow root. It cannot read a cross-origin sheet served
+  without CORS, and a constructed copy rejects `@import`, so for such a
+  `<link>` it clones the element itself into the shadow root, ahead of
+  formosh's `<style>`. Layers the sheet declares are ordered before
+  `formosh` and lose to it; its unlayered rules still win.
 
 ### No descendant combinator inside `::part()`
 
