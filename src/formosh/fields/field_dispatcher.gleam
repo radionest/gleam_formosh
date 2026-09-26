@@ -7,7 +7,8 @@
 //
 // Selection priority: `widget` override (e.g. "image-upload") first, then
 // `field_type` (string/number/boolean/array/object — a number with
-// enum/oneOf options renders the enum widget), then enum/oneOf as a
+// enum/oneOf options renders the enum widget, an option-list array with
+// uniqueItems the checkbox group), then enum/oneOf as a
 // fallback for properties without an explicit type.
 
 import formosh/fields/array_field
@@ -130,7 +131,11 @@ fn render_widget_by_type(
           }
         Some(types.BooleanType) -> boolean_field.render(ctx)
         Some(types.ArrayType) ->
-          array_field.render_container(ctx, model, render_field_at_path)
+          case types.is_multi_select(ctx.property) {
+            True -> string_field.render_checkboxes(ctx)
+            False ->
+              array_field.render_container(ctx, model, render_field_at_path)
+          }
         Some(types.ObjectType) ->
           object_field.render_container(ctx, model, render_field_at_path)
         _ ->
