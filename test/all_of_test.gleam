@@ -223,7 +223,8 @@ pub fn flatten_crossed_array_bounds_is_error_test() {
 pub fn parse_crossed_array_bounds_is_error_test() {
   // The spec scenario at parse level: cross-member minItems/maxItems.
   // (Single-member-authored crossings never reach the composer for arrays —
-  // the decoder normalizes them first, grandfathered #63 behavior.)
+  // the decoder normalizes them first, by design, see
+  // docs/reference/schema-keywords.md#array-structure.)
   let json =
     "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"allOf\": [ { \"minItems\": 5 }, { \"maxItems\": 3 } ] } } }"
   parser.parse_schema(json) |> should.be_error
@@ -755,8 +756,9 @@ pub fn parse_crossed_exclusive_min_max_is_error_test() {
 
 pub fn parse_authored_crossed_bounds_with_member_is_error_test() {
   // Any effective member (even one touching nothing) opts the node into
-  // strict satisfiability of its MERGED constraints — including bounds the
-  // node authored itself. Only an empty/true-only allOf stays lenient.
+  // strict satisfiability of its MERGED constraints — including
+  // string/number bounds the node authored itself. Only an empty/true-only
+  // allOf stays lenient.
   let json =
     "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"minLength\": 5, \"maxLength\": 3, \"allOf\": [ { \"title\": \"t\" } ] } } }"
   parser.parse_schema(json) |> should.be_error

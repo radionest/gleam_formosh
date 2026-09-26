@@ -691,6 +691,104 @@ pub fn array_constraints_min_above_max_normalizes_test() {
   )
 }
 
+pub fn crossed_array_bounds_normalize_per_schema_object_test() {
+  // Crossed minItems > maxItems is clamped within each schema object at
+  // decode, before any $ref/allOf/anyOf merge — by design, see
+  // docs/reference/schema-keywords.md#array-structure. Letters are rows of
+  // the acceptance table in the #149 revert.
+  let rows = [
+    #(
+      "B",
+      "\"properties\":{\"x\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3,\"allOf\":[{\"title\":\"t\"}]}}",
+    ),
+    #(
+      "C",
+      "\"properties\":{\"x\":{\"type\":\"array\"}},\"allOf\":[{\"properties\":{\"x\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}}}]",
+    ),
+    #(
+      "E",
+      "\"$defs\":{\"D\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\"}}",
+    ),
+    #(
+      "H",
+      "\"properties\":{\"x\":{\"anyOf\":[{\"type\":\"array\",\"minItems\":5,\"maxItems\":3},{\"type\":\"null\"}]}}",
+    ),
+    #(
+      "M",
+      "\"properties\":{\"x\":{\"type\":\"array\",\"allOf\":[{\"minItems\":5,\"maxItems\":3}]}}",
+    ),
+    #(
+      "N",
+      "\"$defs\":{\"D\":{\"type\":\"array\"}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\",\"minItems\":5,\"maxItems\":3,\"allOf\":[{\"title\":\"t\"}]}}",
+    ),
+    #(
+      "Q",
+      "\"$defs\":{\"A\":{\"type\":\"array\",\"allOf\":[{\"title\":\"t\"}]}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/A\",\"minItems\":5,\"maxItems\":3}}",
+    ),
+    #(
+      "W",
+      "\"$defs\":{\"D\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},\"properties\":{\"x\":{\"type\":\"array\",\"allOf\":[{\"$ref\":\"#/$defs/D\"}]}}",
+    ),
+    #(
+      "X",
+      "\"properties\":{\"x\":{\"type\":[\"array\",\"null\"],\"minItems\":5,\"maxItems\":3}}",
+    ),
+  ]
+  let clamped =
+    Some(types.ArrayConstraints(
+      min_items: Some(5),
+      max_items: Some(5),
+      unique_items: False,
+    ))
+  list.each(rows, fn(row) {
+    let #(label, fragment) = row
+    let assert Ok(schema) =
+      parser.parse_schema("{\"type\":\"object\"," <> fragment <> "}")
+      as { "row " <> label <> " failed to parse" }
+    let assert Ok(x) = list.key_find(schema.properties, "x")
+    #(label, x.array_constraints) |> should.equal(#(label, clamped))
+  })
+}
+
+pub fn crossed_array_bounds_in_any_of_member_items_normalize_test() {
+  // Row I: the survivor's `items` is a schema object of its own, clamped
+  // at decode before the anyOf collapse merges it into `x.items`.
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"array\",\"items\":{\"type\":\"array\"},\"anyOf\":[{\"items\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},{\"type\":\"null\"}]}}}",
+    )
+  let assert Ok(x) = list.key_find(schema.properties, "x")
+  let assert Some(items) = x.items
+  items.array_constraints
+  |> should.equal(
+    Some(types.ArrayConstraints(
+      min_items: Some(5),
+      max_items: Some(5),
+      unique_items: False,
+    )),
+  )
+}
+
+pub fn crossed_array_bounds_in_then_branch_normalize_test() {
+  // Row P: an if/then/else branch is a schema object of its own.
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"}},\"if\":{\"properties\":{\"a\":{\"const\":\"y\"}}},\"then\":{\"properties\":{\"arr\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}}}}",
+    )
+  let assert [rule] = schema.conditionals
+  let assert Some(then_schema) = rule.then_schema
+  let assert Some(then_properties) = then_schema.properties
+  let assert Ok(arr) = list.key_find(then_properties, "arr")
+  arr.array_constraints
+  |> should.equal(
+    Some(types.ArrayConstraints(
+      min_items: Some(5),
+      max_items: Some(5),
+      unique_items: False,
+    )),
+  )
+}
+
 fn parsed_root_format(json: String) -> option.Option(types.StringFormat) {
   let assert Ok(schema) = parser.parse_schema(json)
   case schema.string_constraints {

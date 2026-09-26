@@ -135,6 +135,16 @@ pub fn ref_sibling_crossing_bounds_is_unsatisfiable_test() {
   msg2 |> string.contains("#/n") |> should.be_true
 }
 
+// Row F: the definition's own crossed bounds are clamped to 5/5 before the
+// `$ref` merge; a sibling `maxItems: 1` then crosses the clamped floor, so
+// the merge fails.
+pub fn ref_sibling_crossing_normalized_definition_is_unsatisfiable_test() {
+  let assert Error(types.UnsatisfiableSchema(_)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"D\":{\"type\":\"array\",\"minItems\":5,\"maxItems\":3}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/D\",\"maxItems\":1}}}",
+    )
+}
+
 // The referencing-property breadcrumb accumulates through nesting, same as
 // composer's `allOf` breadcrumb (`#/outer/n`), not just the immediate key.
 pub fn ref_sibling_crossing_bounds_names_nested_property_test() {
