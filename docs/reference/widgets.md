@@ -243,13 +243,16 @@ renders as one checkbox per option instead of the row editor:
   other absent/empty field. `minItems` / `maxItems` apply once something is
   picked.
 - Once `maxItems` options are checked, the remaining boxes are disabled
-  (stored values that aren't options don't count).
+  (stored values that aren't options don't count), and a toggle past the
+  cap is ignored even when it was dispatched before the boxes re-rendered
+  disabled (e.g. two scripted clicks in one frame).
 - No rows are auto-created for `minItems`; an under-`minItems` selection is
   reported as an error instead.
 - A stored value that is not one of the options (e.g. from
   `initial-values`) is dropped on the first click. Stored values match
   options by the same typed equality `enum` validation uses, so a seeded
-  `2.0` checks the integer option `2`.
+  `2.0` checks the integer option `2`, while a seeded string `"2"` does not
+  (it counts as a non-option), same as the single-value enum widgets.
 - Labels are the `oneOf` member `title`, else the value's string form.
 - Row-editor hints (`ui:addable`, `ui:removable`, `ui:orderable`,
   `ui:options.collapseCompleted`) have no effect on a checkbox group.

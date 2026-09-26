@@ -267,6 +267,12 @@ pub type FormConfig {
 variants: `NoSubmit`, `HttpSubmit(url, method, headers)`,
 `CustomSubmit(handler)`.
 
+> **Breaking change.** `FormMsg` (also in `formosh/form/model`) gained a
+> `ToggleOptionPath(path, options, value)` variant — the checkbox-group
+> toggle, resolved in `update` against the current value. An exhaustive
+> `case` over `FormMsg` without a `_ ->` catch-all stops compiling on
+> upgrade; add an arm for it (or a catch-all).
+
 ### `UiSchema` and `UiProperty`
 
 Presentation hints parallel to the JSON Schema. See the full field list in

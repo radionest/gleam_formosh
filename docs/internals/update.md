@@ -16,6 +16,11 @@ description: "Msg handling and state transitions: field edits, add/remove array 
 **To document**
 
 - The `Msg` variants (field change, array add/remove, submit, reset, …).
+  - `ToggleOptionPath(path, options, value)` — checkbox-group toggle.
+    Resolved against `model.values`, not the dispatching render (#137):
+    options in schema order XOR the clicked one (typed `compare_values`),
+    ignored past `maxItems`, then forwarded to `UpdateFieldPath` /
+    `ClearFieldPath` (empty selection removes the key).
 - The update pipeline for a field change:
   1. write value at path in the model
   2. recompute visibility (conditional fields)
