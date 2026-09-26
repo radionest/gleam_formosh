@@ -326,7 +326,7 @@ fn merge_properties(
       referencing.number_constraints,
       referenced.number_constraints,
     ),
-    array_constraints: option.or(
+    array_constraints: merge_array_constraints(
       referencing.array_constraints,
       referenced.array_constraints,
     ),
@@ -348,6 +348,29 @@ fn merge_properties(
     ),
     conditionals: list.append(referencing.conditionals, referenced.conditionals),
   )
+}
+
+/// Merge two `ArrayConstraints`, field by field, keeping `merge_properties`'s
+/// "referencing wins" semantics per field rather than for the whole record —
+/// a `$ref` sibling that only sets one keyword (e.g. `uniqueItems`) must not
+/// wipe out the referenced definition's other constraints (`minItems` /
+/// `maxItems`). `unique_items` OR-merges like the boolean hints above: a
+/// referenced `true` must survive a referencing side that doesn't set it.
+fn merge_array_constraints(
+  referencing: option.Option(types.ArrayConstraints),
+  referenced: option.Option(types.ArrayConstraints),
+) -> option.Option(types.ArrayConstraints) {
+  case referencing, referenced {
+    None, None -> None
+    Some(r), None -> Some(r)
+    None, Some(r) -> Some(r)
+    Some(r), Some(d) ->
+      Some(types.ArrayConstraints(
+        min_items: option.or(r.min_items, d.min_items),
+        max_items: option.or(r.max_items, d.max_items),
+        unique_items: r.unique_items || d.unique_items,
+      ))
+  }
 }
 
 /// Merge two `RenderHints`, with the referencing side winning per-field —

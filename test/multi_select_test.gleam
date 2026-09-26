@@ -64,6 +64,40 @@ pub fn all_of_ors_unique_items_in_either_order_test() {
   |> should.equal(expected)
 }
 
+// Regression: a `$ref` sibling that only sets `uniqueItems` (or only
+// `maxItems`) must not wipe out the referenced definition's other array
+// constraints — the resolver merges `array_constraints` field by field,
+// keeping "referencing wins" per field, not as a whole record.
+pub fn ref_sibling_merges_array_constraints_field_by_field_test() {
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"Tags\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags\",\"uniqueItems\":true}}}",
+    )
+  let assert Ok(prop) = list.key_find(schema.properties, "n")
+  prop.array_constraints
+  |> should.equal(
+    Some(ArrayConstraints(
+      min_items: Some(1),
+      max_items: Some(3),
+      unique_items: True,
+    )),
+  )
+
+  let assert Ok(schema2) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"Colors\":{\"type\":\"array\",\"uniqueItems\":true,\"items\":{\"type\":\"string\",\"enum\":[\"r\",\"g\",\"b\"]}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Colors\",\"maxItems\":2}}}",
+    )
+  let assert Ok(prop2) = list.key_find(schema2.properties, "n")
+  prop2.array_constraints
+  |> should.equal(
+    Some(ArrayConstraints(
+      min_items: None,
+      max_items: Some(2),
+      unique_items: True,
+    )),
+  )
+}
+
 pub fn serializer_emits_unique_items_test() {
   let assert Ok(schema) = parser.parse_schema(obj(unique_enum))
   serializer.schema_to_json(schema)
