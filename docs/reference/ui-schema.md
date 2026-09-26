@@ -304,14 +304,14 @@ A few rules govern how a layout resolves:
   array-row children always render in schema order. Laying out the review
   summary isn't supported today — a known limitation, not a bug.
 
-`Row`'s default grid is `repeat(auto-fit, minmax(min(100%, var(--formosh-row-min, 12rem)), 1fr))`,
-which collapses to fewer columns on narrow viewports with no media query
-needed. Tune the minimum column width with `--formosh-row-min` (default
-`12rem`) and the gap with `--formosh-row-gap` (default `1rem`), or override
+`Row` renders as a responsive grid from formosh's stylesheet: columns at
+least `--formosh-row-min` (default `12rem`, capped at the row's width)
+wide and `--formosh-row-gap` (default `1rem`) apart, dropping to fewer
+columns on narrow viewports with no media query. Override
 `grid-template-columns` outright — from `formosh-form::part(row)` or any
 adopted rule, no `!important` needed — see
-[Styling](../guides/styling.md#overriding-the-uilayout-grid) for the full
-recipe, including targeting one field by name.
+[Styling](../guides/styling.md#overriding-the-uilayout-grid) for the exact
+default and the full recipe, including targeting one field by name.
 
 ## How the tree is walked
 
