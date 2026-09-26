@@ -196,9 +196,10 @@ shrinking would violate `minItems`, and hides the add button once `maxItems`
 is reached. Array-level violations (`minItems` / `maxItems` /
 `uniqueItems`) are always visible — they skip the touched gate; see
 [Error visibility](docs/guides/configuration.md#error-visibility) for why.
-A schema with `minItems > maxItems` (unsatisfiable) is normalized at parse
-time so `minItems` wins: the array renders as fixed-size at `minItems`
-rows. An option-list array with `uniqueItems: true` renders as a
+A standalone schema with `minItems > maxItems` (unsatisfiable) is
+normalized at parse time so `minItems` wins: the array renders as
+fixed-size at `minItems` rows (crossed bounds on a node with an `allOf`
+fail parsing instead — see [`allOf`](docs/reference/schema-keywords.md)). An option-list array with `uniqueItems: true` renders as a
 [checkbox group](docs/reference/widgets.md#checkbox-group-multi-select)
 instead — no rows, no `minItems` top-up.
 
