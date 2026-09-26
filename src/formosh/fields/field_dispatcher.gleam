@@ -81,7 +81,7 @@ fn render_visible(ctx: FieldRenderCtx, model: FormModel) -> Element(FormMsg) {
   // they still compare equal).
   let visible_errors = case is_touched {
     True -> errors
-    False -> list.filter(errors, error.is_array_length)
+    False -> list.filter(errors, error.is_array_level)
   }
 
   let field_element = render_widget(ctx, model)

@@ -34,7 +34,7 @@ model.touched_fields : List(FieldPath)
    ▼
 field_dispatcher.gleam : applies the gate
    │   touched fields render all their errors; untouched fields render
-   │   only those passing `error.is_array_length` (see render_visible)
+   │   only those passing `error.is_array_level` (see render_visible)
    ▼
 field_common.render_field_errors(errors: List(ValidationError))
    pure formatter — receives a pre-filtered error list, no gating logic
