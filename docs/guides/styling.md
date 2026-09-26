@@ -110,7 +110,7 @@ followed by an attribute selector.
 
 ## 3. Parent stylesheets are auto-adopted
 
-Lustre clones the host document's CSS into the shadow root, so plain class
+Lustre copies the host document's CSS into the shadow root, so plain class
 selectors against the internal `formosh-*` classes also apply:
 
 ```css
@@ -440,6 +440,9 @@ those layers. Put formosh first, in the first rule of your CSS:
 ```css
 @layer formosh, base, components;
 ```
+
+The layer name `formosh` is part of formosh's public styling contract —
+name it in your own `@layer` statements.
 
 ## Reference
 

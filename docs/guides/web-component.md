@@ -85,7 +85,7 @@ The component emits four custom events. Listen with `addEventListener`:
 const form = document.querySelector('formosh-form');
 
 form.addEventListener('formosh-ready', () => {
-  console.log('Form mounted and validated');
+  console.log('Form initialized and validated');
 });
 
 form.addEventListener('formosh-change', (e) => {
@@ -111,6 +111,10 @@ form.addEventListener('formosh-submit', (e) => {
 | `formosh-change` | Any field value, validity, or dirtiness change | `{ values, isValid, isDirty }` |
 | `formosh-submitting` | A submit attempt starts | `{ status: "submitting" }` |
 | `formosh-submit` | Submit completes (success or failure) | `{ status: "success", data }` or `{ status: "error", error }` |
+
+Events fire when the form's state changes; Lustre patches the shadow DOM on
+the next animation frame. A listener that reads the rendered form (not
+`e.detail`) should wait one `requestAnimationFrame` first.
 
 ## Nullable fields
 

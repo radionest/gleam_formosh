@@ -48,7 +48,11 @@ Three tiers, fastest/most-isolated first:
    two Gleam tiers can't reach — real custom-element mounting, DOM event
    listeners, attribute swaps, submit round-trips, and computed styles
    from formosh's `@layer formosh` stylesheet
-   (`e2e/style-layer.e2e.test.mjs`).
+   (`e2e/style-layer.e2e.test.mjs`). Lustre emits `formosh-ready` /
+   `formosh-change` during `update` and patches the DOM on the next
+   animation frame, so never read the shadow DOM straight after awaiting an
+   event — wait on the DOM itself (`waitForField`, `page.waitForFunction`)
+   or for one `requestAnimationFrame`.
 
 **Known gaps** (ROADMAP debts, not exercised by any tier):
 
