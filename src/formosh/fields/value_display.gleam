@@ -7,6 +7,7 @@
 //// copy is what this module exists to prevent. Password masking lives here
 //// too, so a new display position cannot bypass it.
 
+import formosh/schema/conditional_resolver
 import formosh/schema/types.{type RenderHints, type SchemaProperty, type Value}
 import gleam/float
 import gleam/int
@@ -86,24 +87,21 @@ pub fn scalar_to_string(value: Value) -> String {
 /// they fall through to `scalar_to_string`.
 pub fn enum_label(property: SchemaProperty, value: Value) -> Option(String) {
   case property.one_of {
-    Some(schemas) -> {
-      let target = scalar_to_string(value)
+    Some(schemas) ->
       one_of_options(schemas)
-      |> list.find(fn(opt) { opt.0 == target })
+      |> list.find(fn(opt) { conditional_resolver.compare_values(opt.0, value) })
       |> result.map(fn(opt) { opt.1 })
       |> option.from_result
-    }
     None -> None
   }
 }
 
-fn one_of_options(one_of: List(SchemaProperty)) -> List(#(String, String)) {
+fn one_of_options(one_of: List(SchemaProperty)) -> List(#(Value, String)) {
   use schema <- list.filter_map(one_of)
   use vals <- result.try(option.to_result(schema.enum_values, Nil))
   use const_val <- result.try(case vals {
     [val] -> Ok(val)
     _ -> Error(Nil)
   })
-  let value = scalar_to_string(const_val)
-  Ok(#(value, option.unwrap(schema.title, value)))
+  Ok(#(const_val, option.unwrap(schema.title, scalar_to_string(const_val))))
 }

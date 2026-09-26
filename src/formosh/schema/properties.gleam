@@ -112,7 +112,8 @@ pub fn merge_with(
 /// `#(String, _)` entries — primarily `PropertyList`, but also UiSchema
 /// children and arbitrary test fixtures. Keys listed in `order` come first
 /// in the given sequence; everything else follows in its original position.
-/// Unknown keys in `order` (not present in `entries`) are silently dropped.
+/// Unknown keys in `order` (not present in `entries`) are silently dropped,
+/// and a key listed twice keeps only its first position.
 /// Returns the input unchanged when `order` is `None`.
 pub fn apply_order(
   entries: List(#(String, a)),

@@ -3,6 +3,7 @@
 import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/form/model.{type FormMsg, ClearFieldPath, UpdateFieldPath}
 import formosh/form/path
+import formosh/schema/conditional_resolver
 import formosh/schema/types
 import gleam/float
 import gleam/int
@@ -84,17 +85,16 @@ fn render_select_or_enum(
   ctx: FieldRenderCtx,
   force_select force_select: Bool,
 ) -> Element(FormMsg) {
-  let current_value = field_common.extract_string_value(ctx.value)
   case one_of_options(ctx.property), ctx.property.enum_values {
     [_, ..] as options, _ ->
       case force_select {
-        True -> render_one_of_select(ctx, options, current_value)
-        False -> render_one_of_radio_group(ctx, options, current_value)
+        True -> render_one_of_select(ctx, options)
+        False -> render_one_of_radio_group(ctx, options)
       }
     [], Some(enum_vals) ->
       case force_select {
-        True -> render_select(ctx, enum_vals, current_value)
-        False -> render_radio_group(ctx, enum_vals, current_value)
+        True -> render_select(ctx, enum_vals)
+        False -> render_radio_group(ctx, enum_vals)
       }
     [], None ->
       // Widget=select/radio on a non-enum string — fall back to input.
@@ -299,14 +299,11 @@ fn toggle_msg(
 fn render_regular_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
   case ctx.property.enum_values {
     None -> element.none()
-    Some(enum_vals) -> {
-      let current_value = field_common.extract_string_value(ctx.value)
-
+    Some(enum_vals) ->
       case list.length(enum_vals) <= 5 {
-        True -> render_radio_group(ctx, enum_vals, current_value)
-        False -> render_select(ctx, enum_vals, current_value)
+        True -> render_radio_group(ctx, enum_vals)
+        False -> render_select(ctx, enum_vals)
       }
-    }
   }
 }
 
@@ -314,7 +311,6 @@ fn render_regular_enum(ctx: FieldRenderCtx) -> Element(FormMsg) {
 fn render_radio_group(
   ctx: FieldRenderCtx,
   enum_vals: List(types.Value),
-  current_value: String,
 ) -> Element(FormMsg) {
   let field_id = path.to_string(ctx.path)
   let effective_disabled = ctx.is_disabled || ctx.is_readonly
@@ -340,7 +336,7 @@ fn render_radio_group(
               attribute.id(radio_id),
               attribute.name(field_id),
               attribute.value(str_val),
-              attribute.checked(str_val == current_value),
+              attribute.checked(is_current(ctx, val)),
               attribute.required(ctx.is_required),
               attribute.disabled(effective_disabled),
               event.on_click(UpdateFieldPath(ctx.path, val)),
@@ -360,7 +356,6 @@ fn render_radio_group(
 fn render_select(
   ctx: FieldRenderCtx,
   enum_vals: List(types.Value),
-  current_value: String,
 ) -> Element(FormMsg) {
   let field_id = path.to_string(ctx.path)
   let effective_disabled = ctx.is_disabled || ctx.is_readonly
@@ -383,7 +378,7 @@ fn render_select(
           html.option(
             [
               attribute.value(str_val),
-              attribute.selected(str_val == current_value),
+              attribute.selected(is_current(ctx, val)),
             ],
             str_val,
           )
@@ -511,16 +506,23 @@ fn select_msg(
   }
 }
 
+/// Typed match against the stored value, so a seeded `2.0` selects the
+/// integer option `2` — the same equality `enum` validation uses.
+fn is_current(ctx: FieldRenderCtx, val: types.Value) -> Bool {
+  case ctx.value {
+    Some(current) -> conditional_resolver.compare_values(val, current)
+    None -> False
+  }
+}
+
 /// Render a oneOf field with const+title options as radio buttons or select.
 fn render_one_of_enum(
   ctx: FieldRenderCtx,
   options: List(#(types.Value, String)),
 ) -> Element(FormMsg) {
-  let current_value = field_common.extract_string_value(ctx.value)
-
   case list.length(options) <= 5 {
-    True -> render_one_of_radio_group(ctx, options, current_value)
-    False -> render_one_of_select(ctx, options, current_value)
+    True -> render_one_of_radio_group(ctx, options)
+    False -> render_one_of_select(ctx, options)
   }
 }
 
@@ -528,7 +530,6 @@ fn render_one_of_enum(
 fn render_one_of_radio_group(
   ctx: FieldRenderCtx,
   options: List(#(types.Value, String)),
-  current_value: String,
 ) -> Element(FormMsg) {
   let field_id = path.to_string(ctx.path)
   let effective_disabled = ctx.is_disabled || ctx.is_readonly
@@ -555,7 +556,7 @@ fn render_one_of_radio_group(
               attribute.id(radio_id),
               attribute.name(field_id),
               attribute.value(value),
-              attribute.checked(value == current_value),
+              attribute.checked(is_current(ctx, const_val)),
               attribute.required(ctx.is_required),
               attribute.disabled(effective_disabled),
               event.on_click(UpdateFieldPath(ctx.path, const_val)),
@@ -575,7 +576,6 @@ fn render_one_of_radio_group(
 fn render_one_of_select(
   ctx: FieldRenderCtx,
   options: List(#(types.Value, String)),
-  current_value: String,
 ) -> Element(FormMsg) {
   let field_id = path.to_string(ctx.path)
   let effective_disabled = ctx.is_disabled || ctx.is_readonly
@@ -600,7 +600,7 @@ fn render_one_of_select(
           html.option(
             [
               attribute.value(value),
-              attribute.selected(value == current_value),
+              attribute.selected(is_current(ctx, const_val)),
             ],
             label,
           )

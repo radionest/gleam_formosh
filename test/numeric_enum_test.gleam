@@ -8,7 +8,7 @@ import formosh/form/path.{PropertySegment, get_at_path}
 import formosh/form/update
 import formosh/form/view
 import formosh/schema/parser
-import formosh/schema/types.{IntegerValue}
+import formosh/schema/types.{IntegerValue, NumberValue}
 import gleam/dict
 import gleam/int
 import gleam/json
@@ -118,6 +118,40 @@ pub fn integer_initial_value_checks_its_radio_test() {
     |> start_config
   find(sim, query.id("n_2")) |> string.contains("checked") |> should.be_true
   find(sim, query.id("n_1")) |> string.contains("checked") |> should.be_false
+}
+
+fn start_with_value(prop_json: String, value: types.Value) {
+  config_for(prop_json)
+  |> formosh.with_initial_values(dict.from_list([#("n", value)]))
+  |> start_config
+}
+
+// A seeded `2.0` equals the integer const `2` (#128) — the widget must agree
+// with `enum` validation and show it as chosen.
+pub fn float_value_checks_integer_radio_test() {
+  let sim = start_with_value(one_of(2), NumberValue(2.0))
+  find(sim, query.id("n_2")) |> string.contains("checked") |> should.be_true
+  find(sim, query.id("n_1")) |> string.contains("checked") |> should.be_false
+
+  start_with_value("{\"type\":\"number\",\"enum\":[10,20]}", NumberValue(20.0))
+  |> find(query.id("n_20"))
+  |> string.contains("checked")
+  |> should.be_true
+}
+
+pub fn float_value_selects_integer_option_test() {
+  start_with_value(one_of(6), NumberValue(3.0))
+  |> find(query.attribute("value", "3"))
+  |> string.contains("selected")
+  |> should.be_true
+
+  start_with_value(
+    "{\"type\":\"number\",\"enum\":[1,2,3,4,5,6]}",
+    NumberValue(4.0),
+  )
+  |> find(query.attribute("value", "4"))
+  |> string.contains("selected")
+  |> should.be_true
 }
 
 pub fn integer_select_marks_chosen_option_selected_test() {

@@ -3,9 +3,9 @@
 /// Accepts react-jsonschema-form-style JSON: `ui:*` keys carry settings for
 /// the current node, `items` is a reserved key for the array-element
 /// template, `$`-prefixed keys are ignored, every other key is a child
-/// property name. Errors surface as
-/// `types.ParseError` (the same type used by the JSON Schema parser) so
-/// callers can handle both kinds of input uniformly.
+/// property name. Errors surface as `types.ParseError` (the same type used
+/// by the JSON Schema parser) so callers can handle both kinds of input
+/// uniformly.
 import formosh/ffi/dynamic_object
 import formosh/schema/parser
 import formosh/schema/types.{
