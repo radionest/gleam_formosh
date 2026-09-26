@@ -60,6 +60,8 @@ The tree mirrors the schema. Three rules:
 3. **Every other key** is a child property name and recurses into another
    UiSchema node.
 
+Keys starting with `$` (`$schema`, `$id`, `$comment`, …) are ignored at any depth.
+
 ```jsonc
 {
   "ui:order": ["name", "email", "age"],   // root-level field order

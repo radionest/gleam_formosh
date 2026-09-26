@@ -640,8 +640,8 @@ pub fn ref_to_defs_with_nested_allof_ref_test() {
   }
 }
 
-/// Self-referential `$ref` reachable via `then_schema` must be detected as
-/// a cycle (or successfully truncated by `visited`), not loop forever.
+/// Self-referential `$ref` reachable via `then_schema` must be rejected as
+/// a circular reference, not loop forever or parse silently.
 pub fn ref_cycle_through_then_branch_test() {
   let json =
     "{
@@ -661,12 +661,8 @@ pub fn ref_cycle_through_then_branch_test() {
     }
   }"
 
-  case parser.parse_schema(json) {
-    Ok(_) -> Nil
-    Error(types.UnexpectedValue(msg)) ->
-      should.equal(string.contains(msg, "Circular"), True)
-    Error(_) -> panic as "Expected Ok or a Circular reference error"
-  }
+  let assert Error(types.UnexpectedValue(msg)) = parser.parse_schema(json)
+  string.contains(msg, "Circular") |> should.be_true
 }
 
 /// `$ref` inside a `oneOf` element nested in `then.properties` must also be

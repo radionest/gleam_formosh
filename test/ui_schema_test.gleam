@@ -49,6 +49,31 @@ pub fn parse_nested_children_test() {
   name.widget |> should.equal(Some(types.CustomWidget("textarea")))
 }
 
+pub fn parse_skips_dollar_keys_at_root_test() {
+  let json =
+    "{\"$schema\":\"x\",\"$id\":\"y\",\"$comment\":\"z\",\"name\":{\"ui:widget\":\"textarea\"}}"
+  let assert Ok(ui) = ui_parser.parse(json)
+  list.map(ui.properties, fn(entry) { entry.0 }) |> should.equal(["name"])
+}
+
+pub fn parse_skips_dollar_keys_in_nested_field_test() {
+  let json =
+    "{\"user\":{\"$comment\":\"z\",\"name\":{\"ui:widget\":\"textarea\"}}}"
+  let assert Ok(ui) = ui_parser.parse(json)
+  let assert Ok(user) = list.key_find(ui.properties, "user")
+  list.map(user.properties, fn(entry) { entry.0 }) |> should.equal(["name"])
+}
+
+pub fn parse_skips_dollar_keys_in_items_test() {
+  let json =
+    "{\"tags\":{\"items\":{\"$comment\":\"z\",\"side\":{\"ui:widget\":\"select\"}}}}"
+  let assert Ok(ui) = ui_parser.parse(json)
+  let assert Ok(tags) = list.key_find(ui.properties, "tags")
+  let assert Some(item_template) = tags.items
+  list.map(item_template.properties, fn(entry) { entry.0 })
+  |> should.equal(["side"])
+}
+
 pub fn parse_items_template_test() {
   let json = "{\"items\":{\"items\":{\"side\":{\"ui:widget\":\"select\"}}}}"
   let assert Ok(ui) = ui_parser.parse(json)
@@ -336,6 +361,13 @@ pub fn apply_order_unknown_keys_dropped_test() {
   let result = properties.apply_order(entries, Some(["b", "missing", "a"]))
   let keys = list.map(result, fn(entry) { entry.0 })
   keys |> should.equal(["b", "a"])
+}
+
+pub fn apply_order_duplicate_keys_render_once_test() {
+  let entries = [#("a", 1), #("b", 2), #("c", 3)]
+  let result = properties.apply_order(entries, Some(["a", "a", "b"]))
+  let keys = list.map(result, fn(entry) { entry.0 })
+  keys |> should.equal(["a", "b", "c"])
 }
 
 pub fn apply_order_all_listed_exact_order_test() {

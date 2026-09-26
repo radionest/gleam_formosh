@@ -157,6 +157,28 @@ pub fn validate_enum_rejects_value_outside_set_test() {
   |> should.be_true()
 }
 
+// Regression (#128): a number input yields NumberValue(2.0), which must match
+// the integer enum member 2.
+pub fn validate_enum_integer_member_accepts_equal_float_test() {
+  let property =
+    SchemaProperty(
+      ..empty_property(),
+      field_type: Some(types.NumberType),
+      enum_values: Some([IntegerValue(1), IntegerValue(2), IntegerValue(3)]),
+    )
+  let errors =
+    validator.validate_field(
+      path.from_field_name("n"),
+      Some(NumberValue(2.0)),
+      property,
+      False,
+      property.render_hints.widget,
+    )
+
+  list.any(errors, fn(e) { e.rule == "enum" })
+  |> should.be_false()
+}
+
 // Regression: validate_enum must NOT produce an error when the value is one
 // of the allowed enum members.
 pub fn validate_enum_accepts_value_in_set_test() {

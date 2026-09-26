@@ -120,7 +120,9 @@ fn parse_children(
 ) -> Result(List(#(String, UiProperty)), ParseError) {
   list.filter(entries, fn(entry) {
     let key = entry.0
-    !is_ui_key(key) && { as_root || key != "items" }
+    !is_ui_key(key)
+    && !string.starts_with(key, "$")
+    && { as_root || key != "items" }
   })
   |> list.try_map(fn(entry) {
     let #(name, dyn) = entry

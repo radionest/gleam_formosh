@@ -122,7 +122,8 @@ pub fn apply_order(
     None -> entries
     Some(ordered_keys) -> {
       let ordered =
-        list.filter_map(ordered_keys, fn(key) {
+        list.unique(ordered_keys)
+        |> list.filter_map(fn(key) {
           list.key_find(entries, key)
           |> result.map(fn(value) { #(key, value) })
         })

@@ -448,7 +448,7 @@
         /* error state (plain selectors run inside the adopted shadow sheet) */
         formosh-form::part(error),
         formosh-form::part(error-message) { color: var(--danger); font-size: 0.82rem; font-weight: 500; }
-        [part="field"][data-error] [part="input"],
+        [part="field"][data-error] [part~="input"],
         [part="field"][data-error] [part="textarea"],
         [part="field"][data-error] [part="select"] { border-color: var(--danger); }
 
