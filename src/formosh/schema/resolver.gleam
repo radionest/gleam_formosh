@@ -179,9 +179,23 @@ fn resolve_property_ref(
               // silently shipping a form that validates nothing. Names the
               // referencing property (`path`), not just the `$ref` target,
               // matching `composer.unsatisfiable`'s breadcrumb for `allOf`.
+              // Bounds crossed on the node alone (kept raw on a composed
+              // node, #132) are its own fault, so the `$ref` isn't named.
               let merged = merge_properties(resolved_local, resolved)
-              case array_constraints_crossed_reason(merged.array_constraints) {
-                Some(reason) ->
+              case
+                array_constraints_crossed_reason(
+                  resolved_local.array_constraints,
+                ),
+                array_constraints_crossed_reason(merged.array_constraints)
+              {
+                Some(reason), _ ->
+                  Error(UnsatisfiableSchema(
+                    "unsatisfiable schema at "
+                    <> path_string(path)
+                    <> ": "
+                    <> reason,
+                  ))
+                None, Some(reason) ->
                   Error(UnsatisfiableSchema(
                     "unsatisfiable schema at "
                     <> path_string(path)
@@ -190,7 +204,7 @@ fn resolve_property_ref(
                     <> "): "
                     <> reason,
                   ))
-                None -> Ok(merged)
+                None, None -> Ok(merged)
               }
             }
             Error(_) -> Error(ReferenceNotFound(ref_path))

@@ -222,11 +222,50 @@ pub fn flatten_crossed_array_bounds_is_error_test() {
 
 pub fn parse_crossed_array_bounds_is_error_test() {
   // The spec scenario at parse level: cross-member minItems/maxItems.
-  // (Single-member-authored crossings never reach the composer for arrays —
-  // the decoder normalizes them first, grandfathered #63 behavior.)
   let json =
     "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"allOf\": [ { \"minItems\": 5 }, { \"maxItems\": 3 } ] } } }"
   parser.parse_schema(json) |> should.be_error
+}
+
+pub fn parse_authored_crossed_array_bounds_with_member_is_error_test() {
+  // #132: the decoder's #63 normalization must not pre-clamp a composed
+  // node's own crossed bounds before the composer checks them.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\", \"minItems\": 5, \"maxItems\": 3, \"allOf\": [ { \"title\": \"t\" } ] } } }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+}
+
+pub fn parse_single_member_crossed_array_bounds_is_error_test() {
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\", \"allOf\": [ { \"minItems\": 5, \"maxItems\": 3 } ] } } }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+}
+
+pub fn parse_ref_node_authored_crossed_array_bounds_blames_node_test() {
+  // The crossing is the node's own, not a merge with the bounds-free
+  // definition — the message must not blame the $ref.
+  let json =
+    "{ \"type\": \"object\", \"$defs\": { \"D\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } } }, \"properties\": { \"x\": { \"$ref\": \"#/$defs/D\", \"minItems\": 5, \"maxItems\": 3, \"allOf\": [ { \"title\": \"t\" } ] } } }"
+  let assert Error(UnsatisfiableSchema(msg)) = parser.parse_schema(json)
+  msg |> should.equal("unsatisfiable schema at #/x: minItems 5 > maxItems 3")
+}
+
+pub fn parse_true_only_allof_normalizes_crossed_array_bounds_test() {
+  // No effective members → standalone node → lenient #63 normalization.
+  let json =
+    "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"array\", \"minItems\": 5, \"maxItems\": 3, \"allOf\": [ true ] } } }"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Some(x) = properties.get(schema.properties, "x")
+  x.array_constraints
+  |> should.equal(
+    Some(ArrayConstraints(
+      min_items: Some(5),
+      max_items: Some(5),
+      unique_items: False,
+    )),
+  )
 }
 
 pub fn parse_crossed_string_bounds_is_error_test() {

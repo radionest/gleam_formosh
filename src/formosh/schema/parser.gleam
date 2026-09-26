@@ -86,7 +86,7 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
 fn root_decoder() -> Decoder(
   #(SchemaProperty, Option(Dict(String, SchemaProperty))),
 ) {
-  use root <- decode.then(full_property_decoder())
+  use root <- decode.then(full_property_decoder(all_of_member: False))
   use defs <- decode.optional_field(
     "$defs",
     None,
@@ -219,23 +219,29 @@ fn definitions_decoder() -> Decoder(Dict(String, SchemaProperty)) {
 /// This decoder handles both simple property definitions (just a type string)
 /// and complex property objects with constraints, metadata, and nested structures.
 fn property_decoder() -> Decoder(SchemaProperty) {
-  decode.one_of(full_property_decoder(), [
-    // Fallback to simple type string
-    decode.string
-    |> decode.map(fn(type_str) {
-      SchemaProperty(
-        ..empty_property(),
-        field_type: field_type_from_string(type_str) |> option.from_result(),
-      )
-    }),
+  decode.one_of(full_property_decoder(all_of_member: False), [
+    type_shorthand_decoder(),
   ])
+}
+
+/// Fallback for a bare type string (`"string"`) in place of a schema object.
+fn type_shorthand_decoder() -> Decoder(SchemaProperty) {
+  decode.string
+  |> decode.map(fn(type_str) {
+    SchemaProperty(
+      ..empty_property(),
+      field_type: field_type_from_string(type_str) |> option.from_result(),
+    )
+  })
 }
 
 /// Decode a complete property object with all possible fields.
 /// 
 /// This decoder extracts all the possible fields from a property definition
 /// including type, constraints, metadata, and nested schema information.
-fn full_property_decoder() -> Decoder(SchemaProperty) {
+fn full_property_decoder(
+  all_of_member all_of_member: Bool,
+) -> Decoder(SchemaProperty) {
   use dynamic_data <- decode.then(decode.dynamic)
   use field_type <- decode.optional_field(
     "type",
@@ -282,7 +288,6 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // Extract constraints from the dynamic data
   let string_constraints = extract_string_constraints(dynamic_data)
   let number_constraints = extract_number_constraints(dynamic_data)
-  let array_constraints = extract_array_constraints(dynamic_data)
 
   // Extract readOnly annotation
   let read_only = extract_read_only(dynamic_data)
@@ -310,6 +315,18 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
 
   // Extract allOf composition members — a malformed member fails the parse
   let all_of = extract_all_of(dynamic_data)
+
+  // #63's crossed-bounds normalization is lenient single-schema semantics;
+  // a composed node (an effective allOf, or itself a member) keeps its
+  // bounds raw so the composer rejects the unsatisfiable merge (#132).
+  let composed =
+    all_of_member
+    || case all_of {
+      Ok(Some([_, ..])) -> True
+      _ -> False
+    }
+  let array_constraints =
+    extract_array_constraints(dynamic_data, normalize: !composed)
 
   // Extract presentation hints from x- extensions
   let render_hints = extract_render_hints(dynamic_data)
@@ -423,14 +440,15 @@ fn extract_all_of(data: Dynamic) -> Result(Option(List(SchemaProperty)), Nil) {
 /// to `None` and dropped by `extract_all_of`; `false` (nothing validates)
 /// and non-schema values fail the decode.
 fn all_of_member_decoder() -> Decoder(Option(SchemaProperty)) {
-  decode.one_of(property_decoder() |> decode.map(Some), [
+  decode.one_of(full_property_decoder(all_of_member: True) |> decode.map(Some), [
+    type_shorthand_decoder() |> decode.map(Some),
     decode.bool
-    |> decode.then(fn(is_permissive) {
-      case is_permissive {
-        True -> decode.success(None)
-        False -> decode.failure(None, "allOf member")
-      }
-    }),
+      |> decode.then(fn(is_permissive) {
+        case is_permissive {
+          True -> decode.success(None)
+          False -> decode.failure(None, "allOf member")
+        }
+      }),
   ])
 }
 
@@ -526,10 +544,16 @@ fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
 /// Extract array validation constraints (minItems / maxItems / uniqueItems)
 /// from dynamic JSON data.
 ///
+/// `normalize` clamps crossed `minItems > maxItems` to `minItems`; off for
+/// composed nodes, whose crossings the composer rejects instead.
+///
 /// ## Returns
 /// - `Some(ArrayConstraints)` if any constraint was found
 /// - `None` if no keyword is present (`uniqueItems: false` counts as absent)
-fn extract_array_constraints(data: Dynamic) -> Option(ArrayConstraints) {
+fn extract_array_constraints(
+  data: Dynamic,
+  normalize normalize: Bool,
+) -> Option(ArrayConstraints) {
   let min_items =
     decode.run(data, decode.at(["minItems"], decode.int))
     |> option.from_result()
@@ -547,7 +571,7 @@ fn extract_array_constraints(data: Dynamic) -> Option(ArrayConstraints) {
     // minItems > maxItems is unsatisfiable; normalize so minItems wins —
     // otherwise the reconcile pass tops the array up past maxItems and
     // wedges the form (both buttons hidden, submit permanently blocked).
-    Some(min), Some(max), _ if min > max ->
+    Some(min), Some(max), _ if normalize && min > max ->
       Some(ArrayConstraints(
         min_items: Some(min),
         max_items: Some(min),

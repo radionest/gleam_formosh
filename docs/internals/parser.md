@@ -34,12 +34,14 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
 4. Compose `allOf`: deep-merge member schemas (properties, required, bounds,
    `$ref` mixins); lift member conditionals to the parent.
 5. Normalize unsatisfiable constraints:
-   - `minItems > maxItems` authored directly on one node — its own bounds,
-     evaluated before any `$ref`/`allOf` merge — → `minItems` wins, fixed
-     size. E.g. `{"$ref": "#/$defs/Def" (no bounds), "minItems": 5,
-     "maxItems": 3}` normalizes to a fixed 5 regardless of the `$ref`; this
-     runs whether or not the node also carries a `$ref` or sits under
-     `allOf`, and is independent of step 3's merge.
+   - `minItems > maxItems` authored directly on a standalone node — its own
+     bounds, evaluated at decode, before any `$ref` merge — → `minItems`
+     wins, fixed size. E.g. `{"$ref": "#/$defs/Def" (no bounds),
+     "minItems": 5, "maxItems": 3}` normalizes to a fixed 5 regardless of
+     the `$ref`. A composed node — one carrying an effective `allOf` (not
+     empty / `true`-only; a `{}` member counts), or an inline `allOf`
+     member itself — skips this:
+     its crossed bounds stay raw and fail the merge below.
    - conflicting `type` / crossed bounds arising from a merge (`allOf`
      composition or a `$ref` sibling merge) → `UnsatisfiableSchema` error.
 6. Emit parsed schema or `ParseError`.

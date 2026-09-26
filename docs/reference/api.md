@@ -331,6 +331,8 @@ pub type ParseError {
 `anyOf` single-survivor collapse whose type is disjoint from a
 parent-declared `type` — validates nothing (conflicting `type`s or crossed
 bounds), rather than silently producing a schema that rejects everything.
+It is also returned when `minItems`/`maxItems` beside a `$ref` cross the
+definition's bounds.
 
 ## Imports cheat-sheet
 
