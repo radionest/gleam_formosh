@@ -21,8 +21,9 @@ description: "Msg handling and state transitions: field edits, add/remove array 
   2. recompute visibility (conditional fields)
   3. re-run validation for the touched path (and dependents)
   4. return new model + any effects
-- Touch gating: errors hidden until a field is touched; array-length
-  violations are the exception (always visible — see README "Arrays").
+- Touch gating: errors hidden until a field is touched; array-level
+  violations (`minItems`/`maxItems`/`uniqueItems`) are the exception
+  (always visible — see README "Arrays").
 - Submit flow: gather values → run validator → invoke configured handler
   (HTTP / custom / none) → surface success/error state.
 

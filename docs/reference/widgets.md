@@ -36,7 +36,9 @@ flowchart TD
     NO -- "yes" --> EN
     NO -- "no" --> NUM["number input (step from multipleOf)"]
     T -- "BooleanType" --> B["Yes/No radio group"]
-    T -- "ArrayType" --> A["add/remove list container"]
+    T -- "ArrayType" --> AU{"uniqueItems + scalar items<br/>with enum / oneOf options?"}
+    AU -- "yes" --> CB["checkbox group"]
+    AU -- "no" --> A["add/remove list container"]
     T -- "ObjectType" --> O["nested fieldset"]
     T -- "none" --> E{"enum_values / one_of?"}
     E -- "yes" --> EN["enum (radio or select)"]
@@ -205,10 +207,46 @@ and UiSchema flags:
 | **Remove** | `removable` (default true) **and** above `minItems` (if set) |
 | **Move up/down** | `orderable` (default true) **and** more than one row |
 
-Rows auto-create up to `minItems` (with item-field defaults applied). Array
+Rows auto-create up to `minItems` (checkbox groups excepted, below) (with item-field defaults applied). Array
 items can themselves be objects or arrays — nesting to any depth — so the
 container recurses through the same dispatcher. (Collapsing completed rows,
 below, is narrower: only object-shaped rows ever qualify.)
+
+### Checkbox group (multi-select)
+
+An array with `uniqueItems: true` whose `items` is a scalar schema with
+options — `oneOf` const+title members, or an `enum` of two or more values —
+renders as one checkbox per option instead of the row editor:
+
+```json
+{
+  "type": "array",
+  "uniqueItems": true,
+  "items": {
+    "type": "integer",
+    "oneOf": [
+      { "const": 1, "title": "Liver" },
+      { "const": 2, "title": "Lung" }
+    ]
+  }
+}
+```
+
+- The value is the checked options' typed consts in **schema order**, not
+  click order (`[1, 2]`, never `["1", "2"]`).
+- Unchecking the last box **removes the key**, like the select placeholder —
+  so `required` means "pick at least one". `minItems` / `maxItems` apply
+  once something is picked.
+- Once `maxItems` options are checked, the remaining boxes are disabled.
+- No rows are auto-created for `minItems`; an under-`minItems` selection is
+  reported as an error instead.
+- A stored value that is not one of the options (e.g. from
+  `initial-values`) is dropped on the first click.
+- Without `uniqueItems` the same array keeps the row editor, since
+  duplicates are allowed there. No `ui:widget` override applies
+  (`"hidden"` still hides it).
+- Parts: `checkbox-list`, `checkbox-item` — see
+  [Styling](../guides/styling.md).
 
 ### Collapsing completed rows
 

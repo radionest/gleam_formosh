@@ -62,16 +62,16 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | Keyword | Status | Notes |
 |---------|--------|-------|
 | `items` | ✅ | Object and array `items` nest to any depth, including arrays inside array items. |
-| `minItems` | ✅ | Length validation + auto-creates rows up to `minItems`; hides Remove when shrinking would violate it. |
+| `minItems` | ✅ | Length validation + auto-creates rows up to `minItems` (not for checkbox groups); hides Remove when shrinking would violate it. |
 | `maxItems` | ✅ | Length validation + hides Add once reached. |
 | `prefixItems` (tuple validation) | ❌ | Not parsed. |
-| `uniqueItems` | ❌ | Not parsed. |
+| `uniqueItems` | ✅ | Duplicate elements → `uniqueItems` error at the array path (structural equality: `1` ≠ `1.0`). With scalar option `items` it switches the array to the [checkbox group](widgets.md#checkbox-group-multi-select). Across `allOf` members it combines with OR. |
 | `contains` / `minContains` / `maxContains` | ❌ | Not parsed. |
 
 **Bounds normalization.** A schema with `minItems > maxItems`
 (unsatisfiable) is normalized at parse time so `minItems` wins — the array
-renders as fixed-size at `minItems` rows. Array-length violations coming
-from externally supplied values are always shown (they bypass the
+renders as fixed-size at `minItems` rows. Array-level violations
+(`minItems` / `maxItems` / `uniqueItems`) are always shown (they bypass the
 field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 
 ## String constraints

@@ -17,10 +17,12 @@ model.errors : Dict(String, List(ValidationError))
    ▼
 model.touched_fields : List(FieldPath)
    │   gate: errors stay hidden until the field is touched.
-   │   exception: array-length errors (minItems/maxItems) always render —
-   │   add/remove button gating makes them unreachable via the UI, so they
-   │   only come from externally injected values, where the message is the
-   │   only explanation for a blocked submit (error.is_array_length).
+   │   exception: array-level errors (minItems/maxItems/uniqueItems)
+   │   always render — button gating (minItems/maxItems) or the fact
+   │   that a duplicate is touched at the row path, never the array
+   │   path itself (uniqueItems), keeps them unreachable via the
+   │   array field's own touch, so the message is the only
+   │   explanation for a blocked submit (error.is_array_length).
    │   set by model.mark_field_touched/2 — called from update.gleam on
    │   field change/blur and on swipe-review answer commits.
    ▼

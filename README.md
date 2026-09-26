@@ -197,7 +197,9 @@ is reached. Violations coming from externally supplied values are reported
 as validation errors on the array itself and are always visible (they skip
 the usual touched gate — button gating means they can never be caused by
 form interaction, so the message is the only explanation for a blocked
-submit). A schema with `minItems > maxItems` (unsatisfiable) is normalized
+submit). Duplicate elements under `uniqueItems` are likewise always visible
+— a duplicate is typed into a row field, which touches that row's own path,
+never the array path itself. A schema with `minItems > maxItems` (unsatisfiable) is normalized
 at parse time so `minItems` wins: the array renders as fixed-size at
 `minItems` rows.
 
@@ -384,14 +386,14 @@ The widget is chosen automatically based on schema:
 - **Conditional:** `if`/`then`/`else` — fully dynamic, re-evaluated on every field change
 - **String constraints:** `minLength`, `maxLength`, `format` (date, email, password, url/uri, time, date-time, uuid)
 - **Number constraints:** `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
-- **Array constraints:** `minItems`, `maxItems` — length validation, add/remove button gating, and auto-created rows up to `minItems`
+- **Array constraints:** `minItems`, `maxItems` — length validation, add/remove button gating, and auto-created rows up to `minItems`; `uniqueItems` — validated (option-list arrays render as a checkbox group instead of the row editor)
 
 ### Validation
 
 - Required field checks
 - String length bounds (minLength, maxLength)
 - Number bounds (min, max, exclusive, multipleOf)
-- Array length bounds (minItems, maxItems)
+- Array length bounds (minItems, maxItems) and uniqueItems (duplicate elements)
 - Basic format validation: email (checks `@` and `.`), url (checks `http(s)://` prefix)
 
 ### Other

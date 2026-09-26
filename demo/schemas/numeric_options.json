@@ -37,6 +37,21 @@
       "title": "Размер, мм — number enum → radio",
       "enum": [5, 10, 15.5]
     },
+    "segments_multi": {
+      "type": "array",
+      "title": "Сегменты — integer oneOf + uniqueItems → checkboxes (max 3)",
+      "uniqueItems": true,
+      "maxItems": 3,
+      "items": {
+        "type": "integer",
+        "oneOf": [
+          { "const": 1, "title": "S1" },
+          { "const": 2, "title": "S2" },
+          { "const": 3, "title": "S3" },
+          { "const": 4, "title": "S4" }
+        ]
+      }
+    },
     "schema_version": {
       "type": "integer",
       "title": "Schema version — bare const → number input",
