@@ -59,6 +59,10 @@ test("mount renders fields and signals ready", async () => {
     window.__setSchema(s);
   }, SCHEMA);
   await lastEvent("formosh-ready");
+  // "formosh-ready" fires before the shadow-DOM patch lands (see
+  // waitForField below) — wait for the field to actually render before
+  // counting inputs off a possibly-stale shadow root.
+  await waitForField("name");
   const inputCount = await shadowEval(
     () =>
       document
