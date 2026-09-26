@@ -388,8 +388,7 @@ required fields.
 
 What that collapsed row actually *shows* turns on `show_readonly_fields`,
 since `zone_id` and `label` are both `readOnly`. In the demo they appear
-because `<formosh-form>` defaults that flag **on** — the page's own
-`show-readonly-fields="true"` only restates the default. Build the same
+because `<formosh-form>` defaults that flag **on**. Build the same
 form through `FormConfig`, where the flag defaults to `False`, and both
 fields are suppressed from the summary along with everything else the
 expanded row hides, leaving the row number as the only thing left to
