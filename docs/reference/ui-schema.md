@@ -375,7 +375,10 @@ an array (`"Очаги: 2"` only appears because the author asked for it).
 
 A row collapses once `affected` is set to `false` — `false` still counts
 as a filled field (only an absent, null, empty-string, empty-array, or
-empty-object value doesn't), and with `affected` false the schema requires
+empty-object value doesn't — nor does an array/object whose members are
+themselves all blank, e.g. `{"tags":[null]}` or a nested `{"street":""}`;
+`field_requirements.is_blank_value` is the shared recursive check), and
+with `affected` false the schema requires
 no `lesions` at all, so there's nothing left that could fail. Setting
 `affected` to `true` reopens the row, because the lesion the schema then
 auto-creates (`minItems: 1`) starts out unfilled and fails its own

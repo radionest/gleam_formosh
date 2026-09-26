@@ -144,6 +144,32 @@ pub fn all_optional_empty_row_is_not_completed_test() {
   completed(m, rows, 0) |> should.be_false
 }
 
+// A row whose only value is a nested array/object that is itself all blank
+// (e.g. `{"tags":[null]}` from a nested `minItems` top-up) must not count
+// as "has any value" — pins the `field_requirements.is_blank_value` widening
+// (docs/reference/ui-schema.md's collapse-completed "filled in" rule).
+pub fn nested_all_blank_field_is_not_completed_test() {
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"tags\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}}}}",
+    )
+  let rows = [
+    types.ObjectValue([#("tags", types.ArrayValue([types.NullValue]))]),
+  ]
+  let m =
+    model.FormModel(
+      ..model.init_with_full_config(
+        schema,
+        None,
+        False,
+        dict.new(),
+        ui_schema.empty_ui_schema(),
+      ),
+      values: types.ObjectValue([#("zones", types.ArrayValue(rows))]),
+    )
+  completed(m, rows, 0) |> should.be_false
+}
+
 pub fn only_invalid_rows_are_reported_incomplete_test() {
   let rows = [
     types.ObjectValue([#("state", types.StringValue("absent"))]),
