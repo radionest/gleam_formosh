@@ -7,8 +7,9 @@ import formosh/schema/types.{
   type ConditionalRule, type JsonSchema, type SchemaProperty,
 }
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 
@@ -20,6 +21,10 @@ pub type ResolveError {
   CircularReference(String)
   /// Invalid reference format
   InvalidReference(String)
+  /// A `$ref` sibling's array bounds cross the definition's after merging
+  /// (e.g. sibling `minItems` > definition `maxItems`) — same conjunctive
+  /// semantics as `allOf` (`composer.check_array_constraints`).
+  UnsatisfiableSchema(String)
 }
 
 /// Resolve all $ref references in a JSON Schema
@@ -135,8 +140,21 @@ fn resolve_property_ref(
                 visited,
               ))
 
-              // Merge the resolved property with any local overrides
-              Ok(merge_properties(resolved_local, resolved))
+              // Merge the resolved property with any local overrides, then
+              // reject a merge that crosses array bounds (a sibling
+              // `minItems`/`maxItems` against the definition's) instead of
+              // silently shipping a form that validates nothing.
+              let merged = merge_properties(resolved_local, resolved)
+              case array_constraints_crossed_reason(merged.array_constraints) {
+                Some(reason) ->
+                  Error(UnsatisfiableSchema(
+                    "unsatisfiable schema at $ref "
+                    <> ref_path
+                    <> ": "
+                    <> reason,
+                  ))
+                None -> Ok(merged)
+              }
             }
             Error(_) -> Error(ReferenceNotFound(ref_path))
           }
@@ -350,39 +368,53 @@ fn merge_properties(
   )
 }
 
-/// Merge two `ArrayConstraints`, field by field, keeping `merge_properties`'s
-/// "referencing wins" semantics per field rather than for the whole record —
-/// a `$ref` sibling that only sets one keyword (e.g. `uniqueItems`) must not
-/// wipe out the referenced definition's other constraints (`minItems` /
-/// `maxItems`). `unique_items` OR-merges like the boolean hints above: a
-/// referenced `true` must survive a referencing side that doesn't set it.
-fn merge_array_constraints(
-  referencing: option.Option(types.ArrayConstraints),
-  referenced: option.Option(types.ArrayConstraints),
+/// Merge two `ArrayConstraints` field by field, stricter-wins — the same
+/// conjunctive rule `composer`'s `allOf` merge applies: `min_items` is the
+/// higher floor, `max_items` is the lower ceiling, `unique_items` is true if
+/// either side sets it. Shared by both merge sites (`$ref` sibling here,
+/// `allOf` member in `composer.merge_pair`) so they agree on one rule.
+/// A merge that crosses bounds is not rejected here — see
+/// `array_constraints_crossed_reason`, checked separately by each caller.
+pub fn merge_array_constraints(
+  a: option.Option(types.ArrayConstraints),
+  b: option.Option(types.ArrayConstraints),
 ) -> option.Option(types.ArrayConstraints) {
-  case referencing, referenced {
+  case a, b {
     None, None -> None
-    Some(r), None -> Some(r)
-    None, Some(r) -> Some(r)
-    Some(r), Some(d) -> {
-      let min_items = option.or(r.min_items, d.min_items)
-      let max_items = option.or(r.max_items, d.max_items)
-      // Per-field merging can cross bounds even when neither side alone is
-      // unsatisfiable (referencing minItems > referenced maxItems, or vice
-      // versa) — apply the same min-wins normalization as the parser
-      // (parser.extract_array_constraints) so a crossed pair doesn't wedge
-      // the form (ensure_min_items tops up past maxItems, Add/Remove
-      // hidden, submit permanently blocked).
-      let max_items = case min_items, max_items {
-        Some(min), Some(max) if min > max -> Some(min)
-        _, _ -> max_items
-      }
+    Some(x), None -> Some(x)
+    None, Some(x) -> Some(x)
+    Some(x), Some(y) ->
       Some(types.ArrayConstraints(
-        min_items: min_items,
-        max_items: max_items,
-        unique_items: r.unique_items || d.unique_items,
+        min_items: case x.min_items, y.min_items {
+          Some(m1), Some(m2) -> Some(int.max(m1, m2))
+          m1, m2 -> option.or(m2, m1)
+        },
+        max_items: case x.max_items, y.max_items {
+          Some(m1), Some(m2) -> Some(int.min(m1, m2))
+          m1, m2 -> option.or(m2, m1)
+        },
+        unique_items: x.unique_items || y.unique_items,
       ))
-    }
+  }
+}
+
+/// `Some(reason)` when a merged `ArrayConstraints` pair validates nothing
+/// (`min_items > max_items`), else `None`. Shared by the `$ref` merge above
+/// and `composer.check_array_constraints` (`allOf` members).
+pub fn array_constraints_crossed_reason(
+  c: option.Option(types.ArrayConstraints),
+) -> Option(String) {
+  case c {
+    Some(types.ArrayConstraints(min_items: Some(min), max_items: Some(max), ..))
+      if min > max
+    ->
+      Some(
+        "minItems "
+        <> int.to_string(min)
+        <> " > maxItems "
+        <> int.to_string(max),
+      )
+    _ -> None
   }
 }
 

@@ -67,7 +67,7 @@ pub fn all_of_ors_unique_items_in_either_order_test() {
 // Regression: a `$ref` sibling that only sets `uniqueItems` (or only
 // `maxItems`) must not wipe out the referenced definition's other array
 // constraints — the resolver merges `array_constraints` field by field,
-// keeping "referencing wins" per field, not as a whole record.
+// stricter-wins per field (same rule `allOf` uses), not as a whole record.
 pub fn ref_sibling_merges_array_constraints_field_by_field_test() {
   let assert Ok(schema) =
     parser.parse_schema(
@@ -96,43 +96,40 @@ pub fn ref_sibling_merges_array_constraints_field_by_field_test() {
       unique_items: True,
     )),
   )
-}
 
-// A merged $ref + sibling pair can cross bounds even when neither side
-// alone is unsatisfiable (referencing minItems > referenced maxItems, or
-// vice versa) — the per-field merge above must apply the same min-wins
-// normalization the parser applies per node (parser.extract_array_constraints),
-// otherwise ensure_min_items tops the array up past maxItems and wedges
-// the form (Add/Remove hidden, maxItems error bypasses the touch gate,
-// submit permanently blocked).
-pub fn ref_sibling_crossing_bounds_normalizes_min_wins_test() {
-  let assert Ok(schema) =
+  // Both sides set maxItems — stricter (smaller) wins.
+  let assert Ok(schema3) =
     parser.parse_schema(
-      "{\"type\":\"object\",\"$defs\":{\"Tags2\":{\"type\":\"array\",\"maxItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags2\",\"minItems\":5}}}",
+      "{\"type\":\"object\",\"$defs\":{\"Tags4\":{\"type\":\"array\",\"maxItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags4\",\"maxItems\":10}}}",
     )
-  let assert Ok(prop) = list.key_find(schema.properties, "n")
-  prop.array_constraints
+  let assert Ok(prop3) = list.key_find(schema3.properties, "n")
+  prop3.array_constraints
   |> should.equal(
     Some(ArrayConstraints(
-      min_items: Some(5),
-      max_items: Some(5),
-      unique_items: False,
-    )),
-  )
-
-  let assert Ok(schema2) =
-    parser.parse_schema(
-      "{\"type\":\"object\",\"$defs\":{\"Tags3\":{\"type\":\"array\",\"minItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags3\",\"maxItems\":1}}}",
-    )
-  let assert Ok(prop2) = list.key_find(schema2.properties, "n")
-  prop2.array_constraints
-  |> should.equal(
-    Some(ArrayConstraints(
-      min_items: Some(3),
+      min_items: None,
       max_items: Some(3),
       unique_items: False,
     )),
   )
+}
+
+// A merged $ref + sibling pair can cross bounds even when neither side
+// alone is unsatisfiable (referencing minItems > referenced maxItems, or
+// vice versa) — same conjunctive semantics as `allOf`: a crossed merge
+// validates nothing, so parsing must fail with `UnsatisfiableSchema`
+// instead of silently normalizing to one side.
+pub fn ref_sibling_crossing_bounds_is_unsatisfiable_test() {
+  let assert Error(types.UnsatisfiableSchema(msg)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"Tags2\":{\"type\":\"array\",\"maxItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags2\",\"minItems\":5}}}",
+    )
+  msg |> string.contains("minItems") |> should.be_true
+  msg |> string.contains("maxItems") |> should.be_true
+
+  let assert Error(types.UnsatisfiableSchema(_)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"Tags3\":{\"type\":\"array\",\"minItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags3\",\"maxItems\":1}}}",
+    )
 }
 
 pub fn serializer_emits_unique_items_test() {

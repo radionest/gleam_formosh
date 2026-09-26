@@ -23,16 +23,17 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
 3. Resolve `$ref` against `$defs` / `definitions` (JSON Pointer).
    - Cycle detection → reject circular refs.
    - Keywords beside the `$ref` win over the definition's; `array_constraints`
-     merge per keyword (`resolver.merge_array_constraints`), with crossed
-     bounds normalized min-wins.
+     merge per keyword, stricter-wins (`resolver.merge_array_constraints`,
+     shared with the `allOf` merge below). A crossed result (sibling
+     `minItems` > definition `maxItems`, or vice versa) is a `ParseError`
+     (`resolver.array_constraints_crossed_reason`), same as a crossed `allOf`.
 4. Compose `allOf`: deep-merge member schemas (properties, required, bounds,
    `$ref` mixins); lift member conditionals to the parent.
 5. Normalize unsatisfiable constraints:
-   - `minItems > maxItems` → `minItems` wins, fixed size — per node at parse,
-     and again after a `$ref` sibling merge; `composer.check_array_constraints`
-     (strict `ParseError`) only runs in `merge_pair` (a non-empty `allOf`, or
-     an `anyOf` collapsing to a single non-null member).
-   - conflicting `type` / crossed bounds → `UnsatisfiableSchema` error.
+   - `minItems > maxItems` on a single node (no `allOf`, no `$ref` sibling)
+     → `minItems` wins, fixed size.
+   - conflicting `type` / crossed bounds (from `allOf` composition or a
+     `$ref` sibling merge) → `UnsatisfiableSchema` error.
 6. Emit parsed schema or `ParseError`.
 
 **Cross-links**

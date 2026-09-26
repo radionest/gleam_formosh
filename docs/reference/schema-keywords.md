@@ -50,7 +50,7 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | `properties` | ✅ | Order-preserving (stored as `List`, never `Dict`). |
 | `required` | ✅ | Required-field validation; controls the `*` indicator and submit gating. |
 | `$defs` / `definitions` | ✅ | Stored on the root; referenced via `$ref`. |
-| `$ref` (`#/$defs/...`, `#/definitions/...`) | ✅ | JSON-Pointer resolved by `schema/resolver.gleam`; **circular refs are detected and rejected**. Array keywords beside a `$ref` merge per keyword with the definition's: `minItems` / `maxItems` each come from the sibling when set, else the definition; `uniqueItems` is true if either side sets it. String/number constraints beside a `$ref` still replace the definition's wholesale. |
+| `$ref` (`#/$defs/...`, `#/definitions/...`) | ✅ | JSON-Pointer resolved by `schema/resolver.gleam`; **circular refs are detected and rejected**. Array keywords beside a `$ref` merge per keyword with the definition's, stricter-wins — same rule `allOf` uses (below): `minItems` is the higher floor, `maxItems` is the lower ceiling, `uniqueItems` is true if either side sets it. A merge that crosses bounds (sibling `minItems` > definition `maxItems`, or vice versa) fails parsing with `UnsatisfiableSchema`, same as a crossed `allOf` merge. String/number constraints beside a `$ref` still replace the definition's wholesale. |
 | `additionalProperties` | ❌ | Not parsed. |
 | `patternProperties` | ❌ | Not parsed. |
 | `minProperties` / `maxProperties` | ❌ | Not parsed. |
@@ -65,16 +65,15 @@ enforced**, **parsed only** (stored on the schema but not acted on), or
 | `minItems` | ✅ | Length validation + auto-creates rows up to `minItems` (not for checkbox groups); hides Remove when shrinking would violate it. |
 | `maxItems` | ✅ | Length validation + hides Add once reached. |
 | `prefixItems` (tuple validation) | ❌ | Not parsed. |
-| `uniqueItems` | ✅ | Duplicate elements → `uniqueItems` error at the array path (structural equality: `1` ≠ `1.0`; objects differing only in key order also count as distinct). Blank elements are ignored by the check — recursively: `null`, an empty string, and any array/object whose members are all themselves blank (e.g. `[]`, `{}`, `{"a":""}`, `{"tags":[null]}`). With scalar option `items` it switches the array to the [checkbox group](widgets.md#checkbox-group-multi-select). Across `allOf` members it combines with OR. |
+| `uniqueItems` | ✅ | Duplicate elements → `uniqueItems` error at the array path (structural equality: `1` ≠ `1.0`; objects differing only in key order also count as distinct). Blank elements are ignored by the check — recursively: `null`, an empty string, and any array/object whose members are all themselves blank (e.g. `[]`, `{}`, `{"a":""}`, `{"tags":[null]}`). With scalar option `items` it switches the array to the [checkbox group](widgets.md#checkbox-group-multi-select). Across `allOf` members, and beside a `$ref`, it combines with OR. |
 | `contains` / `minContains` / `maxContains` | ❌ | Not parsed. |
 
 **Bounds normalization.** A schema with `minItems > maxItems`
 (unsatisfiable) is normalized at parse time so `minItems` wins — the array
-renders as fixed-size at `minItems` rows. The same min-wins rule applies
-when a `$ref` sibling's bound crosses the definition's (sibling
-`minItems: 5` over a definition's `maxItems: 3` → fixed at 5 rows); crossed
-bounds from `allOf` members fail parsing instead (see `allOf` below).
-Array-level violations
+renders as fixed-size at `minItems` rows. A `$ref` sibling's bound crossing
+the definition's, or crossed bounds from `allOf` members, both fail parsing
+instead, with `UnsatisfiableSchema` (see `allOf` below). Array-level
+violations
 (`minItems` / `maxItems` / `uniqueItems`) are always shown (they bypass the
 field-touched gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 

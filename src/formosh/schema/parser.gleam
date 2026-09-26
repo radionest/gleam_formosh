@@ -66,6 +66,7 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
           UnexpectedValue("Circular reference detected: " <> ref)
         resolver.InvalidReference(ref) ->
           UnexpectedValue("Invalid reference format: " <> ref)
+        resolver.UnsatisfiableSchema(msg) -> types.UnsatisfiableSchema(msg)
       }
     }),
   )
