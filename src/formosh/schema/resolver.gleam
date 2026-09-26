@@ -27,6 +27,17 @@ pub type ResolveError {
   UnsatisfiableSchema(String)
 }
 
+/// Format an accumulated (head-first) property path as a JSON-pointer-ish
+/// breadcrumb for error messages, e.g. `["n"]` -> "#/n". Shared with
+/// `composer.unsatisfiable`, which uses the same format for `allOf` crossed
+/// bounds, so both merge sites' errors read alike.
+pub fn path_string(path: List(String)) -> String {
+  case path {
+    [] -> "#"
+    segments -> "#/" <> string.join(list.reverse(segments), "/")
+  }
+}
+
 /// Resolve all $ref references in a JSON Schema
 /// 
 /// This function recursively resolves all $ref references in the schema,
@@ -48,19 +59,22 @@ pub fn resolve_refs(schema: JsonSchema) -> Result(JsonSchema, ResolveError) {
 
   // Resolve references in top-level properties
   use resolved_properties <- result.try(
-    resolve_properties_refs(schema.properties, context, []),
+    resolve_properties_refs(schema.properties, context, [], []),
   )
 
   // Resolve references inside top-level conditional rules (allOf / if / then / else)
   use resolved_conditionals <- result.try(
-    list.try_map(schema.conditionals, resolve_conditional_rule(_, context, [])),
+    list.try_map(
+      schema.conditionals,
+      resolve_conditional_rule(_, context, [], []),
+    ),
   )
 
   // Resolve references inside root-level allOf members
   use resolved_all_of <- result.try(
     try_optional(
       schema.all_of,
-      list.try_map(_, resolve_property_ref(_, context, [])),
+      list.try_map(_, resolve_property_ref(_, context, [], [])),
     ),
   )
 
@@ -83,33 +97,42 @@ pub fn resolve_property(
   property: SchemaProperty,
   defs: option.Option(Dict(String, SchemaProperty)),
 ) -> Result(SchemaProperty, ResolveError) {
-  resolve_property_ref(property, option.unwrap(defs, dict.new()), [])
+  resolve_property_ref(property, option.unwrap(defs, dict.new()), [], [])
 }
 
-/// Resolve references in an ordered list of properties, preserving key order.
+/// Resolve references in an ordered list of properties, preserving key
+/// order. `path` accumulates head-first (see `path_string`) so a crossed
+/// `$ref` sibling merge inside one of these properties can name the
+/// referencing property, not just the `$ref` target.
 fn resolve_properties_refs(
   properties: List(#(String, SchemaProperty)),
   context: Dict(String, SchemaProperty),
   visited: List(String),
+  path: List(String),
 ) -> Result(List(#(String, SchemaProperty)), ResolveError) {
   properties
   |> list.try_map(fn(entry) {
     let #(key, prop) = entry
-    use resolved_prop <- result.try(resolve_property_ref(prop, context, visited))
+    use resolved_prop <- result.try(
+      resolve_property_ref(prop, context, visited, [key, ..path]),
+    )
     Ok(#(key, resolved_prop))
   })
 }
 
-/// Resolve a single property that might contain a $ref
+/// Resolve a single property that might contain a $ref. `path` is the
+/// accumulated (head-first) property path down to this node, used only to
+/// name the referencing site in a crossed-bounds error (see `path_string`).
 fn resolve_property_ref(
   property: SchemaProperty,
   context: Dict(String, SchemaProperty),
   visited: List(String),
+  path: List(String),
 ) -> Result(SchemaProperty, ResolveError) {
   case property.ref {
     None -> {
       // No reference, but might have nested properties or items to resolve
-      resolve_nested_refs(property, context, visited)
+      resolve_nested_refs(property, context, visited, path)
     }
     Some(ref_path) -> {
       // Check for circular reference
@@ -121,13 +144,20 @@ fn resolve_property_ref(
 
           case dict.get(context, definition_name) {
             Ok(referenced_property) -> {
-              // Recursively resolve any references in the referenced property
+              // Recursively resolve any references in the referenced
+              // property. It isn't reachable from the schema root by the
+              // same property path (it lives under `$defs`), so this
+              // doesn't extend `path` — an unsatisfiable error inside the
+              // definition itself would name only its own subtree.
               let new_visited = [ref_path, ..visited]
-              use resolved <- result.try(resolve_property_ref(
-                referenced_property,
-                context,
-                new_visited,
-              ))
+              use resolved <- result.try(
+                resolve_property_ref(
+                  referenced_property,
+                  context,
+                  new_visited,
+                  [],
+                ),
+              )
 
               // Resolve refs nested in the referencing node's own subtree
               // (items, properties, allOf members, conditionals) before the
@@ -138,19 +168,24 @@ fn resolve_property_ref(
                 property,
                 context,
                 visited,
+                path,
               ))
 
               // Merge the resolved property with any local overrides, then
               // reject a merge that crosses array bounds (a sibling
               // `minItems`/`maxItems` against the definition's) instead of
-              // silently shipping a form that validates nothing.
+              // silently shipping a form that validates nothing. Names the
+              // referencing property (`path`), not just the `$ref` target,
+              // matching `composer.unsatisfiable`'s breadcrumb for `allOf`.
               let merged = merge_properties(resolved_local, resolved)
               case array_constraints_crossed_reason(merged.array_constraints) {
                 Some(reason) ->
                   Error(UnsatisfiableSchema(
-                    "unsatisfiable schema at $ref "
+                    "unsatisfiable schema at "
+                    <> path_string(path)
+                    <> " ($ref "
                     <> ref_path
-                    <> ": "
+                    <> "): "
                     <> reason,
                   ))
                 None -> Ok(merged)
@@ -175,35 +210,44 @@ pub fn try_optional(
   }
 }
 
-/// Resolve references in nested properties and items
+/// Resolve references in nested properties and items. `path` extends with
+/// `"items"` for the array-item template (matching `composer.merge_pair`'s
+/// breadcrumb convention) and is passed through unchanged for one_of/any_of/
+/// all_of members and conditionals — those don't currently need per-member
+/// breadcrumb precision, only the direct-property and array-item cases do.
 fn resolve_nested_refs(
   property: SchemaProperty,
   context: Dict(String, SchemaProperty),
   visited: List(String),
+  path: List(String),
 ) -> Result(SchemaProperty, ResolveError) {
   use resolved_properties <- result.try(
     try_optional(property.properties, resolve_properties_refs(
       _,
       context,
       visited,
+      path,
     )),
   )
 
   use resolved_items <- result.try(
-    try_optional(property.items, resolve_property_ref(_, context, visited)),
+    try_optional(
+      property.items,
+      resolve_property_ref(_, context, visited, ["items", ..path]),
+    ),
   )
 
   use resolved_one_of <- result.try(
     try_optional(
       property.one_of,
-      list.try_map(_, resolve_property_ref(_, context, visited)),
+      list.try_map(_, resolve_property_ref(_, context, visited, path)),
     ),
   )
 
   use resolved_any_of <- result.try(
     try_optional(
       property.any_of,
-      list.try_map(_, resolve_property_ref(_, context, visited)),
+      list.try_map(_, resolve_property_ref(_, context, visited, path)),
     ),
   )
 
@@ -212,13 +256,14 @@ fn resolve_nested_refs(
       _,
       context,
       visited,
+      path,
     )),
   )
 
   use resolved_all_of <- result.try(
     try_optional(
       property.all_of,
-      list.try_map(_, resolve_property_ref(_, context, visited)),
+      list.try_map(_, resolve_property_ref(_, context, visited, path)),
     ),
   )
 
@@ -245,8 +290,9 @@ fn resolve_conditional_rule(
   rule: ConditionalRule,
   context: Dict(String, SchemaProperty),
   visited: List(String),
+  path: List(String),
 ) -> Result(ConditionalRule, ResolveError) {
-  let resolve_one = resolve_property_ref(_, context, visited)
+  let resolve_one = resolve_property_ref(_, context, visited, path)
   use if_resolved <- result.try(resolve_one(rule.if_schema))
   use then_resolved <- result.try(try_optional(rule.then_schema, resolve_one))
   use else_resolved <- result.try(try_optional(rule.else_schema, resolve_one))

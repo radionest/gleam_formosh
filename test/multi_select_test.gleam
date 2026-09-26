@@ -124,11 +124,24 @@ pub fn ref_sibling_crossing_bounds_is_unsatisfiable_test() {
     )
   msg |> string.contains("minItems") |> should.be_true
   msg |> string.contains("maxItems") |> should.be_true
+  // Names the referencing property ("#/n"), not just the $ref target.
+  msg |> string.contains("#/n") |> should.be_true
 
-  let assert Error(types.UnsatisfiableSchema(_)) =
+  let assert Error(types.UnsatisfiableSchema(msg2)) =
     parser.parse_schema(
       "{\"type\":\"object\",\"$defs\":{\"Tags3\":{\"type\":\"array\",\"minItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags3\",\"maxItems\":1}}}",
     )
+  msg2 |> string.contains("#/n") |> should.be_true
+}
+
+// The referencing-property breadcrumb accumulates through nesting, same as
+// composer's `allOf` breadcrumb (`#/outer/n`), not just the immediate key.
+pub fn ref_sibling_crossing_bounds_names_nested_property_test() {
+  let assert Error(types.UnsatisfiableSchema(msg)) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"$defs\":{\"Tags2\":{\"type\":\"array\",\"maxItems\":3,\"items\":{\"type\":\"string\"}}},\"properties\":{\"outer\":{\"type\":\"object\",\"properties\":{\"n\":{\"$ref\":\"#/$defs/Tags2\",\"minItems\":5}}}}}",
+    )
+  msg |> string.contains("#/outer/n") |> should.be_true
 }
 
 pub fn serializer_emits_unique_items_test() {

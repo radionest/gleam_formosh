@@ -26,20 +26,10 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import gleam/string
-
-/// Format the descent path (accumulated head-first) as a JSON-pointer-ish
-/// breadcrumb for error messages.
-fn path_string(path: List(String)) -> String {
-  case path {
-    [] -> "#"
-    segments -> "#/" <> string.join(list.reverse(segments), "/")
-  }
-}
 
 fn unsatisfiable(path: List(String), reason: String) -> ParseError {
   UnsatisfiableSchema(
-    "unsatisfiable schema at " <> path_string(path) <> ": " <> reason,
+    "unsatisfiable schema at " <> resolver.path_string(path) <> ": " <> reason,
   )
 }
 
