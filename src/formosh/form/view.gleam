@@ -6,6 +6,7 @@ import formosh/fields/layout
 import formosh/fields/readonly_field
 import formosh/form/model.{type FormModel, type FormMsg}
 import formosh/form/path
+import formosh/internal/stylesheet
 import formosh/schema/properties
 import formosh/schema/types
 import gleam/list
@@ -23,6 +24,9 @@ pub fn view(model: FormModel) -> Element(FormMsg) {
       attribute.attribute("part", "container"),
     ],
     [
+      // Always present and always first, so it never shifts a sibling's
+      // position in Lustre's unkeyed diff.
+      stylesheet.element(),
       render_form_header(model),
       render_form_body(model),
       render_submission_result(model),
