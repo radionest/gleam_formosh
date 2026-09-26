@@ -46,7 +46,9 @@ Three tiers, fastest/most-isolated first:
    (`/usr/bin/google-chrome` by default, override with `CHROME_PATH`)
    against `e2e/harness.html` served by `e2e/server.mjs`. Covers what the
    two Gleam tiers can't reach — real custom-element mounting, DOM event
-   listeners, attribute swaps, and submit round-trips.
+   listeners, attribute swaps, submit round-trips, and computed styles
+   from formosh's `@layer formosh` stylesheet
+   (`e2e/style-layer.e2e.test.mjs`).
 
 **Known gaps** (ROADMAP debts, not exercised by any tier):
 

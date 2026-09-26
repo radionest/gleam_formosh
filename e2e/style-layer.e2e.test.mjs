@@ -116,6 +116,7 @@ async function rowMetrics() {
       tops: [...row.children].map((c) =>
         Math.round(c.getBoundingClientRect().top),
       ),
+      gap: getComputedStyle(row).columnGap,
     };
   });
 }
@@ -178,9 +179,14 @@ test("a Row is a grid with no page CSS and keeps three fields on one line", asyn
     width: 900,
     readySelector: '[part~=row] > [data-name="c"]',
   });
-  const { display, tops } = await rowMetrics();
+  const { display, tops, gap } = await rowMetrics();
   assert.equal(display, "grid");
   assert.equal(new Set(tops).size, 1, `expected one line, got tops ${tops}`);
+  assert.equal(gap, "16px");
+  await page.evaluate(() =>
+    document.getElementById("form").style.setProperty("--formosh-row-gap", "6px"),
+  );
+  assert.equal((await rowMetrics()).gap, "6px");
 });
 
 test("--formosh-row-min lets three fields share a 320px Row", async () => {
@@ -256,11 +262,14 @@ test("an fr-track override keeps a wide <select> cell inside the Row", async () 
     };
   });
   await page.evaluate(() => document.getElementById("consumer-fr").remove());
-  assert.equal(m.columns.split(" ").length, 2, `override not applied: ${m.columns}`);
   assert.equal(m.minWidth, "0px");
   for (const px of m.overflow) {
     assert.ok(px <= 0, `a cell ends ${px}px past the Row: ${m.overflow}`);
   }
+  // The default grid also has two tracks at 500px, so only a 2:1 split proves
+  // the override is in effect — without it this test guards nothing.
+  const [first, second] = m.columns.split(" ").map(parseFloat);
+  assert.ok(Math.abs(first - 2 * second) < 1, `2fr 1fr override not applied: ${m.columns}`);
 });
 
 test("a collapsed row folds to zero height; an open one does not", async () => {
@@ -278,10 +287,12 @@ test("a collapsed row folds to zero height; an open one does not", async () => {
       folded: height(".array-item[data-collapsed] > .array-item-body"),
       open: height(".array-item:not([data-collapsed]) > .array-item-body"),
       styled: root.querySelectorAll(".array-item-body[style], .array-item-fields[style]").length,
+      clip: getComputedStyle(root.querySelector(".array-item[data-collapsed] > .array-item-body")).overflow,
     };
   });
   assert.equal(h.folded, 0);
   assert.ok(h.open > 0, `open body height ${h.open}`);
+  assert.equal(h.clip, "hidden");
   assert.equal(h.styled, 0, "folding elements must carry no inline style");
 });
 
@@ -338,6 +349,7 @@ test("the stylesheet node survives a re-render", async () => {
       (e) => e.name === "formosh-change" && e.detail?.values?.a === "x",
     ),
   );
+  // Lustre patches on the next animation frame, after formosh-change fires; without this wait the probe reads the un-patched node.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(r)));
   const probe = await page.evaluate(
     () =>

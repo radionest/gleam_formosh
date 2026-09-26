@@ -108,7 +108,7 @@ pub fn layout_and_collapse_render_no_inline_style_test() {
   // Presence guards: the Row and both fold states really rendered, so the
   // absence check below is not vacuous.
   html |> string.contains("part=\"row\"") |> should.be_true
-  html |> string.contains("data-collapsed=\"true\"") |> should.be_true
+  html |> occurrences("data-collapsed=\"true\"") |> should.equal(1)
   html |> occurrences("part=\"array-item-body\"") |> should.equal(2)
   html |> string.contains(" style=\"") |> should.be_false
 }
