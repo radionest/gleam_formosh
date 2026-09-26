@@ -79,10 +79,15 @@ pub type NumberConstraints {
 /// Validation constraints for array fields.
 ///
 /// These constraints correspond to JSON Schema array validation rules
-/// (`minItems` / `maxItems`) and drive length validation, add/remove
-/// button gating, and auto-created rows.
+/// (`minItems` / `maxItems` / `uniqueItems`) and drive length and
+/// uniqueness validation, add/remove button gating, auto-created rows, and
+/// the checkbox-group widget (`is_multi_select`).
 pub type ArrayConstraints {
-  ArrayConstraints(min_items: Option(Int), max_items: Option(Int))
+  ArrayConstraints(
+    min_items: Option(Int),
+    max_items: Option(Int),
+    unique_items: Bool,
+  )
 }
 
 /// Upload configuration from x- extension fields.
@@ -159,7 +164,7 @@ pub type SchemaProperty {
     // Type-specific constraints
     string_constraints: Option(StringConstraints),
     number_constraints: Option(NumberConstraints),
-    // Array length constraints (minItems / maxItems)
+    // Array constraints (minItems / maxItems / uniqueItems)
     array_constraints: Option(ArrayConstraints),
     // For array types
     items: Option(SchemaProperty),

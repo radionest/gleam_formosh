@@ -201,6 +201,7 @@ pub fn flatten_crossed_array_bounds_is_error_test() {
         array_constraints: Some(ArrayConstraints(
           min_items: Some(5),
           max_items: None,
+          unique_items: False,
         )),
       )
     })
@@ -211,6 +212,7 @@ pub fn flatten_crossed_array_bounds_is_error_test() {
         array_constraints: Some(ArrayConstraints(
           min_items: None,
           max_items: Some(3),
+          unique_items: False,
         )),
       )
     })

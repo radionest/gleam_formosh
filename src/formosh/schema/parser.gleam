@@ -522,12 +522,12 @@ fn extract_number_constraints(data: Dynamic) -> Option(NumberConstraints) {
   }
 }
 
-/// Extract array validation constraints (minItems / maxItems) from
-/// dynamic JSON data.
+/// Extract array validation constraints (minItems / maxItems / uniqueItems)
+/// from dynamic JSON data.
 ///
 /// ## Returns
 /// - `Some(ArrayConstraints)` if any constraint was found
-/// - `None` if neither keyword is present
+/// - `None` if no keyword is present (`uniqueItems: false` counts as absent)
 fn extract_array_constraints(data: Dynamic) -> Option(ArrayConstraints) {
   let min_items =
     decode.run(data, decode.at(["minItems"], decode.int))
@@ -537,14 +537,27 @@ fn extract_array_constraints(data: Dynamic) -> Option(ArrayConstraints) {
     decode.run(data, decode.at(["maxItems"], decode.int))
     |> option.from_result()
 
-  case min_items, max_items {
-    None, None -> None
+  let unique_items =
+    decode.run(data, decode.at(["uniqueItems"], decode.bool))
+    |> result.unwrap(False)
+
+  case min_items, max_items, unique_items {
+    None, None, False -> None
     // minItems > maxItems is unsatisfiable; normalize so minItems wins —
     // otherwise the reconcile pass tops the array up past maxItems and
     // wedges the form (both buttons hidden, submit permanently blocked).
-    Some(min), Some(max) if min > max ->
-      Some(ArrayConstraints(min_items: Some(min), max_items: Some(min)))
-    _, _ -> Some(ArrayConstraints(min_items: min_items, max_items: max_items))
+    Some(min), Some(max), _ if min > max ->
+      Some(ArrayConstraints(
+        min_items: Some(min),
+        max_items: Some(min),
+        unique_items: unique_items,
+      ))
+    _, _, _ ->
+      Some(ArrayConstraints(
+        min_items: min_items,
+        max_items: max_items,
+        unique_items: unique_items,
+      ))
   }
 }
 

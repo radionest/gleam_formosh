@@ -621,7 +621,11 @@ pub fn array_constraints_parsed_test() {
     list.find(schema.properties, fn(entry) { entry.0 == "tags" })
   tags.array_constraints
   |> should.equal(
-    Some(types.ArrayConstraints(min_items: Some(1), max_items: Some(5))),
+    Some(types.ArrayConstraints(
+      min_items: Some(1),
+      max_items: Some(5),
+      unique_items: False,
+    )),
   )
 }
 
@@ -639,7 +643,11 @@ pub fn array_constraints_min_only_test() {
     list.find(schema.properties, fn(entry) { entry.0 == "tags" })
   tags.array_constraints
   |> should.equal(
-    Some(types.ArrayConstraints(min_items: Some(2), max_items: None)),
+    Some(types.ArrayConstraints(
+      min_items: Some(2),
+      max_items: None,
+      unique_items: False,
+    )),
   )
 }
 
@@ -675,7 +683,11 @@ pub fn array_constraints_min_above_max_normalizes_test() {
     list.find(schema.properties, fn(entry) { entry.0 == "tags" })
   tags.array_constraints
   |> should.equal(
-    Some(types.ArrayConstraints(min_items: Some(3), max_items: Some(3))),
+    Some(types.ArrayConstraints(
+      min_items: Some(3),
+      max_items: Some(3),
+      unique_items: False,
+    )),
   )
 }
 

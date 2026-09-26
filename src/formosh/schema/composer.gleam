@@ -430,6 +430,7 @@ fn merge_array_constraints(
       Some(ArrayConstraints(
         min_items: combine(b.min_items, o.min_items, int.max),
         max_items: combine(b.max_items, o.max_items, int.min),
+        unique_items: b.unique_items || o.unique_items,
       ))
     b, o -> option.or(o, b)
   }
@@ -442,7 +443,7 @@ fn check_array_constraints(
   path: List(String),
 ) -> Result(Option(types.ArrayConstraints), ParseError) {
   case c {
-    Some(ArrayConstraints(min_items: Some(min), max_items: Some(max)))
+    Some(ArrayConstraints(min_items: Some(min), max_items: Some(max), ..))
       if min > max
     ->
       Error(unsatisfiable(
