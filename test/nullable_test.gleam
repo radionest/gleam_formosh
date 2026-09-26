@@ -396,3 +396,89 @@ pub fn nullable_inside_union_array_row_resolves_active_branch_test() {
   payload |> string.contains("\"count\":null") |> should.be_true
   payload |> string.contains("\"label\"") |> should.be_false
 }
+
+// --- Round 3 item 1: a checkbox group's [] submits like the absent key ---
+//
+// validate_field/validate_nested (round 2) already treat a checkbox
+// group's ArrayValue([]) as absent for validation; this section pins the
+// same normalization at the submit payload, so the two never disagree
+// (an optional group with e.g. minItems set would otherwise pass the form
+// but fail the identical schema server-side, which sees a present [] as
+// a real under-min array, not "unanswered").
+
+fn checkbox_group_property() -> SchemaProperty {
+  SchemaProperty(
+    ..empty_property(),
+    field_type: Some(ArrayType),
+    array_constraints: Some(types.ArrayConstraints(
+      min_items: None,
+      max_items: None,
+      unique_items: True,
+    )),
+    items: Some(
+      SchemaProperty(
+        ..empty_property(),
+        field_type: Some(StringType),
+        enum_values: Some([types.StringValue("a"), types.StringValue("b")]),
+      ),
+    ),
+  )
+}
+
+fn nullable_checkbox_group_property() -> SchemaProperty {
+  SchemaProperty(..checkbox_group_property(), nullable: True)
+}
+
+pub fn optional_checkbox_group_empty_array_is_dropped_test() {
+  let schema = schema_with([#("n", checkbox_group_property())])
+  let initial = dict.from_list([#("n", ArrayValue([]))])
+  submit_payload(schema, initial, [])
+  |> string.contains("\"n\"")
+  |> should.be_false
+}
+
+pub fn nullable_checkbox_group_empty_array_submits_null_test() {
+  let schema = schema_with([#("n", nullable_checkbox_group_property())])
+  let initial = dict.from_list([#("n", ArrayValue([]))])
+  submit_payload(schema, initial, [])
+  |> string.contains("\"n\":null")
+  |> should.be_true
+}
+
+pub fn nested_checkbox_group_empty_array_is_dropped_test() {
+  let schema =
+    schema_with([
+      #(
+        "address",
+        SchemaProperty(
+          ..empty_property(),
+          field_type: Some(ObjectType),
+          properties: Some([#("tags", checkbox_group_property())]),
+        ),
+      ),
+    ])
+  let initial =
+    dict.from_list([#("address", ObjectValue([#("tags", ArrayValue([]))]))])
+  submit_payload(schema, initial, [])
+  |> string.contains("\"tags\"")
+  |> should.be_false
+}
+
+pub fn checkbox_group_with_selection_is_untouched_test() {
+  let schema = schema_with([#("n", checkbox_group_property())])
+  let initial = dict.from_list([#("n", ArrayValue([types.StringValue("a")]))])
+  submit_payload(schema, initial, [])
+  |> string.contains("\"n\":[\"a\"]")
+  |> should.be_true
+}
+
+// Not a checkbox group (no uniqueItems/options) — a genuinely empty
+// row-editor array still submits as `[]`, not dropped or nulled.
+pub fn row_editor_empty_array_is_untouched_test() {
+  let schema =
+    schema_with([#("rows", rows_array_property(plain_string_property()))])
+  let initial = dict.from_list([#("rows", ArrayValue([]))])
+  submit_payload(schema, initial, [])
+  |> string.contains("\"rows\":[]")
+  |> should.be_true
+}

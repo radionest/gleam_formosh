@@ -237,8 +237,11 @@ renders as one checkbox per option instead of the row editor:
   click order (`[1, 2]`, never `["1", "2"]`).
 - Unchecking the last box **removes the key**, like the select placeholder —
   so `required` means "pick at least one". An initial `[]` (e.g. from
-  `initial-values`) counts as unanswered too, same as the removed key.
-  `minItems` / `maxItems` apply once something is picked.
+  `initial-values`) counts as unanswered too, same as the removed key — for
+  both validation and the submitted payload: a non-nullable group's `[]` is
+  dropped from the payload, a nullable group's submits `null`, same as any
+  other absent/empty field. `minItems` / `maxItems` apply once something is
+  picked.
 - Once `maxItems` options are checked, the remaining boxes are disabled
   (stored values that aren't options don't count).
 - No rows are auto-created for `minItems`; an under-`minItems` selection is
