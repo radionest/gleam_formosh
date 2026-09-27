@@ -341,8 +341,8 @@ both sources into a single `RenderHints` record (`ui_resolver.resolve_hints`):
 
 For new schemas, **prefer `ui:*` over `x-*`**. It keeps the data schema
 clean, survives serialization round-trips more reliably, and is the
-forward-looking path (the `x-*` family is the deprecated fallback retained
-for compatibility).
+forward-looking path. The `x-*` family is a deprecated fallback (since
+v0.7), retained for compatibility and scheduled for removal in v0.10.
 
 ## Worked examples
 

@@ -90,7 +90,7 @@ formosh.init_model(config: FormConfig) -> FormModel
 formosh.get_values(model: FormModel) -> Value
 ```
 
-> **Breaking change.** Earlier versions returned `Dict(String, Value)`.
+> **Breaking change (0.4.0).** Earlier versions returned `Dict(String, Value)`.
 > The model now stores a single `Value`; this returns it directly. Use
 > `formosh/form/path.get_at_path` for typed access at a path, or
 > `formosh/form/json_utils.value_to_json` to serialize.
@@ -233,7 +233,7 @@ field. Full field lists on the `SchemaProperty` and `JsonSchema` types in
 - `JsonSchema` adds the root-level `defs` (`$defs` / `definitions`),
   root `conditionals`, and root `all_of` (always `None` after parsing).
 
-> **Breaking change.** `ArrayConstraints` gained a `unique_items: Bool`
+> **Breaking change (0.9.0).** `ArrayConstraints` gained a `unique_items: Bool`
 > field, and Gleam requires every field in a record constructor or pattern
 > match unless you use a `..` spread — so any code that builds or matches
 > it without naming `unique_items` stops compiling on upgrade. Add
@@ -267,7 +267,7 @@ pub type FormConfig {
 variants: `NoSubmit`, `HttpSubmit(url, method, headers)`,
 `CustomSubmit(handler)`.
 
-> **Breaking change.** `ArrayFieldEvent` (in `formosh/form/widget_msg`,
+> **Breaking change (0.9.0).** `ArrayFieldEvent` (in `formosh/form/widget_msg`,
 > reached via `FormMsg.WidgetEvent`) gained a `ToggleOption(path, value)`
 > variant — the checkbox-group toggle, resolved in `update` against the
 > current value and the schema's options. `FormMsg` itself is unchanged;
@@ -292,7 +292,7 @@ pub type LayoutNode {
 }
 ```
 
-> **Breaking change.** `UiSchema` and `UiProperty` both gained this `layout`
+> **Breaking change (0.8.8).** `UiSchema` and `UiProperty` both gained this `layout`
 > field, and Gleam requires every field in a record constructor or pattern
 > match unless you use a `..` spread — so any code that builds or matches
 > either type without naming `layout` stops compiling on upgrade. This
@@ -314,6 +314,13 @@ pub type ValidationError {
 for object keys, `ArraySegment(Int)` for array indices. Produced by both
 schema validation and custom validators.
 
+> **Breaking change (0.9.0).** `formosh/validation/error.is_array_length`
+> was renamed `is_array_level` (it now also covers `uniqueItems`), with no
+> alias left behind, and `formosh/validation/messages.ValidationFailure`
+> gained a `UniqueItems` variant. Rename the calls; an exhaustive `case`
+> over `ValidationFailure` without a `_ ->` catch-all stops compiling on
+> upgrade.
+
 ### `ParseError`
 
 ```gleam
@@ -334,6 +341,11 @@ cross the definition's once both are normalized — rather than silently
 producing a schema that rejects everything. Which crossed
 `minItems`/`maxItems` fail and which are normalized:
 [Array structure](schema-keywords.md#array-structure).
+
+> **Breaking change (0.9.0).** `formosh/schema/resolver.ResolveError`
+> gained an `UnsatisfiableSchema(String)` variant for the `$ref` case
+> above; an exhaustive `case` over `ResolveError` without a `_ ->`
+> catch-all stops compiling on upgrade.
 
 ## Imports cheat-sheet
 
