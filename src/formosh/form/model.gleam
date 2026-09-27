@@ -160,7 +160,7 @@ pub type FormMsg {
   // Reset form
   ResetForm
 
-  // Widget-specific events (image-upload today; more in v0.8 widget registry)
+  // Widget-specific events
   WidgetEvent(WidgetMsg)
 }
 
