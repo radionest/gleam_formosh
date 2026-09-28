@@ -46,7 +46,15 @@ Three tiers, fastest/most-isolated first:
    (`/usr/bin/google-chrome` by default, override with `CHROME_PATH`)
    against `e2e/harness.html` served by `e2e/server.mjs`. Covers what the
    two Gleam tiers can't reach — real custom-element mounting, DOM event
-   listeners, attribute swaps, and submit round-trips.
+   listeners, attribute swaps, submit round-trips, and computed styles
+   from formosh's `@layer formosh` stylesheet
+   (`e2e/style-layer.e2e.test.mjs`). Lustre emits `formosh-ready` /
+   `formosh-change` during `update` and patches the DOM on the next
+   animation frame, so never read the shadow DOM straight after awaiting an
+   event — wait on the DOM itself (`waitForField`, `page.waitForFunction`)
+   or for one `requestAnimationFrame` from a later `page.evaluate` (Lustre's
+   patch frame is already queued by then; a rAF requested inside the event
+   listener itself needs two — `docs/guides/web-component.md`).
 
 **Known gaps** (ROADMAP debts, not exercised by any tier):
 

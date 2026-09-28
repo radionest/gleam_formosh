@@ -50,11 +50,9 @@ pub fn row_wraps_children_in_a_row_part_test() {
   let nodes = Some([RowNode([LeafNode("year"), LeafNode("month")])])
   let html = render(nodes, ["year", "month"], ["year", "month"])
   let assert Ok(row) = dom_containment.slice_element(html, "part=\"row\"")
-  row
-  |> string.contains(
-    "display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));gap:var(--formosh-row-gap,1rem)",
-  )
-  |> should.be_true
+  // The grid comes from the library stylesheet's `formosh` layer. An inline
+  // style would outrank every adopted consumer rule.
+  html |> string.contains("style=") |> should.be_false
   row |> string.contains("data-n=\"year\"") |> should.be_true
   row |> string.contains("data-n=\"month\"") |> should.be_true
 }
