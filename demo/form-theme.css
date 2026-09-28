@@ -7,8 +7,9 @@ formosh-form { display: block; }
 
 /* The rules below size inputs as border-box and space blocks with gap, so
    reset the form's own elements too (the page reset stops at the shadow
-   boundary). */
-* { margin: 0; padding: 0; box-sizing: border-box; }
+   boundary). Scoped to the container because this sheet is also a page
+   stylesheet; :where() keeps it at `*`'s zero specificity. */
+:where(.formosh-container, .formosh-container *) { margin: 0; padding: 0; box-sizing: border-box; }
 
 formosh-form::part(form) {
     display: flex;
@@ -91,7 +92,8 @@ formosh-form::part(checkbox-group) { display: flex; flex-direction: column; gap:
 formosh-form::part(radio-item) { display: flex; align-items: center; gap: 9px; }
 formosh-form::part(checkbox-list) { display: flex; flex-direction: column; gap: 9px; }
 formosh-form::part(checkbox-item) { display: flex; align-items: center; gap: 9px; }
-input[type="checkbox"], input[type="radio"] { accent-color: var(--magenta); width: 17px; height: 17px; }
+:where(.formosh-container) input[type="checkbox"],
+:where(.formosh-container) input[type="radio"] { accent-color: var(--magenta); width: 17px; height: 17px; }
 
 /* toggle */
 formosh-form::part(toggle-wrapper) { display: flex; align-items: center; gap: 11px; }

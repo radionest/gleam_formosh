@@ -2,6 +2,7 @@ import demo
 import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
+import lustre/vdom/vnode
 
 pub fn main() {
   gleeunit.main()
@@ -37,9 +38,17 @@ pub fn blank_ui_schema_draft_drops_ui_schema_test() {
   model.ui_schema_error |> should.equal(None)
 }
 
-pub fn committing_css_recreates_form_test() {
+// Applying CSS must change the form's key, so Lustre replaces the element
+// and the new one re-adopts the page stylesheets.
+pub fn applying_css_rekeys_the_form_test() {
   let #(model, _) = demo.init(Nil)
-  let #(committed, _) = demo.update(model, demo.CssCommitted)
+  let #(model, _) = demo.update(model, demo.SchemaEdited(valid_schema))
+  let key = fn(model) {
+    let assert vnode.Element(children: [form], ..) = demo.form_pane(model)
+    let assert vnode.Element(tag: "formosh-form", key:, ..) = form
+    key
+  }
+  let #(applied, _) = demo.update(model, demo.CssCommitted)
 
-  committed.form_key |> should.equal(model.form_key + 1)
+  key(applied) |> should.not_equal(key(model))
 }

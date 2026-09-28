@@ -427,6 +427,18 @@
             color: var(--muted);
         }
         .code-note.error { color: var(--danger); background: var(--danger-bg); }
+        .code-note:has(.apply-button) { display: flex; align-items: center; gap: 12px; }
+        .apply-button {
+            flex-shrink: 0;
+            padding: 6px 14px;
+            font: 600 0.8rem var(--font-body);
+            color: var(--surface);
+            background: var(--ink);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .apply-button:hover { background: var(--magenta-ink); }
 
         @media (prefers-reduced-motion: reduce) {
             * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }

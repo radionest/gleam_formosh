@@ -166,8 +166,10 @@ pub fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
       Model(..model, css: css, form_key: model.form_key + 1),
       attach_validator_effect(model.selected_schema),
     )
+    // Shown in the CSS editor itself: `model.error` is cleared by the
+    // next schema pick.
     CssFetched(Error(_)) -> #(
-      Model(..model, error: Some("Failed to load form-theme.css")),
+      Model(..model, css: "/* Failed to load form-theme.css */"),
       effect.none(),
     )
 
@@ -418,7 +420,7 @@ fn chip(key: String, value: String) -> Element(Msg) {
   ])
 }
 
-fn form_pane(model: Model) -> Element(Msg) {
+pub fn form_pane(model: Model) -> Element(Msg) {
   case model.schema_content {
     Some(schema_json) ->
       keyed.div([attribute.id("form-mount-point")], [
@@ -452,12 +454,20 @@ fn editor_pane(model: Model, schema_draft: String) -> Element(Msg) {
     editor(
       "css",
       model.css,
-      [event.on_input(CssEdited), event.on_change(fn(_) { CssCommitted })],
+      [event.on_input(CssEdited)],
+      // An explicit button, not blur: recreating the form on blur would
+      // swallow the click that moved focus into it.
       html.div([attribute.class("code-note")], [
-        html.text(
-          "::part() rules and --formosh-* tokens apply as you type. "
-          <> "Other selectors apply when you leave the editor: the form is "
-          <> "recreated to re-adopt the stylesheet, which clears its values.",
+        html.span([], [
+          html.text(
+            "::part() rules and --formosh-* tokens apply as you type. "
+            <> "Other selectors need Apply, which recreates the form to "
+            <> "re-adopt the stylesheet and clears its values.",
+          ),
+        ]),
+        html.button(
+          [attribute.class("apply-button"), event.on_click(CssCommitted)],
+          [html.text("Apply")],
         ),
       ]),
     ),

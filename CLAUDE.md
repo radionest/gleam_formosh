@@ -54,7 +54,7 @@ make demo
 make demo-server
 ```
 
-The `demo/` directory is a standalone Gleam project (`demo/gleam.toml`) that depends on the library via `formosh = { path = ".." }`. It mounts `<formosh-form>` and lets you click through all schemas in `demo/schemas/`, then edit the schema, ui-schema and form stylesheet live. The stylesheet editor is seeded from `demo/form-theme.css` (the demo's whole form theme; `index.html` holds only page chrome) — a new form style goes there, and the Pages workflow copies it into the site. `make demo` runs `gleam run -m lustre/dev start` inside `demo/`.
+The `demo/` directory is a standalone Gleam project (`demo/gleam.toml`) that depends on the library via `formosh = { path = ".." }`. It mounts `<formosh-form>` and lets you click through all schemas in `demo/schemas/`, then edit the schema, ui-schema and form stylesheet live. The stylesheet editor is seeded from `demo/form-theme.css`, which holds every form rule — a new form style goes there, and the Pages workflow copies it into the site. `index.html` keeps the page chrome plus the palette variables and fonts the theme uses. `make demo` runs `gleam run -m lustre/dev start` inside `demo/`.
 
 ## Architecture
 
