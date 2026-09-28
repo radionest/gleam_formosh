@@ -261,6 +261,9 @@ field. Full field lists on the `SchemaProperty` and `JsonSchema` types in
 > (`component.ui_schema` / `component.ui_schema_string`), not in `schema`.
 > A schema that still carries these keys parses, and `parser.parse_schema`
 > logs one `console.warn` listing their JSON-pointer paths.
+> Added: `serializer.ui_schema_to_json` (typed `UiSchema` → JSON, used by
+> `component.ui_schema`) and `parser.retired_extension_paths` (the detector
+> behind the warn).
 
 You normally don't construct these by hand — you parse them from JSON and
 mutate via the builder. But if you want to synthesize a schema
