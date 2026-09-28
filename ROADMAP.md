@@ -80,7 +80,8 @@ feature would drag `x-widget`-style dirt into the JSON Schema.
 - [x] Config builders: `with_ui_schema` / `with_ui_schema_json`
 - [x] Web component: `ui-schema='{...}'` attribute
 - [x] Migration: `x-widget: "hidden"` → `ui:widget: "hidden"`; `x-*` read as
-  deprecated fallback for two more versions
+  deprecated fallback (since v0.7) until the removal release named in
+  `docs/reference/ui-schema.md`
 - [ ] Remove the `x-*` fallback (scheduled after the deprecation window)
 
 ---
