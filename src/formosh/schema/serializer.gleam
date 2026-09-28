@@ -265,6 +265,8 @@ fn property_to_json(prop: SchemaProperty) -> json.Json {
   |> add_optional_properties(prop.properties)
   |> add_required_array(prop.required)
   |> add_read_only(prop.read_only)
+  |> add_disabled_flag("x-addable", prop.addable)
+  |> add_disabled_flag("x-removable", prop.removable)
   |> add_optional_json_field(
     "x-widget",
     option.map(prop.render_hints.widget, widget_to_string),
@@ -282,6 +284,19 @@ fn add_read_only(
   case read_only {
     True -> add_fields(fields, [#("readOnly", json.bool(True))])
     False -> fields
+  }
+}
+
+/// Add an x- structural flag as `false` when disabled; `true` is the parser
+/// default, so it is omitted.
+fn add_disabled_flag(
+  fields: List(#(String, json.Json)),
+  key: String,
+  enabled: Bool,
+) -> List(#(String, json.Json)) {
+  case enabled {
+    True -> fields
+    False -> add_fields(fields, [#(key, json.bool(False))])
   }
 }
 

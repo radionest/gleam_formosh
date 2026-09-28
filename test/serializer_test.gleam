@@ -863,6 +863,18 @@ pub fn image_upload_roundtrip_test() {
   }
 }
 
+pub fn addable_removable_round_trip_test() {
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\": \"object\", \"properties\": {\"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"x-addable\": false, \"x-removable\": false}}}",
+    )
+  let assert Ok(reparsed) =
+    parser.parse_schema(json.to_string(serializer.schema_to_json(schema)))
+  let assert Ok(tags) = list.key_find(reparsed.properties, "tags")
+  tags.addable |> should.be_false()
+  tags.removable |> should.be_false()
+}
+
 pub fn no_widget_no_x_fields_serialized_test() {
   let schema =
     JsonSchema(
@@ -897,6 +909,14 @@ pub fn no_widget_no_x_fields_serialized_test() {
 
   json_string
   |> string.contains("x-max-file-size")
+  |> should.be_false()
+
+  json_string
+  |> string.contains("x-addable")
+  |> should.be_false()
+
+  json_string
+  |> string.contains("x-removable")
   |> should.be_false()
 }
 
