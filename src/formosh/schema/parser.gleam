@@ -14,10 +14,12 @@ import formosh/schema/types.{
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/string
 
 /// Parse a JSON string into a JsonSchema.
 /// 
@@ -42,18 +44,38 @@ import gleam/result
 /// }
 /// ```
 pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
+  parse_json(json_string) |> result.try(decode_schema)
+}
+
+/// `parse_schema` plus the presentation-key diagnostic (`None` for a clean
+/// schema) from a single JSON parse. `parse_schema` stays pure; the entry
+/// points (`formosh.from_json_string*`, `<formosh-form>`'s `schema`
+/// attribute) emit the warning via `console.warn`.
+pub fn parse_schema_with_warning(
+  json_string: String,
+) -> #(Result(JsonSchema, ParseError), Option(String)) {
+  case parse_json(json_string) {
+    Error(error) -> #(Error(error), None)
+    Ok(root) -> #(decode_schema(root), presentation_key_warning(root))
+  }
+}
+
+fn parse_json(json_string: String) -> Result(Dynamic, ParseError) {
+  json.parse(json_string, decode.dynamic)
+  |> result.map_error(fn(error) {
+    case error {
+      json.UnableToDecode(errors) -> DecodingError(errors)
+      json.UnexpectedEndOfInput -> InvalidJson("Unexpected end of input")
+      json.UnexpectedByte(byte) -> InvalidJson("Unexpected byte: " <> byte)
+      json.UnexpectedSequence(seq) ->
+        InvalidJson("Unexpected sequence: " <> seq)
+    }
+  })
+}
+
+fn decode_schema(document: Dynamic) -> Result(JsonSchema, ParseError) {
   use #(root, defs) <- result.try(
-    json_string
-    |> json.parse(using: root_decoder())
-    |> result.map_error(fn(error) {
-      case error {
-        json.UnableToDecode(errors) -> DecodingError(errors)
-        json.UnexpectedEndOfInput -> InvalidJson("Unexpected end of input")
-        json.UnexpectedByte(byte) -> InvalidJson("Unexpected byte: " <> byte)
-        json.UnexpectedSequence(seq) ->
-          InvalidJson("Unexpected sequence: " <> seq)
-      }
-    }),
+    decode.run(document, root_decoder()) |> result.map_error(DecodingError),
   )
 
   use resolved <- result.try(
@@ -73,6 +95,141 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
 
   use flattened <- result.try(composer.flatten_property(resolved))
   Ok(to_json_schema(flattened, defs))
+}
+
+/// Retired `x-*` presentation keys and their UiSchema replacements.
+const retired_keys = [
+  #("x-widget", "ui:widget"),
+  #("x-accept", "ui:accept"),
+  #("x-max-file-size", "ui:maxFileSize"),
+  #("x-addable", "ui:addable"),
+  #("x-removable", "ui:removable"),
+]
+
+fn is_retired_key(key: String) -> Bool {
+  list.key_find(retired_keys, key) |> result.is_ok
+}
+
+/// JSON-pointer paths of schema nodes still carrying a retired `x-*`
+/// presentation key (removed in v0.11 — UiSchema replaces them). Walks
+/// subschema positions only, so a property *named* `x-widget` or data
+/// inside `default`/`enum` is never flagged. A node's own path precedes its
+/// children's; siblings follow JS key (insertion) order, integer-like keys
+/// first. Malformed JSON yields `[]`.
+pub fn retired_extension_paths(json_string: String) -> List(String) {
+  case json.parse(json_string, decode.dynamic) {
+    Ok(root) -> flagged_nodes(root, "#", is_retired_key)
+    Error(_) -> []
+  }
+}
+
+fn flagged_nodes(
+  node: Dynamic,
+  pointer: String,
+  flagged: fn(String) -> Bool,
+) -> List(String) {
+  case dynamic_object.entries(node) {
+    Error(_) -> []
+    Ok(entries) -> {
+      let own = case list.any(entries, fn(entry) { flagged(entry.0) }) {
+        True -> [pointer]
+        False -> []
+      }
+      list.append(
+        own,
+        list.flat_map(entries, fn(entry) {
+          let at = pointer <> "/" <> entry.0
+          case entry.0 {
+            "properties" | "$defs" -> flagged_in_map(entry.1, at, flagged)
+            "anyOf" | "oneOf" | "allOf" -> flagged_in_list(entry.1, at, flagged)
+            "items" | "if" | "then" | "else" ->
+              flagged_nodes(entry.1, at, flagged)
+            _ -> []
+          }
+        }),
+      )
+    }
+  }
+}
+
+fn flagged_in_map(
+  value: Dynamic,
+  pointer: String,
+  flagged: fn(String) -> Bool,
+) -> List(String) {
+  case dynamic_object.entries(value) {
+    Ok(entries) ->
+      list.flat_map(entries, fn(entry) {
+        flagged_nodes(
+          entry.1,
+          pointer <> "/" <> pointer_token(entry.0),
+          flagged,
+        )
+      })
+    Error(_) -> []
+  }
+}
+
+fn flagged_in_list(
+  value: Dynamic,
+  pointer: String,
+  flagged: fn(String) -> Bool,
+) -> List(String) {
+  case decode.run(value, decode.list(decode.dynamic)) {
+    Ok(members) ->
+      list.index_map(members, fn(member, index) {
+        flagged_nodes(member, pointer <> "/" <> int.to_string(index), flagged)
+      })
+      |> list.flatten
+    Error(_) -> []
+  }
+}
+
+/// RFC 6901 reference-token escaping: `~` first, then `/`.
+fn pointer_token(key: String) -> String {
+  key |> string.replace("~", "~0") |> string.replace("/", "~1")
+}
+
+/// One diagnostic per parse for presentation keys the schema carries but
+/// nothing reads: retired `x-*` keys (ignored since v0.11, which silently
+/// changes rendering — a hidden field shows, a frozen array becomes addable)
+/// and `ui:*` keys written on the schema instead of the UiSchema.
+fn presentation_key_warning(root: Dynamic) -> Option(String) {
+  let retired = flagged_nodes(root, "#", is_retired_key)
+  let misplaced = flagged_nodes(root, "#", string.starts_with(_, "ui:"))
+  let parts = [
+    case retired {
+      [] -> ""
+      _ ->
+        string.join(list.map(retired_keys, fn(pair) { pair.0 }), " / ")
+        <> " were removed in v0.11 and are ignored; move them to the UiSchema ("
+        <> string.join(list.map(retired_keys, fn(pair) { pair.1 }), ", ")
+        <> "). Found at: "
+        <> string.join(retired, ", ")
+        <> "."
+    },
+    case misplaced {
+      [] -> ""
+      _ ->
+        "ui:* keys are read from the UiSchema only and are ignored on JSON Schema nodes; move them there. Found at: "
+        <> string.join(misplaced, ", ")
+        <> "."
+    },
+    case
+      list.any(list.append(retired, misplaced), string.starts_with(
+        _,
+        "#/$defs/",
+      ))
+    {
+      True ->
+        "A $defs entry's hint must be repeated in the UiSchema at every field that $refs it."
+      False -> ""
+    },
+  ]
+  case list.filter(parts, fn(part) { part != "" }) {
+    [] -> None
+    found -> Some("formosh: " <> string.join(found, " "))
+  }
 }
 
 /// Decode the document root as a `SchemaProperty` plus its `$defs`.
@@ -98,9 +255,9 @@ fn root_decoder() -> Decoder(
 /// Materialize the public root type from the flattened root property.
 /// The `ObjectType` default lands here — after composition — so a type
 /// supplied only by an allOf member survives. Fields `JsonSchema` cannot
-/// hold (items, enum, default, oneOf, array constraints, readOnly,
-/// addable/removable, render hints) are dropped: the root of a form is
-/// structurally an object unless the composition says otherwise (D6).
+/// hold (items, enum, default, oneOf, array constraints, readOnly) are
+/// dropped: the root of a form is structurally an object unless the
+/// composition says otherwise (D6).
 fn to_json_schema(
   root: SchemaProperty,
   defs: Option(Dict(String, SchemaProperty)),
@@ -291,10 +448,6 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // form of field_type_decoder picks a base type and discards this bit)
   let nullable = extract_nullable(dynamic_data)
 
-  // Extract x-addable / x-removable (default True: structure-mutation allowed)
-  let addable = extract_addable(dynamic_data)
-  let removable = extract_removable(dynamic_data)
-
   // Handle 'const' keyword - convert to enum with single value
   let enum_values_with_const = case enum_values {
     Some(_) -> enum_values
@@ -310,9 +463,6 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
 
   // Extract allOf composition members — a malformed member fails the parse
   let all_of = extract_all_of(dynamic_data)
-
-  // Extract presentation hints from x- extensions
-  let render_hints = extract_render_hints(dynamic_data)
 
   // Extract property-level direct conditional rule (if/then/else). Rules
   // declared inside allOf members ride on the member schemas and are
@@ -340,9 +490,6 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
         required: required,
         read_only: read_only,
         nullable: nullable,
-        addable: addable,
-        removable: removable,
-        render_hints: render_hints,
         conditionals: conditionals,
       ))
   }
@@ -640,98 +787,6 @@ fn extract_nullable(data: Dynamic) -> Bool {
   decode.run(data, decode.at(["type"], decode.list(decode.string)))
   |> result.map(fn(type_strs) { list.contains(type_strs, "null") })
   |> result.unwrap(False)
-}
-
-/// Extract x-addable structural flag for arrays.
-/// Absent or non-bool -> True (default: add control shown).
-///
-/// **Deprecated since v0.7** — use `ui:addable` in UiSchema. Scheduled for
-/// removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_addable(data: Dynamic) -> Bool {
-  decode.run(data, decode.at(["x-addable"], decode.bool))
-  |> result.unwrap(True)
-}
-
-/// Extract x-removable structural flag for arrays.
-/// Absent or non-bool -> True (default: remove control shown).
-///
-/// **Deprecated since v0.7** — use `ui:removable` in UiSchema. Scheduled
-/// for removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_removable(data: Dynamic) -> Bool {
-  decode.run(data, decode.at(["x-removable"], decode.bool))
-  |> result.unwrap(True)
-}
-
-/// Decode an `x-widget` string into a typed Widget variant.
-/// Falls back to `CustomWidget(raw)` so unknown widgets parse round-trip.
-fn widget_decoder() -> Decoder(types.Widget) {
-  decode.string
-  |> decode.then(fn(raw) {
-    case raw {
-      "image-upload" -> decode.success(types.ImageUploadWidget)
-      "hidden" -> decode.success(types.HiddenWidget)
-      "swipe-review" -> decode.success(types.SwipeReviewWidget)
-      _ -> decode.success(types.CustomWidget(raw))
-    }
-  })
-}
-
-/// Extract x-widget custom widget override from dynamic JSON data.
-///
-/// **Deprecated since v0.7** — use `ui:widget` in UiSchema. Scheduled for
-/// removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_widget(data: Dynamic) -> Option(types.Widget) {
-  decode.run(data, decode.at(["x-widget"], widget_decoder()))
-  |> option.from_result()
-}
-
-/// Extract upload configuration from x- extension fields.
-/// Only emits config when widget is ImageUploadWidget.
-///
-/// **Deprecated since v0.7** — use `ui:accept` / `ui:maxFileSize` in
-/// UiSchema. Scheduled for removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_upload_config(
-  data: Dynamic,
-  widget: Option(types.Widget),
-) -> Option(types.UploadConfig) {
-  case widget {
-    Some(types.ImageUploadWidget) -> {
-      let accept =
-        decode.run(data, decode.at(["x-accept"], decode.string))
-        |> option.from_result()
-      let max_file_size =
-        decode.run(data, decode.at(["x-max-file-size"], decode.int))
-        |> option.from_result()
-      Some(types.UploadConfig(
-        accept: option.unwrap(accept, "image/*"),
-        max_file_size: max_file_size,
-      ))
-    }
-    _ -> None
-  }
-}
-
-/// Build a `RenderHints` from the JSON Schema node's deprecated `x-`
-/// extensions. UiSchema is the primary source for hints; this path only
-/// fills `widget` and `upload_config` from `x-widget` / `x-accept` /
-/// `x-max-file-size` for backwards compatibility — all other fields stay
-/// at their `empty_hints()` defaults and are populated (if at all) by
-/// `ui_resolver.resolve_hints`.
-///
-/// **Deprecated since v0.7.** Scheduled for removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_render_hints(data: Dynamic) -> types.RenderHints {
-  let widget = extract_widget(data)
-  let upload_config = extract_upload_config(data, widget)
-  types.RenderHints(
-    ..types.empty_hints(),
-    widget: widget,
-    upload_config: upload_config,
-  )
 }
 
 /// Decode a string format specifier into a StringFormat.

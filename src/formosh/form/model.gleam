@@ -74,8 +74,8 @@ pub type FormModel {
     upload_base_url: Option(String),
     // In-flight upload states: field_path_string -> list of uploads
     upload_states: Dict(String, List(FileUploadState)),
-    // Presentation settings parallel to `schema`. `ui_resolver.resolve_hints`
-    // merges this with each `SchemaProperty.render_hints` at render time.
+    // Presentation settings parallel to `schema` — the only hint source.
+    // `ui_resolver.resolve_hints` reads it per path at render time.
     ui_schema: UiSchema,
     // Optional cross-field custom validator. Invoked at the end of
     // `update.validate_all_fields` after the schema-driven passes; its
@@ -917,7 +917,7 @@ fn is_error_key_under_path(key: String, prefix: FieldPath) -> Bool {
 /// valid defaults can be submitted without any user interaction.
 ///
 /// Strict gate: any error blocks submit, including errors on UI-suppressed
-/// paths (`x-widget: "hidden"`, `readOnly` with `show_readonly_fields:
+/// paths (`ui:widget: "hidden"`, `readOnly` with `show_readonly_fields:
 /// False`). Callers that want a permissive variant — ignoring errors a user
 /// cannot see — should consult `is_valid_for_submit` instead.
 ///

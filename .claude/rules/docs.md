@@ -20,7 +20,7 @@ say which mode they cover.
 | `::part()` catalog, `data-*` state, `--formosh-*` tokens, cascade / `@layer formosh` | `docs/guides/styling.md` |
 | Public functions, types, imports cheat-sheet | `docs/reference/api.md` |
 | JSON Schema keyword support matrix | `docs/reference/schema-keywords.md` |
-| `ui:*` keys, merge precedence with `x-*` | `docs/reference/ui-schema.md` |
+| `ui:*` keys, removed `x-*` extensions | `docs/reference/ui-schema.md` |
 | Widget decision tree + overrides | `docs/reference/widgets.md` |
 | Maintainer internals (stubs) | `docs/internals/` |
 

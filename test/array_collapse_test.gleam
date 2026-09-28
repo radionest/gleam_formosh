@@ -19,11 +19,7 @@ import simplifile
 
 fn hints_for(ui_json: String) -> types.RenderHints {
   let assert Ok(ui) = ui_parser.parse(ui_json)
-  ui_resolver.resolve_hints(
-    ui,
-    [PropertySegment("zones")],
-    types.empty_property(),
-  )
+  ui_resolver.resolve_hints(ui, [PropertySegment("zones")])
 }
 
 pub fn options_read_every_key_test() {

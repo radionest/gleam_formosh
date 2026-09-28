@@ -67,7 +67,7 @@ do"):
 **Goal.** Separate "data" from "presentation". Without this, every further
 feature would drag `x-widget`-style dirt into the JSON Schema.
 
-**Scope:** L. **Breaking:** minor (`x-widget` still read, but deprecated).
+**Scope:** L. **Breaking:** minor (`x-widget` read as a deprecated fallback v0.7–v0.10, removed in v0.11).
 
 - [x] Parallel `UiSchema` structure with the same path addressing as
   `FieldPath` (tree isomorphic to the JSON Schema)
@@ -80,9 +80,8 @@ feature would drag `x-widget`-style dirt into the JSON Schema.
 - [x] Config builders: `with_ui_schema` / `with_ui_schema_json`
 - [x] Web component: `ui-schema='{...}'` attribute
 - [x] Migration: `x-widget: "hidden"` → `ui:widget: "hidden"`; `x-*` read as
-  deprecated fallback (since v0.7) until the removal release named in
-  `docs/reference/ui-schema.md`
-- [ ] Remove the `x-*` fallback (scheduled after the deprecation window)
+  deprecated fallback (since v0.7)
+- [x] Remove the `x-*` fallback (v0.11, #168)
 
 ---
 
@@ -398,7 +397,7 @@ explicit validator.
 **Goal.** Unify file uploads (currently only image-upload, hardcoded,
 top-level only). Provide typeahead for reference data.
 
-**Scope:** M. **Breaking:** yes — `x-widget: "image-upload"` migrates to
+**Scope:** M. **Breaking:** yes — `ui:widget: "image-upload"` migrates to
 `ui:widget: "file"` with `ui:options.accept = "image/*"`. **Depends on:**
 Widget Registry.
 

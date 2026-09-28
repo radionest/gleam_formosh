@@ -1,6 +1,6 @@
 // Render-level tests for field_dispatcher visibility suppression.
 //
-// Closes the previous gap: parser/validator tests proved x-widget: "hidden"
+// Closes the previous gap: parser/validator tests proved ui:widget: "hidden"
 // is parsed and validated, but no test asserted that the dispatcher actually
 // drops the element from the DOM. Without that, the suppression guard could
 // regress (e.g. moved into render_widget where wrap_with_errors would still
@@ -11,6 +11,8 @@ import formosh/fields/field_dispatcher
 import formosh/form/model.{FormModel}
 import formosh/form/path
 import formosh/schema/types
+import formosh/schema/ui_parser
+import formosh/schema/ui_schema
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
@@ -31,17 +33,6 @@ fn empty_schema() -> types.JsonSchema {
   )
 }
 
-fn hidden_string_property() -> types.SchemaProperty {
-  types.SchemaProperty(
-    ..types.empty_property(),
-    field_type: Some(types.StringType),
-    render_hints: types.RenderHints(
-      ..types.empty_hints(),
-      widget: Some(types.HiddenWidget),
-    ),
-  )
-}
-
 fn visible_string_property() -> types.SchemaProperty {
   types.SchemaProperty(
     ..types.empty_property(),
@@ -49,9 +40,18 @@ fn visible_string_property() -> types.SchemaProperty {
   )
 }
 
-fn render(property: types.SchemaProperty, is_readonly: Bool) -> String {
+fn ui(json: String) -> ui_schema.UiSchema {
+  let assert Ok(parsed) = ui_parser.parse(json)
+  parsed
+}
+
+fn render(
+  property: types.SchemaProperty,
+  ui_json: String,
+  is_readonly: Bool,
+) -> String {
   let field_path = path.from_field_name("name")
-  let m = model.init(empty_schema())
+  let m = FormModel(..model.init(empty_schema()), ui_schema: ui(ui_json))
   let ctx =
     field_common.make_field_ctx(
       model: m,
@@ -65,23 +65,33 @@ fn render(property: types.SchemaProperty, is_readonly: Bool) -> String {
   |> element.to_string
 }
 
-// The whole point of x-widget: "hidden" — the wrapper div must NOT appear.
+// The whole point of ui:widget: "hidden" — the wrapper div must NOT appear.
 // If it did, layout/spacing tests downstream would silently fail and the
 // "<input type=hidden>"-like contract would be broken.
 pub fn hidden_widget_renders_to_empty_string_test() {
-  render(hidden_string_property(), False) |> should.equal("")
+  render(
+    visible_string_property(),
+    "{\"name\":{\"ui:widget\":\"hidden\"}}",
+    False,
+  )
+  |> should.equal("")
 }
 
 // `show_readonly_fields: False` (the default) is irrelevant for hidden —
 // hidden suppression is unconditional, not piggybacked on the readonly flag.
 pub fn hidden_widget_suppressed_even_when_readonly_flag_set_test() {
-  render(hidden_string_property(), True) |> should.equal("")
+  render(
+    visible_string_property(),
+    "{\"name\":{\"ui:widget\":\"hidden\"}}",
+    True,
+  )
+  |> should.equal("")
 }
 
 // Regression smoke: visible fields still render with the formosh-field
 // wrapper. Catches "guard always returns element.none()" type regressions.
 pub fn visible_widget_renders_wrapper_test() {
-  let html = render(visible_string_property(), False)
+  let html = render(visible_string_property(), "{}", False)
   case html {
     "" -> should.fail()
     _ -> Nil
@@ -92,7 +102,7 @@ pub fn visible_widget_renders_wrapper_test() {
 // path, kept here so a future change to readonly handling can't accidentally
 // merge the two cases.
 pub fn readonly_suppressed_renders_to_empty_string_test() {
-  render(visible_string_property(), True) |> should.equal("")
+  render(visible_string_property(), "{}", True) |> should.equal("")
 }
 
 // Same property with show_readonly_fields=True — readonly is rendered as a
@@ -132,8 +142,7 @@ fn string_property_with_format(
   )
 }
 
-fn string_property_with_widget(
-  name: String,
+fn string_property_with_min_length(
   min_length: option.Option(Int),
 ) -> types.SchemaProperty {
   types.SchemaProperty(
@@ -145,33 +154,33 @@ fn string_property_with_widget(
       pattern: None,
       format: None,
     )),
-    render_hints: types.RenderHints(
-      ..types.empty_hints(),
-      widget: Some(types.CustomWidget(name)),
-    ),
   )
 }
 
 pub fn date_format_renders_date_input_test() {
-  render(string_property_with_format(types.DateFormat), False)
+  render(string_property_with_format(types.DateFormat), "{}", False)
   |> string.contains("type=\"date\"")
   |> should.be_true
 }
 
 pub fn time_format_renders_time_input_test() {
-  render(string_property_with_format(types.TimeFormat), False)
+  render(string_property_with_format(types.TimeFormat), "{}", False)
   |> string.contains("type=\"time\"")
   |> should.be_true
 }
 
 pub fn date_time_format_renders_text_input_test() {
-  render(string_property_with_format(types.CustomFormat("date-time")), False)
+  render(
+    string_property_with_format(types.CustomFormat("date-time")),
+    "{}",
+    False,
+  )
   |> string.contains("type=\"text\"")
   |> should.be_true
 }
 
 pub fn password_format_renders_password_input_test() {
-  render(string_property_with_format(types.PasswordFormat), False)
+  render(string_property_with_format(types.PasswordFormat), "{}", False)
   |> string.contains("type=\"password\"")
   |> should.be_true
 }
@@ -181,7 +190,12 @@ pub fn password_format_renders_password_input_test() {
 // render_input could produce the right `type` while dropping the
 // minlength/maxlength/pattern assembly it sits next to.
 pub fn password_widget_renders_password_input_test() {
-  let html = render(string_property_with_widget("password", Some(8)), False)
+  let html =
+    render(
+      string_property_with_min_length(Some(8)),
+      "{\"name\":{\"ui:widget\":\"password\"}}",
+      False,
+    )
   should.be_true(string.contains(html, "type=\"password\""))
   should.be_true(string.contains(html, "minlength=\"8\""))
 }
@@ -202,29 +216,13 @@ fn string_property_with_max_length(
   )
 }
 
-fn password_widget_with_format(
-  format: types.StringFormat,
-  max_length: option.Option(Int),
-) -> types.SchemaProperty {
-  types.SchemaProperty(
-    ..types.empty_property(),
-    field_type: Some(types.StringType),
-    string_constraints: Some(types.StringConstraints(
-      min_length: None,
-      max_length: max_length,
-      pattern: None,
-      format: Some(format),
-    )),
-    render_hints: types.RenderHints(
-      ..types.empty_hints(),
-      widget: Some(types.CustomWidget("password")),
-    ),
-  )
-}
-
 // ui:widget wins over a conflicting format.
 pub fn password_widget_beats_date_format_test() {
-  render(password_widget_with_format(types.DateFormat, None), False)
+  render(
+    string_property_with_format(types.DateFormat),
+    "{\"name\":{\"ui:widget\":\"password\"}}",
+    False,
+  )
   |> string.contains("type=\"password\"")
   |> should.be_true
 }
@@ -232,7 +230,11 @@ pub fn password_widget_beats_date_format_test() {
 // ui:widget is dispatched before the maxLength > 100 textarea threshold.
 pub fn password_widget_beats_textarea_threshold_test() {
   let html =
-    render(password_widget_with_format(types.PasswordFormat, Some(128)), False)
+    render(
+      string_property_with_max_length(types.PasswordFormat, 128),
+      "{\"name\":{\"ui:widget\":\"password\"}}",
+      False,
+    )
   should.be_true(string.contains(html, "type=\"password\""))
   should.be_false(string.contains(html, "<textarea"))
 }
@@ -243,7 +245,11 @@ pub fn password_widget_beats_textarea_threshold_test() {
 // asymmetry (see design.md D3); reversed during PR review.
 pub fn password_format_alone_beats_textarea_threshold_test() {
   let html =
-    render(string_property_with_max_length(types.PasswordFormat, 128), False)
+    render(
+      string_property_with_max_length(types.PasswordFormat, 128),
+      "{}",
+      False,
+    )
   should.be_true(string.contains(html, "type=\"password\""))
   should.be_false(string.contains(html, "<textarea"))
 }

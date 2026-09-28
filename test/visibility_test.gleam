@@ -7,6 +7,7 @@
 import formosh/form/visibility
 import formosh/schema/conditional_resolver
 import formosh/schema/types
+import formosh/schema/ui_parser
 import formosh/schema/ui_schema
 import gleam/option.{None, Some}
 import gleam/set
@@ -30,8 +31,9 @@ fn schema_with(
   )
 }
 
-fn hidden_widget_hints() -> types.RenderHints {
-  types.RenderHints(..types.empty_hints(), widget: Some(types.HiddenWidget))
+fn ui(json: String) -> ui_schema.UiSchema {
+  let assert Ok(parsed) = ui_parser.parse(json)
+  parsed
 }
 
 fn string_prop() -> types.SchemaProperty {
@@ -39,10 +41,6 @@ fn string_prop() -> types.SchemaProperty {
     ..types.empty_property(),
     field_type: Some(types.StringType),
   )
-}
-
-fn hidden_string_prop() -> types.SchemaProperty {
-  types.SchemaProperty(..string_prop(), render_hints: hidden_widget_hints())
 }
 
 fn object_prop(
@@ -69,14 +67,14 @@ fn readonly_string_prop() -> types.SchemaProperty {
   types.SchemaProperty(..string_prop(), read_only: True)
 }
 
-// Top-level scalar with `x-widget: "hidden"` → its canonical key is the only
+// Top-level scalar with `ui:widget: "hidden"` → its canonical key is the only
 // member of the invisible set. Mirrors issue #23 case 1.
 pub fn top_level_hidden_test() {
-  let schema = schema_with([#("x", hidden_string_prop())], ["x"])
+  let schema = schema_with([#("x", string_prop())], ["x"])
   let result =
     visibility.invisible_paths(
       schema,
-      ui_schema.empty_ui_schema(),
+      ui("{\"x\":{\"ui:widget\":\"hidden\"}}"),
       types.ObjectValue([]),
       False,
     )
@@ -88,13 +86,11 @@ pub fn top_level_hidden_test() {
 // land on the child path regardless of value presence. Mirrors case 2.
 pub fn hidden_object_pulls_children_test() {
   let inner = object_prop([#("y", string_prop()), #("z", string_prop())], ["y"])
-  let hidden_inner =
-    types.SchemaProperty(..inner, render_hints: hidden_widget_hints())
-  let schema = schema_with([#("x", hidden_inner)], [])
+  let schema = schema_with([#("x", inner)], [])
   let result =
     visibility.invisible_paths(
       schema,
-      ui_schema.empty_ui_schema(),
+      ui("{\"x\":{\"ui:widget\":\"hidden\"}}"),
       types.ObjectValue([]),
       False,
     )
@@ -133,12 +129,7 @@ pub fn readonly_visible_when_show_true_test() {
 // all be reported as invisible.
 pub fn hidden_array_with_items_test() {
   let item_schema = object_prop([#("name", string_prop())], ["name"])
-  let hidden_array =
-    types.SchemaProperty(
-      ..array_prop(item_schema),
-      render_hints: hidden_widget_hints(),
-    )
-  let schema = schema_with([#("items", hidden_array)], [])
+  let schema = schema_with([#("items", array_prop(item_schema))], [])
   let values =
     types.ObjectValue([
       #(
@@ -149,7 +140,7 @@ pub fn hidden_array_with_items_test() {
   let result =
     visibility.invisible_paths(
       schema,
-      ui_schema.empty_ui_schema(),
+      ui("{\"items\":{\"ui:widget\":\"hidden\"}}"),
       values,
       False,
     )
@@ -178,10 +169,9 @@ pub fn readonly_object_pulls_children_test() {
   result |> should.equal(set.from_list(["x", "x.name"]))
 }
 
-// UiSchema's `ui:widget: "hidden"` is the primary suppression channel
-// (the `x-widget` extension is deprecated fallback). Verifies the walker
-// reads the merged widget from `ui_resolver.resolve_hints`, not the raw
-// schema's `render_hints` field.
+// UiSchema's `ui:widget: "hidden"`, built as a `UiSchema` value rather than
+// parsed from JSON. Verifies the walker reads the widget through
+// `ui_resolver.resolve_hints`.
 pub fn ui_schema_hidden_widget_test() {
   let plain = string_prop()
   let schema = schema_with([#("x", plain)], ["x"])
@@ -208,11 +198,11 @@ pub fn ui_schema_hidden_widget_test() {
 // regression guard for the walker accidentally hiding too much.
 pub fn visible_sibling_not_invisible_test() {
   let schema =
-    schema_with([#("a", hidden_string_prop()), #("b", string_prop())], ["a"])
+    schema_with([#("a", string_prop()), #("b", string_prop())], ["a"])
   let result =
     visibility.invisible_paths(
       schema,
-      ui_schema.empty_ui_schema(),
+      ui("{\"a\":{\"ui:widget\":\"hidden\"}}"),
       types.ObjectValue([]),
       False,
     )
@@ -253,10 +243,9 @@ fn ui_readonly(name: String) -> ui_schema.UiSchema {
 }
 
 // UiSchema hidden on an object pulls every declared child — parallel to
-// `hidden_object_pulls_children_test`, but routes through `ui:widget:
-// "hidden"` (the primary channel) instead of the deprecated `x-widget`
-// extension. Guards against a `ui_resolver.resolve_hints` regression
-// silently disconnecting UiSchema from the visibility walker.
+// `hidden_object_pulls_children_test`, but with the `UiSchema` built as a
+// value rather than parsed. Guards against a `ui_resolver.resolve_hints`
+// regression silently disconnecting UiSchema from the visibility walker.
 pub fn ui_schema_hidden_object_pulls_children_test() {
   let inner = object_prop([#("y", string_prop()), #("z", string_prop())], ["y"])
   let schema = schema_with([#("x", inner)], [])
@@ -331,7 +320,7 @@ pub fn conditional_branch_flips_visibility_test() {
   let then_schema =
     types.SchemaProperty(
       ..types.empty_property(),
-      properties: Some([#("secret", hidden_string_prop())]),
+      properties: Some([#("secret", string_prop())]),
     )
   let schema =
     types.JsonSchema(
@@ -348,34 +337,34 @@ pub fn conditional_branch_flips_visibility_test() {
   // Branch active: `secret` is added to the resolved schema and hidden.
   let on_values = types.ObjectValue([#("trigger", types.StringValue("yes"))])
   conditional_resolver.resolve_recursive(schema, on_values)
-  |> visibility.invisible_paths(ui_schema.empty_ui_schema(), on_values, False)
+  |> visibility.invisible_paths(
+    ui("{\"secret\":{\"ui:widget\":\"hidden\"}}"),
+    on_values,
+    False,
+  )
   |> should.equal(set.from_list(["secret"]))
 
   // Branch inactive: `secret` is absent from the resolved schema — nothing
   // is suppressed.
   let off_values = types.ObjectValue([#("trigger", types.StringValue("no"))])
   conditional_resolver.resolve_recursive(schema, off_values)
-  |> visibility.invisible_paths(ui_schema.empty_ui_schema(), off_values, False)
+  |> visibility.invisible_paths(
+    ui("{\"secret\":{\"ui:widget\":\"hidden\"}}"),
+    off_values,
+    False,
+  )
   |> should.equal(set.new())
 }
 
-// `CustomWidget("Hidden")` — the typo case for `x-widget: "hidden"` — is a
+// `CustomWidget("Hidden")` — the typo case for `ui:widget: "hidden"` — is a
 // registered custom widget, not suppression. It renders normally and must
 // stay out of the invisible set: only the `HiddenWidget` enum value hides
 // (issue #23 requirement 6).
 pub fn custom_widget_is_not_hidden_test() {
-  let typo =
-    types.SchemaProperty(
-      ..string_prop(),
-      render_hints: types.RenderHints(
-        ..types.empty_hints(),
-        widget: Some(types.CustomWidget("Hidden")),
-      ),
-    )
-  let schema = schema_with([#("x", typo)], ["x"])
+  let schema = schema_with([#("x", string_prop())], ["x"])
   visibility.invisible_paths(
     schema,
-    ui_schema.empty_ui_schema(),
+    ui("{\"x\":{\"ui:widget\":\"Hidden\"}}"),
     types.ObjectValue([]),
     False,
   )

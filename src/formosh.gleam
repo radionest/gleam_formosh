@@ -1,5 +1,6 @@
 // Main module for Formosh - JSON Schema based form generator
 
+import formosh/ffi/console
 import formosh/form/model.{
   type FormModel, type FormMsg, type SubmitConfig, CustomSubmit, HttpSubmit,
   NoSubmit,
@@ -345,7 +346,7 @@ fn create_form_with_config(
 pub fn from_json_string(
   json_string: String,
 ) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError) {
-  case parser.parse_schema(json_string) {
+  case parse_schema_warning(json_string) {
     Ok(schema) -> Ok(from_schema(schema))
     Error(err) -> Error(err)
   }
@@ -366,7 +367,7 @@ pub fn from_json_string_with_config(
   json_string: String,
   submit_config: SubmitConfig,
 ) -> Result(lustre.App(Nil, FormModel, FormMsg), ParseError) {
-  case parser.parse_schema(json_string) {
+  case parse_schema_warning(json_string) {
     Ok(schema) -> {
       let form_config =
         FormConfig(..config(schema), submit_config: submit_config)
@@ -374,6 +375,12 @@ pub fn from_json_string_with_config(
     }
     Error(err) -> Error(err)
   }
+}
+
+fn parse_schema_warning(json_string: String) -> Result(JsonSchema, ParseError) {
+  let #(parsed, warning) = parser.parse_schema_with_warning(json_string)
+  let _ = option.map(warning, console.warn)
+  parsed
 }
 
 /// Get all current form values as a hierarchical Value tree.

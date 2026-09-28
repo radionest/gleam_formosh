@@ -180,7 +180,7 @@ let assert Ok(config) =
 
 The full list of `ui:*` keys (`ui:widget`, `ui:order`, `ui:layout`,
 `ui:placeholder`, `ui:help`, `ui:addable`, `ui:removable`, `ui:accept`, …),
-the JSON tree shape, merge precedence with `x-*` extensions, and three
+the JSON tree shape, the removed `x-*` extensions, and three
 worked examples are in [UiSchema](../reference/ui-schema.md). The short
 version: it
 mirrors your schema's shape, `ui:*` keys are settings on the current node,

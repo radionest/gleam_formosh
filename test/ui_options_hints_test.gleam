@@ -10,12 +10,7 @@ pub fn ui_options_reach_render_hints_test() {
     ui_parser.parse(
       "{\"zones\":{\"ui:widget\":\"swipe-review\",\"ui:options\":{\"swipeRight\":{\"value\":\"positive\"}}}}",
     )
-  let hints =
-    ui_resolver.resolve_hints(
-      ui,
-      [PropertySegment("zones")],
-      types.empty_property(),
-    )
+  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("zones")])
   dict.get(hints.options, "swipeRight")
   |> should.equal(
     Ok(types.ObjectValue([#("value", types.StringValue("positive"))])),

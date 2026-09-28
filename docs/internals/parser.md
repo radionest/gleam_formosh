@@ -27,7 +27,7 @@ description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with
      merges per keyword, stricter-wins instead
      (`resolver.merge_array_constraints`, shared with the `allOf` merge
      below); `all_of`/`conditionals` concatenate; `read_only`/`nullable`
-     OR-merge; `addable`/`removable` AND-merge. A crossed `array_constraints`
+     OR-merge. A crossed `array_constraints`
      result (both sides already normalized, step 5) is a `ParseError`
      (`resolver.array_constraints_crossed_reason`), same as a crossed
      `allOf`.

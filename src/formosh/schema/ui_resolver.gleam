@@ -1,19 +1,15 @@
-/// Path-based lookup and merge for UiSchema.
+/// Path-based UiSchema lookup and hint resolution.
 ///
 /// `lookup` walks the UiSchema tree by `FieldPath` segments — `PropertySegment`
 /// descends into `.properties`, `ArraySegment` descends into `.items` (index
 /// ignored, since items is a template applied to every row). `resolve_hints`
-/// merges the looked-up `UiProperty` with the schema's x-* `RenderHints` —
-/// UiSchema wins on collisions, x-* values are used as fallback.
+/// turns the looked-up `UiProperty` into the effective `RenderHints`.
 ///
-/// This is the single place where presentation data from UiSchema and from
-/// JSON Schema x-* extensions are reconciled. Leaf renderers read the
-/// resulting `RenderHints` via `FieldRenderCtx.hints` and stay agnostic of
-/// the source.
+/// UiSchema is the only presentation-hint source; JSON Schema nodes
+/// contribute none. Leaf renderers read the resulting `RenderHints` via
+/// `FieldRenderCtx.hints`.
 import formosh/form/path.{type FieldPath, ArraySegment, PropertySegment}
-import formosh/schema/types.{
-  type RenderHints, type SchemaProperty, HiddenWidget, RenderHints,
-}
+import formosh/schema/types.{type RenderHints, HiddenWidget, RenderHints}
 import formosh/schema/ui_schema.{
   type UiProperty, type UiSchema, empty_ui_property,
 }
@@ -72,23 +68,16 @@ pub fn is_suppressed(
   is_hidden || is_readonly_suppressed
 }
 
-/// Merge UiSchema with x-* fallback to produce the effective `RenderHints`.
-///
-/// UiSchema fields win on collisions (widget, upload); x-* fallback applies
-/// only when the UiSchema field is `None`. Pure UI fields (placeholder,
-/// help, autofocus, ...) come exclusively from UiSchema — JSON Schema does
-/// not have analogues to fall back to.
-pub fn resolve_hints(
-  ui_schema: UiSchema,
-  field_path: FieldPath,
-  schema_property: SchemaProperty,
-) -> RenderHints {
+/// Resolve the effective `RenderHints` for `field_path` from the UiSchema.
+/// UiSchema is the only hint source (the `x-*` fallback was removed in
+/// v0.11). `addable`/`removable`/`orderable` stay `None` when unset —
+/// renderers treat `None` as enabled.
+pub fn resolve_hints(ui_schema: UiSchema, field_path: FieldPath) -> RenderHints {
   let ui_prop = lookup(ui_schema, field_path)
-  let x_hints = schema_property.render_hints
   RenderHints(
-    widget: option.or(ui_prop.widget, x_hints.widget),
+    widget: ui_prop.widget,
     options: ui_prop.options,
-    upload_config: option.or(ui_prop.upload, x_hints.upload_config),
+    upload_config: ui_prop.upload,
     placeholder: ui_prop.placeholder,
     help: ui_prop.help,
     autofocus: ui_prop.autofocus,
@@ -97,18 +86,8 @@ pub fn resolve_hints(
     title: ui_prop.title,
     description: ui_prop.description,
     order: ui_prop.order,
-    // `addable`/`removable` get an x-* fallback through `SchemaProperty`
-    // (they're parsed from `x-addable`/`x-removable` into Bool fields
-    // there). UiSchema wins on `Some`; otherwise the schema's Bool comes
-    // through wrapped in `Some` so callers can read `hints.addable`
-    // uniformly without consulting `property.addable`.
-    addable: option.or(ui_prop.addable, option.Some(schema_property.addable)),
-    removable: option.or(
-      ui_prop.removable,
-      option.Some(schema_property.removable),
-    ),
-    // No x-* fallback for orderable — UiSchema only. `None` means "enabled"
-    // (the renderer applies the default).
+    addable: ui_prop.addable,
+    removable: ui_prop.removable,
     orderable: ui_prop.orderable,
   )
 }

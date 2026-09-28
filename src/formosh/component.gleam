@@ -5,6 +5,7 @@
 import formosh/internal/component_core as core
 import formosh/schema/serializer
 import formosh/schema/types.{type JsonSchema, type Value}
+import formosh/schema/ui_schema.{type UiSchema}
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
@@ -155,6 +156,15 @@ pub fn upload_base_url(url: String) -> Attribute(msg) {
 /// `formosh/schema/ui_schema` for the supported `ui:*` fields.
 pub fn ui_schema_string(json: String) -> Attribute(msg) {
   attribute.attribute("ui-schema", json)
+}
+
+/// Set the UiSchema from a typed `UiSchema` — the typed counterpart of
+/// `ui_schema_string`, mirroring `schema` / `formosh.with_ui_schema`.
+pub fn ui_schema(ui_schema: UiSchema) -> Attribute(msg) {
+  attribute.attribute(
+    "ui-schema",
+    json.to_string(serializer.ui_schema_to_json(ui_schema)),
+  )
 }
 
 /// Listen for form submission results (`formosh-submit`). The handler

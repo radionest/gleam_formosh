@@ -206,7 +206,7 @@ fn entry(
   show_readonly_fields: Bool,
 ) -> option.Option(String) {
   let field_path = list.append(row_path, [path.PropertySegment(name)])
-  let hints = ui_resolver.resolve_hints(ui_schema, field_path, prop)
+  let hints = ui_resolver.resolve_hints(ui_schema, field_path)
   // Same suppression decision `field_dispatcher.render_field_at_path` makes
   // for the expanded row — `is_readonly` mirrors `make_child_ctx`'s
   // inheritance rule (the row itself is never readonly here, since

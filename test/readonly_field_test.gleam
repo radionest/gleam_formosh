@@ -117,9 +117,9 @@ pub fn readonly_view_renders_array_of_objects_as_table_test() {
 }
 
 pub fn readonly_table_hides_uischema_hidden_columns_test() {
-  // A column hidden via the parallel UiSchema (`ui:widget: "hidden"`, not the
-  // deprecated x-widget) must be dropped from the read-only table — header
-  // and every cell — just like every other field honours hidden widgets.
+  // A column hidden via the parallel UiSchema (`ui:widget: "hidden"`) must be
+  // dropped from the read-only table — header and every cell — just like
+  // every other field honours hidden widgets.
   let ui_json =
     "{ \"lesions\": { \"items\": { \"size\": { \"ui:widget\": \"hidden\" } } } }"
   let assert Ok(ui) = ui_parser.parse(ui_json)
@@ -317,8 +317,7 @@ fn widget_password_schema() -> types.JsonSchema {
 // `secret_widget` carries no `format` at all — only a genuine `UiSchema`
 // `ui:widget: "password"` entry marks it. This exercises the
 // `UiSchema -> ui_resolver.resolve_hints -> CustomWidget("password")` chain
-// end to end, distinct from every other widget test in this suite (which
-// seeds `render_hints.widget`, the deprecated x-widget lane, directly).
+// end to end.
 pub fn widget_route_password_is_masked_in_review_test() {
   let ui_json = "{ \"secret_widget\": { \"ui:widget\": \"password\" } }"
   let assert Ok(ui) = ui_parser.parse(ui_json)

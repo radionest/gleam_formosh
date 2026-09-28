@@ -49,37 +49,19 @@ fn nullable_integer_with_minimum(min: Float) -> SchemaProperty {
 
 pub fn nullable_required_empty_none_has_no_errors_test() {
   let property = nullable_integer_property()
-  validator.validate_field(
-    age_path(),
-    None,
-    property,
-    True,
-    property.render_hints.widget,
-  )
+  validator.validate_field(age_path(), None, property, True, None)
   |> should.equal([])
 }
 
 pub fn nullable_required_empty_null_value_has_no_errors_test() {
   let property = nullable_integer_property()
-  validator.validate_field(
-    age_path(),
-    Some(NullValue),
-    property,
-    True,
-    property.render_hints.widget,
-  )
+  validator.validate_field(age_path(), Some(NullValue), property, True, None)
   |> should.equal([])
 }
 
 pub fn nullable_minimum_empty_reports_no_minimum_error_test() {
   let property = nullable_integer_with_minimum(0.0)
-  validator.validate_field(
-    age_path(),
-    None,
-    property,
-    True,
-    property.render_hints.widget,
-  )
+  validator.validate_field(age_path(), None, property, True, None)
   |> should.equal([])
 }
 
@@ -93,7 +75,7 @@ pub fn nullable_minimum_filled_negative_reports_minimum_error_test() {
       Some(IntegerValue(-5)),
       property,
       True,
-      property.render_hints.widget,
+      None,
     )
 
   list.map(errors, fn(e) { e.rule })
@@ -105,14 +87,7 @@ pub fn nullable_minimum_filled_negative_reports_minimum_error_test() {
 pub fn non_nullable_required_empty_reports_required_error_test() {
   let property =
     SchemaProperty(..empty_property(), field_type: Some(IntegerType))
-  let errors =
-    validator.validate_field(
-      age_path(),
-      None,
-      property,
-      True,
-      property.render_hints.widget,
-    )
+  let errors = validator.validate_field(age_path(), None, property, True, None)
 
   list.map(errors, fn(e) { e.rule })
   |> should.equal(["required"])

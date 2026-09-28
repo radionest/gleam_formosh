@@ -9,6 +9,7 @@ import formosh/form/path
 import formosh/form/update
 import formosh/form/view
 import formosh/schema/types
+import formosh/schema/ui_parser
 import formosh/schema/ui_schema
 import formosh/validation/error
 import gleam/dict
@@ -39,17 +40,6 @@ fn schema_with(
   types.JsonSchema(..empty_schema(), properties: props, required: required)
 }
 
-fn hidden_string_prop() -> types.SchemaProperty {
-  types.SchemaProperty(
-    ..types.empty_property(),
-    field_type: Some(types.StringType),
-    render_hints: types.RenderHints(
-      ..types.empty_hints(),
-      widget: Some(types.HiddenWidget),
-    ),
-  )
-}
-
 fn string_prop() -> types.SchemaProperty {
   types.SchemaProperty(
     ..types.empty_property(),
@@ -57,7 +47,7 @@ fn string_prop() -> types.SchemaProperty {
   )
 }
 
-fn hidden_object_prop(
+fn object_prop(
   properties: List(#(String, types.SchemaProperty)),
   required: List(String),
 ) -> types.SchemaProperty {
@@ -66,18 +56,19 @@ fn hidden_object_prop(
     field_type: Some(types.ObjectType),
     properties: Some(properties),
     required: required,
-    render_hints: types.RenderHints(
-      ..types.empty_hints(),
-      widget: Some(types.HiddenWidget),
-    ),
   )
 }
 
-fn defaulted_hidden_string_prop() -> types.SchemaProperty {
+fn defaulted_string_prop() -> types.SchemaProperty {
   types.SchemaProperty(
-    ..hidden_string_prop(),
+    ..string_prop(),
     default: Some(types.StringValue("auto")),
   )
+}
+
+fn ui(json: String) -> ui_schema.UiSchema {
+  let assert Ok(parsed) = ui_parser.parse(json)
+  parsed
 }
 
 fn required_error(field_name: String) -> error.ValidationError {
@@ -117,8 +108,13 @@ pub fn visible_error_blocks_both_gates_test() {
 // Hidden-path errors block the strict gate but pass the permissive one.
 // `hidden_errors` returns the slice that's hidden.
 pub fn hidden_only_error_passes_permissive_but_blocks_strict_test() {
-  let schema = schema_with([#("x", hidden_string_prop())], ["x"])
-  let m = model.init(schema) |> with_error("x")
+  let schema = schema_with([#("x", string_prop())], ["x"])
+  let m =
+    FormModel(
+      ..model.init(schema),
+      ui_schema: ui("{\"x\":{\"ui:widget\":\"hidden\"}}"),
+    )
+    |> with_error("x")
   model.can_submit(m) |> should.be_false()
   model.is_valid_for_submit(m) |> should.be_true()
   model.hidden_errors(m) |> dict.keys() |> should.equal(["x"])
@@ -128,10 +124,14 @@ pub fn hidden_only_error_passes_permissive_but_blocks_strict_test() {
 // stands), strict blocks too. `hidden_errors` returns only the hidden slice.
 pub fn mixed_errors_block_both_gates_test() {
   let schema =
-    schema_with([#("a", hidden_string_prop()), #("b", string_prop())], [
-      "a", "b",
-    ])
-  let m = model.init(schema) |> with_error("a") |> with_error("b")
+    schema_with([#("a", string_prop()), #("b", string_prop())], ["a", "b"])
+  let m =
+    FormModel(
+      ..model.init(schema),
+      ui_schema: ui("{\"a\":{\"ui:widget\":\"hidden\"}}"),
+    )
+    |> with_error("a")
+    |> with_error("b")
   model.can_submit(m) |> should.be_false()
   model.is_valid_for_submit(m) |> should.be_false()
   let hidden = model.hidden_errors(m)
@@ -156,7 +156,7 @@ pub fn in_flight_submit_blocks_permissive_test() {
 // lands inside the walker's invisible set. Strict gate blocks; permissive
 // gate passes; `hidden_errors` keys the suppressed leaf.
 pub fn hidden_object_required_leaf_blocks_via_validator_test() {
-  let inner = hidden_object_prop([#("y", string_prop())], ["y"])
+  let inner = object_prop([#("y", string_prop())], ["y"])
   let schema = schema_with([#("x", inner)], [])
   let m =
     model.init_with_full_config(
@@ -164,7 +164,7 @@ pub fn hidden_object_required_leaf_blocks_via_validator_test() {
       None,
       False,
       dict.from_list([#("x", types.ObjectValue([]))]),
-      ui_schema.empty_ui_schema(),
+      ui("{\"x\":{\"ui:widget\":\"hidden\"}}"),
     )
     |> update.validate_all_fields
   model.can_submit(m) |> should.be_false()
@@ -177,8 +177,13 @@ pub fn hidden_object_required_leaf_blocks_via_validator_test() {
 // report and submit proceeds. This is the case the diagnostic warn stays
 // silent for.
 pub fn hidden_required_with_default_submits_test() {
-  let schema = schema_with([#("x", defaulted_hidden_string_prop())], ["x"])
-  let m = model.init(schema) |> update.validate_all_fields
+  let schema = schema_with([#("x", defaulted_string_prop())], ["x"])
+  let m =
+    FormModel(
+      ..model.init(schema),
+      ui_schema: ui("{\"x\":{\"ui:widget\":\"hidden\"}}"),
+    )
+    |> update.validate_all_fields
   model.can_submit(m) |> should.be_true()
   model.hidden_errors(m) |> dict.is_empty() |> should.be_true()
 }

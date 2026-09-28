@@ -68,4 +68,4 @@ declared field order, which `view.gleam` relies on for rendering.
 
 - Parse pipeline (`$ref`, `allOf`, normalization): `docs/internals/parser.md`
 - Keyword support matrix: `docs/reference/schema-keywords.md`
-- `ui:*` parsing and merge precedence: `docs/reference/ui-schema.md`
+- `ui:*` parsing, removed `x-*` extensions: `docs/reference/ui-schema.md`

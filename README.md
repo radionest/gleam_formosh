@@ -405,7 +405,7 @@ The widget is chosen automatically based on schema:
 - Initial values pre-population
 - Touch tracking — errors shown only after field interaction
 - Conditional field visibility — fields appear/disappear based on form state
-- Schema serialization back to JSON
+- Schema and UiSchema serialization back to JSON
 
 ## What's NOT Implemented
 

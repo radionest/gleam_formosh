@@ -155,7 +155,7 @@ fn my_view(model) {
 The `component.*` attribute helpers (`schema`, `schema_string`,
 `submit_url`, `submit_method`, `initial_values_string`,
 `show_readonly_fields`, `read_only`, `upload_base_url`,
-`ui_schema_string`, `on_submit`, `on_change`) mirror the
+`ui_schema`, `ui_schema_string`, `on_submit`, `on_change`) mirror the
 HTML attributes one-for-one.
 
 ## Read-only (review) mode

@@ -1,0 +1,7 @@
+{
+  "tenant_id": { "ui:widget": "hidden" },
+  "form_version": { "ui:widget": "hidden" },
+  "source": { "ui:widget": "hidden" },
+  "preferences": { "_internal_segment": { "ui:widget": "hidden" } },
+  "tags": { "ui:widget": "hidden" }
+}

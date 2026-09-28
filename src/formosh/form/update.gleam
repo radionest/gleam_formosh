@@ -797,8 +797,7 @@ fn validate_field(model: FormModel, field_name: String) -> FormModel {
     Some(property) -> {
       let field_path = path.from_field_name(field_name)
       let value = model.get_value_at_path(model, field_path)
-      let hints =
-        ui_resolver.resolve_hints(model.ui_schema, field_path, property)
+      let hints = ui_resolver.resolve_hints(model.ui_schema, field_path)
       let errors =
         validator.validate_field(
           field_path,
@@ -974,7 +973,7 @@ fn format_hidden_errors_warning(
     })
   "[formosh] Submit blocked by errors on UI-suppressed fields:\n"
   <> string.join(lines, "\n")
-  <> "\nThese paths are hidden (`x-widget`/`ui:widget: \"hidden\"`) or"
+  <> "\nThese paths are hidden (`ui:widget: \"hidden\"`) or"
   <> " readOnly with `show_readonly_fields: false`. Supply a JSON Schema"
   <> " `default`, set the value programmatically, or drop `required`."
 }
@@ -1102,8 +1101,8 @@ fn create_upload_effect(
     None -> effect.none()
     Some(upload_url) -> {
       let config = case model.find_property_at_path(model, field_path) {
-        Ok(prop) ->
-          ui_resolver.resolve_hints(model.ui_schema, field_path, prop).upload_config
+        Ok(_) ->
+          ui_resolver.resolve_hints(model.ui_schema, field_path).upload_config
         Error(_) -> None
       }
       let accept = case config {

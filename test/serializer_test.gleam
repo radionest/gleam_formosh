@@ -3,7 +3,12 @@ import formosh/schema/serializer
 import formosh/schema/types.{
   ArrayType, BooleanType, DateFormat, EmailFormat, IntegerType, IntegerValue,
   JsonSchema, NumberConstraints, NumberType, ObjectType, SchemaProperty,
-  StringConstraints, StringType, StringValue, UploadConfig, empty_property,
+  StringConstraints, StringType, StringValue, empty_property,
+}
+import formosh/schema/ui_parser
+import formosh/schema/ui_schema.{
+  type UiProperty, GroupNode, LeafNode, RowNode, UiProperty, UiSchema,
+  empty_ui_property, empty_ui_schema,
 }
 import gleam/dict
 import gleam/json
@@ -753,153 +758,6 @@ pub fn serialize_one_of_test() {
   |> should.be_true()
 }
 
-pub fn image_upload_serialization_test() {
-  let schema =
-    JsonSchema(
-      title: Some("Image Form"),
-      description: None,
-      field_type: ObjectType,
-      properties: [
-        #(
-          "photos",
-          SchemaProperty(
-            ..empty_property(),
-            field_type: Some(ArrayType),
-            title: Some("Photos"),
-            items: Some(
-              SchemaProperty(..empty_property(), field_type: Some(StringType)),
-            ),
-            render_hints: types.RenderHints(
-              ..types.empty_hints(),
-              widget: Some(types.ImageUploadWidget),
-              upload_config: Some(UploadConfig(
-                accept: "image/*",
-                max_file_size: Some(10_485_760),
-              )),
-            ),
-          ),
-        ),
-      ],
-      required: [],
-      defs: None,
-      conditionals: [],
-      all_of: None,
-      string_constraints: None,
-      number_constraints: None,
-    )
-
-  let result = serializer.schema_to_json(schema)
-  let json_string = json.to_string(result)
-
-  json_string
-  |> string.contains("\"x-widget\":\"image-upload\"")
-  |> should.be_true()
-
-  json_string
-  |> string.contains("\"x-accept\":\"image/*\"")
-  |> should.be_true()
-
-  json_string
-  |> string.contains("\"x-max-file-size\":10485760")
-  |> should.be_true()
-}
-
-pub fn image_upload_roundtrip_test() {
-  let json =
-    "{
-    \"type\": \"object\",
-    \"properties\": {
-      \"photos\": {
-        \"type\": \"array\",
-        \"title\": \"Photos\",
-        \"items\": {\"type\": \"string\"},
-        \"x-widget\": \"image-upload\",
-        \"x-accept\": \"image/jpeg\",
-        \"x-max-file-size\": 5242880
-      }
-    }
-  }"
-
-  // Parse
-  let assert Ok(schema) = parser.parse_schema(json)
-  let assert Ok(prop) = list.key_find(schema.properties, "photos")
-
-  should.equal(prop.render_hints.widget, Some(types.ImageUploadWidget))
-  case prop.render_hints.upload_config {
-    Some(config) -> {
-      should.equal(config.accept, "image/jpeg")
-      should.equal(config.max_file_size, Some(5_242_880))
-    }
-    None -> panic as "Expected upload_config"
-  }
-
-  // Serialize back
-  let serialized = serializer.schema_to_json(schema)
-  let serialized_string = json.to_string(serialized)
-
-  serialized_string
-  |> string.contains("\"x-widget\":\"image-upload\"")
-  |> should.be_true()
-
-  serialized_string
-  |> string.contains("\"x-accept\":\"image/jpeg\"")
-  |> should.be_true()
-
-  serialized_string
-  |> string.contains("\"x-max-file-size\":5242880")
-  |> should.be_true()
-
-  // Re-parse serialized output
-  let assert Ok(reparsed) = parser.parse_schema(serialized_string)
-  let assert Ok(reparsed_prop) = list.key_find(reparsed.properties, "photos")
-
-  should.equal(reparsed_prop.render_hints.widget, Some(types.ImageUploadWidget))
-  case reparsed_prop.render_hints.upload_config {
-    Some(config) -> {
-      should.equal(config.accept, "image/jpeg")
-      should.equal(config.max_file_size, Some(5_242_880))
-    }
-    None -> panic as "Expected upload_config after roundtrip"
-  }
-}
-
-pub fn no_widget_no_x_fields_serialized_test() {
-  let schema =
-    JsonSchema(
-      title: None,
-      description: None,
-      field_type: ObjectType,
-      properties: [
-        #(
-          "name",
-          SchemaProperty(..empty_property(), field_type: Some(StringType)),
-        ),
-      ],
-      required: [],
-      defs: None,
-      conditionals: [],
-      all_of: None,
-      string_constraints: None,
-      number_constraints: None,
-    )
-
-  let result = serializer.schema_to_json(schema)
-  let json_string = json.to_string(result)
-
-  // Should not contain any x- fields
-  json_string
-  |> string.contains("x-widget")
-  |> should.be_false()
-
-  json_string
-  |> string.contains("x-accept")
-  |> should.be_false()
-
-  json_string
-  |> string.contains("x-max-file-size")
-  |> should.be_false()
-}
-
 pub fn serialize_array_constraints_test() {
   let schema =
     JsonSchema(
@@ -1049,4 +907,77 @@ pub fn password_format_round_trips_test() {
   json.to_string(serializer.schema_to_json(schema))
   |> string.contains("\"format\":\"password\"")
   |> should.be_true()
+}
+
+fn full_ui_property() -> UiProperty {
+  UiProperty(
+    widget: Some(types.ImageUploadWidget),
+    options: dict.from_list([
+      #("rows", types.IntegerValue(3)),
+      #(
+        "nested",
+        types.ObjectValue([
+          #("a", types.ArrayValue([types.BooleanValue(True), types.NullValue])),
+        ]),
+      ),
+    ]),
+    order: Some(["child", "*"]),
+    placeholder: Some("p"),
+    help: Some("h"),
+    autofocus: Some(True),
+    disabled: Some(False),
+    readonly: Some(True),
+    title: Some("T"),
+    description: Some("D"),
+    addable: Some(False),
+    removable: Some(True),
+    orderable: Some(False),
+    upload: Some(types.UploadConfig(
+      accept: "image/jpeg",
+      max_file_size: Some(1024),
+    )),
+    properties: [
+      #(
+        "child",
+        UiProperty(
+          ..empty_ui_property(),
+          widget: Some(types.CustomWidget("textarea")),
+        ),
+      ),
+    ],
+    items: Some(
+      UiProperty(..empty_ui_property(), widget: Some(types.HiddenWidget)),
+    ),
+    layout: Some([
+      LeafNode("child"),
+      RowNode([LeafNode("a"), LeafNode("b")]),
+      GroupNode(Some("More"), [LeafNode("c")]),
+      GroupNode(None, []),
+    ]),
+  )
+}
+
+pub fn ui_schema_round_trips_test() {
+  let ui =
+    UiSchema(
+      properties: [
+        #("full", full_ui_property()),
+        #(
+          "swipe",
+          UiProperty(
+            ..empty_ui_property(),
+            widget: Some(types.SwipeReviewWidget),
+          ),
+        ),
+      ],
+      order: Some(["swipe", "full"]),
+      layout: Some([RowNode([LeafNode("full"), LeafNode("swipe")])]),
+    )
+  ui_parser.parse(json.to_string(serializer.ui_schema_to_json(ui)))
+  |> should.equal(Ok(ui))
+}
+
+pub fn empty_ui_schema_serializes_to_empty_object_test() {
+  json.to_string(serializer.ui_schema_to_json(empty_ui_schema()))
+  |> should.equal("{}")
 }

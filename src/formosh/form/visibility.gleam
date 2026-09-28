@@ -1,9 +1,9 @@
 /// Visibility walker for the form submit gate.
 ///
 /// `invisible_paths` returns the set of canonical path keys whose fields are
-/// suppressed from the UI: `widget == Some(HiddenWidget)` (via UiSchema or the
-/// deprecated `x-widget` fallback), or `read_only` when `show_readonly_fields`
-/// is `False`. For a suppressed container, every descendant path that could
+/// suppressed from the UI: `widget == Some(HiddenWidget)` (via UiSchema
+/// `ui:widget: "hidden"`), or `read_only` when `show_readonly_fields` is
+/// `False`. For a suppressed container, every descendant path that could
 /// legitimately appear in `model.errors` is pushed too — array indices are
 /// enumerated from the current `values` length, so the result stays in sync
 /// with the actual error keys produced by the validator.
@@ -93,7 +93,7 @@ fn walk_node(
   show_readonly_fields: Bool,
   acc: Set(String),
 ) -> Set(String) {
-  let hints = ui_resolver.resolve_hints(ui_schema, node_path, prop)
+  let hints = ui_resolver.resolve_hints(ui_schema, node_path)
   let effective_readonly =
     parent_readonly || prop.read_only || option.unwrap(hints.readonly, False)
 

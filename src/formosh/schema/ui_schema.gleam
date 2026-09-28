@@ -25,7 +25,7 @@ pub type LayoutNode {
 /// UI hints for a single field, parallel to `SchemaProperty`.
 ///
 /// All fields are optional overrides. A `None` value means "fall through to
-/// the schema-level default or x-* extension"; `Some` wins during merge.
+/// the renderer's default".
 /// `properties` and `items` carry hints for nested fields — `lookup` in
 /// `ui_resolver` walks them by FieldPath segments.
 pub type UiProperty {

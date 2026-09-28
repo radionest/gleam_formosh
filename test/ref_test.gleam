@@ -180,59 +180,6 @@ pub fn ref_with_override_test() {
   }
 }
 
-/// Referencing `x-widget` overrides the one from `$defs` — per-field
-/// `option.or` in `merge_render_hints` picks the referencing side.
-pub fn ref_widget_referencing_overrides_referenced_test() {
-  let json =
-    "{
-    \"type\": \"object\",
-    \"properties\": {
-      \"avatar\": {
-        \"$ref\": \"#/$defs/upload_field\",
-        \"x-widget\": \"hidden\"
-      }
-    },
-    \"$defs\": {
-      \"upload_field\": {
-        \"type\": \"array\",
-        \"x-widget\": \"image-upload\"
-      }
-    }
-  }"
-
-  let assert Ok(schema) = parser.parse_schema(json)
-  let assert Ok(avatar) = list.key_find(schema.properties, "avatar")
-  avatar.render_hints.widget |> should.equal(Some(types.HiddenWidget))
-}
-
-/// When the referencing side carries no `x-` extensions, hints from
-/// `$defs` pass through untouched (widget AND `upload_config`).
-pub fn ref_upload_config_passes_through_from_defs_test() {
-  let json =
-    "{
-    \"type\": \"object\",
-    \"properties\": {
-      \"avatar\": {
-        \"$ref\": \"#/$defs/upload_field\"
-      }
-    },
-    \"$defs\": {
-      \"upload_field\": {
-        \"type\": \"array\",
-        \"x-widget\": \"image-upload\",
-        \"x-accept\": \"image/png\",
-        \"x-max-file-size\": 2048
-      }
-    }
-  }"
-
-  let assert Ok(schema) = parser.parse_schema(json)
-  let assert Ok(avatar) = list.key_find(schema.properties, "avatar")
-  avatar.render_hints.widget |> should.equal(Some(types.ImageUploadWidget))
-  avatar.render_hints.upload_config
-  |> should.equal(Some(types.UploadConfig("image/png", Some(2048))))
-}
-
 /// Test nested $ref in array items
 pub fn ref_in_array_items_test() {
   let json =
@@ -730,31 +677,6 @@ pub fn ref_preserves_nested_property_order_test() {
   nested
   |> list.map(fn(entry) { entry.0 })
   |> should.equal(["street", "apartment", "city", "zip"])
-}
-
-/// `disabled`/`readonly` OR-merge: `Some(False)` on either side must not
-/// re-enable a `Some(True)` from the other (the `ui:disabled` contract).
-pub fn merge_render_hints_disabled_readonly_or_merge_test() {
-  let on =
-    types.RenderHints(
-      ..types.empty_hints(),
-      disabled: Some(True),
-      readonly: Some(True),
-    )
-  let off =
-    types.RenderHints(
-      ..types.empty_hints(),
-      disabled: Some(False),
-      readonly: Some(False),
-    )
-
-  let merged = resolver.merge_render_hints(off, on)
-  merged.disabled |> should.equal(Some(True))
-  merged.readonly |> should.equal(Some(True))
-
-  let flipped = resolver.merge_render_hints(on, off)
-  flipped.disabled |> should.equal(Some(True))
-  flipped.readonly |> should.equal(Some(True))
 }
 
 /// A $ref-bearing node's local `items` passes through nested-$ref

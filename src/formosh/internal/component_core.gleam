@@ -3,6 +3,7 @@
 // tests can exercise it directly; `formosh/component` wires this core into
 // the registered custom element.
 
+import formosh/ffi/console
 import formosh/form/defaults
 import formosh/form/json_utils
 import formosh/form/model.{
@@ -357,7 +358,9 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 /// message. Logs a diagnostic and returns `Error(Nil)` on invalid input, per
 /// `lustre/component.on_attribute_change`'s contract.
 pub fn parse_schema_attr(value: String) -> Result(Msg, Nil) {
-  case parser.parse_schema(value) {
+  let #(parsed, warning) = parser.parse_schema_with_warning(value)
+  let _ = option.map(warning, console.warn)
+  case parsed {
     Ok(schema) -> Ok(SchemaChanged(schema))
     Error(error) -> {
       io.println_error("formosh: schema parse error: " <> string.inspect(error))

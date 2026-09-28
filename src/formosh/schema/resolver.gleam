@@ -372,8 +372,7 @@ fn append_all_of(
 /// `array_constraints` doesn't take either side wholesale but merges per
 /// keyword, stricter-wins (`merge_array_constraints` below); `all_of` and
 /// `conditionals` concatenate (both sides' members apply); `read_only` and
-/// `nullable` OR-merge (either side sets it); `addable` and `removable`
-/// AND-merge (most restrictive wins).
+/// `nullable` OR-merge (either side sets it).
 fn merge_properties(
   referencing: SchemaProperty,
   referenced: SchemaProperty,
@@ -411,13 +410,6 @@ fn merge_properties(
     // readOnly is true if either property has it set
     read_only: referencing.read_only || referenced.read_only,
     nullable: referencing.nullable || referenced.nullable,
-    // x-addable / x-removable: AND-merge — most restrictive wins
-    addable: referencing.addable && referenced.addable,
-    removable: referencing.removable && referenced.removable,
-    render_hints: merge_render_hints(
-      referencing.render_hints,
-      referenced.render_hints,
-    ),
     conditionals: list.append(referencing.conditionals, referenced.conditionals),
   )
 }
@@ -469,56 +461,5 @@ pub fn array_constraints_crossed_reason(
         <> int.to_string(max),
       )
     _ -> None
-  }
-}
-
-/// Merge two `RenderHints`, with the referencing side winning per-field —
-/// except `disabled`/`readonly`, which OR-merge: a `false` on one side must
-/// not re-enable a `true` from the other, mirroring `SchemaProperty.read_only`
-/// and the UiSchema `ui:disabled` contract.
-///
-/// Runs during `$ref` resolution, so the inputs carry hints from JSON
-/// Schema `x-*` extensions on the referencing/referenced nodes — currently
-/// `x-widget`, `x-accept`, `x-max-file-size`. UiSchema merging happens later
-/// in `ui_resolver.resolve_hints` and feeds the other `RenderHints` fields
-/// (`placeholder`, `help`, etc.), so here they are always `None` on both
-/// sides.
-///
-/// Also reused by `composer` for allOf member merging (first argument wins
-/// on the per-field picks).
-pub fn merge_render_hints(
-  referencing: types.RenderHints,
-  referenced: types.RenderHints,
-) -> types.RenderHints {
-  types.RenderHints(
-    widget: option.or(referencing.widget, referenced.widget),
-    options: referencing.options,
-    upload_config: option.or(
-      referencing.upload_config,
-      referenced.upload_config,
-    ),
-    placeholder: option.or(referencing.placeholder, referenced.placeholder),
-    help: option.or(referencing.help, referenced.help),
-    autofocus: option.or(referencing.autofocus, referenced.autofocus),
-    disabled: or_hint(referencing.disabled, referenced.disabled),
-    readonly: or_hint(referencing.readonly, referenced.readonly),
-    title: option.or(referencing.title, referenced.title),
-    description: option.or(referencing.description, referenced.description),
-    order: option.or(referencing.order, referenced.order),
-    addable: option.or(referencing.addable, referenced.addable),
-    removable: option.or(referencing.removable, referenced.removable),
-    orderable: option.or(referencing.orderable, referenced.orderable),
-  )
-}
-
-/// OR-combine two optional boolean hints: `Some(False)` must not override
-/// `Some(True)` from the other side.
-fn or_hint(
-  a: option.Option(Bool),
-  b: option.Option(Bool),
-) -> option.Option(Bool) {
-  case a, b {
-    Some(x), Some(y) -> Some(x || y)
-    _, _ -> option.or(a, b)
   }
 }

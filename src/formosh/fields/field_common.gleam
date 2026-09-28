@@ -287,8 +287,7 @@ pub fn extract_boolean_value(value: Option(types.Value)) -> Bool {
 /// warn you about an omitted new field.
 ///
 /// `hints` is the UiSchema seam: filled by `ui_resolver.resolve_hints`
-/// from a path lookup against `model.ui_schema`, with the deprecated
-/// `x-*` extensions as fallback.
+/// from a path lookup against `model.ui_schema`.
 pub type FieldRenderCtx {
   FieldRenderCtx(
     path: path.FieldPath,
@@ -319,7 +318,7 @@ pub fn make_field_ctx(
   is_disabled is_disabled: Bool,
   is_readonly is_readonly: Bool,
 ) -> FieldRenderCtx {
-  let hints = ui_resolver.resolve_hints(model.ui_schema, field_path, property)
+  let hints = ui_resolver.resolve_hints(model.ui_schema, field_path)
   FieldRenderCtx(
     path: field_path,
     property: property,
@@ -358,7 +357,7 @@ pub fn make_child_ctx(
   property child_prop: types.SchemaProperty,
   is_required child_required: Bool,
 ) -> FieldRenderCtx {
-  let hints = ui_resolver.resolve_hints(model.ui_schema, child_path, child_prop)
+  let hints = ui_resolver.resolve_hints(model.ui_schema, child_path)
   FieldRenderCtx(
     path: child_path,
     property: child_prop,

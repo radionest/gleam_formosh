@@ -83,7 +83,7 @@ pub fn active_branch_index(
 
 /// Materialize `prop`'s branch at `index` into an effective `SchemaProperty`:
 /// the member's type/constraints/properties/items become the node's, while
-/// `title`/`description`/`render_hints`/`nullable` stay the parent's
+/// `title`/`description`/`nullable` stay the parent's
 /// (Pydantic puts them there, not on the member) and `any_of` resets to the
 /// parent's full member list so the dispatcher can still render the chooser
 /// (it strips `any_of` itself before recursing into the branch). An
@@ -105,7 +105,6 @@ pub fn materialize_branch(prop: SchemaProperty, index: Int) -> SchemaProperty {
     default: option.or(member.default, prop.default),
     nullable: prop.nullable,
     read_only: prop.read_only || member.read_only,
-    render_hints: prop.render_hints,
     conditionals: list.append(prop.conditionals, member.conditionals),
     any_of: prop.any_of,
   )

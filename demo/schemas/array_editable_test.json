@@ -8,7 +8,7 @@
     "lesions": {
       "type": "array",
       "title": "Очаги (полностью редактируемые)",
-      "description": "Без readOnly и без x-addable/x-removable — стандартное поведение",
+      "description": "Без readOnly и без ui:addable/ui:removable — стандартное поведение",
       "default": [
         {
           "lesion_num": 1,
