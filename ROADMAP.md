@@ -67,7 +67,7 @@ do"):
 **Goal.** Separate "data" from "presentation". Without this, every further
 feature would drag `x-widget`-style dirt into the JSON Schema.
 
-**Scope:** L. **Breaking:** minor (`x-widget` still read, but deprecated).
+**Scope:** L. **Breaking:** minor (`x-widget` read as a deprecated fallback v0.7–v0.10, removed in v0.11).
 
 - [x] Parallel `UiSchema` structure with the same path addressing as
   `FieldPath` (tree isomorphic to the JSON Schema)
