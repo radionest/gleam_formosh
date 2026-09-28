@@ -96,9 +96,9 @@ pub type UploadConfig {
   UploadConfig(accept: String, max_file_size: Option(Int))
 }
 
-/// Widget override for a property's render strategy, driven by the `x-widget`
-/// JSON Schema vendor extension. Known values map to first-class variants;
-/// anything else falls back to `CustomWidget(raw)` so authors can prototype
+/// Widget override for a property's render strategy, driven by the UiSchema
+/// `ui:widget` key. Known values map to first-class variants; anything else
+/// falls back to `CustomWidget(raw)` so authors can prototype
 /// new widgets without a parser change (mirrors `StringFormat.CustomFormat`).
 pub type Widget {
   ImageUploadWidget
@@ -110,11 +110,10 @@ pub type Widget {
 /// Presentation hints separate from JSON Schema data definitions.
 ///
 /// `SchemaProperty` describes the *data*; `RenderHints` describes how it
-/// should appear. As of v0.7 hints come from two sources: the parallel
-/// `UiSchema` (primary) and `x-widget` / `x-accept` / `x-max-file-size`
-/// extensions on the same JSON Schema node (deprecated fallback). The
-/// merge happens in `ui_resolver.resolve_hints` and produces this record.
-/// Leaf renderers read via `FieldRenderCtx.hints` and stay source-agnostic.
+/// should appear. This is the resolved presentation record produced by
+/// `ui_resolver.resolve_hints` from the parallel `UiSchema` alone — JSON
+/// Schema nodes contribute no hints. Leaf renderers read it via
+/// `FieldRenderCtx.hints`.
 pub type RenderHints {
   RenderHints(
     widget: Option(Widget),
@@ -181,13 +180,6 @@ pub type SchemaProperty {
     // array or as an anyOf member. Empty nullable fields validate as
     // satisfied and submit null.
     nullable: Bool,
-    // x-addable: whether the "add item" control is shown for an array (default True)
-    addable: Bool,
-    // x-removable: whether the "remove item" control is shown for an array (default True)
-    removable: Bool,
-    // Presentation hints (widget override, upload config) — slot fed by the
-    // `x-widget` family today, by `UiSchema` from v0.7 onwards.
-    render_hints: RenderHints,
     // Conditional rules (if/then/else, allOf) scoped to this property.
     // Used for item-level conditionals inside array `items`.
     conditionals: List(ConditionalRule),
@@ -320,9 +312,6 @@ pub fn empty_property() -> SchemaProperty {
     required: [],
     read_only: False,
     nullable: False,
-    addable: True,
-    removable: True,
-    render_hints: empty_hints(),
     conditionals: [],
   )
 }
@@ -330,9 +319,8 @@ pub fn empty_property() -> SchemaProperty {
 /// Create an empty `RenderHints` record (no overrides — every renderer
 /// falls back to schema-level defaults).
 ///
-/// Use as the default value for properties without `x-widget` extensions
-/// and UiSchema entries, and as the base for `FieldRenderCtx.hints` when
-/// no hints apply.
+/// Use as the default value for fields without UiSchema entries, and as
+/// the base for `FieldRenderCtx.hints` when no hints apply.
 pub fn empty_hints() -> RenderHints {
   RenderHints(
     widget: None,

@@ -56,9 +56,7 @@ pub fn render_container(
     None -> #(0, None)
   }
 
-  // `resolve_hints` always wraps `addable`/`removable` in `Some`
-  // (UiSchema override or `SchemaProperty.addable` Bool fallback), so the
-  // outer `option.unwrap` default below is just a defensive no-op.
+  // `None` (no UiSchema entry) means enabled.
   // minItems/maxItems gate on top: the add button is hidden once the array
   // is full, per-row remove is hidden once shrinking would violate minItems.
   let addable =
@@ -501,8 +499,7 @@ fn render_item_fields(
 
   // For array items, the row order is controlled by the array's `items`
   // template, looked up via the row's path.
-  let item_hints =
-    ui_resolver.resolve_hints(model.ui_schema, item_path, item_schema)
+  let item_hints = ui_resolver.resolve_hints(model.ui_schema, item_path)
   let item_ui = ui_resolver.lookup(model.ui_schema, item_path)
   case resolved.properties {
     Some(props) -> {

@@ -488,18 +488,10 @@ fn validate_resolved_props(
         let field_value = dict.get(values, field_name) |> option.from_result
         let is_required = list.contains(resolved.required, field_name)
         let field_path = key_for(field_name)
-        // Nested validation only sees x-widget here — UiSchema lookup for
-        // nested image-upload fields lives in callers that have access to
-        // the model. Nested image-upload widgets are not yet supported
-        // (see CLAUDE.md), so this fallback is sufficient.
+        // Nested validation has no UiSchema access and nested image-upload
+        // is unsupported, so no widget-specific rules apply here.
         let own_errors =
-          validate_field(
-            field_path,
-            field_value,
-            field_prop,
-            is_required,
-            field_prop.render_hints.widget,
-          )
+          validate_field(field_path, field_value, field_prop, is_required, None)
         let nested =
           validate_nested(field_path, field_prop, field_value, selected)
         list.append(own_errors, nested)

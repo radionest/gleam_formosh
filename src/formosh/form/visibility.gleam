@@ -93,7 +93,7 @@ fn walk_node(
   show_readonly_fields: Bool,
   acc: Set(String),
 ) -> Set(String) {
-  let hints = ui_resolver.resolve_hints(ui_schema, node_path, prop)
+  let hints = ui_resolver.resolve_hints(ui_schema, node_path)
   let effective_readonly =
     parent_readonly || prop.read_only || option.unwrap(hints.readonly, False)
 

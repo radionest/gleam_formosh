@@ -7,8 +7,8 @@ import formosh/schema/properties
 import formosh/schema/types.{
   type JsonSchema, type SchemaProperty, ArrayType, ArrayValue, ConditionalRule,
   IntegerType, IntegerValue, JsonSchema, NumberConstraints, NumberType,
-  NumberValue, ObjectType, ObjectValue, RenderHints, SchemaProperty, StringType,
-  StringValue, empty_hints, empty_number_constraints, empty_property,
+  NumberValue, ObjectType, ObjectValue, SchemaProperty, StringType, StringValue,
+  empty_number_constraints, empty_property,
 }
 import gleam/option.{None, Some}
 import gleeunit/should
@@ -143,7 +143,6 @@ pub fn materialize_branch_adopts_member_content_test() {
         NumberConstraints(..empty_number_constraints(), minimum: Some(1.0)),
       ),
     )
-  let hints = RenderHints(..empty_hints(), placeholder: Some("ph"))
   let prop =
     SchemaProperty(
       ..empty_property(),
@@ -151,7 +150,6 @@ pub fn materialize_branch_adopts_member_content_test() {
       title: Some("Value"),
       description: Some("desc"),
       nullable: True,
-      render_hints: hints,
     )
 
   let result = union_resolver.materialize_branch(prop, 0)
@@ -162,7 +160,6 @@ pub fn materialize_branch_adopts_member_content_test() {
   // Node-level metadata stays the parent's, not the member's.
   result.title |> should.equal(Some("Value"))
   result.description |> should.equal(Some("desc"))
-  result.render_hints |> should.equal(hints)
   result.nullable |> should.be_true()
 }
 

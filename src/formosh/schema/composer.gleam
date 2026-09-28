@@ -269,12 +269,6 @@ fn merge_pair(
     required: list.append(base.required, overlay.required) |> list.unique(),
     read_only: base.read_only || overlay.read_only,
     nullable: base.nullable || overlay.nullable,
-    addable: base.addable && overlay.addable,
-    removable: base.removable && overlay.removable,
-    render_hints: resolver.merge_render_hints(
-      overlay.render_hints,
-      base.render_hints,
-    ),
     conditionals: list.append(base.conditionals, overlay.conditionals),
     all_of: None,
   ))

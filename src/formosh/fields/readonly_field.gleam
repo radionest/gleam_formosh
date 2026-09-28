@@ -179,7 +179,7 @@ fn checkbox_group_summary(
     let item_path = list.append(ctx.path, [ArraySegment(index)])
     value_display.display_value(
       item_schema,
-      ui_resolver.resolve_hints(model.ui_schema, item_path, item_schema),
+      ui_resolver.resolve_hints(model.ui_schema, item_path),
       Some(item),
     )
   })
@@ -211,11 +211,7 @@ fn scalar_object_columns(
           let #(name, prop) = entry
           let col_path =
             list.append(ctx.path, [ArraySegment(0), PropertySegment(name)])
-          #(
-            name,
-            prop,
-            ui_resolver.resolve_hints(model.ui_schema, col_path, prop),
-          )
+          #(name, prop, ui_resolver.resolve_hints(model.ui_schema, col_path))
         })
       let visible =
         list.filter(columns, fn(col) {
@@ -303,7 +299,7 @@ fn render_groups(
           "#" <> int.to_string(index + 1),
           value_display.display_value(
             item_schema,
-            ui_resolver.resolve_hints(model.ui_schema, item_path, item_schema),
+            ui_resolver.resolve_hints(model.ui_schema, item_path),
             Some(item),
           ),
         )

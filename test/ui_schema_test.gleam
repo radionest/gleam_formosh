@@ -1,8 +1,6 @@
 import formosh/form/path.{ArraySegment, PropertySegment}
 import formosh/schema/properties
-import formosh/schema/types.{
-  type SchemaProperty, SchemaProperty, UploadConfig, empty_hints, empty_property,
-}
+import formosh/schema/types
 import formosh/schema/ui_parser
 import formosh/schema/ui_resolver
 import formosh/schema/ui_schema.{empty_ui_property, empty_ui_schema}
@@ -233,33 +231,9 @@ pub fn lookup_deeply_nested_with_array_in_array_test() {
 
 // ---- ui_resolver.resolve_hints ----
 
-fn schema_prop_with_widget(widget: types.Widget) -> SchemaProperty {
-  SchemaProperty(
-    ..empty_property(),
-    render_hints: types.RenderHints(..empty_hints(), widget: Some(widget)),
-  )
-}
-
-pub fn resolve_hints_ui_schema_wins_over_x_widget_test() {
-  let assert Ok(ui) = ui_parser.parse("{\"f\":{\"ui:widget\":\"textarea\"}}")
-  let prop = schema_prop_with_widget(types.HiddenWidget)
-  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("f")], prop)
-  // UiSchema's CustomWidget("textarea") wins over x-widget HiddenWidget
-  hints.widget |> should.equal(Some(types.CustomWidget("textarea")))
-}
-
-pub fn resolve_hints_falls_back_to_x_widget_test() {
-  // No UiSchema entry for `f`
-  let ui = empty_ui_schema()
-  let prop = schema_prop_with_widget(types.HiddenWidget)
-  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("f")], prop)
-  hints.widget |> should.equal(Some(types.HiddenWidget))
-}
-
 pub fn resolve_hints_carries_placeholder_test() {
   let assert Ok(ui) = ui_parser.parse("{\"f\":{\"ui:placeholder\":\"Hello\"}}")
-  let hints =
-    ui_resolver.resolve_hints(ui, [PropertySegment("f")], empty_property())
+  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("f")])
   hints.placeholder |> should.equal(Some("Hello"))
 }
 
@@ -268,57 +242,9 @@ pub fn resolve_hints_upload_from_ui_schema_test() {
     ui_parser.parse(
       "{\"photo\":{\"ui:widget\":\"image-upload\",\"ui:accept\":\"image/jpeg\"}}",
     )
-  let hints =
-    ui_resolver.resolve_hints(ui, [PropertySegment("photo")], empty_property())
+  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("photo")])
   let assert Some(upload) = hints.upload_config
   upload.accept |> should.equal("image/jpeg")
-}
-
-pub fn resolve_hints_upload_falls_back_to_x_extension_test() {
-  // No UiSchema upload — falls back to property.render_hints.upload_config
-  let ui = empty_ui_schema()
-  let prop =
-    SchemaProperty(
-      ..empty_property(),
-      render_hints: types.RenderHints(
-        ..empty_hints(),
-        upload_config: Some(UploadConfig(
-          accept: "image/png",
-          max_file_size: None,
-        )),
-      ),
-    )
-  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("photo")], prop)
-  let assert Some(upload) = hints.upload_config
-  upload.accept |> should.equal("image/png")
-}
-
-// Schema-Bool fallback for `addable`/`removable` is wrapped in `Some` so
-// renderers can read `hints.addable` uniformly without falling back to
-// `property.addable`. Pin the wrapping to prevent regression.
-pub fn resolve_hints_addable_wraps_schema_property_test() {
-  let ui = empty_ui_schema()
-  let prop = SchemaProperty(..empty_property(), addable: False)
-  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("xs")], prop)
-  hints.addable |> should.equal(Some(False))
-}
-
-pub fn resolve_hints_removable_wraps_schema_property_test() {
-  let ui = empty_ui_schema()
-  let prop = SchemaProperty(..empty_property(), removable: False)
-  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("xs")], prop)
-  hints.removable |> should.equal(Some(False))
-}
-
-// Inverse of `resolve_hints_ui_schema_wins_over_x_widget_test`:
-// x-widget=ImageUploadWidget on schema + ui:widget=textarea on UiSchema
-// — UiSchema's CustomWidget("textarea") wins, not the schema's image
-// upload variant.
-pub fn resolve_hints_ui_widget_overrides_x_image_upload_test() {
-  let assert Ok(ui) = ui_parser.parse("{\"f\":{\"ui:widget\":\"textarea\"}}")
-  let prop = schema_prop_with_widget(types.ImageUploadWidget)
-  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("f")], prop)
-  hints.widget |> should.equal(Some(types.CustomWidget("textarea")))
 }
 
 // ---- ui_parser.extract_upload gating ----
@@ -388,17 +314,12 @@ pub fn parse_orderable_false_test() {
 pub fn resolve_hints_orderable_defaults_none_test() {
   // No UiSchema entry — orderable stays None (renderer treats None as enabled).
   let hints =
-    ui_resolver.resolve_hints(
-      empty_ui_schema(),
-      [PropertySegment("tags")],
-      empty_property(),
-    )
+    ui_resolver.resolve_hints(empty_ui_schema(), [PropertySegment("tags")])
   hints.orderable |> should.equal(None)
 }
 
 pub fn resolve_hints_orderable_from_ui_test() {
   let assert Ok(ui) = ui_parser.parse("{\"tags\":{\"ui:orderable\":false}}")
-  let hints =
-    ui_resolver.resolve_hints(ui, [PropertySegment("tags")], empty_property())
+  let hints = ui_resolver.resolve_hints(ui, [PropertySegment("tags")])
   hints.orderable |> should.equal(Some(False))
 }

@@ -360,12 +360,6 @@ fn property_to_json(prop: SchemaProperty) -> json.Json {
   |> add_optional_properties(prop.properties)
   |> add_required_array(prop.required)
   |> add_read_only(prop.read_only)
-  |> add_optional_json_field(
-    "x-widget",
-    option.map(prop.render_hints.widget, widget_to_string),
-    json.string,
-  )
-  |> add_optional_upload_config(prop.render_hints.upload_config)
   |> json.object()
 }
 
@@ -377,20 +371,6 @@ fn add_read_only(
   case read_only {
     True -> add_fields(fields, [#("readOnly", json.bool(True))])
     False -> fields
-  }
-}
-
-/// Add upload config x- fields if present.
-fn add_optional_upload_config(
-  fields: List(#(String, json.Json)),
-  config: option.Option(UploadConfig),
-) -> List(#(String, json.Json)) {
-  case config {
-    option.None -> fields
-    option.Some(UploadConfig(accept, max_file_size)) ->
-      fields
-      |> add_fields([#("x-accept", json.string(accept))])
-      |> add_optional_json_field("x-max-file-size", max_file_size, json.int)
   }
 }
 

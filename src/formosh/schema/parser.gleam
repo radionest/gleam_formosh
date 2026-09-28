@@ -98,9 +98,9 @@ fn root_decoder() -> Decoder(
 /// Materialize the public root type from the flattened root property.
 /// The `ObjectType` default lands here — after composition — so a type
 /// supplied only by an allOf member survives. Fields `JsonSchema` cannot
-/// hold (items, enum, default, oneOf, array constraints, readOnly,
-/// addable/removable, render hints) are dropped: the root of a form is
-/// structurally an object unless the composition says otherwise (D6).
+/// hold (items, enum, default, oneOf, array constraints, readOnly) are
+/// dropped: the root of a form is structurally an object unless the
+/// composition says otherwise (D6).
 fn to_json_schema(
   root: SchemaProperty,
   defs: Option(Dict(String, SchemaProperty)),
@@ -291,10 +291,6 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
   // form of field_type_decoder picks a base type and discards this bit)
   let nullable = extract_nullable(dynamic_data)
 
-  // Extract x-addable / x-removable (default True: structure-mutation allowed)
-  let addable = extract_addable(dynamic_data)
-  let removable = extract_removable(dynamic_data)
-
   // Handle 'const' keyword - convert to enum with single value
   let enum_values_with_const = case enum_values {
     Some(_) -> enum_values
@@ -310,9 +306,6 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
 
   // Extract allOf composition members — a malformed member fails the parse
   let all_of = extract_all_of(dynamic_data)
-
-  // Extract presentation hints from x- extensions
-  let render_hints = extract_render_hints(dynamic_data)
 
   // Extract property-level direct conditional rule (if/then/else). Rules
   // declared inside allOf members ride on the member schemas and are
@@ -340,9 +333,6 @@ fn full_property_decoder() -> Decoder(SchemaProperty) {
         required: required,
         read_only: read_only,
         nullable: nullable,
-        addable: addable,
-        removable: removable,
-        render_hints: render_hints,
         conditionals: conditionals,
       ))
   }
@@ -640,98 +630,6 @@ fn extract_nullable(data: Dynamic) -> Bool {
   decode.run(data, decode.at(["type"], decode.list(decode.string)))
   |> result.map(fn(type_strs) { list.contains(type_strs, "null") })
   |> result.unwrap(False)
-}
-
-/// Extract x-addable structural flag for arrays.
-/// Absent or non-bool -> True (default: add control shown).
-///
-/// **Deprecated since v0.7** — use `ui:addable` in UiSchema. Scheduled for
-/// removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_addable(data: Dynamic) -> Bool {
-  decode.run(data, decode.at(["x-addable"], decode.bool))
-  |> result.unwrap(True)
-}
-
-/// Extract x-removable structural flag for arrays.
-/// Absent or non-bool -> True (default: remove control shown).
-///
-/// **Deprecated since v0.7** — use `ui:removable` in UiSchema. Scheduled
-/// for removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_removable(data: Dynamic) -> Bool {
-  decode.run(data, decode.at(["x-removable"], decode.bool))
-  |> result.unwrap(True)
-}
-
-/// Decode an `x-widget` string into a typed Widget variant.
-/// Falls back to `CustomWidget(raw)` so unknown widgets parse round-trip.
-fn widget_decoder() -> Decoder(types.Widget) {
-  decode.string
-  |> decode.then(fn(raw) {
-    case raw {
-      "image-upload" -> decode.success(types.ImageUploadWidget)
-      "hidden" -> decode.success(types.HiddenWidget)
-      "swipe-review" -> decode.success(types.SwipeReviewWidget)
-      _ -> decode.success(types.CustomWidget(raw))
-    }
-  })
-}
-
-/// Extract x-widget custom widget override from dynamic JSON data.
-///
-/// **Deprecated since v0.7** — use `ui:widget` in UiSchema. Scheduled for
-/// removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_widget(data: Dynamic) -> Option(types.Widget) {
-  decode.run(data, decode.at(["x-widget"], widget_decoder()))
-  |> option.from_result()
-}
-
-/// Extract upload configuration from x- extension fields.
-/// Only emits config when widget is ImageUploadWidget.
-///
-/// **Deprecated since v0.7** — use `ui:accept` / `ui:maxFileSize` in
-/// UiSchema. Scheduled for removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_upload_config(
-  data: Dynamic,
-  widget: Option(types.Widget),
-) -> Option(types.UploadConfig) {
-  case widget {
-    Some(types.ImageUploadWidget) -> {
-      let accept =
-        decode.run(data, decode.at(["x-accept"], decode.string))
-        |> option.from_result()
-      let max_file_size =
-        decode.run(data, decode.at(["x-max-file-size"], decode.int))
-        |> option.from_result()
-      Some(types.UploadConfig(
-        accept: option.unwrap(accept, "image/*"),
-        max_file_size: max_file_size,
-      ))
-    }
-    _ -> None
-  }
-}
-
-/// Build a `RenderHints` from the JSON Schema node's deprecated `x-`
-/// extensions. UiSchema is the primary source for hints; this path only
-/// fills `widget` and `upload_config` from `x-widget` / `x-accept` /
-/// `x-max-file-size` for backwards compatibility — all other fields stay
-/// at their `empty_hints()` defaults and are populated (if at all) by
-/// `ui_resolver.resolve_hints`.
-///
-/// **Deprecated since v0.7.** Scheduled for removal in the release named in
-/// `docs/reference/ui-schema.md`.
-fn extract_render_hints(data: Dynamic) -> types.RenderHints {
-  let widget = extract_widget(data)
-  let upload_config = extract_upload_config(data, widget)
-  types.RenderHints(
-    ..types.empty_hints(),
-    widget: widget,
-    upload_config: upload_config,
-  )
 }
 
 /// Decode a string format specifier into a StringFormat.
