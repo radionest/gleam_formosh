@@ -15,7 +15,7 @@ grid](#overriding-the-uilayout-grid)) and a collapsing array row's fold
 `<style>` element — the first child of `part="container"` — inside a cascade
 layer named `formosh`, the lowest-priority layer in the component, so **any
 rule you write overrides them without `!important`**, whatever its
-specificity (edge cases aside: see [Cascade order](#cascade-order)). The swipe
+specificity (edge cases aside: see [Cascade and limitations](#cascade-and-limitations)). The swipe
 widget's per-frame drag and fly-off transforms stay inline, because the
 widget's own logic depends on them.
 
