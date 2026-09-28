@@ -420,8 +420,9 @@ pub fn folding_wrapper_renders_for_every_row_not_just_collapsed_ones_test() {
   // if the element carrying it survives the state change. A wrapper that
   // appeared only once its row was already collapsed would have nothing to
   // animate from — so every row of a collapse-enabled array gets one, and
-  // only the row's `data-collapsed` and the body's `inert` differ between
-  // the two states (the track value comes from the formosh layer).
+  // only the row's `data-collapsed`, the body's `inert` and the summary
+  // button's `aria-expanded` differ between the two states (the track value
+  // comes from the formosh layer).
   let collapsed = render(init(ui_json))
   collapsed |> occurrences("part=\"array-item-body\"") |> should.equal(2)
   collapsed |> folded_rows |> should.equal(1)
