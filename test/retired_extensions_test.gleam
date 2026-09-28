@@ -40,6 +40,18 @@ pub fn leftover_x_addable_keeps_array_controls_test() {
   let html = model.init(schema) |> view.view |> element.to_string
   html |> string.contains("add-array-item") |> should.be_true
   html |> string.contains("remove-array-item") |> should.be_true
+  html |> string.contains("formosh-image-upload") |> should.be_false
+}
+
+pub fn ui_widget_image_upload_renders_upload_control_test() {
+  let assert Ok(schema) = parser.parse_schema(leftover_schema)
+  let assert Ok(ui) =
+    ui_parser.parse("{\"photo\":{\"ui:widget\":\"image-upload\"}}")
+  model.FormModel(..model.init(schema), ui_schema: ui)
+  |> view.view
+  |> element.to_string
+  |> string.contains("formosh-image-upload")
+  |> should.be_true
 }
 
 pub fn ui_addable_false_hides_add_control_test() {

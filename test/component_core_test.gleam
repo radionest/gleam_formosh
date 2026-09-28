@@ -1,3 +1,4 @@
+import formosh/component
 import formosh/form/model.{FormSubmitted, UpdateFieldPath}
 import formosh/form/path.{PropertySegment, get_at_path}
 import formosh/internal/component_core as core
@@ -204,4 +205,12 @@ pub fn typed_ui_schema_reaches_component_core_test() {
   let assert Ok(ui) = ui_parser.parse("{\"secret\":{\"ui:widget\":\"hidden\"}}")
   core.parse_ui_schema_attr(json.to_string(serializer.ui_schema_to_json(ui)))
   |> should.equal(Ok(core.UiSchemaChanged(ui)))
+}
+
+pub fn typed_ui_schema_attribute_matches_string_form_test() {
+  let assert Ok(ui) = ui_parser.parse("{\"secret\":{\"ui:widget\":\"hidden\"}}")
+  component.ui_schema(ui)
+  |> should.equal(
+    component.ui_schema_string(json.to_string(serializer.ui_schema_to_json(ui))),
+  )
 }
