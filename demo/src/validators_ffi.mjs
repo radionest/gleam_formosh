@@ -56,20 +56,17 @@ const VALIDATORS = {
   },
 };
 
-// Set `element.validator` after Lustre has rendered the form into the DOM.
-// `requestAnimationFrame` gives the diff a chance to land before we touch
-// the element.
+// A no-op, not null: the component keeps any value it is given, null
+// included, as a validator, and warns on every pass that it isn't a function.
+const NO_VALIDATOR = () => [];
+
+// Called from an `effect.after_paint`, so the form is already in the DOM.
 export function attachValidator(elementId, validatorKind) {
-  requestAnimationFrame(() => {
-    const el = document.getElementById(elementId);
-    if (!el) return;
-    el.validator = VALIDATORS[validatorKind] ?? null;
-  });
+  const el = document.getElementById(elementId);
+  if (el) el.validator = VALIDATORS[validatorKind] ?? NO_VALIDATOR;
 }
 
 export function detachValidator(elementId) {
-  requestAnimationFrame(() => {
-    const el = document.getElementById(elementId);
-    if (el) el.validator = null;
-  });
+  const el = document.getElementById(elementId);
+  if (el) el.validator = NO_VALIDATOR;
 }

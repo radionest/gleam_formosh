@@ -7,12 +7,12 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import json_highlight
 import lustre
 import lustre/attribute
 import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html
+import lustre/element/keyed
 import lustre/event
 import rsvp
 import validators
@@ -24,7 +24,7 @@ const form_element_id = "demo-formosh-form"
 /// Map a schema filename to a cross-field validator kind, if any.
 ///
 /// The kind string must match a key in the `VALIDATORS` table in
-/// `validator_ffi.mjs`. Schemas not in this list render with no
+/// `validators_ffi.mjs`. Schemas not in this list render with no
 /// cross-field validation.
 fn validator_kind_for(filename: String) -> Option(String) {
   case filename {
@@ -38,8 +38,18 @@ fn validator_kind_for(filename: String) -> Option(String) {
 pub type Model {
   Model(
     selected_schema: Option(String),
+    // Editor text, updated on every keystroke.
+    schema_draft: Option(String),
+    ui_schema_draft: String,
+    // The last draft that parsed — what the form renders.
     schema_content: Option(String),
     ui_schema_content: Option(String),
+    schema_error: Option(String),
+    ui_schema_error: Option(String),
+    css: String,
+    // Bumped to recreate <formosh-form>: Lustre copies page stylesheets
+    // into its shadow root only once, when the element is created.
+    form_key: Int,
     available_schemas: List(String),
     error: Option(String),
     submission_result: Option(String),
@@ -50,6 +60,11 @@ pub type Msg {
   LoadSchema(String)
   SchemaFetched(Result(String, String))
   UiSchemaFetched(Option(String))
+  CssFetched(Result(String, rsvp.Error))
+  SchemaEdited(String)
+  UiSchemaEdited(String)
+  CssEdited(String)
+  CssCommitted
   FormSubmitted(dict.Dict(String, String))
   ClearSubmissionResult
 }
@@ -62,7 +77,7 @@ pub fn main() {
   Nil
 }
 
-fn init(_) -> #(Model, effect.Effect(Msg)) {
+pub fn init(_) -> #(Model, effect.Effect(Msg)) {
   // Browsers can't list directories — keep the catalogue here. Pair a
   // schema with a `<basename>.ui.json` to show UiSchema-driven rendering.
   let schemas = [
@@ -91,25 +106,35 @@ fn init(_) -> #(Model, effect.Effect(Msg)) {
   #(
     Model(
       selected_schema: None,
+      schema_draft: None,
+      ui_schema_draft: "",
       schema_content: None,
       ui_schema_content: None,
+      schema_error: None,
+      ui_schema_error: None,
+      css: "",
+      form_key: 0,
       available_schemas: schemas,
       error: None,
       submission_result: None,
     ),
-    effect.none(),
+    fetch_css(),
   )
 }
 
-fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
+pub fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
   case msg {
     LoadSchema(filename) -> {
       #(
         Model(
           ..model,
           selected_schema: Some(filename),
+          schema_draft: None,
+          ui_schema_draft: "",
           schema_content: None,
           ui_schema_content: None,
+          schema_error: None,
+          ui_schema_error: None,
           error: None,
         ),
         effect.batch([fetch_schema(filename), fetch_ui_schema(filename)]),
@@ -118,22 +143,10 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
 
     SchemaFetched(result) -> {
       case result {
-        Ok(content) -> {
-          case formosh.from_json_string(content) {
-            Ok(_) -> #(
-              Model(..model, schema_content: Some(content), error: None),
-              attach_validator_effect(model.selected_schema),
-            )
-            Error(_) -> #(
-              Model(
-                ..model,
-                schema_content: None,
-                error: Some("Invalid JSON Schema format"),
-              ),
-              effect.none(),
-            )
-          }
-        }
+        Ok(content) -> #(
+          set_schema(Model(..model, error: None), content),
+          attach_validator_effect(model.selected_schema),
+        )
         Error(error) -> #(
           Model(
             ..model,
@@ -146,8 +159,27 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
     }
 
     UiSchemaFetched(content) -> {
-      #(Model(..model, ui_schema_content: content), effect.none())
+      #(set_ui_schema(model, option.unwrap(content, "")), effect.none())
     }
+
+    CssFetched(Ok(css)) -> #(
+      Model(..model, css: css, form_key: model.form_key + 1),
+      attach_validator_effect(model.selected_schema),
+    )
+    // Shown in the CSS editor itself: `model.error` is cleared by the
+    // next schema pick.
+    CssFetched(Error(_)) -> #(
+      Model(..model, css: "/* Failed to load form-theme.css */"),
+      effect.none(),
+    )
+
+    SchemaEdited(text) -> #(set_schema(model, text), effect.none())
+    UiSchemaEdited(text) -> #(set_ui_schema(model, text), effect.none())
+    CssEdited(css) -> #(Model(..model, css: css), effect.none())
+    CssCommitted -> #(
+      Model(..model, form_key: model.form_key + 1),
+      attach_validator_effect(model.selected_schema),
+    )
 
     FormSubmitted(values) -> {
       let result_message = case dict.get(values, "error") {
@@ -168,8 +200,54 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
   }
 }
 
+// A draft that fails to parse keeps the form on the last one that did.
+fn set_schema(model: Model, text: String) -> Model {
+  case formosh.from_json_string(text) {
+    Ok(_) ->
+      Model(
+        ..model,
+        schema_draft: Some(text),
+        schema_content: Some(text),
+        schema_error: None,
+      )
+    Error(err) ->
+      Model(
+        ..model,
+        schema_draft: Some(text),
+        schema_error: Some(string.inspect(err)),
+      )
+  }
+}
+
+fn set_ui_schema(model: Model, text: String) -> Model {
+  case string.trim(text), formosh.parse_ui_schema(text) {
+    "", _ ->
+      Model(
+        ..model,
+        ui_schema_draft: text,
+        ui_schema_content: None,
+        ui_schema_error: None,
+      )
+    _, Ok(_) ->
+      Model(
+        ..model,
+        ui_schema_draft: text,
+        ui_schema_content: Some(text),
+        ui_schema_error: None,
+      )
+    _, Error(err) ->
+      Model(
+        ..model,
+        ui_schema_draft: text,
+        ui_schema_error: Some(string.inspect(err)),
+      )
+  }
+}
+
 fn view(model: Model) -> Element(Msg) {
   html.div([attribute.class("page")], [
+    // A page stylesheet, so <formosh-form> adopts it like any other.
+    html.style([], model.css),
     masthead(),
     html.section([], [
       section_head("Schema catalogue", schema_count(model.available_schemas)),
@@ -288,21 +366,15 @@ fn submission_banner(result: String) -> Element(Msg) {
 }
 
 fn form_section(model: Model) -> Element(Msg) {
-  case model.schema_content {
-    Some(schema_json) ->
+  case model.schema_draft {
+    Some(schema_draft) ->
       html.div([attribute.class("workbench two-pane")], [
         transform_bar(option.unwrap(model.selected_schema, "schema.json")),
         html.div([attribute.class("workbench-body")], [
           info_chips(model),
           html.div([attribute.class("split")], [
-            html.div([attribute.id("form-mount-point")], [
-              element.element(
-                "formosh-form",
-                form_attributes(schema_json, model.ui_schema_content),
-                [],
-              ),
-            ]),
-            schema_pane(model),
+            form_pane(model),
+            editor_pane(model, schema_draft),
           ]),
         ]),
       ])
@@ -348,26 +420,87 @@ fn chip(key: String, value: String) -> Element(Msg) {
   ])
 }
 
-fn schema_pane(model: Model) -> Element(Msg) {
-  let schema_block = case model.schema_content {
-    Some(json) -> [code_block("schema", json)]
-    None -> []
+pub fn form_pane(model: Model) -> Element(Msg) {
+  case model.schema_content {
+    Some(schema_json) ->
+      keyed.div([attribute.id("form-mount-point")], [
+        #(
+          int.to_string(model.form_key),
+          element.element(
+            "formosh-form",
+            form_attributes(schema_json, model.ui_schema_content),
+            [],
+          ),
+        ),
+      ])
+    None -> placeholder("Fix the schema to render the form.")
   }
-  let ui_block = case model.ui_schema_content {
-    Some(json) -> [code_block("ui-schema", json)]
-    None -> []
-  }
-  html.div(
-    [attribute.class("schema-pane")],
-    list.flatten([schema_block, ui_block]),
-  )
 }
 
-fn code_block(label: String, json: String) -> Element(Msg) {
+fn editor_pane(model: Model, schema_draft: String) -> Element(Msg) {
+  html.div([attribute.class("schema-pane")], [
+    editor(
+      "schema",
+      schema_draft,
+      [event.on_input(SchemaEdited)],
+      error_note(model.schema_error),
+    ),
+    editor(
+      "ui-schema",
+      model.ui_schema_draft,
+      [event.on_input(UiSchemaEdited)],
+      error_note(model.ui_schema_error),
+    ),
+    editor(
+      "css",
+      model.css,
+      [event.on_input(CssEdited)],
+      // An explicit button, not blur: recreating the form on blur would
+      // swallow the click that moved focus into it.
+      html.div([attribute.class("code-note")], [
+        html.span([], [
+          html.text(
+            "::part() rules and --formosh-* tokens apply as you type. "
+            <> "Other selectors need Apply, which recreates the form to "
+            <> "re-adopt the stylesheet and clears its values.",
+          ),
+        ]),
+        html.button(
+          [attribute.class("apply-button"), event.on_click(CssCommitted)],
+          [html.text("Apply")],
+        ),
+      ]),
+    ),
+  ])
+}
+
+fn editor(
+  label: String,
+  content: String,
+  handlers: List(attribute.Attribute(Msg)),
+  note: Element(Msg),
+) -> Element(Msg) {
   html.div([attribute.class("code-block")], [
     html.span([attribute.class("code-label")], [html.text(label)]),
-    html.pre([attribute.class("schema-code")], json_highlight.to_spans(json)),
+    html.textarea(
+      [
+        attribute.class("code-editor"),
+        attribute.attribute("aria-label", label),
+        attribute.attribute("spellcheck", "false"),
+        ..handlers
+      ],
+      content,
+    ),
+    note,
   ])
+}
+
+fn error_note(error: Option(String)) -> Element(Msg) {
+  case error {
+    Some(message) ->
+      html.div([attribute.class("code-note error")], [html.text(message)])
+    None -> element.none()
+  }
 }
 
 fn placeholder(message: String) -> Element(Msg) {
@@ -395,9 +528,11 @@ fn form_attributes(
 }
 
 /// Build an effect that attaches the right cross-field validator (or
-/// detaches any previous one) once Lustre has rendered the form.
+/// detaches any previous one) once Lustre has rendered the form. Must run
+/// after paint: a synchronous effect would reach the element before the
+/// render creates (or, after a `form_key` bump, replaces) it.
 fn attach_validator_effect(filename: Option(String)) -> effect.Effect(Msg) {
-  effect.from(fn(_dispatch) {
+  effect.after_paint(fn(_dispatch, _root) {
     case filename {
       None -> validators.detach_validator(form_element_id)
       Some(name) ->
@@ -415,6 +550,10 @@ fn get_display_name(filename: String) -> String {
   |> string.replace("_", " ")
   |> string.replace("-", " ")
   |> string.capitalise()
+}
+
+fn fetch_css() -> effect.Effect(Msg) {
+  rsvp.get("./form-theme.css", rsvp.expect_text(CssFetched))
 }
 
 fn fetch_schema(filename: String) -> effect.Effect(Msg) {
