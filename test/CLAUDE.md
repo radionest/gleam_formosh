@@ -52,7 +52,9 @@ Three tiers, fastest/most-isolated first:
    `formosh-change` during `update` and patches the DOM on the next
    animation frame, so never read the shadow DOM straight after awaiting an
    event — wait on the DOM itself (`waitForField`, `page.waitForFunction`)
-   or for one `requestAnimationFrame`.
+   or for one `requestAnimationFrame` from a later `page.evaluate` (Lustre's
+   patch frame is already queued by then; a rAF requested inside the event
+   listener itself needs two — `docs/guides/web-component.md`).
 
 **Known gaps** (ROADMAP debts, not exercised by any tier):
 

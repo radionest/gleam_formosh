@@ -169,8 +169,7 @@ pub fn last_exiting_card_defers_review_summary_test() {
 
 pub fn dragged_row_keeps_its_inline_offset_test() {
   // The swipe widget is the one place formosh still writes inline styles:
-  // the drag offset changes every frame (spec style-layer, "Inline styles
-  // carry only runtime state").
+  // the drag offset is runtime state that changes every frame.
   let assert Ok(schema) = parser.parse_schema(schema2_json)
   let assert Ok(ui) = ui_parser.parse(ui_json)
   let m = model.init_with_full_config(schema, None, False, dict.new(), ui)

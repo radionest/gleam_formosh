@@ -438,7 +438,7 @@ theming pack.
 
 1. [x] **Foundation** — formosh's defaults (`Row` grid, array fold) move
    from inline styles into a `<style>` inside `@layer formosh`, the
-   component's lowest layer; tokens `--formosh-row-gap`, `--formosh-row-min`,
+   component's lowest layer; tokens `--formosh-row-gap`, `--formosh-row-column-min`,
    `--formosh-collapse-duration`; a documented order of use (tokens →
    `::part()` → adopted selectors).
 2. [ ] **Intents** — `ui:label: false` (#135); a `Row` that sizes its

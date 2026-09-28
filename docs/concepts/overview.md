@@ -55,7 +55,7 @@ validation. Change the schema; the form follows.
   in `@layer formosh`, the lowest-priority layer inside `<formosh-form>`,
   so any rule you write overrides them without `!important` (barring edge
   cases — in a plain Lustre app, declare `@layer formosh` first); the swipe
-  widget's drag and fly-off transforms stay inline. Bring your own via tokens,
+  widget's drag and fly-off styles stay inline. Bring your own via tokens,
   `::part()`, `data-*` attributes, or adopted parent stylesheets — see
   [Styling](../guides/styling.md).
 

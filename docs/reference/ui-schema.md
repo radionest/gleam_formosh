@@ -305,7 +305,7 @@ A few rules govern how a layout resolves:
   summary isn't supported today — a known limitation, not a bug.
 
 `Row` renders as a responsive grid from formosh's stylesheet: columns at
-least `--formosh-row-min` (default `12rem`, capped at the row's width)
+least `--formosh-row-column-min` (default `12rem`, capped at the row's width)
 wide and `--formosh-row-gap` (default `1rem`) apart, dropping to fewer
 columns on narrow viewports with no media query. Override
 `grid-template-columns` outright — from `formosh-form::part(row)` or any

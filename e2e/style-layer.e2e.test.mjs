@@ -1,4 +1,4 @@
-// Browser checks for formosh's stylesheet layer (spec: style-layer). Kept
+// Browser checks for formosh's stylesheet layer. Kept
 // apart from formosh.e2e.test.mjs: these tests inject page stylesheets,
 // emulate media features and mount extra <formosh-form> elements, none of
 // which may leak into that file's shared page.
@@ -191,7 +191,7 @@ test("a Row is a grid with no page CSS and keeps three fields on one line", asyn
   assert.equal((await rowMetrics()).gap, "6px");
 });
 
-test("--formosh-row-min lets three fields share a 320px Row", async () => {
+test("--formosh-row-column-min lets three fields share a 320px Row", async () => {
   await mount({
     schema: ROW_SCHEMA,
     uiSchema: ROW_UI,
@@ -207,7 +207,7 @@ test("--formosh-row-min lets three fields share a 320px Row", async () => {
   await page.evaluate(() =>
     document
       .getElementById("form")
-      .style.setProperty("--formosh-row-min", "4rem"),
+      .style.setProperty("--formosh-row-column-min", "4rem"),
   );
   const tuned = await rowMetrics();
   assert.equal(
@@ -226,7 +226,7 @@ test("an adopted page rule overrides the Row grid without !important", async () 
 });
 
 test("a layered page rule overrides the Row grid", async () => {
-  // clarinet's main.css declares its own layers; `formosh` is declared first
+  // A consumer page that declares its own layers; `formosh` is declared first
   // in the shadow tree, so a consumer layer still wins.
   const first = await firstColumnWithPageCss(
     '@layer app { [part="row"] { grid-template-columns: 5rem 1fr; } }',
@@ -352,6 +352,7 @@ test("the stylesheet node survives a re-render", async () => {
     ),
   );
   // Lustre patches on the next animation frame, after formosh-change fires; without this wait the probe reads the un-patched node.
+  // One frame is enough: this rAF is requested in a later task, after Lustre queued its patch frame.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(r)));
   const probe = await page.evaluate(
     () =>

@@ -10,7 +10,8 @@
 //// (`@layer formosh, …;`). Every selector sits in `:where()`, so nothing
 //// here competes by specificity either.
 //// Edge cases inside a shadow root, for page sheets Lustre cannot copy
-//// (cross-origin without CORS, or using `@import`): a `<link>` is cloned
+//// (a cross-origin `<link>` lacking the `crossorigin` attribute or CORS
+//// headers, or any sheet using `@import`): a `<link>` is cloned
 //// ahead of this `<style>`, so the layers it declares rank below `formosh`;
 //// a `<style>` is cloned empty, so none of its rules apply.
 ////
@@ -31,7 +32,7 @@ import lustre/element/html
 const css = "@layer formosh {
   :where(.formosh-container [part~=row]) {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--formosh-row-min, 12rem)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--formosh-row-column-min, 12rem)), 1fr));
     gap: var(--formosh-row-gap, 1rem);
   }
   :where(.formosh-container [part~=row] > *) {

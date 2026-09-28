@@ -1,4 +1,4 @@
-// The library stylesheet (spec: style-layer): rendered once, as the
+// The library stylesheet: rendered once, as the
 // container's first child, in edit and review mode, with every rule inside
 // `@layer formosh`.
 
@@ -108,7 +108,7 @@ pub fn row_grid_is_pinned_test() {
   // `min(100%, …)` cap going, so the Row's arrangement is pinned here.
   stylesheet_text(render(False))
   |> string.contains(
-    "grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--formosh-row-min, 12rem)), 1fr));",
+    "grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--formosh-row-column-min, 12rem)), 1fr));",
   )
   |> should.be_true
 }

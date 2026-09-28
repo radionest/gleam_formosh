@@ -16,7 +16,7 @@ grid](#overriding-the-uilayout-grid)) and a collapsing array row's fold
 layer named `formosh`, the lowest-priority layer in the component, so **any
 rule you write overrides them without `!important`**, whatever its
 specificity (edge cases aside: see [Cascade and limitations](#cascade-and-limitations)). The swipe
-widget's per-frame drag and fly-off transforms stay inline, because the
+widget's per-frame drag and fly-off styles stay inline, because the
 widget's own logic depends on them.
 
 ## Order of use
@@ -137,11 +137,11 @@ order](#cascade-order)).
 | Custom property | Default | Controls |
 |---|---|---|
 | `--formosh-row-gap` | `1rem` | Gap between a `Row`'s cells, across columns and between wrapped lines |
-| `--formosh-row-min` | `12rem` | Narrowest a `Row` column gets before the `Row` drops to fewer columns |
+| `--formosh-row-column-min` | `12rem` | Narrowest a `Row` column gets before the `Row` drops to fewer columns |
 | `--formosh-collapse-duration` | `180ms` | Duration of a collapsing array row's fold |
 
 ```css
-formosh-form { --formosh-row-min: 8rem; --formosh-collapse-duration: 250ms; }
+formosh-form { --formosh-row-column-min: 8rem; --formosh-collapse-duration: 250ms; }
 ```
 
 The defaults live in `var()` fallbacks, so a value set on the host or any
@@ -310,13 +310,13 @@ stable name:
 
 ```css
 formosh-form::part(row) { grid-template-columns: 2fr 1fr; }
-formosh-form { --formosh-row-gap: 0.75rem; --formosh-row-min: 8rem; }
+formosh-form { --formosh-row-gap: 0.75rem; --formosh-row-column-min: 8rem; }
 [part="field"][data-name="length_mm"] { grid-column: span 2; }
 ```
 
 The default arrangement is `repeat(auto-fit, minmax(min(100%,
-var(--formosh-row-min, 12rem)), 1fr))` with `gap: var(--formosh-row-gap,
-1rem)`: columns never narrower than `--formosh-row-min` (or than the row
+var(--formosh-row-column-min, 12rem)), 1fr))` with `gap: var(--formosh-row-gap,
+1rem)`: columns never narrower than `--formosh-row-column-min` (or than the row
 itself, when the row is narrower), dropping to fewer columns as the row
 narrows, with no media query. `::part(row)` and the
 tokens reach the component from the host document, the same as any other
@@ -392,11 +392,14 @@ formosh-form::part(array-item-body) { transition: none; }
   and `:nth-child()` count it, and a rule that sets `display` on every
   child of the container reveals its text.
 - **Stylesheets Lustre cannot copy.** Lustre copies each page sheet's
-  rules into the shadow root. It cannot read a cross-origin sheet served
-  without CORS, and a constructed copy rejects `@import`, so for such a
-  `<link>` it clones the element itself into the shadow root, ahead of
-  formosh's `<style>`. Layers the sheet declares are ordered before
-  `formosh` and lose to it; its unlayered rules still win. A page
+  rules into the shadow root. It cannot read a cross-origin sheet unless
+  the `<link>` carries a `crossorigin` attribute and the server sends CORS
+  headers (headers alone are not enough: without the attribute the sheet
+  is fetched in no-cors mode), and a constructed copy rejects `@import`,
+  so for such a `<link>` it clones the element itself into the shadow
+  root, ahead of formosh's `<style>`. Layers the sheet declares are
+  ordered before `formosh` and lose to it; its unlayered rules still win.
+  Add `crossorigin` to a CDN `<link>` to have it copied instead. A page
   `<style>` Lustre cannot copy (one using `@import`) is cloned without its
   contents, so none of its rules reach the component — load such CSS
   through a `<link>`.
