@@ -56,13 +56,17 @@ const VALIDATORS = {
   },
 };
 
+// A no-op, not null: the component keeps any value it is given, null
+// included, as a validator, and warns on every pass that it isn't a function.
+const NO_VALIDATOR = () => [];
+
 // Called from an `effect.after_paint`, so the form is already in the DOM.
 export function attachValidator(elementId, validatorKind) {
   const el = document.getElementById(elementId);
-  if (el) el.validator = VALIDATORS[validatorKind] ?? null;
+  if (el) el.validator = VALIDATORS[validatorKind] ?? NO_VALIDATOR;
 }
 
 export function detachValidator(elementId) {
   const el = document.getElementById(elementId);
-  if (el) el.validator = null;
+  if (el) el.validator = NO_VALIDATOR;
 }

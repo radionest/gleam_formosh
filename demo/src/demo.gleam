@@ -24,7 +24,7 @@ const form_element_id = "demo-formosh-form"
 /// Map a schema filename to a cross-field validator kind, if any.
 ///
 /// The kind string must match a key in the `VALIDATORS` table in
-/// `validator_ffi.mjs`. Schemas not in this list render with no
+/// `validators_ffi.mjs`. Schemas not in this list render with no
 /// cross-field validation.
 fn validator_kind_for(filename: String) -> Option(String) {
   case filename {

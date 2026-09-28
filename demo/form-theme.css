@@ -5,6 +5,11 @@
    inherit across the boundary, so var(--…) resolves in here too. */
 formosh-form { display: block; }
 
+/* The rules below size inputs as border-box and space blocks with gap, so
+   reset the form's own elements too (the page reset stops at the shadow
+   boundary). */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
 formosh-form::part(form) {
     display: flex;
     flex-direction: column;
