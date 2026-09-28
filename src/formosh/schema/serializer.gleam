@@ -10,6 +10,9 @@ import formosh/schema/types.{
   ObjectValue, PasswordFormat, StringType, StringValue, SwipeReviewWidget,
   TimeFormat, UploadConfig, UriFormat, UrlFormat, UuidFormat,
 }
+import formosh/schema/ui_schema.{
+  type LayoutNode, type UiProperty, type UiSchema, GroupNode, LeafNode, RowNode,
+}
 import gleam/dict
 import gleam/json
 import gleam/list
@@ -135,6 +138,98 @@ pub fn schema_to_json(schema: JsonSchema) -> json.Json {
     |> option.unwrap(fields)
   }
   |> json.object()
+}
+
+/// Convert a `UiSchema` back to JSON — the inverse of `ui_parser.parse`.
+/// Only set fields are emitted, so `empty_ui_schema()` serializes to `{}`.
+pub fn ui_schema_to_json(ui_schema: UiSchema) -> json.Json {
+  ui_children_to_fields(ui_schema.properties)
+  |> add_optional_json_field("ui:order", ui_schema.order, json.array(
+    _,
+    json.string,
+  ))
+  |> add_optional_json_field("ui:layout", ui_schema.layout, layout_to_json)
+  |> json.object()
+}
+
+fn ui_children_to_fields(
+  children: List(#(String, UiProperty)),
+) -> List(#(String, json.Json)) {
+  list.map(children, fn(child) { #(child.0, ui_property_to_json(child.1)) })
+}
+
+fn ui_property_to_json(prop: UiProperty) -> json.Json {
+  ui_children_to_fields(prop.properties)
+  |> add_optional_json_field("ui:widget", prop.widget, fn(widget) {
+    json.string(widget_to_string(widget))
+  })
+  |> add_ui_options(prop.options)
+  |> add_optional_json_field("ui:order", prop.order, json.array(_, json.string))
+  |> add_optional_json_field("ui:placeholder", prop.placeholder, json.string)
+  |> add_optional_json_field("ui:help", prop.help, json.string)
+  |> add_optional_json_field("ui:autofocus", prop.autofocus, json.bool)
+  |> add_optional_json_field("ui:disabled", prop.disabled, json.bool)
+  |> add_optional_json_field("ui:readonly", prop.readonly, json.bool)
+  |> add_optional_json_field("ui:title", prop.title, json.string)
+  |> add_optional_json_field("ui:description", prop.description, json.string)
+  |> add_optional_json_field("ui:addable", prop.addable, json.bool)
+  |> add_optional_json_field("ui:removable", prop.removable, json.bool)
+  |> add_optional_json_field("ui:orderable", prop.orderable, json.bool)
+  |> add_ui_upload(prop.upload)
+  |> add_optional_json_field("ui:layout", prop.layout, layout_to_json)
+  |> add_optional_json_field("items", prop.items, ui_property_to_json)
+  |> json.object()
+}
+
+fn add_ui_options(
+  fields: List(#(String, json.Json)),
+  options: dict.Dict(String, Value),
+) -> List(#(String, json.Json)) {
+  case dict.is_empty(options) {
+    True -> fields
+    False ->
+      add_fields(fields, [
+        #(
+          "ui:options",
+          dict.to_list(options)
+            |> list.map(fn(entry) { #(entry.0, value_to_json(entry.1)) })
+            |> json.object(),
+        ),
+      ])
+  }
+}
+
+fn add_ui_upload(
+  fields: List(#(String, json.Json)),
+  upload: option.Option(UploadConfig),
+) -> List(#(String, json.Json)) {
+  case upload {
+    option.None -> fields
+    option.Some(UploadConfig(accept, max_file_size)) ->
+      fields
+      |> add_fields([#("ui:accept", json.string(accept))])
+      |> add_optional_json_field("ui:maxFileSize", max_file_size, json.int)
+  }
+}
+
+fn layout_to_json(nodes: List(LayoutNode)) -> json.Json {
+  json.array(nodes, layout_node_to_json)
+}
+
+fn layout_node_to_json(node: LayoutNode) -> json.Json {
+  case node {
+    LeafNode(name) -> json.string(name)
+    RowNode(elements) ->
+      json.object([
+        #("type", json.string("Row")),
+        #("elements", layout_to_json(elements)),
+      ])
+    GroupNode(label, elements) ->
+      [#("type", json.string("Group"))]
+      |> add_optional_json_field("label", label, json.string)
+      |> add_fields([#("elements", layout_to_json(elements))])
+      |> json.object()
+  }
 }
 
 // Helper to add enum values if present
@@ -388,7 +483,7 @@ fn add_unique_items(
   }
 }
 
-/// Convert a Widget variant back to its `x-widget` JSON Schema string.
+/// Convert a Widget variant to its `ui:widget` string.
 fn widget_to_string(widget: Widget) -> String {
   case widget {
     ImageUploadWidget -> "image-upload"

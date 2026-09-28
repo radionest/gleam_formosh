@@ -2,7 +2,9 @@ import formosh/form/model.{FormSubmitted, UpdateFieldPath}
 import formosh/form/path.{PropertySegment, get_at_path}
 import formosh/internal/component_core as core
 import formosh/schema/parser
+import formosh/schema/serializer
 import formosh/schema/types.{ArrayValue, StringValue}
+import formosh/schema/ui_parser
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
@@ -196,4 +198,10 @@ pub fn submit_result_decoder_test() {
     core.submit_result_decoder(),
   )
   |> should.be_error()
+}
+
+pub fn typed_ui_schema_reaches_component_core_test() {
+  let assert Ok(ui) = ui_parser.parse("{\"secret\":{\"ui:widget\":\"hidden\"}}")
+  core.parse_ui_schema_attr(json.to_string(serializer.ui_schema_to_json(ui)))
+  |> should.equal(Ok(core.UiSchemaChanged(ui)))
 }

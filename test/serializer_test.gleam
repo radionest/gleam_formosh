@@ -5,6 +5,11 @@ import formosh/schema/types.{
   JsonSchema, NumberConstraints, NumberType, ObjectType, SchemaProperty,
   StringConstraints, StringType, StringValue, UploadConfig, empty_property,
 }
+import formosh/schema/ui_parser
+import formosh/schema/ui_schema.{
+  type UiProperty, GroupNode, LeafNode, RowNode, UiProperty, UiSchema,
+  empty_ui_property, empty_ui_schema,
+}
 import gleam/dict
 import gleam/json
 import gleam/list
@@ -1049,4 +1054,77 @@ pub fn password_format_round_trips_test() {
   json.to_string(serializer.schema_to_json(schema))
   |> string.contains("\"format\":\"password\"")
   |> should.be_true()
+}
+
+fn full_ui_property() -> UiProperty {
+  UiProperty(
+    widget: Some(types.ImageUploadWidget),
+    options: dict.from_list([
+      #("rows", types.IntegerValue(3)),
+      #(
+        "nested",
+        types.ObjectValue([
+          #("a", types.ArrayValue([types.BooleanValue(True), types.NullValue])),
+        ]),
+      ),
+    ]),
+    order: Some(["child", "*"]),
+    placeholder: Some("p"),
+    help: Some("h"),
+    autofocus: Some(True),
+    disabled: Some(False),
+    readonly: Some(True),
+    title: Some("T"),
+    description: Some("D"),
+    addable: Some(False),
+    removable: Some(True),
+    orderable: Some(False),
+    upload: Some(types.UploadConfig(
+      accept: "image/jpeg",
+      max_file_size: Some(1024),
+    )),
+    properties: [
+      #(
+        "child",
+        UiProperty(
+          ..empty_ui_property(),
+          widget: Some(types.CustomWidget("textarea")),
+        ),
+      ),
+    ],
+    items: Some(
+      UiProperty(..empty_ui_property(), widget: Some(types.HiddenWidget)),
+    ),
+    layout: Some([
+      LeafNode("child"),
+      RowNode([LeafNode("a"), LeafNode("b")]),
+      GroupNode(Some("More"), [LeafNode("c")]),
+      GroupNode(None, []),
+    ]),
+  )
+}
+
+pub fn ui_schema_round_trips_test() {
+  let ui =
+    UiSchema(
+      properties: [
+        #("full", full_ui_property()),
+        #(
+          "swipe",
+          UiProperty(
+            ..empty_ui_property(),
+            widget: Some(types.SwipeReviewWidget),
+          ),
+        ),
+      ],
+      order: Some(["swipe", "full"]),
+      layout: Some([RowNode([LeafNode("full"), LeafNode("swipe")])]),
+    )
+  ui_parser.parse(json.to_string(serializer.ui_schema_to_json(ui)))
+  |> should.equal(Ok(ui))
+}
+
+pub fn empty_ui_schema_serializes_to_empty_object_test() {
+  json.to_string(serializer.ui_schema_to_json(empty_ui_schema()))
+  |> should.equal("{}")
 }
