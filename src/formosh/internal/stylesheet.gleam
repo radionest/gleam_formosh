@@ -9,9 +9,10 @@
 //// a page that declares cascade layers must declare `formosh` first
 //// (`@layer formosh, …;`). Every selector sits in `:where()`, so nothing
 //// here competes by specificity either.
-//// One edge case inside a shadow root: a page sheet Lustre cannot copy
-//// (cross-origin without CORS, or using `@import`) is cloned as a `<link>`
-//// ahead of this `<style>`, so the layers it declares rank below `formosh`.
+//// Edge cases inside a shadow root, for page sheets Lustre cannot copy
+//// (cross-origin without CORS, or using `@import`): a `<link>` is cloned
+//// ahead of this `<style>`, so the layers it declares rank below `formosh`;
+//// a `<style>` is cloned empty, so none of its rules apply.
 ////
 //// Inline `style` is reserved for runtime state the component's own logic
 //// depends on (the swipe widget's drag offset and fly-off). A default with
