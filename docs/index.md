@@ -24,7 +24,7 @@ its frontmatter (the only key OKF strictly requires); `index.md` files carry
 no concept frontmatter.
 
 > ⚠️ **Alpha.** Formosh's API is unstable and will change. Treat these docs
-> as a snapshot of the current (`0.9.x`) behaviour, not a stable contract.
+> as a snapshot of the current (`0.10.x`) behaviour, not a stable contract.
 
 ## How this bundle is organized
 

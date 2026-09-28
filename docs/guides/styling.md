@@ -350,6 +350,15 @@ formosh-form::part(group-body) { display: flex; flex-direction: column; gap: 12p
 
 ## Cascade and limitations
 
+> **Breaking change (0.10.0).** The `Row` grid and the array fold used to be
+> inline styles; they now live in the `formosh` layer. Page rules that used
+> to lose silently to them now apply: a broad `display`, `overflow` or
+> `transition` rule that reaches `[part=row]` or `[part=array-item-body]`
+> now reshapes the grid or the fold, and `!important` overrides aimed at
+> the old inline styles can be dropped. The container also gains the
+> `<style>` as its first child (see the first bullet below the cascade
+> order).
+
 ### Cascade order
 
 From strongest to weakest, for normal (non-`!important`) declarations:
