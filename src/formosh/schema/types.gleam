@@ -91,7 +91,8 @@ pub type ArrayConstraints {
   )
 }
 
-/// Upload configuration from x- extension fields.
+/// Upload configuration from `ui:accept` / `ui:maxFileSize`, honoured only
+/// under `ui:widget: "image-upload"`.
 pub type UploadConfig {
   UploadConfig(accept: String, max_file_size: Option(Int))
 }

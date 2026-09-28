@@ -8,13 +8,13 @@ description: "How Formosh picks a concrete widget (text, textarea, radio, select
 
 Formosh does not ask you to declare a widget per field. It picks one
 automatically from the schema node's `type`, `enum` / `oneOf`, `format`,
-and constraints. This page documents the decision tree and the two override
-mechanisms (`ui:widget`, `x-widget`).
+and constraints. This page documents the decision tree and the
+`ui:widget` override.
 
 > **Source of truth.** The dispatcher is `render_widget` in
 > `src/formosh/fields/field_dispatcher.gleam`; per-type logic is in
-> `src/formosh/fields/string_field.gleam` and siblings. The merge of
-> `ui:widget` and `x-widget` into a single `RenderHints` record happens in
+> `src/formosh/fields/string_field.gleam` and siblings. `ui:widget` is
+> resolved into the `RenderHints` record in
 > `src/formosh/schema/ui_resolver.gleam`.
 
 ## Selection priority
@@ -429,14 +429,9 @@ Submit/Reset are hidden. See [Styling](../guides/styling.md) for the
 
 ## Override mechanisms
 
-Two ways to force a widget other than the auto-selected one. Both produce
-a `Widget` value that the dispatcher checks first.
-
-### `ui:widget` (UiSchema) — recommended
-
-Set `ui:widget` in the [UiSchema](ui-schema.md) parallel tree. This is the
-primary mechanism from v0.7 onward and separates presentation from the
-data schema:
+Set `ui:widget` in the [UiSchema](ui-schema.md) parallel tree to force a
+widget other than the auto-selected one. It produces a `Widget` value that
+the dispatcher checks first, and keeps presentation out of the data schema:
 
 ```json
 {
@@ -451,18 +446,8 @@ Recognised values: `"image-upload"`, `"swipe-review"`, `"hidden"`,
 through as `CustomWidget(raw)` so you can prototype without a parser
 change.
 
-### `x-widget` (schema node) — deprecated fallback
-
-The same idea as an extension field directly on the JSON Schema node:
-
-```json
-{ "type": "string", "x-widget": "textarea" }
-```
-
-Still works and is merged into the same `RenderHints.widget` slot, but
-**prefer `ui:widget`** for new schemas — it keeps the data schema clean and
-survives serialization round-trips more reliably. Upload-related extensions
-(`x-accept`, `x-max-file-size`) follow the same pattern.
+`ui:widget` is the only override: the schema-node extensions were removed
+in v0.11 — see [Removed `x-*` extensions](ui-schema.md#removed-x--extensions-v011).
 
 ## Custom names and prototyping
 
@@ -489,5 +474,5 @@ own dispatch from there.
 | Image upload | `src/formosh/fields/image_field.gleam` |
 | Swipe review | `src/formosh/fields/swipe_review_field.gleam` |
 | Read-only rendering | `src/formosh/fields/readonly_field.gleam` |
-| `ui:widget` + `x-widget` merge | `src/formosh/schema/ui_resolver.gleam` |
+| `ui:widget` → `RenderHints` resolution | `src/formosh/schema/ui_resolver.gleam` |
 | Suppression decision (hidden / readonly) | `ui_resolver.is_suppressed` (shared with `form/visibility`) |

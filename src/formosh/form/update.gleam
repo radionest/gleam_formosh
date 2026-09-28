@@ -973,7 +973,7 @@ fn format_hidden_errors_warning(
     })
   "[formosh] Submit blocked by errors on UI-suppressed fields:\n"
   <> string.join(lines, "\n")
-  <> "\nThese paths are hidden (`x-widget`/`ui:widget: \"hidden\"`) or"
+  <> "\nThese paths are hidden (`ui:widget: \"hidden\"`) or"
   <> " readOnly with `show_readonly_fields: false`. Supply a JSON Schema"
   <> " `default`, set the value programmatically, or drop `required`."
 }

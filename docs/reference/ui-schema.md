@@ -89,7 +89,7 @@ UiSchema tree simply means "no overrides — use schema defaults".
 ## All supported `ui:*` keys
 
 Every key is optional. Omitting one means "fall through to the schema
-default (or `x-*` extension where applicable)".
+default".
 
 ### Widget and options
 
@@ -129,9 +129,6 @@ default (or `x-*` extension where applicable)".
 | `ui:addable` | bool | `true` | Show/hide the "add row" button. |
 | `ui:removable` | bool | `true` | Show/hide the "remove row" button (also gated by `minItems`). |
 | `ui:orderable` | bool | `true` | Show/hide the move up/down buttons (auto-hidden when the array has ≤1 item). |
-
-`x-addable` / `x-removable` on the schema node are a deprecated fallback
-with the same meaning; UiSchema wins on collision.
 
 None of these apply to a [checkbox group](widgets.md#checkbox-group-multi-select) — it has no rows.
 
@@ -327,23 +324,27 @@ Root path (`[]`) returns `empty_ui_property()` — root-level options like
 `ui:order` and `ui:layout` live on the `UiSchema` itself, not on a
 `UiProperty`.
 
-## Merge precedence with `x-*` extensions
+## Removed `x-*` extensions (v0.11)
 
-JSON Schema nodes can also carry `x-widget`, `x-addable`, `x-removable`,
-`x-accept`, `x-max-file-size` as vendor extensions. Formosh reconciles
-both sources into a single `RenderHints` record (`ui_resolver.resolve_hints`):
+The `x-*` vendor extensions on JSON Schema nodes were removed in v0.11 —
+UiSchema is the only presentation-hint source, and `ui_resolver.resolve_hints`
+reads nothing from the schema. Move each key into the UiSchema at the same
+path:
 
-| Field | Precedence |
-|-------|------------|
-| `widget`, `upload_config` | **UiSchema wins**; `x-*` used only when UiSchema is unset |
-| `addable`, `removable` | **UiSchema wins**; falls back to the schema's parsed Bool |
-| `orderable` | **UiSchema only** — no `x-*` analogue (`None` means "enabled") |
-| `placeholder`, `help`, `autofocus`, `disabled`, `readonly`, `title`, `description`, `order`, `options` | **UiSchema only** — JSON Schema has no analogues |
+| Removed | Use |
+|---|---|
+| `x-widget` | `ui:widget` |
+| `x-accept` | `ui:accept` |
+| `x-max-file-size` | `ui:maxFileSize` |
+| `x-addable` | `ui:addable` |
+| `x-removable` | `ui:removable` |
 
-For new schemas, **prefer `ui:*` over `x-*`**. It keeps the data schema
-clean, survives serialization round-trips more reliably, and is the
-forward-looking path. The `x-*` family is a deprecated fallback (since
-v0.7), retained for compatibility and scheduled for removal in v0.11.
+Hints on a `$defs` entry or `allOf` member no longer reach every `$ref`
+site — UiSchema is per path, so repeat the entry for each field. A schema
+that still carries these keys parses (they are ignored), and
+`parser.parse_schema` logs one `console.warn` listing their JSON-pointer
+paths. The full list of removed API is in the
+[0.11.0 breaking-change note](api.md#jsonschema-and-schemaproperty).
 
 ## Worked examples
 
@@ -439,7 +440,7 @@ your case.
 |---------|------|
 | JSON parsing (`ui:*` extraction, `items` handling) | `src/formosh/schema/ui_parser.gleam` |
 | Tree types (`UiSchema`, `UiProperty`) | `src/formosh/schema/ui_schema.gleam` |
-| Path-based lookup + `x-*` merge + suppression predicate | `src/formosh/schema/ui_resolver.gleam` |
+| Path-based lookup + suppression predicate | `src/formosh/schema/ui_resolver.gleam` |
 | Recognized `ui:widget` values | `ui_parser.extract_widget` |
 | Where hints are consumed by renderers | `FieldRenderCtx.hints` in `src/formosh/fields/field_common.gleam` |
 | Layout node types (`LayoutNode` and its constructors) | `src/formosh/schema/ui_schema.gleam` |

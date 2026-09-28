@@ -24,8 +24,8 @@ import gleam/string
 ///
 /// `field_path` is the canonical path used by every form layer; errors
 /// built here are keyed by this path without any intermediate string
-/// round-trip. `effective_widget` is the merged widget choice (UiSchema +
-/// x-widget fallback) supplied by the caller — `validator` itself doesn't
+/// round-trip. `effective_widget` is the resolved `ui:widget` choice
+/// supplied by the caller — `validator` itself doesn't
 /// know about `UiSchema`.
 pub fn validate_field(
   field_path: FieldPath,

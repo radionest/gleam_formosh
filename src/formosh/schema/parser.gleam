@@ -86,7 +86,9 @@ const retired_keys = [
 /// JSON-pointer paths of schema nodes still carrying a retired `x-*`
 /// presentation key (removed in v0.11 — UiSchema replaces them). Walks
 /// subschema positions only, so a property *named* `x-widget` or data
-/// inside `default`/`enum` is never flagged. Malformed JSON yields `[]`.
+/// inside `default`/`enum` is never flagged. A node's own path precedes its
+/// children's; siblings follow JS key (insertion) order, integer-like keys
+/// first. Malformed JSON yields `[]`.
 pub fn retired_extension_paths(json_string: String) -> List(String) {
   case json.parse(json_string, decode.dynamic) {
     Ok(root) -> retired_in_node(root, "#")

@@ -120,6 +120,7 @@ an HTML attribute on `<formosh-form>`):
 | `component.show_readonly_fields(Bool)` | `show-readonly-fields` | `with_show_readonly_fields` (defaults differ: component `True`, `FormConfig` `False`) |
 | `component.read_only(Bool)` | `read-only` | review mode |
 | `component.upload_base_url(String)` | `upload-base-url` | image upload base |
+| `component.ui_schema(UiSchema)` | `ui-schema` | `with_ui_schema` (an `upload` survives only beside `ImageUploadWidget`, as in the parser) |
 | `component.ui_schema_string(String)` | `ui-schema` | `with_ui_schema_json` |
 | `component.on_submit(fn(Result(String, String)) -> msg)` | — | `formosh-submit` listener; `Ok(body)` on success / `Error(message)` on failure, decoded from the `{status, data\|error}` detail |
 | `component.on_change(fn(Dict(String, Value)) -> msg)` | — | `formosh-change` listener; decodes `detail.values` into a real `Dict(String, Value)` |
@@ -217,8 +218,8 @@ pub type Widget {
 }
 ```
 
-Driven by `ui:widget` in UiSchema (primary) and `x-widget` on the schema
-node (deprecated fallback). See [Widget Selection](widgets.md).
+Driven by `ui:widget` in UiSchema — schema nodes carry no widget hint.
+See [Widget Selection](widgets.md).
 
 ### `JsonSchema` and `SchemaProperty`
 
@@ -229,7 +230,7 @@ field. Full field lists on the `SchemaProperty` and `JsonSchema` types in
 - `SchemaProperty` carries `field_type`, `title`, `description`, `default`,
   `enum_values`, `one_of`, `any_of`, `ref`, the three constraint records,
   `items`, `properties` (order-preserving), `required`, `read_only`,
-  `nullable`, `addable`, `removable`, `render_hints`, and `conditionals`.
+  `nullable`, and `conditionals`.
 - `JsonSchema` adds the root-level `defs` (`$defs` / `definitions`),
   root `conditionals`, and root `all_of` (always `None` after parsing).
 
@@ -239,6 +240,27 @@ field. Full field lists on the `SchemaProperty` and `JsonSchema` types in
 > it without naming `unique_items` stops compiling on upgrade. Add
 > `unique_items: False` (or the real value) at each call site, or switch to
 > a `..` spread over an existing value.
+
+> **Breaking change (0.11.0).** The deprecated `x-*` presentation extensions
+> are removed; UiSchema is the only hint source. `SchemaProperty.addable`,
+> `.removable` and `.render_hints` are gone, `resolver.merge_render_hints` is
+> removed, and `ui_resolver.resolve_hints` takes `(ui_schema, field_path)`.
+> Move each key into the UiSchema at the same path:
+>
+> | Removed | Use |
+> |---|---|
+> | `x-widget` | `ui:widget` |
+> | `x-accept` | `ui:accept` |
+> | `x-max-file-size` | `ui:maxFileSize` |
+> | `x-addable` | `ui:addable` |
+> | `x-removable` | `ui:removable` |
+>
+> Hints on a `$defs` entry or `allOf` member no longer reach every `$ref`
+> site — UiSchema is per path, so repeat the entry for each field. For
+> `<formosh-form>`, hints travel in the `ui-schema` attribute
+> (`component.ui_schema` / `component.ui_schema_string`), not in `schema`.
+> A schema that still carries these keys parses, and `parser.parse_schema`
+> logs one `console.warn` listing their JSON-pointer paths.
 
 You normally don't construct these by hand — you parse them from JSON and
 mutate via the builder. But if you want to synthesize a schema
