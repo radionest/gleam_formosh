@@ -45,7 +45,7 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p _site/build/dev
-          cp demo/index.html _site/
+          cp demo/index.html demo/form-theme.css _site/
           cp -r demo/schemas _site/
           cp -r demo/build/dev/javascript _site/build/dev/
 

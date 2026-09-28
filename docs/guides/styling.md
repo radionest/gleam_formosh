@@ -276,7 +276,7 @@ formosh-form { --formosh-collapse-duration: 300ms; }
 ```
 
 Appearance of the collapse controls is yours. A starting point matching the
-demo (`demo/index.html`) — note the `[part=…]` form for `array-toggle`,
+demo (`demo/form-theme.css`) — note the `[part=…]` form for `array-toggle`,
 `array-progress` and the summary spans, which carry a part but no class:
 
 ```css
