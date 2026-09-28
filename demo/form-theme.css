@@ -140,7 +140,9 @@ formosh-form::part(reset) {
 }
 formosh-form::part(reset):hover { border-color: var(--ink); }
 
-/* arrays (these elements carry plain classes, not parts) */
+/* arrays — styled by class here, so edits apply once the editor loses
+   focus. Only the move/remove buttons lack a part; ::part(array-item) and
+   friends would apply live. */
 .array-items { display: flex; flex-direction: column; gap: 12px; }
 .array-item-fields { display: flex; flex-direction: column; gap: 16px; }
 .array-item {
