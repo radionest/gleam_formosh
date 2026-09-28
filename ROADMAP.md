@@ -434,8 +434,9 @@ classes); CSS says *how*, through tokens and stable hooks; and no formosh
 default ever needs `!important` to override. Replaces the planned Tailwind
 theming pack.
 
-**Scope:** L, in four independently shippable steps. **Breaking:** step 3
-(hook renames, behind a deprecation window).
+**Scope:** L, in four independently shippable steps. **Breaking:** step 1
+(shipped in 0.10.0 — page rules that lost to the old inline defaults now
+apply) and step 3 (hook renames, behind a deprecation window).
 
 1. [x] **Foundation** — formosh's defaults (`Row` grid, array fold) move
    from inline styles into a `<style>` inside `@layer formosh`, the
