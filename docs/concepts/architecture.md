@@ -67,7 +67,7 @@ can render without re-parsing.
 | `conditional_resolver.gleam` | Re-evaluates `if`/`then`/`else` against the **current** values — this is the runtime half of conditionals (the parse-time half just records the rules). |
 | `properties.gleam` | Helpers for walking and querying the property tree. |
 | `ui_parser.gleam` / `ui_schema.gleam` / `ui_resolver.gleam` | The UiSchema subsystem: presentation hints (`ui:widget`, `ui:order`, `ui:layout`, placeholders, help text) parsed separately from the data schema. |
-| `serializer.gleam` | Round-trip a parsed `JsonSchema` back to JSON. |
+| `serializer.gleam` | Round-trip a parsed `JsonSchema` back to JSON (`schema_to_json`), and a `UiSchema` back to `ui:*` JSON (`ui_schema_to_json`, used by `component.ui_schema`). |
 | `validator.gleam` | Schema-driven per-field validation (required, length, bounds, format). |
 
 The split between `composer` (parse-time `allOf`) and

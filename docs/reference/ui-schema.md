@@ -347,7 +347,11 @@ Hints on a `$defs` entry or `allOf` member no longer reach every `$ref`
 site — UiSchema is per path, so repeat the entry for each field. A schema
 that still carries these keys parses (they are ignored), and
 `parser.parse_schema` logs one `console.warn` listing their JSON-pointer
-paths. The full list of removed API is in the
+paths. Only schema nodes are inspected — the root and anything reached
+through `properties`, `$defs`, `items`, `anyOf`/`oneOf`/`allOf` members, and
+`if`/`then`/`else` — so a property *named* `x-widget` or an `x-*` key inside
+`default`/`enum` data is never flagged. `parser.retired_extension_paths(json)`
+exposes the same check as a pure function. The full list of removed API is in the
 [0.11.0 breaking-change note](api.md#jsonschema-and-schemaproperty).
 
 ## Worked examples

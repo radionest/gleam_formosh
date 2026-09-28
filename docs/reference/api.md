@@ -329,6 +329,12 @@ pub type LayoutNode {
 > each call site, or switch to a `..` spread over `empty_ui_schema()` /
 > `empty_ui_property()`.
 
+`serializer.ui_schema_to_json(UiSchema) -> json.Json` is the inverse of
+`ui_parser.parse`: only set fields are emitted (`empty_ui_schema()` → `{}`),
+and `ui_parser.parse(json.to_string(ui_schema_to_json(x))) == Ok(x)` for any
+`x` the parser can produce. `component.ui_schema` sets the `ui-schema`
+attribute from it.
+
 ### `ValidationError`
 
 ```gleam

@@ -203,9 +203,9 @@ and UiSchema flags:
 
 | Control | Shown when |
 |---------|-----------|
-| **Add** | `addable` (default true) **and** below `maxItems` (if set) |
-| **Remove** | `removable` (default true) **and** above `minItems` (if set) |
-| **Move up/down** | `orderable` (default true) **and** more than one row |
+| **Add** | `ui:addable` (default true) **and** below `maxItems` (if set) |
+| **Remove** | `ui:removable` (default true) **and** above `minItems` (if set) |
+| **Move up/down** | `ui:orderable` (default true) **and** more than one row |
 
 Rows auto-create up to `minItems` (with item-field defaults applied; not
 for checkbox groups, below). Array items can themselves be objects or
