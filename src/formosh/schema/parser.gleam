@@ -1,3 +1,4 @@
+import formosh/ffi/console
 import formosh/ffi/dynamic_object
 import formosh/schema/composer
 import formosh/schema/resolver
@@ -14,10 +15,12 @@ import formosh/schema/types.{
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/string
 
 /// Parse a JSON string into a JsonSchema.
 /// 
@@ -42,6 +45,7 @@ import gleam/result
 /// }
 /// ```
 pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
+  warn_retired_extensions(json_string)
   use #(root, defs) <- result.try(
     json_string
     |> json.parse(using: root_decoder())
@@ -73,6 +77,87 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
 
   use flattened <- result.try(composer.flatten_property(resolved))
   Ok(to_json_schema(flattened, defs))
+}
+
+const retired_keys = [
+  "x-widget", "x-accept", "x-max-file-size", "x-addable", "x-removable",
+]
+
+/// JSON-pointer paths of schema nodes still carrying a retired `x-*`
+/// presentation key (removed in v0.11 — UiSchema replaces them). Walks
+/// subschema positions only, so a property *named* `x-widget` or data
+/// inside `default`/`enum` is never flagged. Malformed JSON yields `[]`.
+pub fn retired_extension_paths(json_string: String) -> List(String) {
+  case json.parse(json_string, decode.dynamic) {
+    Ok(root) -> retired_in_node(root, "#")
+    Error(_) -> []
+  }
+}
+
+fn retired_in_node(node: Dynamic, pointer: String) -> List(String) {
+  case dynamic_object.entries(node) {
+    Error(_) -> []
+    Ok(entries) -> {
+      let own = case
+        list.any(entries, fn(entry) { list.contains(retired_keys, entry.0) })
+      {
+        True -> [pointer]
+        False -> []
+      }
+      list.append(
+        own,
+        list.flat_map(entries, fn(entry) {
+          let at = pointer <> "/" <> entry.0
+          case entry.0 {
+            "properties" | "$defs" -> retired_in_map(entry.1, at)
+            "anyOf" | "oneOf" | "allOf" -> retired_in_list(entry.1, at)
+            "items" | "if" | "then" | "else" -> retired_in_node(entry.1, at)
+            _ -> []
+          }
+        }),
+      )
+    }
+  }
+}
+
+fn retired_in_map(value: Dynamic, pointer: String) -> List(String) {
+  case dynamic_object.entries(value) {
+    Ok(entries) ->
+      list.flat_map(entries, fn(entry) {
+        retired_in_node(entry.1, pointer <> "/" <> pointer_token(entry.0))
+      })
+    Error(_) -> []
+  }
+}
+
+fn retired_in_list(value: Dynamic, pointer: String) -> List(String) {
+  case decode.run(value, decode.list(decode.dynamic)) {
+    Ok(members) ->
+      list.index_map(members, fn(member, index) {
+        retired_in_node(member, pointer <> "/" <> int.to_string(index))
+      })
+      |> list.flatten
+    Error(_) -> []
+  }
+}
+
+/// RFC 6901 reference-token escaping: `~` first, then `/`.
+fn pointer_token(key: String) -> String {
+  key |> string.replace("~", "~0") |> string.replace("/", "~1")
+}
+
+/// One diagnostic per parse for schemas still carrying retired `x-*` keys:
+/// they are ignored since v0.11, which silently changes rendering (a hidden
+/// field shows, a frozen array becomes addable).
+fn warn_retired_extensions(json_string: String) -> Nil {
+  case retired_extension_paths(json_string) {
+    [] -> Nil
+    paths ->
+      console.warn(
+        "formosh: x-widget / x-accept / x-max-file-size / x-addable / x-removable were removed in v0.11 and are ignored; move them to the UiSchema (ui:widget, ui:accept, ui:maxFileSize, ui:addable, ui:removable). Found at: "
+        <> string.join(paths, ", "),
+      )
+  }
 }
 
 /// Decode the document root as a `SchemaProperty` plus its `$defs`.
