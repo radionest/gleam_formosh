@@ -112,9 +112,11 @@ form.addEventListener('formosh-submit', (e) => {
 | `formosh-submitting` | A submit attempt starts | `{ status: "submitting" }` |
 | `formosh-submit` | Submit completes (success or failure) | `{ status: "success", data }` or `{ status: "error", error }` |
 
-Events fire when the form's state changes; Lustre patches the shadow DOM on
-the next animation frame. A listener that reads the rendered form (not
-`e.detail`) should wait one `requestAnimationFrame` first.
+Events fire when the form's state changes, before Lustre schedules the
+shadow-DOM patch for the next animation frame. A listener that reads the
+rendered form (not `e.detail`) should wait two nested
+`requestAnimationFrame`s — a single one is queued ahead of the patch and
+reads the old DOM.
 
 ## Nullable fields
 
