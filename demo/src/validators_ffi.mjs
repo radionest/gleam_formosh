@@ -56,20 +56,13 @@ const VALIDATORS = {
   },
 };
 
-// Set `element.validator` after Lustre has rendered the form into the DOM.
-// `requestAnimationFrame` gives the diff a chance to land before we touch
-// the element.
+// Called from an `effect.after_paint`, so the form is already in the DOM.
 export function attachValidator(elementId, validatorKind) {
-  requestAnimationFrame(() => {
-    const el = document.getElementById(elementId);
-    if (!el) return;
-    el.validator = VALIDATORS[validatorKind] ?? null;
-  });
+  const el = document.getElementById(elementId);
+  if (el) el.validator = VALIDATORS[validatorKind] ?? null;
 }
 
 export function detachValidator(elementId) {
-  requestAnimationFrame(() => {
-    const el = document.getElementById(elementId);
-    if (el) el.validator = null;
-  });
+  const el = document.getElementById(elementId);
+  if (el) el.validator = null;
 }

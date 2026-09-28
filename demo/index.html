@@ -38,7 +38,9 @@
             --radius: 14px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* Not `*`: the form adopts this sheet, and a bare `*` would reset its
+           inputs too. `body *` can't match across the shadow boundary. */
+        body, body * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: var(--font-body);

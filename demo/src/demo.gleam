@@ -518,9 +518,11 @@ fn form_attributes(
 }
 
 /// Build an effect that attaches the right cross-field validator (or
-/// detaches any previous one) once Lustre has rendered the form.
+/// detaches any previous one) once Lustre has rendered the form. Must run
+/// after paint: a synchronous effect would reach the element before the
+/// render creates (or, after a `form_key` bump, replaces) it.
 fn attach_validator_effect(filename: Option(String)) -> effect.Effect(Msg) {
-  effect.from(fn(_dispatch) {
+  effect.after_paint(fn(_dispatch, _root) {
     case filename {
       None -> validators.detach_validator(form_element_id)
       Some(name) ->
