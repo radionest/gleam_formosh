@@ -297,8 +297,9 @@ disappears: the fields stay in the DOM at zero height so the transition has
 something to animate, marked `inert` so a collapsed row is not reachable by
 keyboard or assistive tech. See
 [`array-item-body`](../guides/styling.md#array-item-body--the-fold) for the
-animation and how to retime or disable it. Switching collapsing
-off removes every summary button outright, regardless of completion — but
+animation, how to retime it, and how it behaves under
+`prefers-reduced-motion`. Switching collapsing off removes every summary
+button outright, regardless of completion — but
 the header's progress count keeps counting completed rows either way,
 since it depends only on `collapseCompleted`/read-only, not on the toggle.
 

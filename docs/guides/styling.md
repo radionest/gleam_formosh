@@ -443,6 +443,8 @@ those layers. Put formosh first, in the first rule of your CSS:
 
 The layer name `formosh` is part of formosh's public styling contract —
 name it in your own `@layer` statements.
+Several forms on one page each render the same `<style>`; the duplicates are
+identical rules in the one `formosh` layer and change nothing.
 
 ## Reference
 
