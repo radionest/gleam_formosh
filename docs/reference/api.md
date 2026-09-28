@@ -245,6 +245,9 @@ field. Full field lists on the `SchemaProperty` and `JsonSchema` types in
 > are removed; UiSchema is the only hint source. `SchemaProperty.addable`,
 > `.removable` and `.render_hints` are gone, `resolver.merge_render_hints` is
 > removed, and `ui_resolver.resolve_hints` takes `(ui_schema, field_path)`.
+> `RenderHints.addable` / `.removable` are now `None` when the UiSchema sets
+> nothing (previously `Some(True)` from the schema default) — custom
+> renderers reading `ctx.hints` must treat `None` as enabled.
 > Move each key into the UiSchema at the same path:
 >
 > | Removed | Use |

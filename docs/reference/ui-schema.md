@@ -339,6 +339,10 @@ path:
 | `x-addable` | `ui:addable` |
 | `x-removable` | `ui:removable` |
 
+The `ui:*` keys go in the separate UiSchema document, not on the schema
+node: a `ui:*` key written inside the JSON Schema itself is ignored, without
+a warning.
+
 Hints on a `$defs` entry or `allOf` member no longer reach every `$ref`
 site — UiSchema is per path, so repeat the entry for each field. A schema
 that still carries these keys parses (they are ignored), and

@@ -276,8 +276,8 @@ fn decode_options(entries: List(#(String, Dynamic))) -> Dict(String, Value) {
 
 /// Extract `UploadConfig` from `ui:accept` / `ui:maxFileSize` entries.
 ///
-/// Gated on `widget == Some(ImageUploadWidget)` — mirrors
-/// `parser.extract_upload_config`. Authors who write `ui:maxFileSize: ...`
+/// Gated on `widget == Some(ImageUploadWidget)`, with `accept` defaulting
+/// to `"image/*"` there. Authors who write `ui:maxFileSize: ...`
 /// without `ui:widget: "image-upload"` get `None` (no silent
 /// `accept: "image/*"` fallback). If you genuinely need a non-image
 /// upload, set the widget explicitly and override `ui:accept`.
