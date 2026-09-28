@@ -7,6 +7,7 @@ import formosh/fields/field_dispatcher
 import formosh/form/model
 import formosh/form/path.{ArraySegment, PropertySegment}
 import formosh/schema/types
+import formosh/schema/ui_parser
 import formosh/validation/error.{ValidationError}
 import gleam/option.{None, Some}
 import gleam/string
@@ -88,16 +89,25 @@ pub fn sibling_rows_are_distinguishable_test() {
 }
 
 pub fn hidden_field_emits_no_identity_test() {
-  let hidden =
-    types.SchemaProperty(
-      ..string_property(),
-      render_hints: types.RenderHints(
-        ..types.empty_hints(),
-        widget: Some(types.HiddenWidget),
-      ),
+  let assert Ok(ui) = ui_parser.parse("{\"secret\":{\"ui:widget\":\"hidden\"}}")
+  let m =
+    model.FormModel(
+      ..model.init(schema_with([#("email", string_property())])),
+      ui_schema: ui,
     )
-  let html = render_at([PropertySegment("secret")], hidden)
-  html |> string.contains("data-name=") |> should.be_false
+  let ctx =
+    field_common.make_field_ctx(
+      model: m,
+      path: [PropertySegment("secret")],
+      property: string_property(),
+      is_required: False,
+      is_disabled: False,
+      is_readonly: False,
+    )
+  field_dispatcher.render_field_at_path(ctx, m)
+  |> element.to_string
+  |> string.contains("data-name=")
+  |> should.be_false
 }
 
 /// Task 1's spec scenario: a field with a validation error carries

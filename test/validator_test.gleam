@@ -14,14 +14,7 @@ fn photos_path() -> path.FieldPath {
 }
 
 pub fn image_upload_required_empty_test() {
-  let property =
-    SchemaProperty(
-      ..empty_property(),
-      render_hints: types.RenderHints(
-        ..types.empty_hints(),
-        widget: Some(types.ImageUploadWidget),
-      ),
-    )
+  let property = empty_property()
 
   let errors =
     validator.validate_field(
@@ -29,21 +22,14 @@ pub fn image_upload_required_empty_test() {
       Some(ArrayValue([])),
       property,
       True,
-      property.render_hints.widget,
+      Some(types.ImageUploadWidget),
     )
 
   should.equal(errors != [], True)
 }
 
 pub fn image_upload_required_with_values_test() {
-  let property =
-    SchemaProperty(
-      ..empty_property(),
-      render_hints: types.RenderHints(
-        ..types.empty_hints(),
-        widget: Some(types.ImageUploadWidget),
-      ),
-    )
+  let property = empty_property()
 
   let value =
     Some(
@@ -56,21 +42,14 @@ pub fn image_upload_required_with_values_test() {
       value,
       property,
       True,
-      property.render_hints.widget,
+      Some(types.ImageUploadWidget),
     )
 
   should.equal(errors, [])
 }
 
 pub fn image_upload_not_required_empty_test() {
-  let property =
-    SchemaProperty(
-      ..empty_property(),
-      render_hints: types.RenderHints(
-        ..types.empty_hints(),
-        widget: Some(types.ImageUploadWidget),
-      ),
-    )
+  let property = empty_property()
 
   let errors =
     validator.validate_field(
@@ -78,21 +57,14 @@ pub fn image_upload_not_required_empty_test() {
       Some(ArrayValue([])),
       property,
       False,
-      property.render_hints.widget,
+      Some(types.ImageUploadWidget),
     )
 
   should.equal(errors, [])
 }
 
 pub fn image_upload_required_none_value_test() {
-  let property =
-    SchemaProperty(
-      ..empty_property(),
-      render_hints: types.RenderHints(
-        ..types.empty_hints(),
-        widget: Some(types.ImageUploadWidget),
-      ),
-    )
+  let property = empty_property()
 
   let errors =
     validator.validate_field(
@@ -100,21 +72,14 @@ pub fn image_upload_required_none_value_test() {
       None,
       property,
       True,
-      property.render_hints.widget,
+      Some(types.ImageUploadWidget),
     )
 
   should.equal(errors != [], True)
 }
 
 pub fn image_upload_not_required_none_value_test() {
-  let property =
-    SchemaProperty(
-      ..empty_property(),
-      render_hints: types.RenderHints(
-        ..types.empty_hints(),
-        widget: Some(types.ImageUploadWidget),
-      ),
-    )
+  let property = empty_property()
 
   let errors =
     validator.validate_field(
@@ -122,7 +87,7 @@ pub fn image_upload_not_required_none_value_test() {
       None,
       property,
       False,
-      property.render_hints.widget,
+      Some(types.ImageUploadWidget),
     )
 
   should.equal(errors, [])
@@ -150,7 +115,7 @@ pub fn validate_enum_rejects_value_outside_set_test() {
       Some(StringValue("banned")),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.any(errors, fn(e) { e.rule == "enum" })
@@ -172,7 +137,7 @@ pub fn validate_enum_integer_member_accepts_equal_float_test() {
       Some(NumberValue(2.0)),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.any(errors, fn(e) { e.rule == "enum" })
@@ -189,7 +154,7 @@ pub fn validate_enum_accepts_value_in_set_test() {
       Some(StringValue("active")),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.any(errors, fn(e) { e.rule == "enum" })
@@ -201,14 +166,7 @@ fn tenant_id_path() -> path.FieldPath {
 }
 
 fn hidden_string_property() -> SchemaProperty {
-  SchemaProperty(
-    ..empty_property(),
-    field_type: Some(types.StringType),
-    render_hints: types.RenderHints(
-      ..types.empty_hints(),
-      widget: Some(types.HiddenWidget),
-    ),
-  )
+  SchemaProperty(..empty_property(), field_type: Some(types.StringType))
 }
 
 // Hidden fields participate in validation: a required hidden field without a
@@ -222,7 +180,7 @@ pub fn hidden_widget_required_missing_value_test() {
       None,
       property,
       True,
-      property.render_hints.widget,
+      Some(types.HiddenWidget),
     )
 
   list.any(errors, fn(e) { e.rule == "required" })
@@ -237,7 +195,7 @@ pub fn hidden_widget_required_with_value_test() {
       Some(StringValue("acme")),
       property,
       True,
-      property.render_hints.widget,
+      Some(types.HiddenWidget),
     )
 
   should.equal(errors, [])
@@ -251,7 +209,7 @@ pub fn hidden_widget_not_required_missing_value_test() {
       None,
       property,
       False,
-      property.render_hints.widget,
+      Some(types.HiddenWidget),
     )
 
   should.equal(errors, [])
@@ -282,7 +240,7 @@ pub fn pattern_accepts_matching_value_test() {
       Some(StringValue("alice_42")),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   errors |> should.equal([])
@@ -296,7 +254,7 @@ pub fn pattern_rejects_non_matching_value_test() {
       Some(StringValue("ab!")),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.any(errors, fn(e) { e.rule == "pattern" })
@@ -314,7 +272,7 @@ pub fn pattern_required_with_non_matching_value_test() {
       Some(StringValue("Alice123")),
       property,
       True,
-      property.render_hints.widget,
+      None,
     )
 
   let rules = list.map(errors, fn(e) { e.rule })
@@ -331,7 +289,7 @@ pub fn pattern_matches_substring_test() {
       Some(StringValue("barfoobaz")),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   errors |> should.equal([])
@@ -347,7 +305,7 @@ pub fn pattern_invalid_regex_is_skipped_test() {
       Some(StringValue("anything")),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   errors |> should.equal([])
@@ -358,13 +316,7 @@ pub fn pattern_invalid_regex_is_skipped_test() {
 pub fn pattern_skipped_for_missing_value_test() {
   let property = string_with_pattern("^[a-z]+$")
   let errors =
-    validator.validate_field(
-      username_path(),
-      None,
-      property,
-      True,
-      property.render_hints.widget,
-    )
+    validator.validate_field(username_path(), None, property, True, None)
 
   list.any(errors, fn(e) { e.rule == "pattern" })
   |> should.be_false()
@@ -381,7 +333,7 @@ pub fn pattern_skipped_for_empty_optional_string_test() {
       Some(StringValue("")),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   errors |> should.equal([])
@@ -408,7 +360,7 @@ pub fn date_format_value_is_not_validated_test() {
       Some(StringValue("not-a-date")),
       prop,
       False,
-      prop.render_hints.widget,
+      None,
     )
 
   errors |> should.equal([])
@@ -443,7 +395,7 @@ pub fn password_format_min_length_still_validates_test() {
       Some(StringValue("abc")),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.any(errors, fn(e) { e.rule == "minLength" })
@@ -490,7 +442,7 @@ pub fn multiple_of_violation_test() {
       Some(IntegerValue(7)),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.map(errors, fn(e) { e.rule })
@@ -507,7 +459,7 @@ pub fn multiple_of_satisfied_test() {
     Some(IntegerValue(10)),
     property,
     False,
-    property.render_hints.widget,
+    None,
   )
   |> should.equal([])
 }
@@ -519,7 +471,7 @@ pub fn multiple_of_zero_is_multiple_of_anything_test() {
     Some(IntegerValue(0)),
     property,
     False,
-    property.render_hints.widget,
+    None,
   )
   |> should.equal([])
 }
@@ -531,7 +483,7 @@ pub fn multiple_of_negative_value_satisfied_test() {
     Some(IntegerValue(-15)),
     property,
     False,
-    property.render_hints.widget,
+    None,
   )
   |> should.equal([])
 }
@@ -544,7 +496,7 @@ pub fn multiple_of_negative_value_violation_test() {
       Some(IntegerValue(-7)),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.map(errors, fn(e) { e.rule })
@@ -558,7 +510,7 @@ pub fn multiple_of_float_satisfied_test() {
     Some(NumberValue(2.5)),
     property,
     False,
-    property.render_hints.widget,
+    None,
   )
   |> should.equal([])
 }
@@ -571,7 +523,7 @@ pub fn multiple_of_float_violation_test() {
       Some(NumberValue(1.7)),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.map(errors, fn(e) { e.rule })
@@ -588,7 +540,7 @@ pub fn multiple_of_tolerates_decimal_noise_test() {
     Some(NumberValue(0.3)),
     property,
     False,
-    property.render_hints.widget,
+    None,
   )
   |> should.equal([])
 }
@@ -603,7 +555,7 @@ pub fn multiple_of_tolerates_currency_steps_test() {
     Some(NumberValue(19.99)),
     property,
     False,
-    property.render_hints.widget,
+    None,
   )
   |> should.equal([])
 }
@@ -617,7 +569,7 @@ pub fn multiple_of_genuine_float_violation_test() {
       Some(NumberValue(0.35)),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.map(errors, fn(e) { e.rule })
@@ -631,7 +583,7 @@ pub fn multiple_of_integer_value_fractional_divisor_test() {
     Some(IntegerValue(5)),
     property,
     False,
-    property.render_hints.widget,
+    None,
   )
   |> should.equal([])
 }
@@ -657,7 +609,7 @@ pub fn multiple_of_combines_with_minimum_test() {
       Some(IntegerValue(7)),
       property,
       False,
-      property.render_hints.widget,
+      None,
     )
 
   list.map(errors, fn(e) { e.rule })
@@ -669,13 +621,7 @@ pub fn multiple_of_combines_with_minimum_test() {
 // or rejecting every value.
 pub fn multiple_of_non_positive_divisor_ignored_test() {
   let zero = integer_multiple_of(0.0)
-  validator.validate_field(
-    n_path(),
-    Some(IntegerValue(7)),
-    zero,
-    False,
-    zero.render_hints.widget,
-  )
+  validator.validate_field(n_path(), Some(IntegerValue(7)), zero, False, None)
   |> should.equal([])
 
   let negative = integer_multiple_of(-5.0)
@@ -684,7 +630,7 @@ pub fn multiple_of_non_positive_divisor_ignored_test() {
     Some(IntegerValue(7)),
     negative,
     False,
-    negative.render_hints.widget,
+    None,
   )
   |> should.equal([])
 }
@@ -697,13 +643,7 @@ pub fn multiple_of_enforced_after_parse_test() {
     )
   let assert Ok(prop) = list.key_find(schema.properties, "n")
   let errors =
-    validator.validate_field(
-      n_path(),
-      Some(IntegerValue(7)),
-      prop,
-      True,
-      prop.render_hints.widget,
-    )
+    validator.validate_field(n_path(), Some(IntegerValue(7)), prop, True, None)
 
   list.map(errors, fn(e) { e.rule })
   |> should.equal(["multipleOf"])

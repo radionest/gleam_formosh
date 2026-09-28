@@ -7,6 +7,8 @@ import formosh/form/model
 import formosh/form/path
 import formosh/schema/parser
 import formosh/schema/types
+import formosh/schema/ui_parser
+import formosh/schema/ui_resolver
 import formosh/schema/ui_schema
 import gleam/dict
 import gleam/option.{None, Some}
@@ -29,10 +31,7 @@ const lookup_schema = "{
         \"properties\": {
           \"photo\": {
             \"type\": \"array\",
-            \"items\": {\"type\": \"string\"},
-            \"x-widget\": \"image-upload\",
-            \"x-accept\": \"image/png\",
-            \"x-max-file-size\": 1024
+            \"items\": {\"type\": \"string\"}
           }
         }
       }
@@ -76,20 +75,22 @@ pub fn nested_object_property_resolves_test() {
 }
 
 // Anchors the actual PR 4 user-visible fix: a `photo` image-upload field
-// nested inside an array item must resolve to its own SchemaProperty,
-// carrying the upload_config parsed from x-accept / x-max-file-size.
+// nested inside an array item must resolve to its own SchemaProperty; its
+// upload config comes from the UiSchema (`ui:accept` / `ui:maxFileSize`).
 pub fn array_item_field_resolves_with_upload_config_test() {
   let m = init_for_lookup()
-  let result =
-    model.find_property_at_path(m, [
-      path.PropertySegment("lesions"),
-      path.ArraySegment(0),
-      path.PropertySegment("photo"),
-    ])
-  should.be_ok(result)
-  let assert Ok(prop) = result
-  prop.render_hints.widget |> should.equal(Some(types.ImageUploadWidget))
-  prop.render_hints.upload_config
+  let item_path = [
+    path.PropertySegment("lesions"),
+    path.ArraySegment(0),
+    path.PropertySegment("photo"),
+  ]
+  let assert Ok(prop) = model.find_property_at_path(m, item_path)
+  prop.field_type |> should.equal(Some(types.ArrayType))
+  let assert Ok(ui) =
+    ui_parser.parse(
+      "{\"lesions\":{\"items\":{\"photo\":{\"ui:widget\":\"image-upload\",\"ui:accept\":\"image/png\",\"ui:maxFileSize\":1024}}}}",
+    )
+  ui_resolver.lookup(ui, item_path).upload
   |> should.equal(Some(types.UploadConfig("image/png", Some(1024))))
 }
 

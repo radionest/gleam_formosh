@@ -1,25 +1,22 @@
 {
-  "title": "Hidden Fields Demo (x-widget: hidden)",
-  "description": "Demonstrates x-widget: \"hidden\" — fields are suppressed from the UI but still appear in the submit payload and participate in validation. Open browser DevTools and watch the network tab on submit (or the example's submission display) to see hidden fields included.",
+  "title": "Hidden Fields Demo (ui:widget: hidden)",
+  "description": "Demonstrates ui:widget: \"hidden\" — fields are suppressed from the UI but still appear in the submit payload and participate in validation. Open browser DevTools and watch the network tab on submit (or the example's submission display) to see hidden fields included.",
   "type": "object",
   "required": ["email", "tenant_id"],
   "properties": {
     "tenant_id": {
       "type": "string",
       "title": "Tenant ID (hidden — default injected)",
-      "x-widget": "hidden",
       "default": "acme-corp"
     },
     "form_version": {
       "type": "integer",
       "title": "Form version (hidden)",
-      "x-widget": "hidden",
       "default": 3
     },
     "source": {
       "type": "string",
-      "title": "Source (hidden, no default)",
-      "x-widget": "hidden"
+      "title": "Source (hidden, no default)"
     },
     "email": {
       "type": "string",
@@ -39,7 +36,6 @@
         "_internal_segment": {
           "type": "string",
           "title": "Internal segment (hidden, nested)",
-          "x-widget": "hidden",
           "default": "beta-cohort"
         }
       }
@@ -47,7 +43,6 @@
     "tags": {
       "type": "array",
       "title": "Tags (hidden entirely as array)",
-      "x-widget": "hidden",
       "default": ["imported", "v3"],
       "items": { "type": "string" }
     }
