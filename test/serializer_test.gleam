@@ -866,13 +866,21 @@ pub fn image_upload_roundtrip_test() {
 pub fn addable_removable_round_trip_test() {
   let assert Ok(schema) =
     parser.parse_schema(
-      "{\"type\": \"object\", \"properties\": {\"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"x-addable\": false, \"x-removable\": false}}}",
+      "{\"type\": \"object\", \"properties\": {
+        \"fixed_size\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"x-addable\": false},
+        \"keep_all\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"x-removable\": false}
+      }}",
     )
   let assert Ok(reparsed) =
     parser.parse_schema(json.to_string(serializer.schema_to_json(schema)))
-  let assert Ok(tags) = list.key_find(reparsed.properties, "tags")
-  tags.addable |> should.be_false()
-  tags.removable |> should.be_false()
+
+  let assert Ok(fixed_size) = list.key_find(reparsed.properties, "fixed_size")
+  fixed_size.addable |> should.be_false()
+  fixed_size.removable |> should.be_true()
+
+  let assert Ok(keep_all) = list.key_find(reparsed.properties, "keep_all")
+  keep_all.addable |> should.be_true()
+  keep_all.removable |> should.be_false()
 }
 
 pub fn no_widget_no_x_fields_serialized_test() {
