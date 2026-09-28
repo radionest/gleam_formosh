@@ -1,4 +1,3 @@
-import formosh/ffi/console
 import formosh/ffi/dynamic_object
 import formosh/schema/composer
 import formosh/schema/resolver
@@ -45,19 +44,38 @@ import gleam/string
 /// }
 /// ```
 pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
-  warn_retired_extensions(json_string)
+  parse_json(json_string) |> result.try(decode_schema)
+}
+
+/// `parse_schema` plus the presentation-key diagnostic (`None` for a clean
+/// schema) from a single JSON parse. `parse_schema` stays pure; the entry
+/// points (`formosh.from_json_string*`, `<formosh-form>`'s `schema`
+/// attribute) emit the warning via `console.warn`.
+pub fn parse_schema_with_warning(
+  json_string: String,
+) -> #(Result(JsonSchema, ParseError), Option(String)) {
+  case parse_json(json_string) {
+    Error(error) -> #(Error(error), None)
+    Ok(root) -> #(decode_schema(root), presentation_key_warning(root))
+  }
+}
+
+fn parse_json(json_string: String) -> Result(Dynamic, ParseError) {
+  json.parse(json_string, decode.dynamic)
+  |> result.map_error(fn(error) {
+    case error {
+      json.UnableToDecode(errors) -> DecodingError(errors)
+      json.UnexpectedEndOfInput -> InvalidJson("Unexpected end of input")
+      json.UnexpectedByte(byte) -> InvalidJson("Unexpected byte: " <> byte)
+      json.UnexpectedSequence(seq) ->
+        InvalidJson("Unexpected sequence: " <> seq)
+    }
+  })
+}
+
+fn decode_schema(document: Dynamic) -> Result(JsonSchema, ParseError) {
   use #(root, defs) <- result.try(
-    json_string
-    |> json.parse(using: root_decoder())
-    |> result.map_error(fn(error) {
-      case error {
-        json.UnableToDecode(errors) -> DecodingError(errors)
-        json.UnexpectedEndOfInput -> InvalidJson("Unexpected end of input")
-        json.UnexpectedByte(byte) -> InvalidJson("Unexpected byte: " <> byte)
-        json.UnexpectedSequence(seq) ->
-          InvalidJson("Unexpected sequence: " <> seq)
-      }
-    }),
+    decode.run(document, root_decoder()) |> result.map_error(DecodingError),
   )
 
   use resolved <- result.try(
@@ -79,9 +97,18 @@ pub fn parse_schema(json_string: String) -> Result(JsonSchema, ParseError) {
   Ok(to_json_schema(flattened, defs))
 }
 
+/// Retired `x-*` presentation keys and their UiSchema replacements.
 const retired_keys = [
-  "x-widget", "x-accept", "x-max-file-size", "x-addable", "x-removable",
+  #("x-widget", "ui:widget"),
+  #("x-accept", "ui:accept"),
+  #("x-max-file-size", "ui:maxFileSize"),
+  #("x-addable", "ui:addable"),
+  #("x-removable", "ui:removable"),
 ]
+
+fn is_retired_key(key: String) -> Bool {
+  list.key_find(retired_keys, key) |> result.is_ok
+}
 
 /// JSON-pointer paths of schema nodes still carrying a retired `x-*`
 /// presentation key (removed in v0.11 — UiSchema replaces them). Walks
@@ -91,18 +118,20 @@ const retired_keys = [
 /// first. Malformed JSON yields `[]`.
 pub fn retired_extension_paths(json_string: String) -> List(String) {
   case json.parse(json_string, decode.dynamic) {
-    Ok(root) -> retired_in_node(root, "#")
+    Ok(root) -> flagged_nodes(root, "#", is_retired_key)
     Error(_) -> []
   }
 }
 
-fn retired_in_node(node: Dynamic, pointer: String) -> List(String) {
+fn flagged_nodes(
+  node: Dynamic,
+  pointer: String,
+  flagged: fn(String) -> Bool,
+) -> List(String) {
   case dynamic_object.entries(node) {
     Error(_) -> []
     Ok(entries) -> {
-      let own = case
-        list.any(entries, fn(entry) { list.contains(retired_keys, entry.0) })
-      {
+      let own = case list.any(entries, fn(entry) { flagged(entry.0) }) {
         True -> [pointer]
         False -> []
       }
@@ -111,9 +140,10 @@ fn retired_in_node(node: Dynamic, pointer: String) -> List(String) {
         list.flat_map(entries, fn(entry) {
           let at = pointer <> "/" <> entry.0
           case entry.0 {
-            "properties" | "$defs" -> retired_in_map(entry.1, at)
-            "anyOf" | "oneOf" | "allOf" -> retired_in_list(entry.1, at)
-            "items" | "if" | "then" | "else" -> retired_in_node(entry.1, at)
+            "properties" | "$defs" -> flagged_in_map(entry.1, at, flagged)
+            "anyOf" | "oneOf" | "allOf" -> flagged_in_list(entry.1, at, flagged)
+            "items" | "if" | "then" | "else" ->
+              flagged_nodes(entry.1, at, flagged)
             _ -> []
           }
         }),
@@ -122,21 +152,33 @@ fn retired_in_node(node: Dynamic, pointer: String) -> List(String) {
   }
 }
 
-fn retired_in_map(value: Dynamic, pointer: String) -> List(String) {
+fn flagged_in_map(
+  value: Dynamic,
+  pointer: String,
+  flagged: fn(String) -> Bool,
+) -> List(String) {
   case dynamic_object.entries(value) {
     Ok(entries) ->
       list.flat_map(entries, fn(entry) {
-        retired_in_node(entry.1, pointer <> "/" <> pointer_token(entry.0))
+        flagged_nodes(
+          entry.1,
+          pointer <> "/" <> pointer_token(entry.0),
+          flagged,
+        )
       })
     Error(_) -> []
   }
 }
 
-fn retired_in_list(value: Dynamic, pointer: String) -> List(String) {
+fn flagged_in_list(
+  value: Dynamic,
+  pointer: String,
+  flagged: fn(String) -> Bool,
+) -> List(String) {
   case decode.run(value, decode.list(decode.dynamic)) {
     Ok(members) ->
       list.index_map(members, fn(member, index) {
-        retired_in_node(member, pointer <> "/" <> int.to_string(index))
+        flagged_nodes(member, pointer <> "/" <> int.to_string(index), flagged)
       })
       |> list.flatten
     Error(_) -> []
@@ -148,17 +190,45 @@ fn pointer_token(key: String) -> String {
   key |> string.replace("~", "~0") |> string.replace("/", "~1")
 }
 
-/// One diagnostic per parse for schemas still carrying retired `x-*` keys:
-/// they are ignored since v0.11, which silently changes rendering (a hidden
-/// field shows, a frozen array becomes addable).
-fn warn_retired_extensions(json_string: String) -> Nil {
-  case retired_extension_paths(json_string) {
-    [] -> Nil
-    paths ->
-      console.warn(
-        "formosh: x-widget / x-accept / x-max-file-size / x-addable / x-removable were removed in v0.11 and are ignored; move them to the UiSchema (ui:widget, ui:accept, ui:maxFileSize, ui:addable, ui:removable). Found at: "
-        <> string.join(paths, ", "),
-      )
+/// One diagnostic per parse for presentation keys the schema carries but
+/// nothing reads: retired `x-*` keys (ignored since v0.11, which silently
+/// changes rendering — a hidden field shows, a frozen array becomes addable)
+/// and `ui:*` keys written on the schema instead of the UiSchema.
+fn presentation_key_warning(root: Dynamic) -> Option(String) {
+  let retired = flagged_nodes(root, "#", is_retired_key)
+  let misplaced = flagged_nodes(root, "#", string.starts_with(_, "ui:"))
+  let parts = [
+    case retired {
+      [] -> ""
+      _ ->
+        string.join(list.map(retired_keys, fn(pair) { pair.0 }), " / ")
+        <> " were removed in v0.11 and are ignored; move them to the UiSchema ("
+        <> string.join(list.map(retired_keys, fn(pair) { pair.1 }), ", ")
+        <> "). Found at: "
+        <> string.join(retired, ", ")
+        <> "."
+    },
+    case misplaced {
+      [] -> ""
+      _ ->
+        "ui:* keys are read from the UiSchema only and are ignored on JSON Schema nodes; move them there. Found at: "
+        <> string.join(misplaced, ", ")
+        <> "."
+    },
+    case
+      list.any(list.append(retired, misplaced), string.starts_with(
+        _,
+        "#/$defs/",
+      ))
+    {
+      True ->
+        "A $defs entry's hint must be repeated in the UiSchema at every field that $refs it."
+      False -> ""
+    },
+  ]
+  case list.filter(parts, fn(part) { part != "" }) {
+    [] -> None
+    found -> Some("formosh: " <> string.join(found, " "))
   }
 }
 

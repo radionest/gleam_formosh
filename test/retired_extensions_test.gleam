@@ -8,6 +8,7 @@ import formosh/schema/ui_parser
 import formosh/schema/ui_schema
 import gleam/json
 import gleam/list
+import gleam/option
 import gleam/set
 import gleam/string
 import gleeunit/should
@@ -121,4 +122,57 @@ pub fn retired_paths_escape_keys_per_rfc_6901_test() {
     "{\"properties\": {\"a/b\": {\"x-widget\": \"hidden\"}, \"c~d\": {\"x-widget\": \"hidden\"}}}",
   )
   |> should.equal(["#/properties/a~1b", "#/properties/c~0d"])
+}
+
+pub fn warning_lists_retired_paths_with_defs_hint_test() {
+  parser.parse_schema_with_warning(leftover_schema).1
+  |> should.equal(option.Some(
+    "formosh: x-widget / x-accept / x-max-file-size / x-addable / x-removable were removed in v0.11 and are ignored; move them to the UiSchema (ui:widget, ui:accept, ui:maxFileSize, ui:addable, ui:removable). Found at: #/$defs/Secret, #/properties/tenant, #/properties/photo, #/properties/tags. A $defs entry's hint must be repeated in the UiSchema at every field that $refs it.",
+  ))
+}
+
+pub fn warning_flags_ui_keys_on_schema_nodes_test() {
+  let #(parsed, warning) =
+    parser.parse_schema_with_warning(
+      "{\"properties\": {\"a\": {\"type\": \"string\", \"ui:widget\": \"hidden\"}, \"ui:b\": {\"type\": \"string\"}}}",
+    )
+  parsed |> should.be_ok()
+  warning
+  |> should.equal(option.Some(
+    "formosh: ui:* keys are read from the UiSchema only and are ignored on JSON Schema nodes; move them there. Found at: #/properties/a.",
+  ))
+}
+
+pub fn clean_and_malformed_schemas_have_no_warning_test() {
+  parser.parse_schema_with_warning("{\"type\": \"object\"}").1
+  |> should.equal(option.None)
+  let #(parsed, warning) = parser.parse_schema_with_warning("{")
+  parsed |> should.be_error()
+  warning |> should.equal(option.None)
+}
+
+pub fn ui_schema_to_json_drops_nested_child_named_items_test() {
+  let template =
+    ui_schema.UiProperty(
+      ..ui_schema.empty_ui_property(),
+      help: option.Some("t"),
+    )
+  let child =
+    ui_schema.UiProperty(
+      ..ui_schema.empty_ui_property(),
+      help: option.Some("c"),
+    )
+  ui_schema.UiSchema(..ui_schema.empty_ui_schema(), properties: [
+    #(
+      "list",
+      ui_schema.UiProperty(
+        ..ui_schema.empty_ui_property(),
+        properties: [#("items", child)],
+        items: option.Some(template),
+      ),
+    ),
+  ])
+  |> serializer.ui_schema_to_json
+  |> json.to_string
+  |> should.equal("{\"list\":{\"items\":{\"ui:help\":\"t\"}}}")
 }

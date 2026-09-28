@@ -262,11 +262,14 @@ field. Full field lists on the `SchemaProperty` and `JsonSchema` types in
 > site — UiSchema is per path, so repeat the entry for each field. For
 > `<formosh-form>`, hints travel in the `ui-schema` attribute
 > (`component.ui_schema` / `component.ui_schema_string`), not in `schema`.
-> A schema that still carries these keys parses, and `parser.parse_schema`
-> logs one `console.warn` listing their JSON-pointer paths.
+> A schema that still carries these keys (or `ui:*` keys on schema nodes)
+> parses, and `formosh.from_json_string*` / the `schema` attribute log one
+> `console.warn` listing their JSON-pointer paths; `parser.parse_schema`
+> stays pure.
 > Added: `serializer.ui_schema_to_json` (typed `UiSchema` → JSON, used by
-> `component.ui_schema`) and `parser.retired_extension_paths` (the detector
-> behind the warn).
+> `component.ui_schema`), `parser.parse_schema_with_warning` (parse result
+> plus the warn text, from one JSON parse) and `parser.retired_extension_paths`
+> (the `x-*` detector).
 
 You normally don't construct these by hand — you parse them from JSON and
 mutate via the builder. But if you want to synthesize a schema

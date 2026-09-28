@@ -340,18 +340,21 @@ path:
 | `x-removable` | `ui:removable` |
 
 The `ui:*` keys go in the separate UiSchema document, not on the schema
-node: a `ui:*` key written inside the JSON Schema itself is ignored, without
-a warning.
+node: a `ui:*` key written inside the JSON Schema itself is ignored.
 
 Hints on a `$defs` entry or `allOf` member no longer reach every `$ref`
 site — UiSchema is per path, so repeat the entry for each field. A schema
-that still carries these keys parses (they are ignored), and
-`parser.parse_schema` logs one `console.warn` listing their JSON-pointer
-paths. Only schema nodes are inspected — the root and anything reached
+that still carries retired `x-*` keys or misplaced `ui:*` keys parses (they
+are ignored), and `formosh.from_json_string*` and `<formosh-form>`'s
+`schema` attribute log one `console.warn` listing their JSON-pointer paths
+(plus a reminder when a `$defs` entry is among them).
+`parser.parse_schema` itself is pure; `parser.parse_schema_with_warning`
+returns the same message beside the parse result for embeddings that parse
+directly. Only schema nodes are inspected — the root and anything reached
 through `properties`, `$defs`, `items`, `anyOf`/`oneOf`/`allOf` members, and
 `if`/`then`/`else` — so a property *named* `x-widget` or an `x-*` key inside
 `default`/`enum` data is never flagged. `parser.retired_extension_paths(json)`
-exposes the same check as a pure function. The full list of removed API is in the
+exposes the `x-*` check as a pure function. The full list of removed API is in the
 [0.11.0 breaking-change note](api.md#jsonschema-and-schemaproperty).
 
 ## Worked examples

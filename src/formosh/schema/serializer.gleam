@@ -142,6 +142,9 @@ pub fn schema_to_json(schema: JsonSchema) -> json.Json {
 
 /// Convert a `UiSchema` back to JSON — the inverse of `ui_parser.parse`.
 /// Only set fields are emitted, so `empty_ui_schema()` serializes to `{}`.
+/// Round-trips only what the parser can produce: `upload` survives
+/// re-parsing only beside `widget: Some(ImageUploadWidget)`, and a nested
+/// child named `items` is dropped — that key is the array-item template.
 pub fn ui_schema_to_json(ui_schema: UiSchema) -> json.Json {
   ui_children_to_fields(ui_schema.properties)
   |> add_optional_json_field("ui:order", ui_schema.order, json.array(
@@ -159,7 +162,8 @@ fn ui_children_to_fields(
 }
 
 fn ui_property_to_json(prop: UiProperty) -> json.Json {
-  ui_children_to_fields(prop.properties)
+  list.filter(prop.properties, fn(child) { child.0 != "items" })
+  |> ui_children_to_fields
   |> add_optional_json_field("ui:widget", prop.widget, fn(widget) {
     json.string(widget_to_string(widget))
   })
