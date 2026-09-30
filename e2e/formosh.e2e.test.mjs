@@ -123,6 +123,38 @@ test("typing surfaces in formosh-change detail.values", async () => {
   assert.equal(typeof change.detail.isDirty, "boolean");
 });
 
+// Pins the timing docs/guides/web-component.md promises: the patch frame is
+// queued before the event fires, so one rAF from the listener sees it.
+test("one rAF from a formosh-change listener reads the patched DOM", async () => {
+  await page.evaluate((s) => {
+    window.__reset();
+    window.__setSchema(s);
+  }, SCHEMA);
+  await lastEvent("formosh-ready");
+  await waitForField("name");
+  const seen = await page.evaluate(
+    () =>
+      new Promise((done) => {
+        const form = document.querySelector("formosh-form");
+        const disabled = () =>
+          form.shadowRoot.querySelector("button[type=submit]").disabled;
+        const input = form.shadowRoot.querySelector('input[name="name"]');
+        const r = { before: disabled() };
+        form.addEventListener(
+          "formosh-change",
+          () => {
+            r.sync = disabled();
+            requestAnimationFrame(() => done({ ...r, raf: disabled() }));
+          },
+          { once: true },
+        );
+        input.value = "x";
+        input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+      }),
+  );
+  assert.deepEqual(seen, { before: true, sync: true, raf: false });
+});
+
 test("invalid schema attribute keeps the previous form", async () => {
   await page.evaluate((s) => {
     window.__reset();
