@@ -23,10 +23,8 @@ jobs:
 
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: "27.1.2"
-          # Demo's gleam_fetch (via rsvp) needs Gleam >= 1.14; newer than test.yml.
-          gleam-version: "1.14.0"
-          rebar3-version: "3"
+          version-file: .tool-versions
+          version-type: strict
 
       - name: Build demo
         working-directory: demo
