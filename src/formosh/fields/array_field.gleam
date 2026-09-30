@@ -9,7 +9,7 @@ import formosh/fields/field_common.{type FieldRenderCtx}
 import formosh/fields/layout
 import formosh/form/model.{
   type FormModel, type FormMsg, AddArrayItemPath, MoveArrayItemPath,
-  RemoveArrayItemPath,
+  RemoveArrayItemPath, can_add_row, can_remove_row,
 }
 import formosh/form/path
 import formosh/form/union_resolver
@@ -51,21 +51,8 @@ pub fn render_container(
   }
 
   let count = list.length(items)
-  let #(min_items, max_items) = case ctx.property.array_constraints {
-    Some(c) -> #(option.unwrap(c.min_items, 0), c.max_items)
-    None -> #(0, None)
-  }
-
-  // `None` (no UiSchema entry) means enabled.
-  // minItems/maxItems gate on top: the add button is hidden once the array
-  // is full, per-row remove is hidden once shrinking would violate minItems.
-  let addable =
-    option.unwrap(ctx.hints.addable, True)
-    && case max_items {
-      Some(max) -> count < max
-      None -> True
-    }
-  let removable = option.unwrap(ctx.hints.removable, True) && count > min_items
+  let addable = can_add_row(ctx.property, ctx.hints, items)
+  let removable = can_remove_row(ctx.property, ctx.hints, items)
   let orderable = option.unwrap(ctx.hints.orderable, True)
 
   let collapse = array_collapse.options(ctx.hints.options)

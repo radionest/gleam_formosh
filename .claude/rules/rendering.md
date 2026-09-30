@@ -23,8 +23,9 @@ When creating or modifying field renderers, follow these business logic rules:
   typed value), never a replacement value computed from the render: Lustre
   re-renders on requestAnimationFrame, so two events in one frame dispatch
   from the same stale view (#137). Derive the new state in `update` from
-  `model.values`, and re-check any bound the view enforces by disabling
-  (e.g. `maxItems`) there too — see `widget_msg.ToggleOption`
+  `model.values`, and re-check any bound the view enforces by disabling or
+  hiding a control (e.g. `maxItems`, `ui:addable`) there too — see
+  `widget_msg.ToggleOption`, `model.can_add_row` / `can_remove_row`
 - Objects render as nested fieldset with proper indentation
 - Numbers with `multipleOf` set the step attribute
 - Fields with `description` get help text below the input
