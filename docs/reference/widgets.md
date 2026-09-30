@@ -207,10 +207,11 @@ and UiSchema flags:
 | **Remove** | `ui:removable` (default true) **and** above `minItems` (if set) |
 | **Move up/down** | `ui:orderable` (default true) **and** more than one row |
 
-The Add and Remove gates are also enforced when the message is handled, so
-two clicks inside one render frame can't push the array past `maxItems` or
-below `minItems`, and a headless `AddArrayItemPath` / `RemoveArrayItemPath`
-is ignored while the matching button would be hidden.
+The Add and Remove gates above (`ui:addable` / `ui:removable`, `maxItems` /
+`minItems`) are also enforced when the message is handled, so two clicks
+inside one render frame can't push the array past `maxItems` or below
+`minItems`, and a headless `AddArrayItemPath` / `RemoveArrayItemPath` that
+fails its gate is ignored.
 
 Rows auto-create up to `minItems` (with item-field defaults applied; not
 for checkbox groups, below). Array items can themselves be objects or

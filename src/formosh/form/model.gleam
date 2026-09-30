@@ -463,11 +463,11 @@ pub fn at_max_items(property: SchemaProperty, selected: List(Value)) -> Bool {
   }
 }
 
-/// The row editor's Add / Remove gates for the array `property` holding
-/// `rows`: `ui:addable` / `ui:removable` (unset = allowed) and `maxItems` /
-/// `minItems`. The renderer hides the buttons with these, and `update`
-/// re-checks them against the current values — a stale view still shows a
-/// button the previous click should have hidden (#137).
+/// The row editor's Add gate for the array `property` holding `rows`:
+/// `ui:addable` (unset = allowed) and below `maxItems`. The renderer hides
+/// the button with it, and `update` re-checks it against the current values
+/// — a stale view still shows a button the previous click should have
+/// hidden (#137).
 pub fn can_add_row(
   property: SchemaProperty,
   hints: types.RenderHints,
@@ -476,6 +476,8 @@ pub fn can_add_row(
   option.unwrap(hints.addable, True) && !at_max_items(property, rows)
 }
 
+/// The Remove counterpart of `can_add_row`: `ui:removable` (unset =
+/// allowed) and above `minItems`.
 pub fn can_remove_row(
   property: SchemaProperty,
   hints: types.RenderHints,

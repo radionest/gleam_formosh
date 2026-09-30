@@ -28,7 +28,8 @@ description: "Msg handling and state transitions: field edits, add/remove array 
     `model.can_add_row` / `model.can_remove_row` (`ui:addable` /
     `ui:removable`, `maxItems` / `minItems`) passes against the current
     values, the same gates the renderer uses to hide the buttons (#146,
-    #147). `RemoveArrayItemPath` still trusts its render-time row index.
+    #147). Readonly, which also hides them, is not re-checked.
+    `RemoveArrayItemPath` still trusts its render-time row index.
 - The update pipeline for a field change:
   1. write value at path in the model
   2. recompute visibility (conditional fields)
