@@ -647,7 +647,7 @@ pub fn union_branch_labels_fall_back_in_order_test() {
 // plain string checks) — verified by search before writing this.
 
 /// Depth-first `#(tag, attributes)` for every tag node in a rendered tree.
-/// `Fragment` children are inlined (not a tag itself); `Text` /
+/// `Fragment` / `Map` / `Memo` are inlined (not a tag itself); `Text` /
 /// `UnsafeInnerHtml` carry no children worth descending into.
 fn tag_attrs(
   el: Element(model.FormMsg),
@@ -659,6 +659,8 @@ fn tag_attrs(
     ]
     vnode.Fragment(children: kids, ..) ->
       list.flatten(list.map(kids, tag_attrs))
+    vnode.Map(child:, ..) -> tag_attrs(child)
+    vnode.Memo(view:, ..) -> tag_attrs(view())
     vnode.Text(..) | vnode.UnsafeInnerHtml(..) -> []
   }
 }

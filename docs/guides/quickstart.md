@@ -20,7 +20,7 @@ target = "javascript"
 
 [dependencies]
 gleam_stdlib = ">= 0.44.0 and < 2.0.0"
-lustre = ">= 5.3.4 and < 6.0.0"
+lustre = ">= 5.7.1 and < 6.0.0"
 # clone https://github.com/radionest/gleam_formosh next to your project:
 formosh = { path = "../gleam_formosh" }
 ```
