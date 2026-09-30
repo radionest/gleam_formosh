@@ -131,6 +131,10 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
       }
 
     AddArrayItemPath(field_path) -> {
+      use <- bool.guard(!row_gate_open(model, field_path, model.can_add_row), #(
+        model,
+        effect.none(),
+      ))
       // Build the new row from the item schema so manual rows carry the
       // same field defaults as auto-created ones. The value-resolved
       // lookup also finds arrays revealed by per-row conditionals.
@@ -185,6 +189,10 @@ pub fn update(model: FormModel, msg: FormMsg) -> #(FormModel, Effect(FormMsg)) {
     }
 
     RemoveArrayItemPath(field_path, index) -> {
+      use <- bool.guard(
+        !row_gate_open(model, field_path, model.can_remove_row),
+        #(model, effect.none()),
+      )
       let new_values =
         path.remove_array_item_at_path(model.values, field_path, index)
       let new_touched =
@@ -498,6 +506,27 @@ fn handle_swipe_review_event(
       ),
       effect.none(),
     )
+  }
+}
+
+/// Re-reads a row-editor gate (`model.can_add_row` / `can_remove_row`)
+/// against the current values rather than trusting the dispatching view: two
+/// clicks inside one render frame share a stale view (#137) that still shows
+/// the button the first click should have hidden. A path the schema doesn't
+/// know stays ungated, as before.
+fn row_gate_open(
+  model: FormModel,
+  field_path: path.FieldPath,
+  gate: fn(types.SchemaProperty, types.RenderHints, List(Value)) -> Bool,
+) -> Bool {
+  let rows = case model.get_value_at_path(model, field_path) {
+    Some(types.ArrayValue(rows)) -> rows
+    _ -> []
+  }
+  case model.find_resolved_property_at_path(model, field_path) {
+    Ok(prop) ->
+      gate(prop, ui_resolver.resolve_hints(model.ui_schema, field_path), rows)
+    Error(_) -> True
   }
 }
 

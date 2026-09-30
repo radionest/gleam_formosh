@@ -463,6 +463,33 @@ pub fn at_max_items(property: SchemaProperty, selected: List(Value)) -> Bool {
   }
 }
 
+/// The row editor's Add gate for the array `property` holding `rows`:
+/// `ui:addable` (unset = allowed) and below `maxItems`. The renderer hides
+/// the button with it, and `update` re-checks it against the current values
+/// — a stale view still shows a button the previous click should have
+/// hidden (#137).
+pub fn can_add_row(
+  property: SchemaProperty,
+  hints: types.RenderHints,
+  rows: List(Value),
+) -> Bool {
+  option.unwrap(hints.addable, True) && !at_max_items(property, rows)
+}
+
+/// The Remove counterpart of `can_add_row`: `ui:removable` (unset =
+/// allowed) and above `minItems`.
+pub fn can_remove_row(
+  property: SchemaProperty,
+  hints: types.RenderHints,
+  rows: List(Value),
+) -> Bool {
+  let min = case property.array_constraints {
+    option.Some(types.ArrayConstraints(min_items: option.Some(min), ..)) -> min
+    _ -> 0
+  }
+  option.unwrap(hints.removable, True) && list.length(rows) > min
+}
+
 /// Check if a field at any depth is required by the current resolved schema.
 ///
 /// Traverses `model.resolved_schema` along `field_path`, reading the

@@ -471,15 +471,49 @@ pub fn min_items_zero_creates_no_rows_test() {
   dict.has_key(m2.errors, "tags") |> should.be_false()
 }
 
-pub fn remove_below_min_is_not_fought_test() {
-  // External removal below minItems: reconcile does not run on remove;
-  // validation reports the violation instead.
+// --- update re-checks the button gates (#146, #147) ----------------------------
+// Two clicks inside one render frame dispatch from the same stale view (#137),
+// which still shows the button the first click should have hidden.
+
+fn tags_ui_model(ui_json: String, tags: List(String)) -> model.FormModel {
   let assert Ok(schema) = parser.parse_schema(tags_schema)
-  let m = model.init(schema)
+  let assert Ok(ui) = ui_parser.parse(ui_json)
+  let m0 = model.init_with_full_config(schema, None, False, dict.new(), ui)
+  FormModel(..m0, values: tags_values(tags))
+}
+
+fn tags_len(m: model.FormModel) -> Int {
+  let assert Some(types.ArrayValue(rows)) =
+    path.get_at_path(m.values, [PropertySegment("tags")])
+  list.length(rows)
+}
+
+pub fn add_past_max_items_is_ignored_test() {
+  let m = model_with_values(tags_schema, tags_values(["a", "b"]))
+  let add = model.AddArrayItemPath([PropertySegment("tags")])
+  let #(m1, _) = update.update(m, add)
+  tags_len(m1) |> should.equal(3)
+  update.update(m1, add).0 |> should.equal(m1)
+}
+
+pub fn remove_at_min_items_is_ignored_test() {
+  let m = model_with_values(tags_schema, tags_values(["a", "b", "c"]))
   let #(m1, _) =
     update.update(m, model.RemoveArrayItemPath([PropertySegment("tags")], 0))
-  let assert Some(types.ArrayValue(rows)) =
-    path.get_at_path(m1.values, [PropertySegment("tags")])
-  list.length(rows) |> should.equal(1)
-  dict.has_key(m1.errors, "tags") |> should.be_true()
+  tags_len(m1) |> should.equal(2)
+  update.update(m1, model.RemoveArrayItemPath([PropertySegment("tags")], 1)).0
+  |> should.equal(m1)
+}
+
+pub fn ui_addable_false_ignores_add_test() {
+  let m = tags_ui_model("{\"tags\": {\"ui:addable\": false}}", ["a", "b"])
+  update.update(m, model.AddArrayItemPath([PropertySegment("tags")])).0
+  |> should.equal(m)
+}
+
+pub fn ui_removable_false_ignores_remove_test() {
+  let m =
+    tags_ui_model("{\"tags\": {\"ui:removable\": false}}", ["a", "b", "c"])
+  update.update(m, model.RemoveArrayItemPath([PropertySegment("tags")], 0)).0
+  |> should.equal(m)
 }
