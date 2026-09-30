@@ -8,6 +8,8 @@ links = [
   { title = "GitHub", href = "https://github.com/radionest/gleam_formosh" }
 ]
 target = "javascript"
+# lustre 5.7.1 requires it
+gleam = ">= 1.13.0"
 
 # For a full reference of all the available options, you can have a look at
 # https://gleam.run/writing-gleam/gleam-toml/.
@@ -15,7 +17,8 @@ target = "javascript"
 [dependencies]
 gleam_stdlib = ">= 0.44.0 and < 2.0.0"
 lustre = ">= 5.7.1 and < 6.0.0"
-# lustre 5.5+ imports gleam/otp/factory_supervisor (added in gleam_otp 1.2) but declares gleam_otp >= 1.0
+# lustre 5.5+ imports gleam/otp/factory_supervisor (added in gleam_otp 1.2) but declares
+# gleam_otp >= 1.0; drop once lustre declares >= 1.2 (lustre-labs/lustre#505)
 gleam_otp = ">= 1.2.0 and < 2.0.0"
 gleam_json = ">= 3.0.0 and < 4.0.0"
 rsvp = ">= 1.2.0 and < 2.0.0"

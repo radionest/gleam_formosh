@@ -12,8 +12,9 @@ element), skip ahead to [Web Component](web-component.md).
 
 ## 1. Add the dependency
 
-Formosh targets **JavaScript** and is **not yet published on Hex** — add it
-as a path (or git) dependency. In your project's `gleam.toml`:
+Formosh targets **JavaScript**, requires **Gleam >= 1.13** (Lustre 5.7's
+floor), and is **not yet published on Hex** — add it as a path (or git)
+dependency. In your project's `gleam.toml`:
 
 ```toml
 target = "javascript"
@@ -25,7 +26,7 @@ lustre = ">= 5.7.1 and < 6.0.0"
 formosh = { path = "../gleam_formosh" }
 ```
 
-(On Gleam versions with git-dependency support you can use
+(Or use
 `formosh = { git = "https://github.com/radionest/gleam_formosh.git", ref = "<commit>" }`
 instead — pin a commit `ref` to keep builds reproducible.)
 

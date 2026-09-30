@@ -648,7 +648,9 @@ pub fn union_branch_labels_fall_back_in_order_test() {
 
 /// Depth-first `#(tag, attributes)` for every tag node in a rendered tree.
 /// `Fragment` / `Map` / `Memo` are inlined (not a tag itself); `Text` /
-/// `UnsafeInnerHtml` carry no children worth descending into.
+/// `UnsafeInnerHtml` carry no children worth descending into. `Map`'s
+/// `mapper` is not applied: handlers under an `element.map` decode to the
+/// inner message despite the `FormMsg` type, so don't probe events there.
 fn tag_attrs(
   el: Element(model.FormMsg),
 ) -> List(#(String, List(vattr.Attribute(model.FormMsg)))) {
