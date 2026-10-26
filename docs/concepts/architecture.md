@@ -53,6 +53,14 @@ and the widget family, has its own directory. Here is the full map.
 | `src/formosh/component.gleam` | The `<formosh-form>` web component: attribute listeners, custom events, and the `component.element(...)` Lustre helper. |
 | `src/formosh/cdn.gleam` | CDN bundle entry point. |
 
+### Shared plumbing — `src/formosh/path_format.gleam` and `src/formosh/internal/`
+
+| Module | Responsibility |
+|--------|----------------|
+| `src/formosh/path_format.gleam` | The canonical path-key format: the bracketed array-index segment (`"[0]"`) and the `.` join rules that `form/path.to_string` delegates to. Single source of truth for the dot-notation keys (`"lesions.[0].visible"`) that `model.errors` is keyed by. |
+| `src/formosh/internal/component_core.gleam` | The web component's MVU core (Model, Msg, init, update, view), extracted from `component.gleam` so same-package tests can drive it directly; `component.gleam` wires this core into the registered custom element. |
+| `src/formosh/internal/stylesheet.gleam` | The library's own stylesheet defaults (the `ui:layout` Row grid, the array-collapse fold), rendered by `view.gleam` as the container's first child in the lowest cascade layer `@layer formosh` — consumer rules override them without `!important`. |
+
 ### Schema pipeline — `src/formosh/schema/`
 
 Runs once at form creation. Produces a typed `JsonSchema` tree the MVU loop

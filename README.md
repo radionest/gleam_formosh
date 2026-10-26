@@ -474,7 +474,7 @@ make demo-server       # echo backend for form submissions on port 8888 (optiona
 npm run build          # build CDN bundle into dist/
 ```
 
-The interactive demo lives in `demo/` as a standalone Gleam project that depends on the library via `formosh = { path = ".." }`. Add JSON Schemas to `demo/schemas/` and they become selectable in the UI (see `demo/src/demo.gleam`).
+The interactive demo lives in `demo/` as a standalone Gleam project that depends on the library via `formosh = { path = ".." }`. Dropping a JSON Schema into `demo/schemas/` alone does not make it selectable — browsers can't list directories, so the catalogue is a hardcoded list in `demo/src/demo.gleam`; add the filename to that list and the schema appears in the UI.
 
 ## API Reference
 

@@ -110,9 +110,18 @@ a wall of red on first paint.
 
 The one exception to the touch gate is **array-level violations**. A
 `minItems` / `maxItems` violation is always shown: in the row editor the
-Add/Remove buttons can't cause it, so it only comes from externally
-supplied values, where the message is the only explanation for a blocked
-submit. A checkbox group has no `minItems` gating (`maxItems` disables the
+Add/Remove buttons can't cause it, so it only arises from externally
+supplied values — or from a conditional `then`/`else` branch replacing
+the array property with a schema whose `maxItems` is lower than the
+current row count. That branch flip is triggered by an edit to an
+unrelated field, and rows are not trimmed to the new cap, so the
+over-`maxItems` error lands on the array's own path with no array edit
+behind it (a branch that instead *raises* `minItems` doesn't leave an
+ordinary array in violation — `ensure_min_items` tops it up to the new
+floor; the top-up skips a checkbox group, so there the raised floor
+does yield an under-`minItems` violation).
+Either way the message is the only explanation for a blocked submit. A
+checkbox group has no `minItems` gating (`maxItems` disables the
 unchecked boxes at the cap), but every click touches the array's own path,
 so an under-`minItems` selection already shows through the normal touch
 gate; there too the bypass only matters for externally supplied values.
