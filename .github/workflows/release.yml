@@ -33,12 +33,16 @@ jobs:
         run: gleam test
 
       - name: Build minified JS bundle
+        # npm run build = the lustre bundling step plus the artifact check
+        # (scripts/verify-cdn-bundle.mjs): lustre_dev_tools swallows esbuild
+        # failures into exit 0 (issue #87), so the release gate verifies
+        # dist/cdn.min.mjs instead of trusting the bundler's exit code.
         run: |
-          gleam run -m lustre/dev build app --entry=cdn --minify=true --outdir=dist
+          npm run build
 
       - name: Build non-minified JS bundle (for debugging)
         run: |
-          gleam run -m lustre/dev build app --entry=cdn --minify=false --outdir=dist
+          npm run build:dev
 
       - name: Create version info
         run: |
@@ -87,9 +91,12 @@ jobs:
         run: gleam deps download
 
       - name: Build for npm
+        # Same artifact gate as the release build: the npm tarball is what
+        # unpkg/jsdelivr serve, so a silently failed esbuild must not reach
+        # it either (issue #87).
         run: |
-          gleam run -m lustre/dev build app --entry=cdn --minify=true --outdir=dist
-          gleam run -m lustre/dev build app --entry=cdn --minify=false --outdir=dist
+          npm run build
+          npm run build:dev
 
       - name: Update package.json version
         run: |

@@ -897,7 +897,11 @@ fn filter_cross_error(err: error.ValidationError, m: FormModel) -> Bool {
   case err.field {
     [] -> False
     _ ->
-      case model.find_property_at_path(m, err.field) {
+      // The resolved lookup, not the raw-template one: a conditional- or
+      // union-revealed row path is only findable against the row's actual
+      // values, and dropping it would silently lift a submit-blocking error
+      // the row visibly renders (#98).
+      case model.find_resolved_property_at_path(m, err.field) {
         Error(_) -> {
           io.println_error(
             "formosh: dropping validator error for unknown path: "

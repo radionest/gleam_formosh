@@ -54,20 +54,32 @@ pub fn options(bag: Dict(String, Value)) -> CollapseOptions {
 /// Row indices that failed array-item validation, from ONE pass over the whole
 /// array. `validate_array_items` resolves each row's own unions and
 /// `if/then/else` internally, so the raw item schema is what goes in.
+///
+/// The pass is skipped once `model.errors` is populated or anything has been
+/// touched (#110): the component path validates at init and on every update,
+/// so its item errors are already in `model.errors` — where `is_completed`'s
+/// third conjunct consults them — and re-deriving them per render is dead
+/// weight. The pristine-model case keeps the pass: it is the only validation
+/// a raw `model.init` + `view` embedding ever gets.
 pub fn incomplete_rows(
+  model: FormModel,
   array_path: FieldPath,
   item_schema: SchemaProperty,
   items: List(Value),
   selected: List(#(FieldPath, Int)),
 ) -> Set(Int) {
-  validator.validate_array_items(
-    array_path,
-    item_schema,
-    types.ArrayValue(items),
-    selected,
-  )
-  |> list.filter_map(fn(err) { row_index(array_path, err.field) })
-  |> set.from_list
+  case dict.is_empty(model.errors) && list.is_empty(model.touched_fields) {
+    False -> set.new()
+    True ->
+      validator.validate_array_items(
+        array_path,
+        item_schema,
+        types.ArrayValue(items),
+        selected,
+      )
+      |> list.filter_map(fn(err) { row_index(array_path, err.field) })
+      |> set.from_list
+  }
 }
 
 fn row_index(array_path: FieldPath, err_path: FieldPath) -> Result(Int, Nil) {

@@ -1,3 +1,7 @@
+export function isValidatorFunction(jsFn) {
+  return typeof jsFn === "function";
+}
+
 export function callValidator(jsFn, valuesJson) {
   if (typeof jsFn !== "function") {
     console.warn(

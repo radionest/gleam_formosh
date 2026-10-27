@@ -141,3 +141,12 @@ pub fn layout_and_collapse_render_no_inline_style_test() {
   html |> occurrences("part=\"array-item-body\"") |> should.equal(2)
   html |> string.contains(" style=\"") |> should.be_false
 }
+
+/// The swipe row's default `touch-action: pan-y` ships in the library
+/// stylesheet (#162) — swipe-to-answer works without the demo CSS.
+pub fn swipe_row_touch_action_default_test() {
+  let html = render(False)
+  stylesheet_text(html)
+  |> string.contains("touch-action: pan-y")
+  |> should.be_true
+}

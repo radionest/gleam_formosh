@@ -981,3 +981,29 @@ pub fn empty_ui_schema_serializes_to_empty_object_test() {
   json.to_string(serializer.ui_schema_to_json(empty_ui_schema()))
   |> should.equal("{}")
 }
+
+/// Nested `if/then/else` must survive `schema_to_json` (issue #152):
+/// `component.schema` serializes and re-parses, so dropping them below the
+/// root silently stripped every conditional on re-initialisation.
+pub fn nested_conditionals_round_trip_test() {
+  let json =
+    "{\"type\":\"object\",\"properties\":{\"rows\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"k\":{\"type\":\"string\"}},\"if\":{\"properties\":{\"k\":{\"const\":\"a\"}}},\"then\":{\"properties\":{\"t\":{\"type\":\"string\"}}}}}}}"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let serialized = serializer.schema_to_json(schema) |> json.to_string
+
+  let assert Ok(reparsed) = parser.parse_schema(serialized)
+  let assert Ok(rows) = list.key_find(reparsed.properties, "rows")
+  let assert Some(items) = rows.items
+  list.length(items.conditionals) |> should.equal(1)
+}
+
+/// An `allOf` inside `$defs` is raw source material — it must survive the
+/// serializer too (#152), so `component.schema` round-trips definitions
+/// that carry members.
+pub fn defs_all_of_round_trip_test() {
+  let json =
+    "{\"type\":\"object\",\"$defs\":{\"A\":{\"allOf\":[{\"title\":\"t\"}]}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/A\"}}}"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let serialized = serializer.schema_to_json(schema) |> json.to_string
+  string.contains(serialized, "\"allOf\"") |> should.be_true
+}

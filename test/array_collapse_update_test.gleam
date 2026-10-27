@@ -254,6 +254,7 @@ pub fn add_array_item_expands_the_new_row_test() {
   let assert option.Some(item_schema) = zones_prop.items
   let incomplete =
     array_collapse.incomplete_rows(
+      m1,
       zones,
       item_schema,
       rows,

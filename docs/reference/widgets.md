@@ -213,6 +213,14 @@ arrays — nesting to any depth — so the container recurses through the
 same dispatcher. (Collapsing completed rows, below, is narrower: only
 object-shaped rows ever qualify.)
 
+Rows whose `items` is a bare scalar — `{"type": "string"}` (plain or with
+`enum`), `"number"`, `"integer"`, `"boolean"` — render one editable input
+per row, addressed at the row itself (`tags.[0]`) (#129). The per-row
+label falls back to the item's `title` / the template's `ui:title`, and to
+the generic name "field" when neither is set. Union items still render no
+per-row field (tracked as
+[#86](https://github.com/radionest/gleam_formosh/issues/86)).
+
 ### Checkbox group (multi-select)
 
 An array with `uniqueItems: true` whose `items` is a scalar schema with

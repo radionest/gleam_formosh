@@ -2,8 +2,8 @@
 
 import formosh/schema/parser
 import formosh/schema/types.{
-  type Value, ArrayValue, BooleanValue, IntegerValue, NullValue, NumberValue,
-  ObjectValue, StringValue,
+  type ParseError, type Value, ArrayValue, BooleanValue, IntegerValue, NullValue,
+  NumberValue, ObjectValue, StringValue,
 }
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
@@ -41,11 +41,24 @@ pub fn value_to_json(value: Value) -> json.Json {
 ///
 /// ## Returns
 /// - `Ok(Dict(String, Value))` if parsing succeeded
-/// - `Error(Nil)` if the JSON was invalid or not an object
+/// - `Error(ParseError)` if the JSON was invalid or not an object — the
+///   same typed error every other parse boundary in the library reports,
+///   so a malformed `initial-values` attribute is debuggable (#82; the
+///   pre-0.11 signature collapsed every failure into `Nil`)
 pub fn json_string_to_values(
   json_string: String,
-) -> Result(Dict(String, Value), Nil) {
+) -> Result(Dict(String, Value), ParseError) {
   let decoder = decode.dict(decode.string, parser.value_decoder())
   json.parse(json_string, decoder)
-  |> result.map_error(fn(_) { Nil })
+  |> result.map_error(json_error_to_parse_error)
+}
+
+fn json_error_to_parse_error(err: json.DecodeError) -> ParseError {
+  case err {
+    json.UnableToDecode(errors) -> types.DecodingError(errors)
+    json.UnexpectedEndOfInput -> types.InvalidJson("Unexpected end of input")
+    json.UnexpectedByte(byte) -> types.InvalidJson("Unexpected byte: " <> byte)
+    json.UnexpectedSequence(seq) ->
+      types.InvalidJson("Unexpected sequence: " <> seq)
+  }
 }

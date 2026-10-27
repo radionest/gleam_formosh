@@ -3,7 +3,9 @@
 /// Accepts react-jsonschema-form-style JSON: `ui:*` keys carry settings for
 /// the current node, `items` is a reserved key for the array-element
 /// template, `$`-prefixed keys are ignored, every other key is a child
-/// property name. Errors surface as `types.ParseError` (the same type used
+/// property name. A child that is not a JSON object is skipped rather than
+/// failing the whole document (`parse_with_warning` names the skips).
+/// Errors surface as `types.ParseError` (the same type used
 /// by the JSON Schema parser) so callers can handle both kinds of input
 /// uniformly.
 import formosh/ffi/dynamic_object
@@ -30,16 +32,43 @@ import gleam/string
 ///
 /// An empty string or `null` JSON value parses to `empty_ui_schema()` — so
 /// callers can pass through whatever the user supplied without guarding.
+///
+/// A child that is not a JSON object is skipped (its key ignored) instead of
+/// failing the whole document (#144); use `parse_with_warning` to hear about
+/// the skips.
 pub fn parse(json_string: String) -> Result(UiSchema, ParseError) {
+  parse_with_warning(json_string).0
+}
+
+/// `parse` plus a diagnostic naming every child skipped for not being a
+/// JSON object (`None` for a clean document). `parse` stays pure and
+/// silent; the web component's `ui-schema` attribute emits the warning via
+/// `console.warn` — mirroring `parser.parse_schema_with_warning`.
+pub fn parse_with_warning(
+  json_string: String,
+) -> #(Result(UiSchema, ParseError), Option(String)) {
   case string.trim(json_string) {
-    "" | "null" -> Ok(empty_ui_schema())
-    _ -> {
-      use dyn <- result.try(
-        json.parse(json_string, decode.dynamic)
-        |> result.map_error(json_error_to_parse_error),
+    "" | "null" -> #(Ok(empty_ui_schema()), None)
+    _ ->
+      case json.parse(json_string, decode.dynamic) {
+        Error(err) -> #(Error(json_error_to_parse_error(err)), None)
+        Ok(dyn) -> {
+          let #(result, skipped) = parse_ui_schema(dyn)
+          #(result, skipped_warning(skipped))
+        }
+      }
+  }
+}
+
+fn skipped_warning(skipped: List(String)) -> Option(String) {
+  case skipped {
+    [] -> None
+    _ ->
+      Some(
+        "formosh: ui-schema: skipped children that are not JSON objects "
+        <> "(keys ignored; every child, `items` included, must be an object): "
+        <> string.join(skipped, ", "),
       )
-      parse_ui_schema(dyn)
-    }
   }
 }
 
@@ -52,24 +81,39 @@ fn json_error_to_parse_error(err: json.DecodeError) -> ParseError {
   }
 }
 
-fn parse_ui_schema(dyn: Dynamic) -> Result(UiSchema, ParseError) {
+fn parse_ui_schema(
+  dyn: Dynamic,
+) -> #(Result(UiSchema, ParseError), List(String)) {
   case dynamic_object.entries(dyn) {
-    Error(_) -> Error(UnexpectedValue("UiSchema root must be a JSON object"))
+    Error(_) -> #(
+      Error(UnexpectedValue("UiSchema root must be a JSON object")),
+      [],
+    )
     Ok(entries) -> {
       let order = extract_order(entries)
-      use layout <- result.try(extract_layout(entries))
       // Root has no `items` template (form root is always an object), so
       // every non-`ui:*`, non-`$` key — including a property literally
       // named "items" — is treated as a top-level child.
-      use children <- result.try(parse_children(entries, as_root: True))
-      Ok(UiSchema(properties: children, order: order, layout: layout))
+      case extract_layout(entries), parse_children(entries, as_root: True) {
+        Error(err), _ -> #(Error(err), [])
+        Ok(_layout), #(Error(err), skipped) -> #(Error(err), skipped)
+        Ok(layout), #(Ok(children), skipped) -> #(
+          Ok(UiSchema(properties: children, order: order, layout: layout)),
+          skipped,
+        )
+      }
     }
   }
 }
 
-fn parse_ui_property(dyn: Dynamic) -> Result(UiProperty, ParseError) {
+fn parse_ui_property(
+  dyn: Dynamic,
+) -> #(Result(UiProperty, ParseError), List(String)) {
   case dynamic_object.entries(dyn) {
-    Error(_) -> Error(UnexpectedValue("UiProperty must be a JSON object"))
+    Error(_) -> #(
+      Error(UnexpectedValue("UiProperty must be a JSON object")),
+      [],
+    )
     Ok(entries) -> {
       let widget = extract_widget(entries)
       let options = extract_options(entries)
@@ -85,62 +129,104 @@ fn parse_ui_property(dyn: Dynamic) -> Result(UiProperty, ParseError) {
       let removable = extract_bool(entries, "ui:removable")
       let orderable = extract_bool(entries, "ui:orderable")
       let upload = extract_upload(entries, widget)
-      use items <- result.try(extract_items(entries))
-      use layout <- result.try(extract_layout(entries))
       // Inside a UiProperty, `items` is reserved for the array-element
       // template — any property called "items" in the data schema would
       // collide with that, but the JSON Schema reserves the same name, so
       // it's a non-issue in practice.
-      use children <- result.try(parse_children(entries, as_root: False))
-      Ok(UiProperty(
-        widget: widget,
-        options: options,
-        order: order,
-        placeholder: placeholder,
-        help: help,
-        autofocus: autofocus,
-        disabled: disabled,
-        readonly: readonly,
-        title: title,
-        description: description,
-        addable: addable,
-        removable: removable,
-        orderable: orderable,
-        upload: upload,
-        properties: children,
-        items: items,
-        layout: layout,
-      ))
+      let #(items, items_skipped) = extract_items(entries)
+      case
+        extract_layout(entries),
+        items,
+        parse_children(entries, as_root: False)
+      {
+        Error(err), _, _ -> #(Error(err), [])
+        Ok(_layout), Error(err), _ -> #(Error(err), [])
+        Ok(_layout), Ok(_items), #(Error(err), skipped) -> #(
+          Error(err),
+          skipped,
+        )
+        Ok(layout), Ok(items), #(Ok(children), skipped) -> #(
+          Ok(UiProperty(
+            widget: widget,
+            options: options,
+            order: order,
+            placeholder: placeholder,
+            help: help,
+            autofocus: autofocus,
+            disabled: disabled,
+            readonly: readonly,
+            title: title,
+            description: description,
+            addable: addable,
+            removable: removable,
+            orderable: orderable,
+            upload: upload,
+            properties: children,
+            items: items,
+            layout: layout,
+          )),
+          list.append(items_skipped, skipped),
+        )
+      }
     }
   }
 }
 
+/// Returns the parsed children plus the names skipped for not being JSON
+/// objects. Object children still parse fallibly — a malformed `ui:layout`
+/// or `items` inside an otherwise well-formed child remains a hard error.
 fn parse_children(
   entries: List(#(String, Dynamic)),
   as_root as_root: Bool,
-) -> Result(List(#(String, UiProperty)), ParseError) {
-  list.filter(entries, fn(entry) {
-    let key = entry.0
-    !is_ui_key(key)
-    && !string.starts_with(key, "$")
-    && { as_root || key != "items" }
-  })
-  |> list.try_map(fn(entry) {
-    let #(name, dyn) = entry
-    use prop <- result.map(parse_ui_property(dyn))
-    #(name, prop)
-  })
+) -> #(Result(List(#(String, UiProperty)), ParseError), List(String)) {
+  let #(objects, non_objects) =
+    list.filter(entries, fn(entry) {
+      let key = entry.0
+      !is_ui_key(key)
+      && !string.starts_with(key, "$")
+      && { as_root || key != "items" }
+    })
+    |> list.partition(fn(entry) {
+      result.is_ok(dynamic_object.entries(entry.1))
+    })
+  let skipped = list.map(non_objects, fn(entry) { entry.0 })
+  let parsed =
+    objects
+    |> list.try_map(fn(entry) {
+      let #(name, dyn) = entry
+      let #(result, nested_skipped) = parse_ui_property(dyn)
+      case result {
+        Ok(prop) -> Ok(#(name, prop, nested_skipped))
+        Error(err) -> Error(err)
+      }
+    })
+  case parsed {
+    Error(err) -> #(Error(err), skipped)
+    Ok(named) -> #(
+      Ok(list.map(named, fn(triple) { #(triple.0, triple.1) })),
+      list.append(skipped, list.flat_map(named, fn(triple) { triple.2 })),
+    )
+  }
 }
 
+/// Returns the parsed `items` template plus the names skipped for not being
+/// JSON objects (a non-object template reports as `"items"`).
 fn extract_items(
   entries: List(#(String, Dynamic)),
-) -> Result(Option(UiProperty), ParseError) {
+) -> #(Result(Option(UiProperty), ParseError), List(String)) {
   case list.key_find(entries, "items") {
-    Ok(dyn) -> {
-      use prop <- result.map(parse_ui_property(dyn))
-      Some(prop)
-    }
-    Error(_) -> Ok(None)
+    Error(_) -> #(Ok(None), [])
+    Ok(dyn) ->
+      case dynamic_object.entries(dyn) {
+        Error(_) -> #(Ok(None), ["items"])
+        Ok(_) -> {
+          let #(result, skipped) = parse_ui_property(dyn)
+          case result {
+            Ok(prop) -> #(Ok(Some(prop)), skipped)
+            Error(err) -> #(Error(err), skipped)
+          }
+        }
+      }
   }
 }
 
