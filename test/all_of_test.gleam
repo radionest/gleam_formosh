@@ -763,3 +763,27 @@ pub fn parse_authored_crossed_bounds_with_member_is_error_test() {
     "{ \"type\": \"object\", \"properties\": { \"x\": { \"type\": \"string\", \"minLength\": 5, \"maxLength\": 3, \"allOf\": [ { \"title\": \"t\" } ] } } }"
   parser.parse_schema(json) |> should.be_error
 }
+
+/// Crossed bounds that only emerge once a `$ref`-inherited member merges
+/// name the `$ref` they came through (#157) — the node itself carries no
+/// `allOf`, so the author could not otherwise tell where the members came
+/// from.
+pub fn crossed_bounds_via_ref_name_the_source_test() {
+  let json =
+    "{\"type\":\"object\",\"$defs\":{\"A\":{\"allOf\":[{\"maxItems\":3}]}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/A\",\"minItems\":5}}}"
+  let assert Error(types.UnsatisfiableSchema(message)) =
+    parser.parse_schema(json)
+  string.contains(message, "minItems 5 > maxItems 3") |> should.be_true
+  string.contains(message, "$ref #/$defs/A") |> should.be_true
+}
+
+/// Control for the test above: the same crossing from a locally authored
+/// `allOf` keeps the plain message — nothing to attribute.
+pub fn crossed_bounds_from_authored_all_of_stay_plain_test() {
+  let json =
+    "{\"type\":\"object\",\"properties\":{\"x\":{\"minItems\":5,\"allOf\":[{\"maxItems\":3}]}}}"
+  let assert Error(types.UnsatisfiableSchema(message)) =
+    parser.parse_schema(json)
+  string.contains(message, "minItems 5 > maxItems 3") |> should.be_true
+  string.contains(message, "$ref") |> should.be_false
+}

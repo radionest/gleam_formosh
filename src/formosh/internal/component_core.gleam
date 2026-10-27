@@ -277,20 +277,35 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       #(final_model, effect.none())
     }
 
-    ValidatorChanged(js_fn) -> {
-      let v = cross_validator.from_js(js_fn)
-      let new_model = Model(..model, validator: Some(v))
-      // If the form is already initialised, patch the validator in place
-      // and re-run validation so cross-field errors appear immediately.
-      let final_model = case new_model.form_model {
-        Some(form_model) -> {
-          let patched = FormModel(..form_model, validator: Some(v))
-          Model(..new_model, form_model: Some(validate_all_fields(patched)))
+    ValidatorChanged(js_fn) ->
+      // Any non-function (typically `null` on detach) clears the validator
+      // instead of being stored as one that warns on every pass (#170).
+      case cross_validator.from_js_option(js_fn) {
+        None -> {
+          let new_model = Model(..model, validator: None)
+          let final_model = case new_model.form_model {
+            Some(form_model) -> {
+              let patched = FormModel(..form_model, validator: None)
+              Model(..new_model, form_model: Some(validate_all_fields(patched)))
+            }
+            None -> new_model
+          }
+          #(final_model, effect.none())
         }
-        None -> new_model
+        Some(v) -> {
+          let new_model = Model(..model, validator: Some(v))
+          // If the form is already initialised, patch the validator in place
+          // and re-run validation so cross-field errors appear immediately.
+          let final_model = case new_model.form_model {
+            Some(form_model) -> {
+              let patched = FormModel(..form_model, validator: Some(v))
+              Model(..new_model, form_model: Some(validate_all_fields(patched)))
+            }
+            None -> new_model
+          }
+          #(final_model, effect.none())
+        }
       }
-      #(final_model, effect.none())
-    }
 
     FormMessage(form_msg) -> {
       case model.form_model {
@@ -371,20 +386,34 @@ pub fn parse_schema_attr(value: String) -> Result(Msg, Nil) {
 
 /// Parse the `initial-values` attribute (JSON object string) into an
 /// `InitialValuesChanged` message.
+///
+/// `""` — what Lustre passes when the attribute is removed — and `"null"`
+/// mean "no initial values" (the documented default `{}`), mirroring
+/// `ui_parser.parse` (issue #158): rejecting them left the previous values
+/// stuck in the model across every later reinitialisation.
 pub fn parse_initial_values_attr(value: String) -> Result(Msg, Nil) {
-  case json_utils.json_string_to_values(value) {
-    Ok(values) -> Ok(InitialValuesChanged(values))
-    Error(_) -> {
-      io.println_error("formosh: initial-values parse error")
-      Error(Nil)
-    }
+  case string.trim(value) {
+    "" | "null" -> Ok(InitialValuesChanged(dict.new()))
+    _ ->
+      case json_utils.json_string_to_values(value) {
+        Ok(values) -> Ok(InitialValuesChanged(values))
+        Error(error) -> {
+          io.println_error(
+            "formosh: initial-values parse error: " <> string.inspect(error),
+          )
+          Error(Nil)
+        }
+      }
   }
 }
 
 /// Parse the `ui-schema` attribute (JSON string) into a `UiSchemaChanged`
-/// message.
+/// message. Non-object children are skipped by the parser; the warning
+/// names them so a typo like `"name": "oops"` is discoverable (#144).
 pub fn parse_ui_schema_attr(value: String) -> Result(Msg, Nil) {
-  case ui_parser.parse(value) {
+  let #(parsed, warning) = ui_parser.parse_with_warning(value)
+  let _ = option.map(warning, console.warn)
+  case parsed {
     Ok(ui) -> Ok(UiSchemaChanged(ui))
     Error(error) -> {
       io.println_error(

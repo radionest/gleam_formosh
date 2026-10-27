@@ -264,8 +264,10 @@ A few rules govern how a layout resolves:
   a `ui-schema` attribute that fails to parse is reported only as a console
   error — the component never applies it, so **every** `ui:*` hint in the
   document is dropped, not just the offending leaf or node, and the form
-  gives no visible sign of it. Tracked as
-  [#120](https://github.com/radionest/gleam_formosh/issues/120).
+  gives no visible sign of it. A child that is not a JSON object is not one
+  of these failures: it is skipped and named in a `console.warn` (#144), so
+  one typo like `"name": "oops"` no longer discards the whole document —
+  the well-formed siblings keep working.
 - **A leaf naming a field that isn't currently present is skipped
   silently**, not treated as an error — so one UiSchema file can serve
   several forms, and a `Group` can name a conditionally-injected field

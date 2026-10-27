@@ -190,7 +190,14 @@ fn render_zone_row(
         ]),
         event.on(
           "transitionend",
-          decode.success(model.swipe_msg(ExitDone(zone.path))),
+          // `transitionend` bubbles: a child's own transition (a choice
+          // button's background, say) ends "on" the row too and would cut
+          // the fly-off short. Only the flying row itself carries
+          // `data-swipe-row` on the event target, so the decode below
+          // fails for every bubbled child event — and lustre drops events
+          // whose decoder fails without dispatching (#154).
+          decode.at(["target", "dataset", "swipeRow"], decode.string)
+            |> decode.map(fn(_) { model.swipe_msg(ExitDone(zone.path)) }),
         ),
       ])
     // Actively dragging THIS row: live offset + drag lifecycle handlers.

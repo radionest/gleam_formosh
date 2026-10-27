@@ -363,6 +363,7 @@ fn property_to_json(prop: SchemaProperty) -> json.Json {
   |> add_optional_items(prop.items)
   |> add_optional_properties(prop.properties)
   |> add_required_array(prop.required)
+  |> add_all_of_and_conditionals(prop.all_of, prop.conditionals)
   |> add_read_only(prop.read_only)
   |> json.object()
 }
@@ -510,4 +511,54 @@ fn add_conditional_fields(
   |> add_fields([#("if", property_to_json(conditional.if_schema))])
   |> add_optional_json_field("then", conditional.then_schema, property_to_json)
   |> add_optional_json_field("else", conditional.else_schema, property_to_json)
+}
+
+/// Emit a property's `allOf` members and `if/then/else` rules (issue #152):
+/// `property_to_json` previously dropped both on every nested node, so
+/// `component.schema`'s serialize → re-parse round-trip silently lost them.
+///
+/// Mirrors the root's `add_conditionals` layout: one conditional inlines as
+/// `if`/`then`/`else` keys beside the node; two or more ride in an `allOf`
+/// array together with any `allOf` members, so the object never carries two
+/// `"allOf"` keys. Each `ConditionalRule` is itself a valid allOf subschema.
+fn add_all_of_and_conditionals(
+  fields: List(#(String, json.Json)),
+  all_of: option.Option(List(SchemaProperty)),
+  conditionals: List(ConditionalRule),
+) -> List(#(String, json.Json)) {
+  case all_of, conditionals {
+    option.None, [] -> fields
+    option.Some(members), [] -> add_all_of_members(fields, members)
+    members, [single] -> {
+      let fields = case members {
+        option.Some(m) -> add_all_of_members(fields, m)
+        option.None -> fields
+      }
+      add_conditional_fields(fields, single)
+    }
+    members, multiple -> {
+      let members_json = case members {
+        option.Some(m) -> list.map(m, property_to_json)
+        option.None -> []
+      }
+      let conditional_members = list.map(multiple, conditional_to_json)
+      add_fields(fields, [
+        #(
+          "allOf",
+          json.preprocessed_array(list.append(members_json, conditional_members)),
+        ),
+      ])
+    }
+  }
+}
+
+fn add_all_of_members(
+  fields: List(#(String, json.Json)),
+  members: List(SchemaProperty),
+) -> List(#(String, json.Json)) {
+  case members {
+    [] -> fields
+    _ ->
+      add_fields(fields, [#("allOf", json.array(members, of: property_to_json))])
+  }
 }

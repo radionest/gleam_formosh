@@ -214,3 +214,16 @@ pub fn typed_ui_schema_attribute_matches_string_form_test() {
     component.ui_schema_string(json.to_string(serializer.ui_schema_to_json(ui))),
   )
 }
+
+/// Removing the `initial-values` attribute reaches the parser as `""` —
+/// that means "no initial values" (the documented `{}` default), not a
+/// parse error (#158). `null` behaves the same, mirroring `ui_parser`.
+pub fn initial_values_empty_string_resets_test() {
+  core.parse_initial_values_attr("")
+  |> should.equal(Ok(core.InitialValuesChanged(dict.new())))
+}
+
+pub fn initial_values_null_string_resets_test() {
+  core.parse_initial_values_attr("null")
+  |> should.equal(Ok(core.InitialValuesChanged(dict.new())))
+}

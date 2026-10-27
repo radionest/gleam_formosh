@@ -132,9 +132,29 @@ fn do_flatten(
           merge_pair(acc, m, path)
         }),
       )
-      use merged <- result.try(merge_pair(folded, flattened, path))
-      normalize_any_of(merged, path)
+      // A node whose members arrived through a `$ref` names the source in
+      // any unsatisfiable error its merge raises (#157) — the node itself
+      // carries no `allOf`, so without the suffix the author cannot tell
+      // where the inherited members came from. The marker is dropped
+      // afterwards: post-parse resolved nodes carry no ref, as before.
+      use merged <- result.try(
+        merge_pair(folded, flattened, path)
+        |> result.map_error(name_ref_source(_, flattened.ref)),
+      )
+      normalize_any_of(SchemaProperty(..merged, ref: None), path)
     }
+  }
+}
+
+/// Append the `$ref` a node's `allOf` members were inherited through to an
+/// `UnsatisfiableSchema` message. Other parse errors pass through unchanged.
+fn name_ref_source(err: ParseError, ref: Option(String)) -> ParseError {
+  case err, ref {
+    UnsatisfiableSchema(message), Some(ref_path) ->
+      UnsatisfiableSchema(
+        message <> " (allOf inherited via $ref " <> ref_path <> ")",
+      )
+    _, _ -> err
   }
 }
 

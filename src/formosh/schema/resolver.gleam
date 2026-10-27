@@ -180,6 +180,14 @@ fn resolve_property_ref(
               // referencing property (`path`), not just the `$ref` target,
               // matching `composer.unsatisfiable`'s breadcrumb for `allOf`.
               let merged = merge_properties(resolved_local, resolved)
+              // When the definition hands down its own `allOf` members, keep
+              // the ref on the merged node: `composer.do_flatten` reads it to
+              // name the `$ref` in any unsatisfiable error its member merge
+              // raises (#157). Cleared again once composition has run.
+              let merged = case resolved.all_of {
+                Some(_) -> types.SchemaProperty(..merged, ref: Some(ref_path))
+                None -> merged
+              }
               case array_constraints_crossed_reason(merged.array_constraints) {
                 Some(reason) ->
                   Error(UnsatisfiableSchema(

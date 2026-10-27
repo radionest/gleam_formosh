@@ -249,6 +249,21 @@ fn root_decoder() -> Decoder(
     None,
     decode.optional(definitions_decoder()),
   )
+  // Draft-07 compatibility: a root `definitions` block is the same
+  // definition store under the legacy name, and `resolver.parse_ref_path`
+  // already accepts `#/definitions/` pointers (issue #151). `$defs` wins
+  // for a name present in both.
+  use legacy_defs <- decode.optional_field(
+    "definitions",
+    None,
+    decode.optional(definitions_decoder()),
+  )
+  let defs = case defs, legacy_defs {
+    Some(d), Some(legacy) -> Some(dict.merge(legacy, d))
+    Some(d), None -> Some(d)
+    None, Some(legacy) -> Some(legacy)
+    None, None -> None
+  }
   decode.success(#(root, defs))
 }
 

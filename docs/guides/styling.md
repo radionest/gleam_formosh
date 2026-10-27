@@ -10,8 +10,10 @@ Formosh renders inside an **open Shadow DOM** when used as the
 `<formosh-form>` web component. The form arrives essentially unstyled — you
 bring your own CSS. The only defaults it ships are the ones a feature cannot
 work without: a `ui:layout` `Row`'s grid ([Overriding the `ui:layout`
-grid](#overriding-the-uilayout-grid)) and a collapsing array row's fold
-([`array-item-body` — the fold](#array-item-body--the-fold)). They live in a
+grid](#overriding-the-uilayout-grid)), a collapsing array row's fold
+([`array-item-body` — the fold](#array-item-body--the-fold)), and the swipe
+row's `touch-action: pan-y`, so swipe-to-answer works on touch devices
+without any demo CSS (#162). They live in a
 `<style>` element — the first child of `part="container"` — inside a cascade
 layer named `formosh`, the lowest-priority layer in the component, so **any
 rule you write overrides them without `!important`**, whatever its

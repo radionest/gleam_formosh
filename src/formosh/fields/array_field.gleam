@@ -75,6 +75,7 @@ pub fn render_container(
   let incomplete = case collapse_available, ctx.property.items {
     True, Some(item_schema) ->
       array_collapse.incomplete_rows(
+        model,
         ctx.path,
         item_schema,
         items,
@@ -526,6 +527,30 @@ fn render_item_fields(
         }
       })
     }
-    None -> []
+    // Bare scalar items (`items: {"type": "string"}` and friends): the row
+    // IS the value, so the row gets one field whose path ends at its own
+    // `ArraySegment` — `path.set_at_path` handles that leaf (#129). The
+    // label falls back through `ui:title`/`title` to the generic field
+    // name, and `path.get_field_name` calls it "field". Untyped and union
+    // items still render nothing here — a per-row chooser wants its own
+    // pass (#86).
+    None ->
+      case resolved.field_type {
+        Some(types.StringType)
+        | Some(types.NumberType)
+        | Some(types.IntegerType)
+        | Some(types.BooleanType) -> {
+          let item_ctx =
+            field_common.make_child_ctx(
+              parent: ctx,
+              model: model,
+              path: item_path,
+              property: resolved,
+              is_required: False,
+            )
+          [render_child(item_ctx, model)]
+        }
+        _ -> []
+      }
   }
 }

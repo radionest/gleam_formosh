@@ -7,6 +7,7 @@ import formosh/schema/ui_schema.{empty_ui_property, empty_ui_schema}
 import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
 
 // ---- ui_parser ----
@@ -322,4 +323,31 @@ pub fn resolve_hints_orderable_from_ui_test() {
   let assert Ok(ui) = ui_parser.parse("{\"tags\":{\"ui:orderable\":false}}")
   let hints = ui_resolver.resolve_hints(ui, [PropertySegment("tags")])
   hints.orderable |> should.equal(Some(False))
+}
+
+/// A child that is not a JSON object is skipped instead of failing the
+/// whole document (#144): the well-formed siblings keep working, and the
+/// key is gone from the parsed tree.
+pub fn parse_skips_non_object_child_test() {
+  let assert Ok(ui) =
+    ui_parser.parse(
+      "{\"name\":{\"ui:title\":\"Name\"},\"oops\":\"not an object\"}",
+    )
+  let assert Ok(name) = list.key_find(ui.properties, "name")
+  name.title |> should.equal(Some("Name"))
+  list.key_find(ui.properties, "oops") |> should.be_error
+}
+
+/// `parse_with_warning` names every skipped key — direct children and the
+/// `items` template alike — so the typo is discoverable from the console
+/// line the component emits (#144).
+pub fn parse_with_warning_names_skipped_children_test() {
+  let #(result, warning) =
+    ui_parser.parse_with_warning(
+      "{\"name\":{\"ui:title\":\"Name\"},\"oops\":\"not an object\",\"items\":3}",
+    )
+  let assert Ok(_) = result
+  let assert Some(message) = warning
+  string.contains(message, "oops") |> should.be_true
+  string.contains(message, "items") |> should.be_true
 }

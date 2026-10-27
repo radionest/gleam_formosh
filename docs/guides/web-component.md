@@ -199,6 +199,16 @@ The validator is re-run on every value change. See the
 section of the Configuration guide for the semantics (precedence, gating,
 cost).
 
+To detach a validator, set the property to a non-function value — `null` is
+the idiomatic choice:
+
+```js
+form.validator = null;
+```
+
+Anything that is not a function clears the validator (and its recorded
+errors drop out on the next validation pass); no warning is emitted (#170).
+
 ## Embedding checklist
 
 - [ ] The path to `component.mjs` is correct for your build layout. The
