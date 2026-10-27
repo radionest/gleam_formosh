@@ -57,6 +57,11 @@ attribute, hides `readOnly` fields instead of restoring the `"true"` default.
 | `upload-base-url` | string | unset | Base URL for the image-upload widget (`POST {url}`, `DELETE {url}/{filename}`) |
 | `ui-schema` | JSON string | `{}` | `with_ui_schema_json` — full format in [UiSchema](../reference/ui-schema.md) |
 
+> **Removing `initial-values` resets it.** Detaching the attribute passes
+`""`, which the component treats as "no initial values" — the documented
+`{}` default — rather than a parse error, so the previous values do not
+stick across later reinitialisations (#158).
+
 > **No headers attribute.** Custom HTTP headers cannot be set through the
 > web component — they are only available via the Gleam builder
 > `with_http_submit` (see `ROADMAP.md` for the planned attribute).

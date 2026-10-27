@@ -787,3 +787,15 @@ pub fn crossed_bounds_from_authored_all_of_stay_plain_test() {
   string.contains(message, "minItems 5 > maxItems 3") |> should.be_true
   string.contains(message, "$ref") |> should.be_false
 }
+
+/// An empty `allOf: []` behind a `$ref` is a legal no-op — it must not earn
+/// the #157 provenance marker, which would otherwise survive composition
+/// (the no-op branch never clears it) and re-emit a bogus `$ref` key from
+/// the serializer's round-trip.
+pub fn empty_all_of_behind_ref_leaves_no_marker_test() {
+  let json =
+    "{\"type\":\"object\",\"$defs\":{\"A\":{\"allOf\":[]}},\"properties\":{\"x\":{\"$ref\":\"#/$defs/A\",\"type\":\"string\",\"minLength\":1}}}"
+  let assert Ok(schema) = parser.parse_schema(json)
+  let serialized = serializer.schema_to_json(schema) |> json.to_string
+  string.contains(serialized, "\"$ref\"") |> should.be_false
+}

@@ -2,8 +2,11 @@
 // (issue #87), so `npm run build` can report success while `dist/cdn.min.mjs`
 // is stale or missing. Run after the bundling step and fail loudly instead.
 import { existsSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-const bundle = new URL("../dist/cdn.min.mjs", import.meta.url).pathname;
+// fileURLToPath, not .pathname: on Windows a file URL's pathname starts with
+// "/C:/", which existsSync rejects.
+const bundle = fileURLToPath(new URL("../dist/cdn.min.mjs", import.meta.url));
 
 if (!existsSync(bundle)) {
   console.error(`formosh build: ${bundle} was not produced — the bundling step likely failed silently (issue #87).`);

@@ -91,9 +91,12 @@ jobs:
         run: gleam deps download
 
       - name: Build for npm
+        # Same artifact gate as the release build: the npm tarball is what
+        # unpkg/jsdelivr serve, so a silently failed esbuild must not reach
+        # it either (issue #87).
         run: |
-          gleam run -m lustre/dev build app --entry=cdn --minify=true --outdir=dist
-          gleam run -m lustre/dev build app --entry=cdn --minify=false --outdir=dist
+          npm run build
+          npm run build:dev
 
       - name: Update package.json version
         run: |
