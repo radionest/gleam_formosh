@@ -57,6 +57,11 @@ attribute, hides `readOnly` fields instead of restoring the `"true"` default.
 | `upload-base-url` | string | unset | Base URL for the image-upload widget (`POST {url}`, `DELETE {url}/{filename}`) |
 | `ui-schema` | JSON string | `{}` | `with_ui_schema_json` — full format in [UiSchema](../reference/ui-schema.md) |
 
+> **Removing `initial-values` resets it.** Detaching the attribute passes
+`""`, which the component treats as "no initial values" — the documented
+`{}` default — rather than a parse error, so the previous values do not
+stick across later reinitialisations (#158).
+
 > **No headers attribute.** Custom HTTP headers cannot be set through the
 > web component — they are only available via the Gleam builder
 > `with_http_submit` (see `ROADMAP.md` for the planned attribute).
@@ -198,6 +203,16 @@ The validator is re-run on every value change. See the
 [cross-field validation](configuration.md#cross-field-validation--with_validator)
 section of the Configuration guide for the semantics (precedence, gating,
 cost).
+
+To detach a validator, set the property to a non-function value — `null` is
+the idiomatic choice:
+
+```js
+form.validator = null;
+```
+
+Anything that is not a function clears the validator (and its recorded
+errors drop out on the next validation pass); no warning is emitted (#170).
 
 ## Embedding checklist
 

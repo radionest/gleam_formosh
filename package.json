@@ -21,7 +21,9 @@
     "dist/"
   ],
   "scripts": {
-    "build": "gleam run -m lustre/dev build app --entry=cdn --minify=true --outdir=dist",
+    "build": "npm run build:bundle && npm run build:verify",
+    "build:bundle": "gleam run -m lustre/dev build app --entry=cdn --minify=true --outdir=dist",
+    "build:verify": "node scripts/verify-cdn-bundle.mjs",
     "build:dev": "gleam run -m lustre/dev build app --entry=cdn --minify=false --outdir=dist",
     "build:all": "npm run build && npm run build:dev",
     "e2e": "npm run build:dev && node --test e2e/*.test.mjs"

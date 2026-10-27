@@ -707,3 +707,20 @@ pub fn resolve_property_standalone_test() {
   resolved.field_type |> should.equal(option.Some(types.StringType))
   resolved.ref |> should.equal(option.None)
 }
+
+/// A root `definitions` block — the draft-07 legacy name — is the same
+/// definition store: `#/definitions/…` pointers resolve against it (#151).
+/// The compatibility test above only points `#/definitions/` refs at a
+/// `$defs` block; this one carries a real `definitions` block, which the
+/// parser used to drop whole.
+pub fn root_definitions_block_resolves_test() {
+  let json =
+    "{\"type\":\"object\",\"definitions\":{\"person\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}}},\"properties\":{\"person\":{\"$ref\":\"#/definitions/person\"}}}"
+
+  let assert Ok(schema) = parser.parse_schema(json)
+  let assert Ok(person) = list.key_find(schema.properties, "person")
+  person.ref |> should.equal(option.None)
+  person.field_type |> should.equal(option.Some(types.ObjectType))
+  let assert Some(props) = person.properties
+  list.key_find(props, "name") |> should.be_ok
+}

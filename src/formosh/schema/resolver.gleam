@@ -180,6 +180,16 @@ fn resolve_property_ref(
               // referencing property (`path`), not just the `$ref` target,
               // matching `composer.unsatisfiable`'s breadcrumb for `allOf`.
               let merged = merge_properties(resolved_local, resolved)
+              // Mark only when the definition actually hands members down:
+              // an empty `allOf: []` is a legal no-op, and a marker it did
+              // not earn would survive composition (the no-op branch never
+              // clears it) and leak a bogus "$ref" key through the
+              // serializer's round-trip.
+              let merged = case resolved.all_of {
+                Some([_, ..]) ->
+                  types.SchemaProperty(..merged, ref: Some(ref_path))
+                _ -> merged
+              }
               case array_constraints_crossed_reason(merged.array_constraints) {
                 Some(reason) ->
                   Error(UnsatisfiableSchema(

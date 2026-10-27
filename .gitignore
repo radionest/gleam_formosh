@@ -6,6 +6,8 @@
 !demo/src/*_ffi.mjs
 # Hand-written e2e test tooling — not auto-generated
 !e2e/*.mjs
+# Hand-written build gate — not auto-generated
+!scripts/verify-cdn-bundle.mjs
 
 /build
 erl_crash.dump

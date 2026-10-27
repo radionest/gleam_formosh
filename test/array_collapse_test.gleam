@@ -89,6 +89,7 @@ fn item_schema(m: model.FormModel) -> types.SchemaProperty {
 fn completed(m: model.FormModel, rows: List(types.Value), index: Int) -> Bool {
   let incomplete =
     array_collapse.incomplete_rows(
+      m,
       zones_path,
       item_schema(m),
       rows,
@@ -173,6 +174,7 @@ pub fn only_invalid_rows_are_reported_incomplete_test() {
   ]
   let m = model_with(rows)
   array_collapse.incomplete_rows(
+    m,
     zones_path,
     item_schema(m),
     rows,
@@ -215,6 +217,7 @@ pub fn cross_validator_error_keeps_its_row_open_test() {
   let #(m2, _) = update.update(m1, model.ValidateForm)
   // The schema is satisfied, so validate_array_items is silent…
   array_collapse.incomplete_rows(
+    m2,
     zones_path,
     item_schema(m2),
     rows,
@@ -238,6 +241,7 @@ pub fn no_completed_row_has_errors_beneath_it_test() {
   completed(m1, rows, 0) |> should.be_true
   let incomplete =
     array_collapse.incomplete_rows(
+      m1,
       zones_path,
       item_schema(m1),
       rows,
@@ -284,14 +288,21 @@ pub fn conditional_subtree_keeps_row_open_test() {
   let assert option.Some(zones_prop) =
     properties.get(m1.schema.properties, "zones")
   let assert option.Some(items) = zones_prop.items
+  // #110: once the model carries errors the render-time validation pass is
+  // skipped — the auto-created element is missing `form`/`contour`, and the
+  // required errors recorded in `model.errors` are what keep the row open.
   let incomplete =
     array_collapse.incomplete_rows(
+      m1,
       zones_path,
       items,
       rows,
       m1.selected_branches,
     )
-  set.contains(incomplete, 0) |> should.be_true
+  set.is_empty(incomplete) |> should.be_true
+  let assert Ok(item) = list.first(rows)
+  array_collapse.is_completed(m1, zones_path, 0, item, incomplete)
+  |> should.be_false
 }
 
 const summary_schema_json = "{\"type\":\"object\",\"properties\":{\"zones\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"zone_id\":{\"type\":\"integer\",\"title\":\"№ зоны\"},\"label\":{\"type\":\"string\",\"title\":\"Зона\"},\"state\":{\"type\":\"string\",\"title\":\"Состояние\",\"oneOf\":[{\"const\":\"present\",\"title\":\"Есть\"},{\"const\":\"absent\",\"title\":\"Нет\"}]},\"affected\":{\"type\":\"boolean\",\"title\":\"Поражение\"},\"secret\":{\"type\":\"string\",\"format\":\"password\",\"title\":\"Код\"},\"lesions\":{\"type\":\"array\",\"title\":\"Очаги\",\"items\":{\"type\":\"object\"}},\"tags\":{\"title\":\"Метки\",\"items\":{\"type\":\"string\"}},\"contact\":{\"type\":\"object\",\"title\":\"Контакт\",\"properties\":{\"phone\":{\"type\":\"string\"}}}}}}}}"

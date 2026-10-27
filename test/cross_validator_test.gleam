@@ -1,6 +1,7 @@
 import formosh/form/model.{type FormModel, FormModel}
 import formosh/form/path.{ArraySegment, PropertySegment}
 import formosh/form/update
+import formosh/schema/parser
 import formosh/schema/types.{
   type JsonSchema, IntegerType, IntegerValue, JsonSchema, ObjectType,
   ObjectValue, SchemaProperty, empty_property,
@@ -383,4 +384,72 @@ pub fn cross_validator_can_target_nested_array_item_test() {
     PropertySegment("limit"),
   ])
   |> should.be_false()
+}
+
+/// A cross-field error on a conditionally-revealed array-row path must
+/// survive `filter_cross_error` (#98): the row visibly renders `extra` once
+/// the row's `if` matches, so dropping it would silently lift a
+/// submit-blocking error. The raw-template lookup cannot see `extra` —
+/// only the resolved one can.
+pub fn conditional_row_path_error_is_kept_test() {
+  let assert Ok(schema) =
+    parser.parse_schema(
+      "{\"type\":\"object\",\"properties\":{\"rows\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"kind\":{\"type\":\"string\"}},\"required\":[\"kind\"],\"if\":{\"properties\":{\"kind\":{\"const\":\"special\"}}},\"then\":{\"properties\":{\"extra\":{\"type\":\"string\"}}}}}}}",
+    )
+  let validator =
+    cross_validator.pure(fn(_m) {
+      [
+        ValidationError(
+          field: [
+            PropertySegment("rows"),
+            ArraySegment(0),
+            PropertySegment("extra"),
+          ],
+          message: "extra must be set for special rows",
+          rule: "custom",
+        ),
+      ]
+    })
+  let m0 =
+    model.FormModel(
+      ..model.init(schema),
+      values: types.ObjectValue([
+        #(
+          "rows",
+          types.ArrayValue([
+            types.ObjectValue([#("kind", types.StringValue(""))]),
+          ]),
+        ),
+      ]),
+      validator: option.Some(validator),
+    )
+  let #(m1, _) =
+    update.update(
+      m0,
+      model.UpdateFieldPath(
+        [
+          PropertySegment("rows"),
+          ArraySegment(0),
+          PropertySegment("kind"),
+        ],
+        types.StringValue("special"),
+      ),
+    )
+  // The conditional revealed `extra` and the row is touched, so the
+  // cross-validator pass runs — and its error must not be filtered away.
+  let #(m2, _) = update.update(m1, model.ValidateForm)
+  model.has_errors_at_path(m2, [
+    PropertySegment("rows"),
+    ArraySegment(0),
+    PropertySegment("extra"),
+  ])
+  |> should.be_true
+}
+
+/// `from_js_option` is the #170 seam: any non-function handed through
+/// `el.validator = …` maps to `None` (detach) instead of being stored as a
+/// validator that warns on every pass.
+pub fn from_js_option_rejects_non_functions_test() {
+  cross_validator.from_js_option(dynamic.int(42)) |> should.be_none
+  cross_validator.from_js_option(dynamic.string("x")) |> should.be_none
 }

@@ -19,6 +19,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/io
 import gleam/list
+import gleam/option.{None, Some}
 import gleam/string
 
 /// A cross-field validator parameterised on the model type `m`.
@@ -49,6 +50,17 @@ pub fn pure(f: fn(m) -> List(ValidationError)) -> Validator(m) {
 /// `FieldPath` segments directly.
 pub fn from_js(js_fn: Dynamic) -> Validator(m) {
   Js(js_fn)
+}
+
+/// Like `from_js`, but `None` for any value that is not a function —
+/// typically `null` set by an embedder detaching the validator (#170).
+/// Storing such a value as a validator made it warn on every pass and left
+/// no way to clear one.
+pub fn from_js_option(js_fn: Dynamic) -> option.Option(Validator(m)) {
+  case ffi.is_validator_function(js_fn) {
+    True -> Some(Js(js_fn))
+    False -> None
+  }
 }
 
 /// Run the validator and collect the resulting errors.

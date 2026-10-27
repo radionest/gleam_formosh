@@ -18,6 +18,10 @@
 //// Inline `style` is reserved for runtime state the component's own logic
 //// depends on (the swipe widget's drag offset and fly-off). A default with
 //// a sensible alternative belongs here.
+////
+//// The swipe row's `touch-action: pan-y` (#162): without it a touch
+//// browser claims the horizontal drag for panning and fires
+//// `pointercancel`, so swipe-to-answer never worked off the demo page.
 
 import lustre/element.{type Element}
 import lustre/element/html
@@ -49,6 +53,9 @@ const css = "@layer formosh {
   }
   :where(.formosh-container [part~=array-item-body] > [part~=array-item-fields]) {
     min-height: 0;
+  }
+  :where(.formosh-container [part~=swipe-row]) {
+    touch-action: pan-y;
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.formosh-container [part~=array-item-body]) {
