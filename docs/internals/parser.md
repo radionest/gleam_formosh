@@ -1,52 +1,78 @@
 ---
 type: internal
 title: "Parser"
-description: "Schema parse pipeline: tokenizer-free decode, $ref resolution with cycle detection, allOf deep-merge, normalization."
+description: "Schema parse pipeline: decode, $ref resolution with cycle detection, allOf deep-merge, anyOf normalization, unsatisfiable-constraint rejection."
 ---
 
 # Parser (internals)
 
-> **Stub.** Target length: ~450 words.
+The parse pipeline (`src/formosh/schema/parser.gleam`) turns a JSON string
+into the typed `JsonSchema` tree the MVU loop renders without re-parsing. It
+runs once per form creation (and per `schema` attribute change on
+`<formosh-form>`).
 
-**Source**
+## Entry points
 
-- `src/formosh/schema/parser.gleam`
-- `src/formosh/schema/resolver.gleam` — `$ref`
-- `src/formosh/schema/composer.gleam` — `allOf`
-- `src/formosh/schema/properties.gleam`
-- `src/formosh/schema/types.gleam` — `JsonSchema` type
+- `parse_schema(json_string)` — pure; returns
+  `Result(JsonSchema, ParseError)`.
+- `parse_schema_with_warning(json_string)` — the same parse from one JSON
+  decode, plus the leftover-key diagnostic (`presentation_key_warning`):
+  JSON-pointer paths of schema nodes still carrying retired `x-*` keys
+  (`retired_extension_paths`: `x-widget`, `x-accept`, `x-max-file-size`,
+  `x-addable`, `x-removable` — UiSchema replaced them in v0.11) or misplaced
+  `ui:*` keys. The diagnostic is only *computed* here; the entry points
+  (`formosh.from_json_string*`, the component's schema-attribute handling)
+  emit it as a single `console.warn`.
 
-**Pipeline (to expand)**
+## Pipeline
 
-1. Decode raw JSON → intermediate dynamic.
-2. Build `JsonSchema` node tree (typed).
-3. Resolve `$ref` against `$defs` / `definitions` (JSON Pointer).
-   - Cycle detection → reject circular refs.
-   - Keywords beside the `$ref` win over the definition's, with several
-     per-field exceptions (`resolver.merge_properties`): `array_constraints`
-     merges per keyword, stricter-wins instead
-     (`resolver.merge_array_constraints`, shared with the `allOf` merge
-     below); `all_of`/`conditionals` concatenate; `read_only`/`nullable`
-     OR-merge. A crossed `array_constraints`
-     result (both sides already normalized, step 5) is a `ParseError`
-     (`resolver.array_constraints_crossed_reason`), same as a crossed
-     `allOf`.
-4. Compose `allOf`: deep-merge member schemas (properties, required, bounds,
-   `$ref` mixins); lift member conditionals to the parent.
-5. Normalize unsatisfiable constraints:
-   - `minItems > maxItems` authored directly on one node — its own bounds,
-     evaluated before any `$ref`/`allOf` merge — → `minItems` wins, fixed
-     size. E.g. `{"$ref": "#/$defs/Def" (no bounds), "minItems": 5,
-     "maxItems": 3}` normalizes to a fixed 5 regardless of the `$ref`; this
-     runs whether or not the node also carries a `$ref` or sits under
-     `allOf`, and is independent of step 3's merge (canonical rule:
-     [Array structure](../reference/schema-keywords.md#array-structure)).
-   - conflicting `type` / crossed bounds arising from an `allOf` composition
-     or a single-survivor `anyOf` collapse, and crossed `minItems`/`maxItems`
-     arising from a `$ref` sibling merge → `UnsatisfiableSchema` error.
-6. Emit parsed schema or `ParseError`.
+1. **Decode** the raw JSON into `Dynamic` (`json.parse`; errors map to
+   `ParseError.InvalidJson` / `DecodingError`).
+2. **Decode into the typed node tree** — `root_decoder` yields the root
+   `SchemaProperty` plus the `$defs` / `definitions` table. The document root
+   parses as a `SchemaProperty` and converts to `JsonSchema` only after
+   composition, so a composition member can type a typeless root and a
+   root-level `$ref` resolves.
+3. **Resolve `$ref`** against the defs (`resolver.resolve_property`, JSON
+   Pointer). Cycles are rejected via a visited set — do not bypass it.
+   Keywords beside the `$ref` win over the definition's, with per-field
+   exceptions in `resolver.merge_properties`: `array_constraints` merges
+   per-keyword, stricter-wins (`resolver.merge_array_constraints`, shared
+   with the `allOf` merge); `all_of` / `conditionals` concatenate;
+   `read_only` / `nullable` OR-merge. A crossed `array_constraints` result
+   is a `ParseError` (`resolver.array_constraints_crossed_reason`).
+4. **Compose `allOf`** (`composer.flatten_property`): members fold in array
+   order, parent-local keywords win last, same-key properties deep-merge
+   field-by-field, bounds combine stricter-wins, scalars take the later
+   value wholesale, member conditionals lift to the parent. `false` or
+   malformed members are `DecodingError`s; disjoint `type` declarations and
+   bound pairs that cross in the merged node are `UnsatisfiableSchema` (with
+   a `#/path` breadcrumb) — a composition that validates nothing is
+   rejected, not rendered. `true` members and an empty `allOf` are no-ops.
+   The same fold normalizes `anyOf` (`composer.normalize_any_of`): null
+   members collapse into `nullable`, a single surviving non-null member
+   merges into the node itself, and 2+ survivors stay a runtime union. A
+   parent `type` disjoint from every surviving member is likewise a
+   `ParseError`.
+5. **Normalize locally-contradictory arrays**: `minItems > maxItems`
+   authored directly on one node — its own bounds, evaluated before any
+   `$ref` / `allOf` merge — normalizes to a fixed size (`minItems` wins),
+   whether or not the node carries a `$ref`. Crossed bounds *arising from a
+   merge* (composition, single-survivor collapse, `$ref` sibling merge)
+   stay `UnsatisfiableSchema`. Canonical rule:
+   [Array structure](../reference/schema-keywords.md#array-structure).
+6. Return the `JsonSchema`, or the `ParseError`.
 
-**Cross-links**
+## Post-parse invariants
 
-- Conditional branches referencing `$defs` → [Visibility](visibility.md)
+Outside `$defs`, `all_of` is always `None` — composition is a parse-time
+concern. `$defs` entries keep their raw source material (an `allOf` there
+survives the serializer round-trip, as do nested `if/then/else`), because
+defs are unexpanded reference targets, not renderable nodes.
+
+## Cross-links
+
+- Runtime half of conditionals → [Visibility](visibility.md)
+- Keyword support matrix →
+  [Schema keywords](../reference/schema-keywords.md)
 - Public entry points → [Public API](../reference/api.md)
