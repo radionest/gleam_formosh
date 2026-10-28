@@ -22,7 +22,7 @@ say which mode they cover.
 | JSON Schema keyword support matrix | `docs/reference/schema-keywords.md` |
 | `ui:*` keys, removed `x-*` extensions | `docs/reference/ui-schema.md` |
 | Widget decision tree + overrides | `docs/reference/widgets.md` |
-| Maintainer internals (stubs) | `docs/internals/` |
+| Maintainer internals | `docs/internals/` |
 
 Features deliberately absent from the API (do not document them as existing)
 are tracked in `ROADMAP.md` under "API debts".
