@@ -1,0 +1,116 @@
+# AGENTS.md
+
+Guidance for AI coding agents working in this repository.
+
+## Project Overview
+
+Formosh is a JSON Schema-based form generator library for Gleam/Lustre that creates dynamic, type-safe forms using the Model-View-Update (MVU) architecture. It parses JSON Schema (draft 2020-12) and generates fully functional forms with validation.
+
+## Documentation
+
+`docs/` (OKF bundle) is the **single source of truth** for library behaviour — this file and `.zcode/rules/` only summarize and link. Start at `docs/index.md`; the per-topic map lives in `.zcode/rules/docs.md`. When a change alters behaviour described in `docs/`, update the affected page in the same PR. Planned work and known API debts live in `ROADMAP.md`. Topic rule digests (decoder/FFI patterns, error pipeline, rendering, generated files, docs map) live in `.zcode/rules/` — read the relevant one on demand.
+
+## Worktree Workflow
+
+- Feature development: always enter a worktree via `EnterWorktree` before making changes. Never `git checkout -b` on main — `block-branch-switch.sh` blocks it
+- Code-architect / code-explorer / code-reviewer agents also require a worktree — `require-worktree-agent.sh` blocks them on main. Enter the worktree before Phase 2 of feature-dev, not after the architect agents fail
+- If unstaged changes are already on main: `git stash` → `EnterWorktree` → `git stash pop`
+- Edits under `.zcode/` (config, hooks, rules) — allowed directly on main; `require-worktree.sh` whitelists `.zcode/*` (and the legacy `.claude/*`) and blocks `Edit`/`Write` elsewhere
+- Worktrees contain only git-tracked files. `.zcode/` (config.json, hooks, rules) is tracked, so a fresh worktree gets the full hook setup
+- Before `gh pr create`: `git fetch origin main` and check `git log --oneline main..origin/main` — if origin moved while the worktree was alive, rebase first or the diff will include unrelated reverts (the `block-branch-switch` hook injects the squash-merge recipe as context)
+- Before `gh pr create`: always run `Agent(subagent_type="pr-diff-reviewer", ...)` first. This is an advisory rule — no hook enforces it; the reviewer's report is the gate
+- After `gh pr create` succeeds: `pr-monitor.sh` (PostToolUse Bash) auto-spawns `pr-watch.sh` in the background. CI report lands at `/tmp/pr-<N>-report.md` — read that file when the user asks about CI status, do not re-poll `gh pr checks`
+- After `gh pr create` succeeds: default to `ExitWorktree(keep)` silently — do not ask. Worktree stays until PR merges
+- `EnterWorktree(path)` borrows a worktree but does not own its lifecycle — `ExitWorktree(remove)` will refuse to delete it. Files placed outside git tracking (build artefacts, scratch dirs) are not cleaned up; remove them manually before exit
+- `ExitWorktree(remove)` requires `discard_changes=true` if there are commits not in main
+- Post-merge cleanup: `ExitWorktree(remove)` first, then `git pull --ff-only origin main`. Do not use `gh pr merge --delete-branch` while worktree exists — local branch deletion will fail
+- The Stop hook blocks session end in a worktree — ask the user to choose:
+  1. **Push + PR**: commit all → `git push -u origin <branch>` → run `pr-diff-reviewer` → `gh pr create` → `ExitWorktree(keep)`
+  2. **Keep**: `ExitWorktree(keep)` — worktree stays for later
+  3. **Discard**: `ExitWorktree(remove, discard_changes=true)`
+
+## Essential Commands
+
+```bash
+# Install dependencies
+gleam deps download
+
+# Build the project
+gleam build
+
+# Run tests (gleeunit always runs every *_test.gleam in test/ — no per-module filter)
+gleam test
+
+# Format code (ALWAYS run before committing)
+gleam format
+
+# Build CDN bundle (cdn.min.mjs) for production
+npm run build
+
+# Run interactive demo (port 1234) — picks a JSON Schema, renders it with <formosh-form>
+make demo
+
+# Run echo test_server.py for form submission (port 8888)
+make demo-server
+```
+
+The `demo/` directory is a standalone Gleam project (`demo/gleam.toml`) that depends on the library via `formosh = { path = ".." }`. It mounts `<formosh-form>` and lets you click through all schemas in `demo/schemas/`, then edit the schema, ui-schema and form stylesheet live. The stylesheet editor is seeded from `demo/form-theme.css`, which holds every form rule — a new form style goes there, and the Pages workflow copies it into the site. `index.html` keeps the page chrome plus the palette variables and fonts the theme uses. `make demo` runs `gleam run -m lustre/dev start` inside `demo/`.
+
+## Architecture
+
+The codebase strictly follows Model-View-Update separation:
+- **Model** (`formosh/form/model.gleam`): Immutable state with path-based field addressing
+- **Update** (`formosh/form/update.gleam`): Pure functions for all state transitions
+- **View** (`formosh/form/view.gleam`): Declarative HTML generation
+
+### Path-Based Field System
+Critical for nested data handling — always use `form/path.gleam` utilities, never manual string concatenation:
+```gleam
+// Path segments: PropertySegment(name) or ArraySegment(index)
+// Example: [PropertySegment("lesions"), ArraySegment(0), PropertySegment("side")] → lesions.[0].side
+to_string(path: FieldPath) -> String    // Convert to dot notation
+get_field_name(path: FieldPath) -> String  // Extract final segment
+```
+
+Form values live in `model.values` as a single hierarchical `Value` tree (always `ObjectValue` at the root); read/write via `path.get_at_path` / `path.set_at_path`, never a Dict↔Value conversion. `model.errors` is keyed by dot-notation strings produced by `path.to_string` (e.g. `"lesions.[0].side"`).
+
+Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segment` + segment join rules). `path.to_string` delegates to it — treat `path_format.gleam` as the single source of truth and never re-implement the join elsewhere.
+
+## Common Pitfalls
+
+- **Paths**: Always use `form/path.gleam` utilities for nested fields, never string concatenation
+- **Validation timing**: Check `touched_fields` before displaying errors
+- **Array indexing**: Reindex array fields after any add/remove operation
+- **Array reconcile (`defaults.ensure_min_items`)**: runs after every values recompute that precedes validation — init, reset, `UpdateFieldPath`, `ClearFieldPath`, `AddArrayItemPath`, `apply_answers`, component re-init — topping arrays up to `minItems` (checkbox-group arrays — `types.is_multi_select` — are skipped). Deliberately NOT run on `RemoveArrayItemPath`/`MoveArrayItemPath` or in `ValidateForm` (don't fight the user; validation reports under-min instead). New values-recompute paths must call it too. Validation likewise runs on every update path — `array_collapse.incomplete_rows` leans on that invariant and skips its per-render validation pass once `model.errors` is populated or anything is touched (#110)
+- **Array collapse state** (`array_collapse_off`, `array_rows_expanded`): view-only, path-keyed, never touches `values` or validation; reindexes with the array in the `RemoveArrayItemPath` / `MoveArrayItemPath` folds, same as `touched_fields`. `AddArrayItemPath` also force-expands the new row into `array_rows_expanded` so it's never born collapsed, and `clear_subtree` (the union-branch-switch reset) prunes both lists on the same prefix as `touched_fields` — a future array-mutating path must preserve all three invariants. Collapsing folds rather than unmounts: for a collapse-enabled array every row's fields are wrapped in `array-item-body` (`render_item_body`), rendered in both states; the `grid-template-rows: 1fr↔0fr` fold and its transition come from the library stylesheet (`internal/stylesheet.gleam`), keyed on the row's `data-collapsed` — a wrapper appearing only once the row is shut would have nothing to animate from. Collapsed bodies are `inert`; arrays without `collapseCompleted` get no wrapper at all. A row's children are unkeyed, so the summary must occupy its slot in every state (`element.none()` when the row is incomplete): a conditionally-present summary shifts the header and body down one index, and the positional diff then rebuilds the body — a fresh element at `0fr` has nothing to transition from, so the automatic fold snaps and the focused input is torn down mid-edit. Markup is unaffected either way, so only the `completing a row folds the body node it already had` e2e test catches a regression here
+- **Circular $refs**: Resolver maintains visited set — do not bypass it
+- **View refactors**: Required-asterisk (` *` with `class="formosh-required"`) and error wrappers are easy to drop when unifying renderers. Use `field_common.render_required_marker` and let the field dispatcher own error display — re-render the marker explicitly per container, not «implicitly via the parent»
+
+## Web Component
+
+Registers as `<formosh-form>` custom element. Attributes: `schema`, `ui-schema`, `submit-url`, `submit-method`, `initial-values`, `show-readonly-fields`, `read-only`, `upload-base-url`. Emits events: `formosh-ready`, `formosh-submitting`, `formosh-submit`, `formosh-change`. Full guide: `docs/guides/web-component.md`.
+
+`read-only="true"` renders the whole form as a static label→value summary (review mode) instead of inputs, hiding Submit/Reset — distinct from `show-readonly-fields`, which only toggles visibility of schema `readOnly` fields in edit mode. One exception to "plain value": `password`-format / `ui:widget: "password"` fields show a fixed `••••••••` mask instead of the stored value, same as in edit mode — see `docs/reference/widgets.md`. Drives the `readonly_field` renderer (`src/formosh/fields/readonly_field.gleam`); exposes `::part(readonly-field|readonly-label|readonly-value|readonly-group|readonly-group-label|readonly-group-body|readonly-table|readonly-th|readonly-td)`.
+
+Styling: the component runs in open Shadow DOM, so target it via `::part()` selectors (`formosh-form::part(input)`, etc.) and `[part=field][data-error]` / `[part=field][data-readonly]` for field state, plus `[part=field][data-name=…]` / `[data-path=…]` for field identity (not state). Parent stylesheets are also auto-adopted, so plain `.formosh-input { ... }` rules still apply inside the shadow root. Part catalog: `docs/guides/styling.md`. formosh's own defaults (the `ui:layout` Row grid, the array fold, the swipe row's `touch-action`) live in `src/formosh/internal/stylesheet.gleam`, rendered as the container's first child inside `@layer formosh` — the lowest layer, so consumer rules override them without `!important` (edge cases — plain-Lustre layer ordering, page sheets Lustre cannot copy — in `docs/guides/styling.md#cascade-and-limitations`). Inline `style` is reserved for runtime state (the swipe widget's drag/fly-off); never add an inline default. Tokens: `docs/guides/styling.md#tokens`. Before editing that stylesheet, read its comments: selector quoting and `.formosh-container` scoping rules live there.
+
+## UiSchema
+
+Presentation hints live in a parallel `UiSchema` (react-jsonschema-form-style JSON: `ui:widget`, `ui:order`, `ui:layout`, `ui:placeholder`, `ui:help`, `ui:autofocus`, `ui:disabled`, `ui:readonly`, `ui:title`, `ui:description`, `ui:options`, `ui:addable`, `ui:removable`, `ui:orderable`, `ui:accept`, `ui:maxFileSize`). Children are nested inline by field name; `items` is the array-element template. `lookup` (`formosh/schema/ui_resolver`) walks by `FieldPath` — `ArraySegment` ignores the index and descends into `items`. Full reference: `docs/reference/ui-schema.md`.
+
+- `x-widget` / `x-accept` / `x-max-file-size` / `x-addable` / `x-removable` were removed in v0.11 — UiSchema is the only hint source. `parser.parse_schema` is pure; `parser.parse_schema_with_warning` returns the leftover-key diagnostic (retired `x-*` and misplaced `ui:*` keys on schema nodes) from the same parse, and `formosh.from_json_string*` / `component_core.parse_schema_attr` emit it as one `console.warn`. Migration: `docs/reference/api.md`.
+- `ui:disabled` and `ui:readonly` **OR-merge** with the parent / schema. `ui:disabled: false` on a child of a disabled container does NOT re-enable it — mirrors HTML's `disabled` inheritance and JSON Schema's `readOnly`. To selectively enable, hoist the disabled flag to the leaf instead of the container.
+- `ui:orderable` toggles the per-row ▲/▼ reorder buttons on an array (default `true`). Set `ui:orderable: false` to hide them. Buttons are disabled at the ends and hidden when the array has one item or fewer; controls expose classes `move-array-item-up` / `move-array-item-down`.
+- `ui:options` on an array node additionally supports `collapseCompleted` (bool, default `false`), `collapseCompletedLabel` (string, default `"Collapse completed"`), and `summaryFields` (string[], default `[]` — every scalar field of the row's resolved schema, in schema order, arrays and objects excluded) to collapse completed rows to a one-line summary. See `docs/reference/ui-schema.md#collapse-completed-array-rows` and `docs/reference/widgets.md#collapsing-completed-rows`.
+- `ui:accept` / `ui:maxFileSize` are only honoured when `ui:widget: "image-upload"` is set. Without the widget hint they are silently dropped (the `UploadConfig` is not emitted).
+- `ui:layout` arranges a container's fields into `Row`/`Group` nodes instead of one field per row; leaves are single-segment child names — a `.` is rejected and reserved for future path addressing — and it has no effect in review mode (`read-only="true"`). See `docs/reference/ui-schema.md#layout-with-uilayout`.
+
+## Notes
+
+- All `.mjs` files are auto-generated — do not read or edit them (except the hand-written FFI `src/formosh/ffi/*_ffi.mjs` and `demo/src/validators_ffi.mjs`, the hand-written E2E tooling under `e2e/*.mjs`, and the hand-written build gate `scripts/verify-cdn-bundle.mjs`)
+- `allOf` composition is merged at parse time (`schema/composer.gleam`): members fold in array order, parent-local keywords win last, same-key properties deep-merge field-by-field, bounds combine stricter-wins, scalars (enum/oneOf/pattern/format) take the later value wholesale, member conditionals are lifted to the parent. The document root parses as a `SchemaProperty` and converts to `JsonSchema` post-merge, so a member can type a typeless root (the `object` default applies only when composition supplies no type) and a root-level `$ref` resolves. Strictness: `false` or malformed members, disjoint `type` declarations (`number`∧`integer` narrows to `integer`), and min/max pairs that cross in a composed node's merged constraints (even string/number bounds authored on the node itself beside a non-empty `allOf`; `minItems`/`maxItems` are normalized per schema object first — `docs/reference/schema-keywords.md#array-structure`) are `ParseError`s (`DecodingError` for `false`/malformed members; `UnsatisfiableSchema` with a `#/path` breadcrumb for type/bounds conflicts) — a composition that validates nothing is rejected instead of rendered; `true` members and empty `allOf` are no-ops. Post-parse `all_of` is always `None` outside `$defs` (defs entries stay raw source material; an `allOf` inside `$defs` survives the serializer round-trip, as do nested `if/then/else` — #152)
+- `anyOf` is parsed, `$ref`-resolved inside members, and normalized at parse time by `composer.normalize_any_of`: null members drop into `nullable` (an empty nullable field validates as satisfied, submits `null`, and never shows the required asterisk — even when the field is named in `required`, Pydantic `Optional[X]`-style); a single surviving non-null member merges into the node itself (`Optional[X]` renders as a plain `X` field); 2+ surviving members stay in `any_of` and render as a runtime branch chooser (`model.selected_branches`, `SelectUnionBranchPath` msg, radio ≤5 branches / select >5, `ui:widget: "select"|"radio"` override, parts `union`/`union-radio`/`union-select`) — switching to a genuinely different branch clears the subtree (an array row is reset in place rather than removed, so sibling indices never shift) and applies the new branch's own defaults, scoped to that field's subtree only (unrelated fields elsewhere in the form are never re-hydrated). Re-selecting the branch already active — stored or currently active by inference — is a no-op: values/errors/touched stay untouched (a checked radio's `on_click` fires even without a change). Branch inference (no stored selection: type match for scalars, property-key overlap for objects, else 0) is resolution-time only for programmatic paths — init, `apply_answers`, component re-init all infer fresh and never persist — but a user-driven edit (`UpdateFieldPath`/`ClearFieldPath`) inside an inferred branch persists that inference on first edit, so clearing the field that drove it doesn't snap the chooser back to branch 0. Member extraction is lenient (malformed members are dropped); a parent `type` disjoint from every surviving member's type, or bounds crossed by a single survivor's merge, is a `ParseError` (`UnsatisfiableSchema`), same strictness as `allOf`. `oneOf` remains const+title enum rendering only — not processed as a schema-variant selector
+- `ui:widget: "image-upload"` works only on top-level properties; nested image-upload fields (inside objects/arrays) are not yet supported
+- An array with `uniqueItems: true` whose scalar `items` carry options (`enum` of 2+ values / `oneOf` const+title) renders as a checkbox group (`types.is_multi_select` → `string_field.render_checkboxes`): typed consts in schema order, unchecking the last box removes the key, `maxItems` disables the remaining boxes, no `minItems` top-up. `uniqueItems` is also validated on every array. See `docs/reference/widgets.md#checkbox-group-multi-select`
+- `ui:widget: "hidden"` suppresses rendering at any depth; the field still validates and submits. Combine with JSON Schema `default` for `<input type="hidden">`-like behaviour. The default submit gate (`model.can_submit`) stays **strict** — a required hidden field without a satisfying value blocks submit. To surface the otherwise-invisible cause, a `console.warn` (via `ffi/console`) lists the suppressed-path errors whenever they are the *only* blockers. It is emitted from `component_core` at form (re)initialisation — the submit button is `disabled` in this state, so `FormSubmit` never fires through `<formosh-form>` — via `component_core.hidden_blocks_warn` wrapping `update.warn_only_hidden_blocks_effect`; `update.FormSubmit` emits the same warn for headless `model.init` embeddings that have no disabled-button gate. These are the only warn sites — entering the state mid-session (a value change flipping a conditional branch, or a dynamic `UiSchemaChanged`) does not emit it; tracked in #65. Visible errors keep the warn silent since the UI already explains the block. Callers that want a permissive gate (submit succeeds despite invisible required errors — e.g. the backend supplies the value) can read `model.is_valid_for_submit`. `model.hidden_errors` returns the suppressed slice for custom diagnostics. The same suppression set covers `readOnly` fields when `show_readonly_fields: false`. Walker lives in `formosh/form/visibility`; called on demand from `model.invisible_paths` so no `FormModel` field needs to track it
+- HTTP submissions use the `rsvp` library for effect management

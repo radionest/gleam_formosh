@@ -1,7 +1,7 @@
 # Documentation is the source of truth
 
 `docs/` (OKF bundle) is the single source of truth for library behaviour.
-CLAUDE.md and these rules only summarize — when they disagree with `docs/`,
+AGENTS.md and these rules only summarize — when they disagree with `docs/`,
 trust `docs/`. When a code change alters behaviour described in `docs/`,
 update the affected page in the same PR.
 

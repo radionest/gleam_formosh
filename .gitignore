@@ -37,6 +37,9 @@ docs/superpowers/
 .claude/commands/opsx/
 .claude/skills/openspec-*/
 .claude/plans/
+.zcode/commands/opsx/
+.zcode/skills/openspec-*/
+.zcode/plans/
 
 # OpenSpec local spec store (Claude working memory, synced via doc-review gate)
 /openspec
