@@ -51,9 +51,11 @@ runs once per form creation (and per `schema` attribute change on
    rejected, not rendered. `true` members and an empty `allOf` are no-ops.
    The same fold normalizes `anyOf` (`composer.normalize_any_of`): null
    members collapse into `nullable`, a single surviving non-null member
-   merges into the node itself, and 2+ survivors stay a runtime union. A
-   parent `type` disjoint from every surviving member is likewise a
-   `ParseError`.
+   merges into the node itself, and 2+ survivors stay a runtime union. When
+   a single survivor merges into the node, a parent `type` disjoint from it
+   is a `ParseError` (the same `merge_pair` type intersection that `allOf`
+   uses); with 2+ survivors the parent's own `type` is not re-checked
+   against the members.
 5. **Normalize locally-contradictory arrays**: `minItems > maxItems`
    authored directly on one node — its own bounds, evaluated before any
    `$ref` / `allOf` merge — normalizes to a fixed size (`minItems` wins),

@@ -18,8 +18,8 @@ of it.
 | `schema` | The parsed JSON Schema — parse-time `allOf` already merged, conditionals still raw rules. |
 | `resolved_schema` | The *effective* schema for the current values: union branches materialized, `if/then/else` applied. Recomputed on every values change by `recompute_resolved_schema` — union resolution first, then conditionals. |
 | `values` | The single hierarchical `Value` tree, always `ObjectValue` at the root. |
-| `errors` | `Dict(String, List(ValidationError))` keyed by the canonical path string (`"lesions.[0].side"`). Mutate only via `add_error_at_path` / `clear_errors_at_path`; `is_valid` is derived as `dict.size(errors) == 0` on each mutation. |
-| `touched_fields` | `List(FieldPath)` — focused-then-blurred fields; gates error visibility (see [Update](update.md)). |
+| `errors` | `Dict(String, List(ValidationError))` keyed by the canonical path string (`"lesions.[0].side"`). Mutate only via `add_error_at_path` / `clear_errors_at_path`; `is_valid` tracks the dict — True only while the dict is empty. |
+| `touched_fields` | `List(FieldPath)` — fields the user has interacted with; marked on the first value write, not on blur. Gates error visibility (see [Update](update.md)). |
 | `selected_branches` | `List(#(FieldPath, Int))` — active `anyOf` branch per field path. An association list, not a `Dict` (`FieldPath` is a list; `list.key_find` / `key_set` do the lookup). |
 | `disabled_fields` | Read by `is_field_disabled`; nothing in `src/` populates it — `ui:disabled` is honoured at render time from the UiSchema hints. |
 | `is_submitting`, `is_dirty`, `is_valid`, `submission_result`, `submit_config` | Submission lifecycle. |

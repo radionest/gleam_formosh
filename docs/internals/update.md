@@ -7,7 +7,7 @@ description: "Msg handling and state transitions: the field-edit pipeline, array
 # Update (internals)
 
 `update(model, msg) -> #(FormModel, Effect(FormMsg))`
-(`src/formosh/form/update.gleam`) is the only state transition function. All
+(`src/formosh/form/update.gleam`) is the MVU state-transition function — the `model.init*` constructors and `model.reset` are the other transition sites. All
 messages are `FormMsg` variants (declared in
 `src/formosh/form/model.gleam`):
 

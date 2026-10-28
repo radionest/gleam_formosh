@@ -77,7 +77,7 @@ The codebase strictly follows Model-View-Update separation:
 - **Update** (`formosh/form/update.gleam`): Pure functions for all state transitions
 - **View** (`formosh/form/view.gleam`): Declarative HTML generation
 
-**Paths** — critical for nested data handling; always use `form/path.gleam` utilities, never manual string concatenation. Segments are `PropertySegment(name)` / `ArraySegment(index)`, e.g. `[PropertySegment("lesions"), ArraySegment(0), PropertySegment("side")]` → `lesions.[0].side`. Form values live in `model.values` as a single hierarchical `Value` tree (always `ObjectValue` at the root); read/write via `path.get_at_path` / `path.set_at_path`, never a Dict↔Value conversion. `model.errors` is keyed by dot-notation strings produced by `path.to_string` (e.g. `"lesions.[0].side"`).
+**Paths** — critical for nested data handling; always use `form/path.gleam` utilities, never manual string concatenation. Segments are `PropertySegment(name)` / `ArraySegment(index)`, e.g. `[PropertySegment("lesions"), ArraySegment(0), PropertySegment("side")]` → `lesions.[0].side`. Form values live in `model.values` as a single hierarchical `Value` tree (always `ObjectValue` at the root); read/write via `path.get_at_path` / `path.set_at_path`, never a Dict↔Value conversion. `model.errors` is keyed by dot-notation strings produced by `path.to_string` (e.g. `"lesions.[0].side"`); `path.get_field_name` extracts a path's final segment.
 
 Canonical key format is owned by `formosh/path_format.gleam` (`array_index_segment` + segment join rules). `path.to_string` delegates to it — treat `path_format.gleam` as the single source of truth and never re-implement the join elsewhere.
 
