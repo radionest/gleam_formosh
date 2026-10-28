@@ -119,7 +119,7 @@ default".
 
 | Key | Type | Effect |
 |-----|------|--------|
-| `ui:order` | string[] | Reorders children of this object. Fields not listed keep their schema order after the listed ones. A key listed twice renders once, at its first position (unlike `ui:layout`). Use `"*"` as a wildcard to mean "the rest, in schema order". |
+| `ui:order` | string[] | Reorders children of this object. Fields not listed keep their schema order after the listed ones. A key listed twice renders once, at its first position (unlike `ui:layout`). Unknown keys are dropped — there is no rjsf-style `"*"` wildcard. |
 | `ui:layout` | array | Arranges children into `Row`/`Group` nodes instead of a flat list; unplaced fields still render after it, in `ui:order`. See [Layout with `ui:layout`](#layout-with-uilayout) below. |
 
 ### Array controls

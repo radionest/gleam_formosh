@@ -51,7 +51,8 @@ validation. Change the schema; the form follows.
   anything.
 - **No built-in look.** The component ships with essentially no default
   CSS. Its only defaults are the ones a feature cannot work without — a
-  `ui:layout` `Row`'s grid and a collapsing array row's fold — and they sit
+  `ui:layout` `Row`'s grid, a collapsing array row's fold, and the swipe
+  row's `touch-action: pan-y` — and they sit
   in `@layer formosh`, the lowest-priority layer inside `<formosh-form>`,
   so any rule you write overrides them without `!important` (barring edge
   cases — in a plain Lustre app, declare `@layer formosh` first); the swipe

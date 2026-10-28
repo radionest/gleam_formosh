@@ -186,9 +186,13 @@ options, which render the enum widget (see above). If `multipleOf` is set,
 it becomes the input `step` attribute (with the tolerant `1e-8` comparison
 applied during validation —
 see [Schema Keywords](schema-keywords.md#number-constraints)). `minimum` /
-`maximum` / `exclusiveMinimum` / `exclusiveMaximum` are enforced but do
-**not** become HTML attributes (validation runs in the update loop, not in
-the browser).
+`maximum` / `exclusiveMinimum` / `exclusiveMaximum` are also projected onto
+the input as `min` / `max` attributes (`get_number_constraints_attributes`
+in `number_field.gleam`: exclusive bounds are epsilon-adjusted by
+`±0.000001`, and with `multipleOf` the lower bound is raised to the nearest
+satisfying multiple so the native stepper only produces schema-valid
+values). Authoritative validation still runs in the update loop, not in
+the browser.
 
 ## Boolean fields
 

@@ -108,7 +108,7 @@ funnelled through one dispatcher:
 | `layout.gleam` | Arranges a container's own fields per its `ui:layout` (`Row`/`Group` nodes around leaves); called from `view.gleam` (root), `object_field.gleam` (nested objects), and `array_field.gleam` (array rows). |
 | `string_field.gleam` | Text, textarea, email, url, date, time, password, date-time (text); the enum radios/select for every field type (string, number/integer with `enum`/`oneOf` options, typeless); also renders the `uniqueItems` option-array checkbox group. |
 | `number_field.gleam` | Number input (with `step` from `multipleOf`) for numbers without `enum`/`oneOf` options. |
-| `boolean_field.gleam` | Yes/No radios / toggle. |
+| `boolean_field.gleam` | Yes/No radios. (A toggle renderer exists in the module, but the dispatcher does not route to it yet — `ROADMAP.md`.) |
 | `array_field.gleam` | Dynamic list with add/remove/move controls. |
 | `array_collapse.gleam` | Pure collapse-completed logic for `array_field.gleam`: `ui:options` parsing, the completed predicate, summary-text assembly. No Lustre dependency, mirroring the `swipe_review` / `swipe_review_field` split. |
 | `object_field.gleam` | Nested fieldset. |
