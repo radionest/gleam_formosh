@@ -63,8 +63,8 @@ Gleam required. Start here if you're not a Gleam project.
 - Cross-links between concepts use relative markdown paths so they resolve
   whether you browse on GitHub, in an OKF viewer, or locally with `cat`.
 - This bundle is the **single source of truth** for library behaviour. The
-  README is a quick introduction and defers to it; `CLAUDE.md` and
-  `.claude/rules/` only summarize and link here. If code and this bundle
+  README is a quick introduction and defers to it; `AGENTS.md` and
+  `.zcode/rules/` only summarize and link here. If code and this bundle
   disagree, one of the two has a bug — fix them together.
 
 # Top-level indices

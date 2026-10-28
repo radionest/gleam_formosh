@@ -127,9 +127,11 @@ gate; see `render_visible` in `fields/field_dispatcher.gleam`).
 | `anyOf` | ✅ | Parsed, `$ref`-resolved inside members, and normalized at parse time (`schema/composer.gleam`): null members collapse into a `nullable` flag — an empty nullable field validates as satisfied and submits `null` (see [Web Component](../guides/web-component.md#nullable-fields)); a single surviving non-null member merges into the node itself (`Optional[X]` renders as a plain `X` field); 2+ surviving members stay in `any_of` and render as a runtime branch chooser (radio ≤5 branches / select >5, `ui:widget` override — see [Widget Selection](widgets.md)). Member extraction is lenient (malformed members dropped); a parent `type` disjoint from every surviving member is a `ParseError`. The single survivor merges like an `allOf` member, so bounds crossed by that merge fail too (e.g. `minLength: 5` on the node, `maxLength: 3` in the survivor). A **bare** `anyOf` directly as an array's `items` schema (no object wrapper) does not render a chooser. |
 | `not` | ❌ | Not parsed. |
 
-**`allOf` round-trip caveat.** `allOf` inside a `$defs` entry does not
-survive schema serialization round-trip (`$defs` stay raw source; the
-serializer re-emits flattened schemas).
+**`allOf` round-trip.** An `allOf` inside a `$defs` entry **survives** the
+serialization round-trip: `$defs` entries are re-emitted as raw source
+material, so their `allOf` (and nested `if`/`then`/`else`) is preserved
+verbatim (#152). Outside `$defs`, post-parse `all_of` is always `None` —
+composed nodes are serialized flattened.
 
 ## Conditionals
 
@@ -141,7 +143,7 @@ serializer re-emits flattened schemas).
 
 | Feature | Status |
 |---------|--------|
-| HTTP `POST` / `PUT` via [rsvp](https://hexdocs.pm/rsvp/) | ✅ |
+| HTTP `POST` / `PUT` / `PATCH` via [rsvp](https://hexdocs.pm/rsvp/) | ✅ |
 | Custom submission handler | ✅ |
 | No-submission (read values manually) | ✅ (default) |
 | HTTP `GET` | ❌ |

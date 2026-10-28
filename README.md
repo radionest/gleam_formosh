@@ -414,7 +414,6 @@ The widget is chosen automatically based on schema:
 - Unions inside array rows: hidden-field suppression and read-only table columns do not per-row-resolve the active branch (issue #86)
 - `not`
 - `allOf` enum/`oneOf` intersection — colliding `enum`/`oneOf` values take the later member's list wholesale
-- `allOf` inside a `$defs` entry does not survive schema serialization round-trip (`$defs` stay raw; the serializer re-emits flattened schemas)
 - `additionalProperties`, `patternProperties`
 - `dependencies`, `dependentRequired`, `dependentSchemas`
 - `prefixItems` (tuple validation)
@@ -460,7 +459,7 @@ Notes:
 - **Plain Lustre app** (`lustre.start`, as in the Quick Start): there is no shadow root, so `::part()` does not apply — use class and `[part=…][data-…]` selectors, set tokens on any ancestor (`:root`, the mount point), and declare `@layer formosh, …;` first in your CSS, or formosh's defaults outrank the layers your stylesheets declare ahead of the form in the document. See `docs/guides/styling.md#plain-lustre-app-no-shadow-root`.
 - **Compound parts**: elements that carry two part tokens (e.g. `part="radio-group boolean"`) are reachable through either token. `::part()` does not support descendant combinators — so `radio-item` inside a boolean group cannot be addressed differently from one inside an enum group through Shadow Parts alone.
 
-formosh ships no look of its own. Its only defaults are the ones features cannot work without — a `ui:layout` `Row`'s grid and a collapsing array row's fold — and the only inline styles it writes are the swipe widget's runtime drag and fly-off (transform, opacity, transition, pointer-events); `docs/guides/styling.md` lists them.
+formosh ships no look of its own. Its only defaults are the ones features cannot work without — a `ui:layout` `Row`'s grid, a collapsing array row's fold, and the swipe row's `touch-action: pan-y` — and the only inline styles it writes are the swipe widget's runtime drag and fly-off (transform, opacity, transition, pointer-events); `docs/guides/styling.md` lists them.
 
 ## Development
 
